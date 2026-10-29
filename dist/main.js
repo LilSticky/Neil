@@ -1,11 +1,25 @@
 // Placeholder on the deploy branch until the first CI deploy replaces it (slice 001).
 // Checks the settings against Discord without printing any secret.
-import { existsSync } from "node:fs";
-
-const { DISCORD_TOKEN, DISCORD_APPLICATION_ID, DISCORD_GUILD_ID, DATA_DIR } = process.env;
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 console.log("Neil deploy placeholder");
 console.log(`node ${process.version}, cwd ${process.cwd()}, git checkout: ${existsSync(".git") ? "yes" : "no"}`);
+console.log(`files: ${readdirSync(".").join(", ")}`);
+console.log(`variables in the environment (names only): ${Object.keys(process.env).sort().join(", ")}`);
+
+if (existsSync(".env")) {
+  const names = readFileSync(".env", "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.split("=")[0].trim())
+    .filter((name) => name && !name.startsWith("#"));
+  console.log(`.env exists with variables: ${names.join(", ") || "(none)"}`);
+  process.loadEnvFile(".env");
+} else {
+  console.log(".env: not found");
+}
+
+const { DISCORD_TOKEN, DISCORD_APPLICATION_ID, DISCORD_GUILD_ID, DATA_DIR } = process.env;
+
 console.log(
   `env: DISCORD_TOKEN ${DISCORD_TOKEN ? "set" : "missing"}, DISCORD_APPLICATION_ID ${DISCORD_APPLICATION_ID ?? "missing"}, ` +
     `DISCORD_GUILD_ID ${DISCORD_GUILD_ID ?? "missing"}, DATA_DIR ${DATA_DIR ?? "missing"}`,
