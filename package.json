@@ -1,5 +1,18 @@
 {
   "name": "neil",
+  "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "description": "Discord bot for a Last Asylum: Plague server",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "zod": "^4.6.7"
+  }
 }

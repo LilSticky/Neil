@@ -1,43 +1,35 @@
-// Placeholder on the deploy branch until the first CI deploy replaces it (slice 001).
-// Checks the settings against Discord without printing any secret.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-
-console.log("Neil deploy placeholder");
-console.log(`node ${process.version}, cwd ${process.cwd()}, git checkout: ${existsSync(".git") ? "yes" : "no"}`);
-console.log(`files: ${readdirSync(".").join(", ")}`);
-console.log(`variables in the environment (names only): ${Object.keys(process.env).sort().join(", ")}`);
-
-if (existsSync(".env")) {
-  const names = readFileSync(".env", "utf8")
-    .split(/\r?\n/)
-    .map((line) => line.split("=")[0].trim())
-    .filter((name) => name && !name.startsWith("#"));
-  console.log(`.env exists with variables: ${names.join(", ") || "(none)"}`);
-  process.loadEnvFile(".env");
-} else {
-  console.log(".env: not found");
-}
-
-const { DISCORD_TOKEN, DISCORD_APPLICATION_ID, DISCORD_GUILD_ID, DATA_DIR } = process.env;
-
-console.log(
-  `env: DISCORD_TOKEN ${DISCORD_TOKEN ? "set" : "missing"}, DISCORD_APPLICATION_ID ${DISCORD_APPLICATION_ID ?? "missing"}, ` +
-    `DISCORD_GUILD_ID ${DISCORD_GUILD_ID ?? "missing"}, DATA_DIR ${DATA_DIR ?? "missing"}`,
-);
-
-if (DISCORD_TOKEN) {
-  const discord = (path) =>
-    fetch(`https://discord.com/api/v10${path}`, { headers: { Authorization: `Bot ${DISCORD_TOKEN.trim()}` } });
-
-  const me = await discord("/users/@me");
-  if (!me.ok) {
-    console.log(`token check: Discord rejected the token (HTTP ${me.status}). Reset it in the developer portal and paste it again.`);
-  } else {
-    const bot = await me.json();
-    console.log(`token check: OK, this is the bot "${bot.username}" (id ${bot.id})`);
-    console.log(`application id matches: ${bot.id === DISCORD_APPLICATION_ID ? "yes" : "NO"}`);
-    const guilds = await discord("/users/@me/guilds");
-    const ids = guilds.ok ? (await guilds.json()).map((guild) => guild.id) : [];
-    console.log(`bot is on the server DISCORD_GUILD_ID: ${ids.includes(DISCORD_GUILD_ID) ? "yes" : "NO (invite it, or check the ID)"}`);
-  }
-}
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { readBuildInfo } from "./build-info.js";
+import { connect } from "./discord/client.js";
+import { prepareDataDir } from "./storage/data-dir.js";
+import { openDatabase } from "./storage/database.js";
+import { StartRecordStore } from "./storage/start-record-store.js";
+import { start } from "./startup.js";
+// Wispbyte writes its panel variables to .env instead of exporting them; exported variables win.
+if (existsSync(".env"))
+    process.loadEnvFile(".env");
+await start({
+    env: process.env,
+    now: () => new Date(),
+    readBuildInfo: () => readBuildInfo(fileURLToPath(new URL("../build-info.json", import.meta.url))),
+    prepareDataDir,
+    openStore: (dataDir) => {
+        const db = openDatabase(dataDir);
+        const store = new StartRecordStore(db);
+        return { load: () => store.load(), save: (record) => { store.save(record); }, close: () => { db.close(); } };
+    },
+    connect,
+    onStopSignal: (handler) => {
+        for (const signal of ["SIGINT", "SIGTERM"])
+            process.once(signal, () => void handler());
+    },
+    writeError: (text) => {
+        console.error(text);
+    },
+    // Let open handles (the websocket) finish closing; process.exit() mid-close crashes libuv on Windows.
+    exit: (code) => {
+        process.exitCode = code;
+    },
+});
+//# sourceMappingURL=main.js.map
