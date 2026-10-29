@@ -88,7 +88,10 @@ and the handlers of US1, so it follows US1 directly.
 - [x] T016 [US1] Route commands by name in `src/discord/client.ts` (test: `player` reaches its handler, `ping`
   still works) and wire `GameApiClient` in `src/startup.ts` / `src/main.ts` (test in `src/startup.test.ts`: the
   client is built with the configured key and passed to `connect`)
-- [ ] T017 [US1] **Manual check on the test server** (quickstart steps 1–4); record the result here
+- [x] T017 [US1] **Manual check on the test server** (quickstart steps 1–4); record the result here
+  *Done 2026-10-29 by the user, local `npm run dev`: step 2 public card, step 3 private uid help text. Step 4
+  first said "busy" (8 s timeout; the tracker answers 502 after ~10 s, research R11); after the fix it gave
+  "Couldn't find a player with the uid 1. …" as expected.*
 
 **Checkpoint**: MVP: `/player` works on the test server.
 
@@ -131,7 +134,8 @@ status mapping.
   `alliance` "max length 40", both required) with its test
 - [x] T027 [US2] Test and implement `handleAlliance` in `src/discord/lookup.ts` (invalid kingdom/key → ephemeral,
   no call; found → card; not-found / ambiguous → ephemeral) and route it in `src/discord/client.ts`
-- [ ] T028 [US2] **Manual check on the test server** (quickstart steps 5–6); record the result here
+- [x] T028 [US2] **Manual check on the test server** (quickstart steps 5–6); record the result here
+  *Done 2026-10-29 by the user: `/alliance kingdom:1 alliance:NML` public card; `ZZZQX` private "No alliance …".*
 
 ---
 
@@ -140,7 +144,7 @@ status mapping.
 - [x] T029 `bot-reviewer` over `src/game-api/` and `src/discord/`; fixes via `implementer`
 - [x] T030 Update `documentation/GAME-API.md` from the recorded fixtures (patron status, headers on 200s,
   names with spaces) and close its answered open questions
-- [ ] T031 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`), ready-to-merge PR (`Closes` the slice issue)
+- [x] T031 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`), ready-to-merge PR (`Closes` the slice issue)
 - [ ] T032 Add `LAP_TRACKER_API_KEY` in the Wispbyte panel before the merge deploys (manual, user), merge,
   restart, and repeat T017/T028 against Wispbyte
 

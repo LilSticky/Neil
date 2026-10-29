@@ -7,12 +7,12 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 002 "Look up a player" (branch `002-look-up-a-player`, draft PR #6, issue #5): `/player` and `/alliance` implemented, green (230 tests) and reviewed; waiting for the manual test-server check (T017, T028). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+Slice 002 "Look up a player" (branch `002-look-up-a-player`, draft PR #6, issue #5): `/player` and `/alliance` implemented, green (238 tests), reviewed, audited and checked on the test server (T017, T028); PR ready, merge held until Wispbyte has the key. Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
 `main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Next step:** the user runs the test-server check in [quickstart.md](../specs/002-look-up-a-player/quickstart.md) (Wispbyte stopped, `npm run commands:register`, `npm run dev`); then T031–T032 in [tasks.md](../specs/002-look-up-a-player/tasks.md).
+**Next step:** the user confirms `LAP_TRACKER_API_KEY` is in the Wispbyte panel; then squash-merge PR #6, restart Wispbyte and repeat the checks there (T032).
 
 ## Known broken / WIP
 
