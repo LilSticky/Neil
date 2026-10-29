@@ -49,7 +49,7 @@ Tests sit next to their files as `*.test.ts`.
 
 **Purpose**: CI on every pull request and push (FR-009), so every later task is checked.
 
-- [ ] T006 Create `.github/workflows/ci.yml` job `checks`: on `pull_request` and `push` to `main`; `actions/setup-node`
+- [X] T006 Create `.github/workflows/ci.yml` job `checks`: on `pull_request` and `push` to `main`; `actions/setup-node`
   with `node-version-file: .nvmrc` and npm cache; `npm ci`, `npm run typecheck`, `npm run lint`, `npm run test`,
   `npm run build`
 - [ ] T007 Push the branch and confirm the `checks` job runs green on the pull request (open it as a draft
@@ -67,13 +67,13 @@ Tests sit next to their files as `*.test.ts`.
 
 Done before US1 because US1's composition root needs the typed `Configuration`.
 
-- [ ] T008 [US2] Test `src/config.test.ts`: `loadConfig(env)` returns a `Configuration` (`discordToken`,
+- [X] T008 [US2] Test `src/config.test.ts`: `loadConfig(env)` returns a `Configuration` (`discordToken`,
   `applicationId`, `guildId`, `dataDir`) for valid input; `DATA_DIR` defaults to `./data`; `DISCORD_TOKEN`
   "required, non-empty"; `DISCORD_APPLICATION_ID` and `DISCORD_GUILD_ID` "Discord snowflake (17–20 digits)";
   missing and invalid settings are **all** reported in one error, each line `- NAME: rule` as in
   [contracts/configuration.md](contracts/configuration.md#startup-output-on-invalid-configuration); the error
   text never contains the token value (use a distinctive fake token and assert it is absent)
-- [ ] T009 [US2] Implement `src/config.ts` with zod: `loadConfig(env: Record<string, string | undefined>)` returning
+- [X] T009 [US2] Implement `src/config.ts` with zod: `loadConfig(env: Record<string, string | undefined>)` returning
   `Configuration` or throwing `ConfigError` with the list of problems; no `process.env` access inside; delete
   `src/smoke.test.ts`
 - [ ] T010 [US2] Test `src/storage/data-dir.test.ts` (temp folder): `prepareDataDir(path)` creates a missing folder,
