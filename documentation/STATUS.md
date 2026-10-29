@@ -7,23 +7,21 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-001 "Greet the test server", branch `001-greet-the-test-server`. Spec written:
-[specs/001-greet-the-test-server/spec.md](../specs/001-greet-the-test-server/spec.md). The toolkit and plan
-(PR #1) are on `main`. Decided: Neil is the only bot application; it runs on Wispbyte, invited only to
-the test server for this slice, and locally with the same token while Wispbyte is stopped.
+001 "Greet the test server": [spec](../specs/001-greet-the-test-server/spec.md) ·
+[plan](../specs/001-greet-the-test-server/plan.md) · [tasks](../specs/001-greet-the-test-server/tasks.md).
+Neil is the only bot application; it runs on Wispbyte (test server only for now) and locally with the
+same token while Wispbyte is stopped.
 
-Clarified: `/ping` is open to anyone and temporary; Wispbyte's details are unknown and get researched in the plan.
+Built and merged through PR #2: validated configuration, `/ping` (private reply with latency, version and
+start record), SQLite start record, CI checks, and a deploy job that turns a green `main` into one new
+commit on the `deploy` branch. Checked on the test server with `npm run dev` (T026, T027).
 
-Planned: [plan.md](../specs/001-greet-the-test-server/plan.md). CI builds a green `main` into a `deploy`
-branch that Wispbyte pulls on start; a start record in SQLite makes persistence visible in `/ping`.
+Open until checked on Wispbyte, after the merge's deploy: T039 (Restart in the panel, `/ping` shows the
+merge's short sha) and T040 (persistence across a restart and a redeploy). Both are recorded in a
+follow-up `docs:` PR, which also marks slice 001 done in the ROADMAP.
 
-Wispbyte is set up and verified (HOSTING.md): it pulls the `deploy` branch on each start; the branch
-holds a diagnostic placeholder until the first CI deploy. Panel variables arrive as `.env`, not as
-environment variables. Restarts after a deploy are manual.
-
-Tasks: [tasks.md](../specs/001-greet-the-test-server/tasks.md) (43 tasks, TDD pairs).
-
-**Next step:** `/speckit-implement` for slice 001, starting at T001 (project setup).
+**Next step:** after the deploy job on `main` is green, click **Restart** in the Wispbyte panel, run `/ping`
+on the test server, and record T039; then do the persistence check T040.
 
 ## Known broken / WIP
 
