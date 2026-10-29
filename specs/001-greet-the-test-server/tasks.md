@@ -102,10 +102,10 @@ The reply's start record line comes from US4 (T034) and the real version from US
   of [contracts/ping-command.md](contracts/ping-command.md#reply); gateway `–` when the ping is unknown (`-1` or
   undefined); version `dev` without the `(built …)` part; times UTC at minute precision
 - [X] T015 [US1] Implement `renderPingReply` in `src/discord/ping.ts`
-- [ ] T016 [US1] Test `src/discord/ping.test.ts` (handler) with a fake interaction in `src/discord/__fakes__/interaction.ts`:
+- [X] T016 [US1] Test `src/discord/ping.test.ts` (handler) with a fake interaction in `src/discord/__fakes__/interaction.ts`:
   `handlePing` replies once, ephemeral (`MessageFlags.Ephemeral`), with the rendered text, latency measured from
   `createdTimestamp` with an injected clock; a reply that throws is logged without tokens and does not rethrow
-- [ ] T017 [US1] Implement `handlePing` in `src/discord/ping.ts`, typed against a narrow interaction port (only the
+- [X] T017 [US1] Implement `handlePing` in `src/discord/ping.ts`, typed against a narrow interaction port (only the
   fields it uses), not the full discord.js class
 - [ ] T018 [P] [US1] Test `src/discord/commands.test.ts`: the command list holds exactly `ping`, description
   `Check that Neil is online`, no options, no default member permissions, contexts guild only

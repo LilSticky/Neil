@@ -1,3 +1,4 @@
+import { MessageFlags } from "discord.js";
 import type { StartRecord } from "../domain/start-record.js";
 
 /** The running build, or `dev` when no build info was written (local runs). */
@@ -25,4 +26,38 @@ export function renderPingReply(input: PingReplyInput): string {
 
 function utcMinute(date: Date): string {
   return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+export interface PingReplyOptions {
+  readonly content: string;
+  readonly flags: MessageFlags.Ephemeral;
+}
+
+/** The part of a discord.js chat-input interaction that /ping uses. */
+export interface PingInteraction {
+  readonly createdTimestamp: number;
+  reply(options: PingReplyOptions): Promise<unknown>;
+}
+
+export interface PingContext {
+  readonly now: () => number;
+  readonly gatewayPingMs: () => number;
+  readonly buildInfo: BuildInfo;
+  readonly startRecord: StartRecord;
+  readonly logError: (message: string) => void;
+}
+
+/** Answers /ping privately; a failed reply is logged, never thrown. */
+export async function handlePing(interaction: PingInteraction, context: PingContext): Promise<void> {
+  const content = renderPingReply({
+    latencyMs: context.now() - interaction.createdTimestamp,
+    gatewayPingMs: context.gatewayPingMs(),
+    buildInfo: context.buildInfo,
+    startRecord: context.startRecord,
+  });
+  try {
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  } catch (error) {
+    context.logError(`Replying to /ping failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }

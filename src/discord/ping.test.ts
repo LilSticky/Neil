@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import { startCount } from "../domain/start-record.js";
-import { renderPingReply } from "./ping.js";
+import { MessageFlags } from "discord.js";
+import { FakePingInteraction } from "./__fakes__/interaction.js";
+import { handlePing, renderPingReply } from "./ping.js";
 
 const startRecord = { firstStartedAt: new Date("2026-10-29T12:00:59Z"), startCount: startCount(3) };
 
@@ -40,5 +42,37 @@ describe("renderPingReply", () => {
     const text = renderPingReply({ latencyMs: 12.6, gatewayPingMs: 3.2, buildInfo: "dev", startRecord });
 
     expect(text).toContain("Latency: 13 ms (gateway 3 ms)");
+  });
+});
+
+describe("handlePing", () => {
+  const context = (logged: string[]) => ({
+    now: () => 1_000_250,
+    gatewayPingMs: () => 42,
+    buildInfo: "dev" as const,
+    startRecord,
+    logError: (message: string) => logged.push(message),
+  });
+
+  test("replies once, only to the caller, with the latency since the interaction was created", async () => {
+    const interaction = new FakePingInteraction(1_000_000);
+
+    await handlePing(interaction, context([]));
+
+    expect(interaction.replies).toEqual([
+      {
+        content: renderPingReply({ latencyMs: 250, gatewayPingMs: 42, buildInfo: "dev", startRecord }),
+        flags: MessageFlags.Ephemeral,
+      },
+    ]);
+  });
+
+  test("logs a failed reply and keeps running", async () => {
+    const logged: string[] = [];
+    const interaction = new FakePingInteraction(1_000_000, new Error("Unknown interaction"));
+
+    await expect(handlePing(interaction, context(logged))).resolves.toBeUndefined();
+
+    expect(logged).toEqual(["Replying to /ping failed: Unknown interaction"]);
   });
 });
