@@ -99,6 +99,13 @@ uids exceed JavaScript's safe integer range in principle and Discord integers st
 **Alternatives**: integer option for the uid (rejected: precision, and "letters" must get a helpful
 message rather than Discord's generic error).
 
+## R10. Later recordings (2026-10-29, 16:50 UTC)
+
+The tracker answered again: player and alliance fixtures recorded (trimmed, see
+`src/game-api/__fixtures__/README.md`). `quota` is in every body; `uid`/`kid`/`aid` are JSON numbers;
+`GET /players/1` gave **502**, and `GET /alliances/1/No%20Man's%20Land` gave **404**, so `/alliance`
+asks for the tag only.
+
 ## R9. Is the 409 "more than one match" reachable?
 
 **Finding**: documented only for name lookups; the verified alliance endpoint may return it for a name

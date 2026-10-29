@@ -38,7 +38,7 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 | Endpoint | State | Gives us |
 |----------|-------|----------|
-| `GET /alliances/{kingdom}/{alliance}` | **verified** (user: by name; us: by tag `NML` on kingdom 1) | the alliance and its full roster with ranks |
+| `GET /alliances/{kingdom}/{alliance}` | **verified by tag** (`NML` on kingdom 1); by full name (`No Man's Land`, URL-encoded) it gave **404** on 2026-10-29 | the alliance and its full roster with ranks |
 | `GET /players/{uid}` | **verified** (2026-10-29) | one player, their alliance, and that alliance's roster with ranks |
 | `GET /quota` | **verified** | the quota object only; costs one request |
 | `GET /players/name/{name}`, `GET /players/{server}/{name}` | documented, not working for the user so far | a player by name |
@@ -98,7 +98,9 @@ Documented:
 
 ## Open questions
 
-- Is `quota` in the body of player and alliance responses (docs say yes; not seen in the truncated
-  samples)? Check the `X-RateLimit-*` headers on a real response.
-- Do `/alliances/{kingdom}/{name}` (full name) and `/{kingdom}/{tag}` behave the same for names with
-  spaces? Record fixtures in slice 002.
+- Answered 2026-10-29: `quota` **is** in player and alliance bodies (with `cached`, `cache_seconds`);
+  `x-ratelimit-*` headers verified on `/quota`. Full alliance names give 404; use the tag.
+- `GET /players/1` answered **502**, not 404: does an unknown uid always give 502, or only some? A
+  real 404 for a player has not been seen yet.
+- `uid`, `kid`, `aid` are JSON numbers; uids up to 12 digits so far, safely inside JavaScript's
+  integer range.
