@@ -26,7 +26,7 @@ committing (no key ever appears in a body).
 2. `/player uid:145563254785` → a public card with name, uid, Kingdom, power, sanctuary level, Alliance
    and Alliance Rank.
 3. `/player uid:abc` → a private help text on finding the uid; no Game API request.
-4. `/player uid:1` → a private "No player has the uid 1."
+4. `/player uid:1` → after about 10 s, a private "Couldn't find a player with the uid 1. Check the uid; …"
 5. `/alliance kingdom:1 alliance:NML` → a public Alliance card.
 6. `/alliance kingdom:1 alliance:ZZZQX` → a private "No alliance …".
 7. Record the result in `tasks.md` (Definition of Done).

@@ -42,10 +42,10 @@ future cache); an SDK (none exists).
 
 ## R3. Timeout and retries
 
-**Decision**: abort each request after **8 s** (`AbortSignal.timeout`), map it to "try again", no
-retries in this slice.
+**Decision**: abort each request after **15 s** (`AbortSignal.timeout`), map it to "try again", no
+retries in this slice. *(Was 8 s; raised after the test-server check, R11.)*
 
-**Rationale**: SC-001 asks for an answer within 10 s; R1 showed the tracker can hang for 45 s. Retrying
+**Rationale**: SC-001 asks for an answer within 20 s; R1 showed the tracker can hang for 45 s. Retrying
 would multiply quota spend and wait time; ADR 4's capped backoff for 503/504 belongs with the quota
 budget in slice 003. With no retries there is no tight loop (constitution IV).
 
@@ -60,7 +60,7 @@ success; on failure `deleteReply()` and `followUp({ content, flags: Ephemeral })
 
 **Rationale**: Discord fixes a reply's visibility at the first response, so a public deferral cannot
 become private; deleting the "thinking…" placeholder and following up privately is the documented
-pattern. Deferring is required because the client may take up to 8 s, beyond the 3-second window.
+pattern. Deferring is required because the client may take up to 15 s, beyond the 3-second window.
 
 **Alternatives**: always ephemeral (rejected by the user, spec clarifications); public errors (rejected:
 spec FR-007).
@@ -105,6 +105,18 @@ The tracker answered again: player and alliance fixtures recorded (trimmed, see
 `src/game-api/__fixtures__/README.md`). `quota` is in every body; `uid`/`kid`/`aid` are JSON numbers;
 `GET /players/1` gave **502**, and `GET /alliances/1/No%20Man's%20Land` gave **404**, so `/alliance`
 asks for the tag only.
+
+## R11. Unknown uids (test-server check, 2026-10-29)
+
+**Finding**: `/player uid:1` timed out at 8 s. Measured: `GET /players/1` and `/players/999999999999` both
+answer **502 `error code: 502` after ~10.2 s**; no 404 for a player has been seen.
+
+**Decision** (user, 2026-10-29): timeout 15 s; the client returns a separate `not-prepared` result for
+502 (the documented "profile could not be prepared"); `/player` shows a hedged text (uid may be wrong,
+or the tracker busy), `/alliance` keeps "try again".
+
+**Alternatives**: treat 502 as not found (rejected: wrong during a real outage); keep 8 s and hedge the
+timeout (rejected: Neil would never see the tracker's answer).
 
 ## R9. Is the 409 "more than one match" reachable?
 

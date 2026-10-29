@@ -23,6 +23,9 @@ fixtures for tests. Caching and quota budgeting are slice 003, out of scope here
   the daily quota is slice 003.
 - Q: Who sees the answer? → A: The card is visible to the whole channel; error messages only to the
   Member who ran the command.
+- Q: The tracker answers an unknown uid with a 502 after about 10 s, never a 404 (test-server check,
+  2026-10-29). What does `/player` say? → A: Wait up to 15 s per request; a 502 for a Player gives a
+  hedged message: the uid may be wrong, or the tracker busy.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -47,7 +50,9 @@ tracker's data for that Player; in automated tests, with recorded Game API answe
 3. **Given** a Player in no Alliance, **When** a Member looks them up, **Then** the card says the Player
    has no Alliance and shows no Alliance Rank.
 4. **Given** a uid the Game API does not know, **When** a Member looks it up, **Then** only that Member
-   sees a message that no Player has this uid.
+   sees a message that no Player has this uid (on a 404), or, when the Game API cannot prepare the
+   profile (502, its answer for unknown uids), that no Player was found for this uid and they should
+   check it or try again later.
 5. **Given** an input that is not a uid (letters, empty, negative), **When** a Member runs `/player`,
    **Then** only that Member sees a message explaining what a uid looks like and how to find it in the
    game, and the Game API is not asked.
@@ -161,7 +166,7 @@ malformed answer) to the lookup and read the message.
 ### Measurable Outcomes
 
 - **SC-001**: A Member who runs `/player` with a valid uid sees the card or a clear error within
-  10 seconds, every time.
+  20 seconds, every time.
 - **SC-002**: For a recorded sample Player, every value on the card matches the tracker's data.
 - **SC-003**: Each documented Game API failure, and a malformed answer, produces its intended message in
   automated tests, with no crash and no half-filled card.
@@ -176,8 +181,8 @@ malformed answer) to the lookup and read the message.
 - The verified endpoints are `GET /players/{uid}` and `GET /alliances/{kingdom}/{alliance}`; the
   alliance endpoint accepts a tag, and the plan checks whether full names with spaces work (open
   question in `GAME-API.md`) while recording fixtures.
-- "Too slow" means about 8 seconds per Game API request, so the edited reply still arrives within
-  SC-001.
+- "Too slow" means 15 seconds per Game API request (the tracker needs about 10 s to give up on an unknown
+  uid), so the edited reply still arrives within SC-001.
 - Numbers are formatted in English (`1,234,567`); the Discord texts are English like `/ping`.
 - Images (avatars, flags) from the tracker are not shown in this slice.
 - Commands are registered for the configured test server only, as in slice 001.

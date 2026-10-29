@@ -8,7 +8,7 @@
 
 Any Member runs `/player uid` or `/alliance kingdom alliance` on the test server and gets a public card,
 or a private message when the input is invalid or the Game API cannot answer. Input is validated in the
-domain before any request; one `GameApiClient` (key, User-Agent, 8 s timeout, zod validation, status
+domain before any request; one `GameApiClient` (key, User-Agent, 15 s timeout, zod validation, status
 mapping to a typed `LookupResult`) is the only code that calls the tracker. Tests replay recorded
 fixtures. Cache and quota budgeting follow in slice 003, inside the same client. Details:
 [research.md](research.md), [data-model.md](data-model.md), [contracts/](contracts/).
@@ -28,7 +28,7 @@ handlers; pure tests for the domain parsers, the rank rule and the card renderin
 
 **Project Type**: single-process Discord bot
 
-**Performance Goals**: card or error within 10 s (SC-001): 8 s request timeout plus Discord round trips
+**Performance Goals**: card or error within 20 s (SC-001): 15 s request timeout plus Discord round trips
 
 **Constraints**: no request for invalid input; no retries; key never logged; Game API text escaped
 

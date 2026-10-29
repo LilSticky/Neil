@@ -52,7 +52,8 @@ Both: guild commands for `DISCORD_GUILD_ID` only, guild context only, no default
 | alliance not-found | `No alliance "{key}" in kingdom #{kingdom}.` |
 | ambiguous | `More than one alliance matches "{key}": {list of [tag] name}. Try the exact tag.` |
 | quota-spent | `Lookups are used up for today. They work again after 00:00 UTC.` |
-| try-again | `The game tracker is busy right now. Try again in a moment.` |
+| player not-prepared | `Couldn't find a player with the uid {uid}. Check the uid; if it's right, the tracker may be busy, so try again later.` |
+| try-again (and alliance not-prepared) | `The game tracker is busy right now. Try again in a moment.` |
 | unavailable | `Lookups are not working right now. Please tell an Officer.` (logged with the reason, never the key) |
 
 User input echoed in a message (`{uid}`, `{key}`) is escaped like Game API text.

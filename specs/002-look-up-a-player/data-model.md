@@ -53,7 +53,8 @@ LookupResult<T> =
   | { kind: "not-found" }                                   // 404
   | { kind: "ambiguous"; matches: readonly Match[] }        // 409
   | { kind: "quota-spent" }                                 // 429
-  | { kind: "try-again" }                                   // 502, 503, 504, timeout, network error
+  | { kind: "not-prepared" }                                // 502: profile could not be prepared (unknown uid, or tracker trouble)
+  | { kind: "try-again" }                                   // 503, 504, timeout, network error
   | { kind: "unavailable"; reason: "auth" | "unexpected" }  // 401/403, other status, body fails validation, wrong uid/kingdom
 ```
 

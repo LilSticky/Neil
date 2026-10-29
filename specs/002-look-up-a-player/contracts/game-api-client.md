@@ -3,7 +3,7 @@
 The only code that talks to the Game API (constitution IV). `src/game-api/client.ts`.
 
 ```text
-new GameApiClient({ apiKey, version, fetch, logError, timeoutMs = 8000, baseUrl = "https://api.lastasylumtracker.com/v1" })
+new GameApiClient({ apiKey, version, fetch, logError, timeoutMs = 15000, baseUrl = "https://api.lastasylumtracker.com/v1" })
 getPlayer(uid: Uid): Promise<LookupResult<Player>>
 getAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>>
 ```
@@ -28,7 +28,8 @@ Headers: `Authorization: Bearer {apiKey}`, `User-Agent: Neil/{version} (+https:/
 | 409 with readable `matches` | `ambiguous` (else `unavailable` / `unexpected`) |
 | 429 | `quota-spent` |
 | 401, 403 | `unavailable` / `auth` |
-| 502, 503, 504, timeout, network error | `try-again` |
+| 502 | `not-prepared` (the tracker's answer for an unknown uid, ~10 s) |
+| 503, 504, timeout, network error | `try-again` |
 | anything else | `unavailable` / `unexpected` |
 
 Error bodies may be plain text (research R1); the mapping uses the status only.
