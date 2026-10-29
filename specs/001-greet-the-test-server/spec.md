@@ -11,6 +11,18 @@
 Adapters: discord.js client, slash-command registration, env config, CI (typecheck, lint, test), Wispbyte
 deploy (ADR 6), persistence check (does Wispbyte's disk persist across restarts/redeploys)."
 
+## Clarifications
+
+### Session 2026-10-29
+
+- Q: Where does the Wispbyte instance live during this slice? → A: The production bot application, invited
+  only to the test server; it joins the production server in a later slice.
+- Q: Who may run `/ping`? → A: Anyone on the server. `/ping` is temporary and will be removed in a later
+  slice.
+- Q: How does code get to Wispbyte? → A: Not known yet; the user does not know Wispbyte's details. The plan
+  researches Wispbyte's options (Git pull, upload, panel start command, persistent folder) and picks the
+  simplest one that only deploys a green `main`.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - See Neil online and get an answer to `/ping` (Priority: P1)
@@ -159,13 +171,14 @@ time. The first-start time stays the same and the start count goes up if the dat
 
 ## Assumptions
 
-- Officer roles are not yet known (see DICTIONARY), so `/ping` is open to every Member of the test
-  server; it reveals nothing sensitive.
+- `/ping` is open to every Member of the server (it reveals nothing sensitive) and is temporary: a
+  later slice removes it.
 - The production bot application runs on Wispbyte and, for this slice, is invited only to the test
   server; it joins the production server in a later slice (user decision, 2026-10-29). The test bot
   application runs locally with `npm run dev`.
 - The version shown is the commit identifier of the build, supplied through configuration.
 - Wispbyte offers environment variables, a folder that may persist, and a way to run
-  `npm ci && npm run build && npm start` (ADR 6); the exact mechanism is worked out in the plan.
+  `npm ci && npm run build && npm start` (ADR 6). Nobody knows the details yet; the plan researches them.
+  If Wispbyte cannot pull from GitHub, SC-003 may need a manual step, which the plan states and justifies.
 - The persistence check on Wispbyte and the test-server check are manual steps, recorded in
   `tasks.md` (Definition of Done).

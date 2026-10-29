@@ -12,7 +12,9 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 (PR #1) are on `main`. Decided: the Wispbyte instance is the production bot, invited only to the test
 server for this slice.
 
-**Next step:** `/speckit-clarify` for slice 001.
+Clarified: `/ping` is open to anyone and temporary; Wispbyte's details are unknown and get researched in the plan.
+
+**Next step:** `/speckit-plan` for slice 001 (includes researching Wispbyte's deploy options).
 
 ## Known broken / WIP
 
