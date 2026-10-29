@@ -148,17 +148,24 @@ baking it into the build does that. (Spec assumption "supplied through configura
 
 ## R8. Where settings live on Wispbyte
 
-**Decision**: on Wispbyte, settings are the panel's **environment variables** (Startup); Neil reads only
-`process.env` and loads no file itself. Locally, the npm scripts pass `--env-file=.env` to Node (and
-`.env.production` for registering the production bot's commands).
+**Verified on the server (2026-10-29)**: Wispbyte's panel environment variables are **not** passed to
+the process. The panel writes them to `/home/container/.env`; the process environment holds only the
+egg's own variables (`GIT_ADDRESS`, `BRANCH`, `JS_FILE`, `AUTO_UPDATE`, …). This matches a community
+report that Wispbyte "stores configuration in .env without exporting it".
 
-**Rationale**: Wispbyte's own security guidance; nothing extra in the server folder (an uploaded file
-would also block the first clone, which needs an empty folder); the same code runs anywhere that sets
-environment variables (ADR 6).
+**Decision**: settings are entered in the panel's environment variables (Wispbyte's security
+guidance); at startup, before validating configuration, Neil loads `.env` from its working directory if
+the file exists (`process.loadEnvFile`, built into Node). Variables already set in the process
+environment win over the file, so hosts that do export variables keep working. Locally the same `.env`
+holds the test bot's settings; `.env.production` is used only to register the production bot's
+commands. `.env` is untracked, so `git pull` on start leaves it alone, and it must never be committed
+to `deploy`.
 
-**Alternatives**: a `.env` uploaded through the file manager, loaded with `process.loadEnvFile`
-(rejected after the second research pass: Wispbyte advises against secrets in files, and it complicates
-the first clone).
+**Rationale**: it is the only way the panel's settings reach Neil; the start command stays a plain
+`node dist/main.js`; the code stays host-neutral (ADR 6).
+
+**Alternatives**: reading only `process.env` (rejected: Wispbyte does not export the panel variables);
+a dotenv dependency (not needed, Node has `process.loadEnvFile`).
 
 ## R7. Failure behaviour
 

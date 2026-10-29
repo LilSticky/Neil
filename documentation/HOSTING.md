@@ -42,6 +42,12 @@ bot's values; names exactly as written):
 | `DISCORD_GUILD_ID` | the test server's ID (during slice 001) |
 | `DATA_DIR` | `./data` |
 
+Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
+startup. Don't delete `.env` in the file manager.
+
+`DISCORD_TOKEN` is the token from the **Bot** page (Reset Token), not the Client Secret (OAuth2) or the
+Public Key (General Information). A wrong value shows up as HTTP 401 on login.
+
 **Server Configuration**:
 
 | Field | Value |
