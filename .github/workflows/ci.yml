@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build
+
+  # A green main becomes one new commit on the deploy branch, which Wispbyte pulls on start (research R1).
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # No install scripts while this job holds a write token (node:sqlite is built in, nothing to compile).
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Assemble the deploy commit on top of origin/deploy
+        run: |
+          git fetch --no-tags origin deploy
+          git worktree add --detach out origin/deploy
+          find out -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -r dist package-lock.json out/
+          # Runtime dependencies only, so Wispbyte's npm install needs no build tools.
+          node -e '
+            const fs = require("node:fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            delete pkg.devDependencies;
+            pkg.scripts = { start: pkg.scripts.start };
+            fs.writeFileSync("out/package.json", JSON.stringify(pkg, null, 2) + "\n");
+            fs.writeFileSync("out/build-info.json", JSON.stringify({
+              version: process.env.GITHUB_SHA.slice(0, 7),
+              builtAt: new Date().toISOString(),
+            }) + "\n");
+          '
+          printf 'node_modules/\ndata/\n.env\n.env.*\n' > out/.gitignore
+          # Prune the lockfile to match, so npm install on the host leaves it unchanged and git pull keeps working.
+          (cd out && npm install --package-lock-only --ignore-scripts --no-audit --no-fund)
+      - name: Commit and push (never force)
+        working-directory: out
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "deploy: ${GITHUB_SHA::7}"
+          git push origin HEAD:deploy
