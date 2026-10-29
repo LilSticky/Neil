@@ -119,10 +119,10 @@ The reply's start record line comes from US4 (T034) and the real version from US
   output; `SIGINT`/`SIGTERM` destroy the client, close the database and exit 0 (FR-012)
 - [X] T023 [US1] Implement `src/main.ts`: `process.loadEnvFile('.env')` only if the file exists (process env wins,
   research R8), then `start` with real dependencies; no logic beyond composition
-- [ ] T024 [US1] Implement `scripts/register-commands.ts`: reads config via `loadConfig`, `PUT` the command list to
+- [X] T024 [US1] Implement `scripts/register-commands.ts`: reads config via `loadConfig`, `PUT` the command list to
   `/applications/{applicationId}/guilds/{guildId}/commands` with discord.js `REST`; prints count, never the token;
   add a test only if it grows logic beyond the call
-- [ ] T025 [US1] **Manual (user)**: fill the local `.env` from `env.example` with Neil's values (the one bot
+- [X] T025 [US1] **Manual (user)**: fill the local `.env` from `env.example` with Neil's values (the one bot
   application, already on the test server). Before each local run, **Stop** the Wispbyte server; **Start** it
   afterwards
 - [ ] T026 [US1] **Manual check on the test server**: Wispbyte stopped, `npm run commands:register`, `npm run dev`; Neil is online,
