@@ -54,12 +54,11 @@ bot's values; names exactly as written):
 | Git Username / Git Access Token | empty (the repository is public) |
 | Uninstall Node packages | empty |
 
-**Order matters.** The panel clones only into an empty server folder, and the `deploy` branch exists
-only after the first green build on `main`. So:
+**First clone.** Wispbyte clones only when the server is installed, and refuses to start an empty
+folder ("no files"). After filling in the fields above, use **Settings → Reinstall Server**, then
+**Start**. Every later start runs `git pull` (Auto Update) and then `dist/main.js`.
 
-Wispbyte clones only when the server is installed, and refuses to start an empty folder ("no files").
-If the Git fields were filled in after the install, the folder stays empty. Then bootstrap the clone
-once from the file manager:
+Fallback if no reinstall is offered: bootstrap the clone once from the file manager:
 
 1. **Files**: create folder `dist`, and in it a file `main.js` with this content:
 
