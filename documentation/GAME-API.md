@@ -20,8 +20,11 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 - **2,000 requests per UTC day**: our key is on a paid Patreon membership (since 2026-10-29; free is 1,000). Every `/v1`
   call counts, including `/v1/quota`. Resets at 00:00 UTC. No per-second limit is documented.
-- Documented headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset: 00:00 UTC`
-  (not yet checked on a real response).
+- Headers, **verified on `/quota`** (2026-10-29): `x-ratelimit-limit: 1000`, `x-ratelimit-remaining: 990`,
+  `x-ratelimit-reset: 00:00 UTC`. Not sent on a 404 or a Cloudflare 504.
+- **On 2026-10-29 the key still reported `limit: 1000`, `patron: false`**: the Patreon upgrade had not
+  reached the tracker yet. Budget with `x-ratelimit-limit`, not a constant.
+- Failed calls count too: three 504s and a 404 raised `used` by one each.
 - Verified `/quota` body:
   `{"ok":true,"cached":true,"cache_seconds":600,"quota":{"limit":1000,"used":1,"remaining":999,"patron":false,"resets":"00:00 UTC"}}`
 - `429` = daily limit reached. Retrying before the reset is pointless.
@@ -75,7 +78,13 @@ rank is unknown and needs approval by the alliance's R5 (see discovery).
 **Budget consequence**: one `/players/{uid}` call already returns the player, rank and whole alliance; one
 roster call returns a whole alliance. Bulk sync costs about one request per alliance.
 
-## Errors (documented)
+## Errors
+
+Seen on real calls (2026-10-29): a 404 body `{"detail":"alliance_not_found"}` (JSON, at once); a
+**Cloudflare 504 after ~45 s** with the plain-text body `error code: 504` on `/players/{uid}` and
+`/alliances/1/NML` for several minutes. Error bodies are not reliably JSON, so map by status code.
+
+Documented:
 
 | Status | Meaning |
 |--------|---------|
