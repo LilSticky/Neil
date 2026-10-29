@@ -125,9 +125,10 @@ The reply's start record line comes from US4 (T034) and the real version from US
 - [X] T025 [US1] **Manual (user)**: fill the local `.env` from `env.example` with Neil's values (the one bot
   application, already on the test server). Before each local run, **Stop** the Wispbyte server; **Start** it
   afterwards
-- [ ] T026 [US1] **Manual check on the test server**: Wispbyte stopped, `npm run commands:register`, `npm run dev`; Neil is online,
+- [X] T026 [US1] **Manual check on the test server**: Wispbyte stopped, `npm run commands:register`, `npm run dev`; Neil is online,
   `/` offers `/ping` with its description, the reply arrives within 3 s, ephemeral, version `dev`. Record the date
-  and result here: _not yet done_
+  and result here: 2026-10-29, checked by the user with `npm run dev` (Wispbyte ran the placeholder, which does not log
+  in): Neil online, `/ping` offered with its description, private reply with latency, `Version: dev`, start #1
 - [X] T027 [US2] **Manual check**: `npm start` with `DISCORD_TOKEN` and `DISCORD_GUILD_ID` removed exits 1 within
   5 s and names both, no token shown. Record here: 2026-10-29, built `dist/main.js` without `DISCORD_TOKEN` and
   `DISCORD_GUILD_ID`: both named, exit 1 after 0.4 s; a bogus token gives `An invalid token was provided.`, exit 1,
@@ -175,12 +176,12 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
   the file; `{ version, builtAt }` for a valid file (`version` "non-empty string", `builtAt` "ISO 8601 timestamp");
   a present but invalid file is a startup error
 - [X] T036 [US3] Implement `src/build-info.ts` and pass the build info into `start` (test in `src/main.test.ts` first)
-- [ ] T037 [US3] Add job `deploy` to `.github/workflows/ci.yml`: only on `push` to `main`, `needs: checks`,
+- [X] T037 [US3] Add job `deploy` to `.github/workflows/ci.yml`: only on `push` to `main`, `needs: checks`,
   `permissions: contents: write`, `concurrency` group so deploys never overlap; builds, writes `build-info.json`
   (short sha, UTC time), strips `devDependencies` and `scripts.prepare` from `package.json`, and commits `dist/`,
   `package.json`, `package-lock.json`, `build-info.json` as one new commit on top of `origin/deploy` (never
   force-push, never include `.env` or `data/`)
-- [ ] T038 [US3] Update `documentation/HOSTING.md`: Server Configuration values (research R1), settings in the panel's
+- [X] T038 [US3] Update `documentation/HOSTING.md`: Server Configuration values (research R1), settings in the panel's
   environment variables → `.env` (R8), the `deploy` branch, manual **Restart** after each deploy, `data/` as the
   persistent folder, a reinstall wiping it, stop Wispbyte before `npm run dev`
 - [ ] T039 [US3] **Manual check on Wispbyte** after this branch merges: CI deploy job green, `deploy` branch has the

@@ -84,13 +84,29 @@ from the file manager. Afterwards every start runs `git pull` (Auto Update), `np
 2. **Start**. The console prints `Bootstrap done`. **Restart**: from now on every start runs `git pull`
    (Auto Update) and then the real `dist/main.js`.
 
-Each start then prints what is running; with the `deploy` placeholder it is the Node version and
-whether the settings are present.
+## 4. Deploys
 
-Each later deploy: CI adds a commit to `deploy`; click **Restart** in the panel and the server pulls
-it on startup. Restarts can't be automated: Wispbyte's restart needs a browser login behind a bot
-check, not an API key. A crash is restarted by Wispbyte itself. A reinstall (if the panel offers one) wipes the folder,
-including `data/`; avoid it after the first setup.
+Every push to `main` with green checks runs the CI `deploy` job: it builds and adds **one new commit**
+to the `deploy` branch (never a force-push, or the server's `git pull` breaks). That commit holds only
+`dist/`, a `package.json` without dev dependencies, a matching `package-lock.json`, `build-info.json`
+(short commit sha and build time, shown by `/ping`) and a `.gitignore`. It never holds `.env` or `data/`.
+
+After a deploy, click **Restart** in the panel: the server pulls the commit, installs the runtime
+packages, and starts Neil. `/ping` then shows the new version. Restarts can't be automated:
+Wispbyte's restart needs a browser login behind a bot check, not an API key.
+
+Slash commands are registered from a developer machine with `npm run commands:register` (settings from
+the local `.env`), and only when the command list changes; Neil never registers them itself.
+
+**Data**: Neil keeps `data/neil.db` in the server folder (`DATA_DIR=./data`). `git pull` leaves it
+alone because it is untracked. If the database is corrupt, Neil refuses to start and says so rather
+than starting over.
+
+**Running locally**: there is only one bot application, so **Stop** the Wispbyte server before
+`npm run dev`, and **Start** it again when done.
+
+A crash is restarted by Wispbyte itself, but it gives up after two crashes within 60 seconds. A
+reinstall (if the panel offers one) wipes the folder, including `data/`; avoid it after the first setup.
 
 Free plan: log in to Wispbyte at least every two weeks to keep the server.
 
@@ -98,6 +114,6 @@ Free plan: log in to Wispbyte at least every two weeks to keep the server.
 test server (`819691545195577395`); the `deploy` placeholder confirmed Node 24.22.1, the Git checkout,
 the `.env` settings, the token and the server membership.
 
-## 4. Persistence check
+## 5. Persistence check
 
 Result recorded here after the check in slice 001 (quickstart step 5): *not yet done.*
