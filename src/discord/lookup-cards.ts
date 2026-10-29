@@ -85,7 +85,7 @@ export const lookupMessages = {
   invalidUid:
     "That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid.",
   invalidKingdom: "The kingdom must be a number from 1 to 9999.",
-  invalidAlliance: "Give the alliance's tag or full name (up to 40 characters).",
+  invalidAlliance: "Give the alliance's tag (up to 40 characters).",
   playerNotFound: (uid: string): string => `No player has the uid ${escapeText(uid)}.`,
   allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,

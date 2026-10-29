@@ -33,7 +33,7 @@ export const alliance = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName("alliance")
-      .setDescription("The alliance tag (or full name)")
+      .setDescription("The alliance tag, e.g. NML")
       .setRequired(true)
       .setMaxLength(40),
   );

@@ -16,7 +16,7 @@ Both: guild commands for `DISCORD_GUILD_ID` only, guild context only, no default
 |-------|-------|
 | description | `Look up an alliance in a kingdom` |
 | option `kingdom` | integer, required, min 1, max 9999, description `The kingdom number` |
-| option `alliance` | string, required, max length 40, description `The alliance tag (or full name)` |
+| option `alliance` | string, required, max length 40, description `The alliance tag, e.g. NML` (full names give 404, see GAME-API.md) |
 
 ## Flow
 
@@ -47,7 +47,7 @@ Both: guild commands for `DISCORD_GUILD_ID` only, guild context only, no default
 |------|------|
 | invalid uid | `That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid.` |
 | invalid kingdom | `The kingdom must be a number from 1 to 9999.` |
-| invalid alliance | `Give the alliance's tag or full name (up to 40 characters).` |
+| invalid alliance | `Give the alliance's tag (up to 40 characters).` |
 | player not-found | `No player has the uid {uid}.` |
 | alliance not-found | `No alliance "{key}" in kingdom #{kingdom}.` |
 | ambiguous | `More than one alliance matches "{key}": {list of [tag] name}. Try the exact tag.` |

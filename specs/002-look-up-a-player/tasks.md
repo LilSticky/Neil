@@ -135,8 +135,8 @@ status mapping.
 
 ## Phase 6: Polish
 
-- [ ] T029 `bot-reviewer` over `src/game-api/` and `src/discord/`; fixes via `implementer`
-- [ ] T030 Update `documentation/GAME-API.md` from the recorded fixtures (patron status, headers on 200s,
+- [x] T029 `bot-reviewer` over `src/game-api/` and `src/discord/`; fixes via `implementer`
+- [x] T030 Update `documentation/GAME-API.md` from the recorded fixtures (patron status, headers on 200s,
   names with spaces) and close its answered open questions
 - [ ] T031 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`), ready-to-merge PR (`Closes` the slice issue)
 - [ ] T032 Add `LAP_TRACKER_API_KEY` in the Wispbyte panel before the merge deploys (manual, user), merge,

@@ -57,7 +57,7 @@ describe("commands", () => {
           expect.objectContaining({
             type: ApplicationCommandOptionType.String,
             name: "alliance",
-            description: "The alliance tag (or full name)",
+            description: "The alliance tag, e.g. NML",
             required: true,
             max_length: 40,
           }),

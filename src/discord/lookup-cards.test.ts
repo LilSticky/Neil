@@ -183,7 +183,7 @@ describe("lookupMessages for /alliance", () => {
   });
 
   test("invalidAlliance gives the contract's text", () => {
-    expect(lookupMessages.invalidAlliance).toBe("Give the alliance's tag or full name (up to 40 characters).");
+    expect(lookupMessages.invalidAlliance).toBe("Give the alliance's tag (up to 40 characters).");
   });
 
   test("allianceNotFound names the key and the Kingdom", () => {
