@@ -22,8 +22,9 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
   call counts, including `/v1/quota`. Resets at 00:00 UTC. No per-second limit is documented.
 - Headers, **verified on `/quota`** (2026-10-29): `x-ratelimit-limit: 1000`, `x-ratelimit-remaining: 990`,
   `x-ratelimit-reset: 00:00 UTC`. Not sent on a 404 or a Cloudflare 504.
-- **On 2026-10-29 the key still reported `limit: 1000`, `patron: false`**: the Patreon upgrade had not
-  reached the tracker yet. Budget with `x-ratelimit-limit`, not a constant.
+- On 2026-10-29 the key still reported `limit: 1000`, `patron: false`; after the user logged in again
+  with Patreon on 2026-10-30 the limit is **2,000** (patron). Budget with `x-ratelimit-limit`, not a
+  constant: the tier can change.
 - Failed calls count too: three 504s and a 404 raised `used` by one each.
 - Verified `/quota` body:
   `{"ok":true,"cached":true,"cache_seconds":600,"quota":{"limit":1000,"used":1,"remaining":999,"patron":false,"resets":"00:00 UTC"}}`
