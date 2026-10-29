@@ -71,19 +71,19 @@ and the handlers of US1, so it follows US1 directly.
   Alliance Rank from the roster); `aid` 0/null → no Alliance and no rank; 404 → `not-found`; a 200 for another
   uid → `unavailable/unexpected`
 - [x] T010 [US1] Implement `GameApiClient.getPlayer` in `src/game-api/client.ts`
-- [ ] T011 [P] [US1] Test `src/discord/lookup-cards.test.ts`: `renderPlayerCard(player)` gives the embed of
+- [x] T011 [P] [US1] Test `src/discord/lookup-cards.test.ts`: `renderPlayerCard(player)` gives the embed of
   [contracts/lookup-commands.md](contracts/lookup-commands.md#player-card-embed) (power `1,234,567`, `No alliance`
   without the rank field, `Unknown` rank); names with `*_\`@` are escaped; the messages table texts, with
   `{uid}` escaped
-- [ ] T012 [P] [US1] Implement `src/discord/lookup-cards.ts`
-- [ ] T013 [US1] Add `player` to `src/discord/commands.ts` (test in `src/discord/commands.test.ts`: name,
+- [x] T012 [P] [US1] Implement `src/discord/lookup-cards.ts`
+- [x] T013 [US1] Add `player` to `src/discord/commands.ts` (test in `src/discord/commands.test.ts`: name,
   description, required string option `uid`, max length 32, guild-only context, per the contract)
-- [ ] T014 [US1] Test `src/discord/lookup.test.ts` with a fake lookup interaction (`src/discord/__fakes__/`)
+- [x] T014 [US1] Test `src/discord/lookup.test.ts` with a fake lookup interaction (`src/discord/__fakes__/`)
   and a fake client: invalid uid → ephemeral help text, no defer, client not called; valid → `deferReply()`, then
   `editReply({ embeds: [card], allowedMentions: { parse: [] } })`; `not-found` → `deleteReply()` + ephemeral
   `followUp`; a rejecting Discord call is logged, not thrown
-- [ ] T015 [US1] Implement `handlePlayer` in `src/discord/lookup.ts` and the fake in `src/discord/__fakes__/`
-- [ ] T016 [US1] Route commands by name in `src/discord/client.ts` (test: `player` reaches its handler, `ping`
+- [x] T015 [US1] Implement `handlePlayer` in `src/discord/lookup.ts` and the fake in `src/discord/__fakes__/`
+- [x] T016 [US1] Route commands by name in `src/discord/client.ts` (test: `player` reaches its handler, `ping`
   still works) and wire `GameApiClient` in `src/startup.ts` / `src/main.ts` (test in `src/startup.test.ts`: the
   client is built with the configured key and passed to `connect`)
 - [ ] T017 [US1] **Manual check on the test server** (quickstart steps 1–4); record the result here

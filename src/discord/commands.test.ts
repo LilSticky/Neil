@@ -1,10 +1,10 @@
-import { ApplicationCommandType, InteractionContextType } from "discord.js";
+import { ApplicationCommandOptionType, ApplicationCommandType, InteractionContextType } from "discord.js";
 import { describe, expect, test } from "vitest";
 import { commands } from "./commands.js";
 
 describe("commands", () => {
-  test("hold exactly /ping, open to anyone, guild only, without options", () => {
-    expect(commands).toEqual([
+  test("hold /ping, open to anyone, guild only, without options", () => {
+    expect(commands).toContainEqual(
       expect.objectContaining({
         name: "ping",
         description: "Check that Neil is online",
@@ -13,6 +13,31 @@ describe("commands", () => {
         default_member_permissions: undefined,
         contexts: [InteractionContextType.Guild],
       }),
-    ]);
+    );
+  });
+
+  test("hold /player, open to anyone, guild only, with a required uid of at most 32 characters", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "player",
+        description: "Look up a player by uid",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "uid",
+            description: "The player's uid (the number under the profile picture)",
+            required: true,
+            max_length: 32,
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping and /player", () => {
+    expect(commands.map((command) => command.name).sort()).toEqual(["ping", "player"]);
   });
 });

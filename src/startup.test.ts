@@ -59,6 +59,9 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
   const calls: string[] = [];
   const saved: StartRecord[] = [];
   let stop: (() => Promise<void>) | undefined;
+  const built: { apiKey: string; version: string }[] = [];
+  const gameApi = { getPlayer: () => Promise.resolve({ kind: "not-found" } as const) };
+  const connected: unknown[] = [];
   const deps: StartupDeps = {
     env: VALID_ENV,
     now: () => new Date("2026-10-29T12:00:00Z"),
@@ -72,8 +75,13 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
         close: () => calls.push("closeStore"),
       };
     },
+    createGameApi: (apiKey, version) => {
+      built.push({ apiKey, version });
+      return gameApi;
+    },
     connect: (token, ping) => {
       calls.push(`connect ${token === FAKE_TOKEN ? "token" : "?"} #${ping.startRecord.startCount.toString()}`);
+      connected.push(ping.gameApi);
       return Promise.resolve({
         disconnect: () => {
           calls.push("disconnect");
@@ -86,7 +94,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     exit: (code) => calls.push(`exit ${code.toString()}`),
     ...overrides,
   };
-  return { deps, calls, saved, stop: () => stop?.() };
+  return { deps, calls, saved, built, connected, gameApi, stop: () => stop?.() };
 }
 
 describe("start", () => {
@@ -97,6 +105,23 @@ describe("start", () => {
 
     expect(calls).toEqual(["prepareDataDir ./data", "openStore", "connect token #3"]);
     expect(saved).toEqual([{ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: 3 }]);
+  });
+
+  test("builds the Game API client with the configured key and hands that client to connect", async () => {
+    const fake = fakeDeps();
+
+    await start(fake.deps);
+
+    expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "dev" }]);
+    expect(fake.connected).toEqual([fake.gameApi]);
+  });
+
+  test("gives the Game API client the build version for its User-Agent", async () => {
+    const fake = fakeDeps({ readBuildInfo: () => ({ version: "2f7a537", builtAt: new Date("2026-10-29T14:02:31Z") }) });
+
+    await start(fake.deps);
+
+    expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "2f7a537" }]);
   });
 
   test("invalid configuration is printed and exits 1 without connecting", async () => {
