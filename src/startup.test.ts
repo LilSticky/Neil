@@ -40,6 +40,10 @@ describe("formatStartupError", () => {
   test("ignores empty secrets", () => {
     expect(formatStartupError(new Error("x"), [""])).toBe("Neil cannot start: x");
   });
+
+  test("takes another heading for other tools", () => {
+    expect(formatStartupError(new Error("x"), [], "Cannot register commands")).toBe("Cannot register commands: x");
+  });
 });
 
 const VALID_ENV = {
@@ -160,5 +164,28 @@ describe("start", () => {
     await fake.stop();
 
     expect(fake.calls.slice(-3)).toEqual(["disconnect", "closeStore", "exit 0"]);
+  });
+
+  test("a failed disconnect still closes the store, is printed and exits 1", async () => {
+    const fake = fakeDeps({
+      connect: () => Promise.resolve({ disconnect: () => Promise.reject(new Error(`gone ${FAKE_TOKEN}`)) }),
+    });
+    await start(fake.deps);
+
+    await fake.stop();
+
+    expect(fake.calls.slice(-3)).toEqual(["closeStore", "stderr Neil stopped uncleanly: gone [redacted]", "exit 1"]);
+  });
+
+  test("a second stop signal does nothing", async () => {
+    const fake = fakeDeps();
+    await start(fake.deps);
+
+    await Promise.all([fake.stop(), fake.stop()]);
+
+    expect(fake.calls.filter((call) => call === "closeStore" || call === "disconnect")).toEqual([
+      "disconnect",
+      "closeStore",
+    ]);
   });
 });

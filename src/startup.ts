@@ -3,12 +3,20 @@ import { ConfigError, loadConfig } from "./config.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
-export function formatStartupError(error: unknown, secrets: readonly string[]): string {
+export function formatStartupError(
+  error: unknown,
+  secrets: readonly string[],
+  heading = "Neil cannot start",
+): string {
   const text =
-    error instanceof ConfigError
+    error instanceof ConfigError && heading === "Neil cannot start"
       ? error.message
-      : `Neil cannot start: ${error instanceof Error ? error.message : String(error)}`;
+      : `${heading}: ${error instanceof ConfigError ? error.problems.join("; ") : messageOf(error)}`;
   return redact(text, secrets);
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function redact(text: string, secrets: readonly string[]): string {
@@ -66,9 +74,18 @@ export async function start(deps: StartupDeps): Promise<void> {
   }
 
   const openStore = store;
+  let stopping = false;
   deps.onStopSignal(async () => {
-    await connection.disconnect();
-    openStore.close();
-    deps.exit(0);
+    if (stopping) return;
+    stopping = true;
+    try {
+      await connection.disconnect();
+      openStore.close();
+      deps.exit(0);
+    } catch (error) {
+      openStore.close();
+      deps.writeError(redact(`Neil stopped uncleanly: ${messageOf(error)}`, secrets));
+      deps.exit(1);
+    }
   });
 }

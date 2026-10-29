@@ -34,6 +34,14 @@ describe("openDatabase", () => {
     db.close();
   });
 
+  test("refuses a database written by a newer build", () => {
+    const db = openDatabase(dataDir);
+    db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
+    db.close();
+
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 1");
+  });
+
   test("start_record allows one row with a count of at least 1", () => {
     const db = openDatabase(dataDir);
     const insert = db.prepare("INSERT INTO start_record (id, first_started_at, start_count) VALUES (?, ?, ?)");

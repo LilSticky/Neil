@@ -17,6 +17,11 @@ export function openDatabase(dataDir: string): DatabaseSync {
     db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
     const row = db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get();
     const applied = typeof row?.version === "number" ? row.version : 0;
+    if (applied > migrations.length) {
+      throw new Error(
+        `neil.db has schema version ${applied.toString()}, this build knows only up to ${migrations.length.toString()}`,
+      );
+    }
     const record = db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)");
     db.exec("BEGIN");
     try {

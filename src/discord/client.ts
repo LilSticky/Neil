@@ -4,8 +4,15 @@ import type { StartRecord } from "../domain/start-record.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 
 /** A discord.js client with the least intents (Guilds) that routes /ping to its handler. */
-export function createClient(onPing: (interaction: PingInteraction) => Promise<void>): Client {
+export function createClient(
+  onPing: (interaction: PingInteraction) => Promise<void>,
+  logError: (message: string) => void = console.error,
+): Client {
   const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+  // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
+  client.on(Events.Error, (error) => {
+    logError(`Discord client error: ${error.message}`);
+  });
   client.on(Events.InteractionCreate, (interaction) => {
     if (interaction.isChatInputCommand() && interaction.commandName === "ping") void onPing(interaction);
   });

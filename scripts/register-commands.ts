@@ -13,6 +13,6 @@ try {
   await rest.put(Routes.applicationGuildCommands(config.applicationId, config.guildId), { body: commands });
   console.log(`Registered ${commands.length.toString()} command(s) for server ${config.guildId}.`);
 } catch (error) {
-  console.error(formatStartupError(error, [process.env.DISCORD_TOKEN ?? ""]).replace("Neil cannot start", "Cannot register commands"));
+  console.error(formatStartupError(error, [process.env.DISCORD_TOKEN ?? ""], "Cannot register commands"));
   process.exitCode = 1;
 }

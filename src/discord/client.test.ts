@@ -14,6 +14,15 @@ describe("createClient", () => {
     expect(client.options.intents.bitfield).toBe(GatewayIntentBits.Guilds);
   });
 
+  test("logs client errors instead of crashing", () => {
+    const logged: string[] = [];
+    const client = createClient(vi.fn(), (message) => logged.push(message));
+
+    client.emit(Events.Error, new Error("socket hang up"));
+
+    expect(logged).toEqual(["Discord client error: socket hang up"]);
+  });
+
   test("hands /ping to the ping handler", () => {
     const onPing = vi.fn(() => Promise.resolve());
     const client = createClient(onPing);
