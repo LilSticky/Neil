@@ -52,7 +52,7 @@ Tests sit next to their files as `*.test.ts`.
 - [X] T006 Create `.github/workflows/ci.yml` job `checks`: on `pull_request` and `push` to `main`; `actions/setup-node`
   with `node-version-file: .nvmrc` and npm cache; `npm ci`, `npm run typecheck`, `npm run lint`, `npm run test`,
   `npm run build`
-- [ ] T007 Push the branch and confirm the `checks` job runs green on the pull request (open it as a draft
+- [X] T007 Push the branch and confirm the `checks` job runs green on the pull request (open it as a draft
   with `gh pr create --draft`, body `Refs` the slice issue)
 
 **Checkpoint**: CI shows its result on the pull request (US3 scenario 1).
@@ -76,14 +76,14 @@ Done before US1 because US1's composition root needs the typed `Configuration`.
 - [X] T009 [US2] Implement `src/config.ts` with zod: `loadConfig(env: Record<string, string | undefined>)` returning
   `Configuration` or throwing `ConfigError` with the list of problems; no `process.env` access inside; delete
   `src/smoke.test.ts`
-- [ ] T010 [US2] Test `src/storage/data-dir.test.ts` (temp folder): `prepareDataDir(path)` creates a missing folder,
+- [X] T010 [US2] Test `src/storage/data-dir.test.ts` (temp folder): `prepareDataDir(path)` creates a missing folder,
   accepts an existing writable one, and fails with `DATA_DIR: <path> is not writable` for a path that cannot be
   written (e.g. a path below a regular file)
-- [ ] T011 [US2] Implement `src/storage/data-dir.ts` `prepareDataDir`
-- [ ] T012 [US2] Test `src/startup.test.ts`: `formatStartupError(error)` prints
+- [X] T011 [US2] Implement `src/storage/data-dir.ts` `prepareDataDir`
+- [X] T012 [US2] Test `src/startup.test.ts`: `formatStartupError(error)` prints
   `Neil cannot start, configuration is invalid:` plus the problem lines for a `ConfigError`, and a one-line
   message for other startup errors; never includes values passed as secrets
-- [ ] T013 [US2] Implement `src/startup.ts` `formatStartupError`
+- [X] T013 [US2] Implement `src/startup.ts` `formatStartupError`
 
 **Checkpoint**: config and data folder failures are named, complete and secret-free.
 
