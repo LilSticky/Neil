@@ -116,18 +116,18 @@ status mapping.
 
 **Independent test**: `/alliance kingdom:1 alliance:NML` on the test server (quickstart steps 5–6).
 
-- [ ] T022 [US2] Test and implement the alliance schema in `src/game-api/schemas.ts` (`alliance.json`; rejects
+- [x] T022 [US2] Test and implement the alliance schema in `src/game-api/schemas.ts` (`alliance.json`; rejects
   a body missing `abbr`, `name`, `sid`, `power`, `member_count`, `capacity`; `leader_name` may be null) and a
   409 `matches` schema (hand-written fixture, research R9)
-- [ ] T023 [US2] Test in `src/game-api/client.test.ts`: `getAlliance` sends `GET {base}/alliances/{kingdom}/{encodeURIComponent(key)}`
+- [x] T023 [US2] Test in `src/game-api/client.test.ts`: `getAlliance` sends `GET {base}/alliances/{kingdom}/{encodeURIComponent(key)}`
   (a key with a space is encoded); 200 → `found` `Alliance`; 404 → `not-found`; 409 → `ambiguous` with matches; a
   200 for another Kingdom (`sid`) → `unavailable/unexpected`
-- [ ] T024 [US2] Implement `GameApiClient.getAlliance`
-- [ ] T025 [P] [US2] Test and implement `renderAllianceCard` and the alliance messages in
+- [x] T024 [US2] Implement `GameApiClient.getAlliance`
+- [x] T025 [P] [US2] Test and implement `renderAllianceCard` and the alliance messages in
   `src/discord/lookup-cards.ts` (members `12/100`, `Unknown` leader, escaped names, ambiguous list)
-- [ ] T026 [US2] Add `alliance` to `src/discord/commands.ts` (integer `kingdom` "min 1, max 9999", string
+- [x] T026 [US2] Add `alliance` to `src/discord/commands.ts` (integer `kingdom` "min 1, max 9999", string
   `alliance` "max length 40", both required) with its test
-- [ ] T027 [US2] Test and implement `handleAlliance` in `src/discord/lookup.ts` (invalid kingdom/key → ephemeral,
+- [x] T027 [US2] Test and implement `handleAlliance` in `src/discord/lookup.ts` (invalid kingdom/key → ephemeral,
   no call; found → card; not-found / ambiguous → ephemeral) and route it in `src/discord/client.ts`
 - [ ] T028 [US2] **Manual check on the test server** (quickstart steps 5–6); record the result here
 

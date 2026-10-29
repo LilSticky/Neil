@@ -10,21 +10,36 @@ export type LookupCall =
   | { readonly method: "deleteReply" }
   | { readonly method: "followUp"; readonly options: InteractionReplyOptions };
 
+/** The option values the Member typed, by option name. */
+export interface LookupOptionValues {
+  readonly strings?: Readonly<Record<string, string>>;
+  readonly integers?: Readonly<Record<string, number>>;
+}
+
 /**
- * A /player interaction that records its calls in order. A call is recorded even when it is
+ * A /player or /alliance interaction that records its calls in order. A call is recorded even when it is
  * made to fail with fail(); the failure then rejects that call, as Discord does.
  */
 export class FakeLookupInteraction {
   readonly calls: LookupCall[] = [];
-  readonly options: { getString(name: string, required: true): string };
+  readonly options: {
+    getString(name: string, required: true): string;
+    getInteger(name: string, required: true): number;
+  };
 
   private readonly failures = new Map<LookupCallName, Error>();
 
-  constructor(private readonly uid: string) {
+  constructor(values: LookupOptionValues) {
     this.options = {
       getString: (name: string): string => {
-        if (name !== "uid") throw new Error(`the fake has no string option "${name}"`);
-        return this.uid;
+        const value = values.strings?.[name];
+        if (value === undefined) throw new Error(`the fake has no string option "${name}"`);
+        return value;
+      },
+      getInteger: (name: string): number => {
+        const value = values.integers?.[name];
+        if (value === undefined) throw new Error(`the fake has no integer option "${name}"`);
+        return value;
       },
     };
   }

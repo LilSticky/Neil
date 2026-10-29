@@ -1,6 +1,6 @@
 import type { BuildInfo } from "./build-info.js";
 import { ConfigError, loadConfig } from "./config.js";
-import type { PlayerLookupApi } from "./discord/lookup.js";
+import type { LookupApi } from "./discord/lookup.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
@@ -41,10 +41,10 @@ export interface StartupDeps {
   readonly readBuildInfo: () => BuildInfo;
   readonly prepareDataDir: (dataDir: string) => void;
   readonly openStore: (dataDir: string) => StartRecordStorage;
-  readonly createGameApi: (apiKey: string, version: string) => PlayerLookupApi;
+  readonly createGameApi: (apiKey: string, version: string) => LookupApi;
   readonly connect: (
     token: string,
-    options: { readonly buildInfo: BuildInfo; readonly startRecord: StartRecord; readonly gameApi: PlayerLookupApi },
+    options: { readonly buildInfo: BuildInfo; readonly startRecord: StartRecord; readonly gameApi: LookupApi },
   ) => Promise<Connection>;
   readonly onStopSignal: (handler: () => Promise<void>) => void;
   readonly writeError: (text: string) => void;

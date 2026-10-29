@@ -22,3 +22,33 @@ export const playerBodySchema = z.object({
 });
 
 export type PlayerBody = z.infer<typeof playerBodySchema>;
+
+/** The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. */
+export const allianceBodySchema = z.object({
+  abbr: z.string(),
+  name: z.string(),
+  sid: z.number().int(),
+  power: z.number().int().nonnegative(),
+  member_count: z.number().int().nonnegative(),
+  capacity: z.number().int().nonnegative(),
+  leader_name: z.string().nullish(),
+});
+
+export type AllianceBody = z.infer<typeof allianceBodySchema>;
+
+const matchSchema = z.object({
+  tag: z.string().optional(),
+  name: z.string().optional(),
+  server: z.number().int().optional(),
+  uid: idSchema.optional(),
+});
+
+/**
+ * The 409 body of GET /alliances/{kingdom}/{key} when more than one alliance matches. Hand-written (research R9),
+ * so every field of a match is optional and the schema stays lenient.
+ */
+export const ambiguousBodySchema = z.object({
+  matches: z.array(matchSchema),
+});
+
+export type AmbiguousBody = z.infer<typeof ambiguousBodySchema>;

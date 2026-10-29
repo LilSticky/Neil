@@ -1,7 +1,8 @@
+import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
-import { parseKingdom, type Uid } from "../domain/lookup-input.js";
-import type { LookupResult, Player } from "../domain/player.js";
-import { playerBodySchema } from "./schemas.js";
+import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
+import { allianceBodySchema, ambiguousBodySchema, playerBodySchema, type AmbiguousBody } from "./schemas.js";
 
 /** The part of the global fetch the client uses; tests pass a fake. */
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -25,6 +26,9 @@ interface Unexpected {
 
 /** Every lookup result except a found value. */
 type Failure = Exclude<LookupResult<never>, { readonly kind: "found" }>;
+
+/** A body that passed its schema, or the unexpected failure that was already logged. */
+type ReadBody<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly failure: Unexpected };
 
 /** The only code that talks to the Game API. Never throws for an API failure; the key is never logged. */
 export class GameApiClient {
@@ -50,20 +54,10 @@ export class GameApiClient {
     const response = await this.request(endpoint, `/players/${uid}`);
     if (!(response instanceof Response)) return response;
 
-    let raw: unknown;
-    try {
-      raw = JSON.parse(await response.text());
-    } catch {
-      return this.unexpected(endpoint, "status 200, body is not JSON");
-    }
+    const read = await this.readBody(endpoint, response, playerBodySchema);
+    if (!read.ok) return read.failure;
 
-    const parsed = playerBodySchema.safeParse(raw);
-    if (!parsed.success) {
-      const paths = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
-      return this.unexpected(endpoint, `status 200, invalid body at ${paths}`);
-    }
-
-    const body = parsed.data;
+    const body = read.body;
     if (body.uid !== uid) return this.unexpected(endpoint, "status 200, answer is for another uid");
 
     const kingdom = parseKingdom(body.kid);
@@ -96,8 +90,47 @@ export class GameApiClient {
     };
   }
 
-  /** A 200 response, or the failure every endpoint shares; only the status is read, as error bodies may be plain text. */
-  private async request(endpoint: string, path: string): Promise<Response | Failure> {
+  async getAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
+    const endpoint = "/alliances/{kingdom}/{key}";
+
+    const response = await this.request(
+      endpoint,
+      `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
+      true,
+    );
+    if (!(response instanceof Response)) return response;
+
+    if (response.status === 409) {
+      const read = await this.readBody(endpoint, response, ambiguousBodySchema);
+      if (!read.ok) return read.failure;
+      return { kind: "ambiguous", matches: read.body.matches.map(toMatch) };
+    }
+
+    const read = await this.readBody(endpoint, response, allianceBodySchema);
+    if (!read.ok) return read.failure;
+
+    const body = read.body;
+    if (body.sid !== kingdom) return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
+
+    return {
+      kind: "found",
+      value: {
+        tag: body.abbr,
+        name: body.name,
+        kingdom,
+        power: body.power,
+        memberCount: body.member_count,
+        capacity: body.capacity,
+        leaderName: body.leader_name ?? undefined,
+      },
+    };
+  }
+
+  /**
+   * A 200 response, or the failure every endpoint shares. Only the status is read, as error bodies may be plain text.
+   * A 409 comes back as a response only when the endpoint can answer with one (`conflictIsAnswer`).
+   */
+  private async request(endpoint: string, path: string, conflictIsAnswer = false): Promise<Response | Failure> {
     let response: Response;
     try {
       response = await this.send(path);
@@ -107,12 +140,32 @@ export class GameApiClient {
     }
     const status = response.status;
     if (status === 200) return response;
+    if (status === 409 && conflictIsAnswer) return response;
     if (status === 404) return { kind: "not-found" };
     const detail = `status ${String(status)}`;
     if (status === 429) return this.fail(endpoint, detail, { kind: "quota-spent" });
     if (status === 502 || status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
     if (status === 401 || status === 403) return this.fail(endpoint, detail, { kind: "unavailable", reason: "auth" });
     return this.unexpected(endpoint, detail);
+  }
+
+  /** Parses the body as JSON and checks it against the schema; a failure is logged with the reason. */
+  private async readBody<T>(endpoint: string, response: Response, schema: z.ZodType<T>): Promise<ReadBody<T>> {
+    const status = `status ${response.status.toString()}`;
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await response.text());
+    } catch {
+      return { ok: false, failure: this.unexpected(endpoint, `${status}, body is not JSON`) };
+    }
+
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) {
+      const paths = parsed.error.issues.map((issue) => issue.path.join(".")).join(", ");
+      return { ok: false, failure: this.unexpected(endpoint, `${status}, invalid body at ${paths}`) };
+    }
+    return { ok: true, body: parsed.data };
   }
 
   private fail(endpoint: string, detail: string, failure: Failure): Failure {
@@ -136,4 +189,14 @@ export class GameApiClient {
     this.logError(`Game API ${endpoint}: unavailable (unexpected), ${detail}`);
     return { kind: "unavailable", reason: "unexpected" };
   }
+}
+
+/** Maps one candidate of a 409, leaving out the fields the Game did not give (exactOptionalPropertyTypes). */
+function toMatch(raw: AmbiguousBody["matches"][number]): Match {
+  return {
+    ...(raw.tag === undefined ? {} : { tag: raw.tag }),
+    ...(raw.name === undefined ? {} : { name: raw.name }),
+    ...(raw.server === undefined ? {} : { kingdom: raw.server }),
+    ...(raw.uid === undefined ? {} : { uid: raw.uid }),
+  };
 }

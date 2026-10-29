@@ -60,7 +60,10 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
   const saved: StartRecord[] = [];
   let stop: (() => Promise<void>) | undefined;
   const built: { apiKey: string; version: string }[] = [];
-  const gameApi = { getPlayer: () => Promise.resolve({ kind: "not-found" } as const) };
+  const gameApi = {
+    getPlayer: () => Promise.resolve({ kind: "not-found" } as const),
+    getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+  };
   const connected: unknown[] = [];
   const deps: StartupDeps = {
     env: VALID_ENV,

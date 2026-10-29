@@ -1,5 +1,6 @@
 import { escapeMarkdown, type APIEmbed, type APIEmbedField } from "discord.js";
-import type { Player } from "../domain/player.js";
+import type { AllianceKey, KingdomNumber } from "../domain/lookup-input.js";
+import type { Alliance, Match, Player } from "../domain/player.js";
 
 const FOOTER = "Data from Last Asylum Tracker";
 
@@ -32,11 +33,45 @@ export function renderPlayerCard(player: Player): APIEmbed {
   };
 }
 
+/** The public card for an Alliance. Every Game API text is escaped; a missing Leader reads Unknown. */
+export function renderAllianceCard(alliance: Alliance): APIEmbed {
+  const fields: APIEmbedField[] = [
+    { name: "Kingdom", value: `#${alliance.kingdom.toString()}`, inline: true },
+    { name: "Power", value: alliance.power.toLocaleString("en-US"), inline: true },
+    {
+      name: "Members",
+      value: `${alliance.memberCount.toString()}/${alliance.capacity.toString()}`,
+      inline: true,
+    },
+    {
+      name: "Leader",
+      value: alliance.leaderName === undefined ? "Unknown" : escapeText(alliance.leaderName),
+      inline: true,
+    },
+  ];
+  return {
+    title: `[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`,
+    fields,
+    footer: { text: FOOTER },
+  };
+}
+
+/** One candidate of an ambiguous lookup, as `[tag] name`; a field the Game left out reads Unknown. */
+function matchLabel(match: Match): string {
+  return `[${escapeText(match.tag ?? "Unknown")}] ${escapeText(match.name ?? "Unknown")}`;
+}
+
 /** Texts Neil sends privately when a lookup does not give a card. Interpolated input is escaped. */
 export const lookupMessages = {
   invalidUid:
     "That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid.",
+  invalidKingdom: "The kingdom must be a number from 1 to 9999.",
+  invalidAlliance: "Give the alliance's tag or full name (up to 40 characters).",
   playerNotFound: (uid: string): string => `No player has the uid ${escapeText(uid)}.`,
+  allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
+    `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
+  ambiguous: (key: AllianceKey, matches: readonly Match[]): string =>
+    `More than one alliance matches "${escapeText(key)}": ${matches.map(matchLabel).join(", ")}. Try the exact tag.`,
   quotaSpent: "Lookups are used up for today. They work again after 00:00 UTC.",
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",

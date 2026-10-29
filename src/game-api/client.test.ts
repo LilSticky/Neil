@@ -1,6 +1,15 @@
 import { describe, expect, test, vi } from "vitest";
-import { parseUid, type Uid } from "../domain/lookup-input.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import {
+  parseAllianceKey,
+  parseKingdom,
+  parseUid,
+  type AllianceKey,
+  type KingdomNumber,
+  type Uid,
+} from "../domain/lookup-input.js";
+import type { Alliance, LookupResult, Player } from "../domain/player.js";
+import alliance from "./__fixtures__/alliance.json" with { type: "json" };
+import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
 import { type FetchLike, GameApiClient } from "./client.js";
 
@@ -17,6 +26,18 @@ interface SentRequest {
 function parsedUid(text: string): Uid {
   const parsed = parseUid(text);
   if (!parsed.ok) throw new Error(`test uid ${text} must parse`);
+  return parsed.value;
+}
+
+function parsedKingdom(number: number): KingdomNumber {
+  const parsed = parseKingdom(number);
+  if (!parsed.ok) throw new Error(`test Kingdom ${number.toString()} must parse`);
+  return parsed.value;
+}
+
+function parsedAllianceKey(text: string): AllianceKey {
+  const parsed = parseAllianceKey(text);
+  if (!parsed.ok) throw new Error(`test alliance key "${text}" must parse`);
   return parsed.value;
 }
 
@@ -296,5 +317,122 @@ describe("GameApiClient.getPlayer failure mapping", () => {
     expect(logged).toHaveLength(1);
     expect(logged[0]).toContain("nick");
     expect(logged.join("\n")).not.toContain(FAKE_API_KEY);
+  });
+});
+
+const ALLIANCE_PATH = "https://api.lastasylumtracker.com/v1/alliances/1/NML";
+
+describe("GameApiClient.getAlliance request", () => {
+  test("sends GET to the alliance's path in its Kingdom on the Game API", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
+
+    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(firstRequest(sent).url).toBe(ALLIANCE_PATH);
+    expect(firstRequest(sent).init?.method ?? "GET").toBe("GET");
+  });
+
+  test("percent-encodes an alliance key with a space", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
+
+    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man"));
+
+    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/alliances/1/No%20Man");
+  });
+
+  test("authenticates with the API key and identifies Neil in the User-Agent", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
+
+    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    const headers = new Headers(firstRequest(sent).init?.headers);
+    expect(headers.get("Authorization")).toBe(`Bearer ${FAKE_API_KEY}`);
+    expect(headers.get("User-Agent")).toBe(`Neil/${VERSION} (+https://github.com/LilSticky/Neil)`);
+  });
+});
+
+describe("GameApiClient.getAlliance result", () => {
+  test("a 200 for the requested Kingdom is found, mapped to an Alliance", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, alliance));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    const expected: Alliance = {
+      tag: "NML",
+      name: "No Man's Land",
+      kingdom: parsedKingdom(1),
+      power: 208815434,
+      memberCount: 52,
+      capacity: 100,
+      leaderName: "DrLOL",
+    };
+    expect(result).toEqual({ kind: "found", value: expected });
+  });
+
+  test("a null leader_name gives an Alliance without a leader name", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, { ...alliance, leader_name: null }));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: { tag: "NML", leaderName: undefined },
+    });
+  });
+
+  test("a 404 is not-found", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(404, allianceNotFound));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("ZZZQX"));
+
+    expect(result).toEqual({ kind: "not-found" });
+  });
+
+  test("a 409 with a readable matches list is ambiguous, each match mapped with its server as kingdom", async () => {
+    // Hand-written, not recorded (research R9): the shape of a 409 for a name shared by two alliances.
+    const body = {
+      matches: [
+        { tag: "NML", name: "No Man's Land", server: 1, uid: 145563254785 },
+        { tag: "NMX", name: "No Man's Land", server: 2, uid: 93159425 },
+      ],
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(409, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man's Land"));
+
+    expect(result).toEqual({
+      kind: "ambiguous",
+      matches: [
+        { tag: "NML", name: "No Man's Land", kingdom: 1, uid: "145563254785" },
+        { tag: "NMX", name: "No Man's Land", kingdom: 2, uid: "93159425" },
+      ],
+    });
+  });
+
+  test.each([
+    ["a JSON body without matches", () => jsonResponse(409, { detail: "alliance_ambiguous" })],
+    ["a plain-text body", () => textResponse(409, "error code: 409")],
+  ])("a 409 with %s is unavailable, reason unexpected", async (_label, respond) => {
+    const { fetch } = fakeFetch(respond);
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
+  });
+
+  test("a 200 for another Kingdom is unavailable, reason unexpected", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, { ...alliance, sid: 2 }));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
+  });
+
+  test("a 429 is quota-spent, as for a player", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(429, { detail: "rate_limited" }));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(result).toEqual({ kind: "quota-spent" });
   });
 });

@@ -2,12 +2,13 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 import type { BuildInfo } from "../build-info.js";
 import type { StartRecord } from "../domain/start-record.js";
 import { handlePing, type PingInteraction } from "./ping.js";
-import { handlePlayer, type PlayerInteraction, type PlayerLookupApi } from "./lookup.js";
+import { handleAlliance, handlePlayer, type LookupApi, type LookupInteraction } from "./lookup.js";
 
 /** One handler per slash command this client answers. */
 export interface CommandHandlers {
   readonly ping: (interaction: PingInteraction) => Promise<void>;
-  readonly player: (interaction: PlayerInteraction) => Promise<void>;
+  readonly player: (interaction: LookupInteraction) => Promise<void>;
+  readonly alliance: (interaction: LookupInteraction) => Promise<void>;
 }
 
 /** A discord.js client with the least intents (Guilds) that routes each slash command to its handler. */
@@ -29,6 +30,9 @@ export function createClient(
       case "player":
         void handlers.player(interaction);
         break;
+      case "alliance":
+        void handlers.alliance(interaction);
+        break;
     }
   });
   return client;
@@ -37,7 +41,7 @@ export function createClient(
 export interface ConnectOptions {
   readonly buildInfo: BuildInfo;
   readonly startRecord: StartRecord;
-  readonly gameApi: PlayerLookupApi;
+  readonly gameApi: LookupApi;
 }
 
 /** Logs in and answers the slash commands until disconnected; a rejected login rejects. */
@@ -56,6 +60,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           logError,
         }),
       player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, logError }),
+      alliance: (interaction) => handleAlliance(interaction, { gameApi: options.gameApi, logError }),
     },
   );
   try {

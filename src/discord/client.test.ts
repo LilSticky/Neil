@@ -11,6 +11,7 @@ function handlers() {
   return {
     ping: vi.fn(() => Promise.resolve()),
     player: vi.fn(() => Promise.resolve()),
+    alliance: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -51,6 +52,18 @@ describe("createClient", () => {
 
     expect(routed.player).toHaveBeenCalledWith(interaction);
     expect(routed.ping).not.toHaveBeenCalled();
+  });
+
+  test("hands /alliance to the alliance handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = chatInput("alliance");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.alliance).toHaveBeenCalledWith(interaction);
+    expect(routed.ping).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
   });
 
   test("ignores other commands and other interaction kinds", () => {

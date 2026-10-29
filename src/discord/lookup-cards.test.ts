@@ -1,7 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { Player } from "../domain/player.js";
-import { lookupMessages, renderPlayerCard } from "./lookup-cards.js";
+import {
+  parseAllianceKey,
+  parseKingdom,
+  parseUid,
+  type AllianceKey,
+  type KingdomNumber,
+  type Uid,
+} from "../domain/lookup-input.js";
+import type { Alliance, Match, Player } from "../domain/player.js";
+import { lookupMessages, renderAllianceCard, renderPlayerCard } from "./lookup-cards.js";
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -108,5 +115,108 @@ describe("lookupMessages", () => {
 
   test("playerNotFound escapes the uid as typed", () => {
     expect(lookupMessages.playerNotFound("1_2*")).toBe("No player has the uid 1\\_2\\*.");
+  });
+});
+
+function allianceKey(text: string): AllianceKey {
+  const parsed = parseAllianceKey(text);
+  if (!parsed.ok) throw new Error(`test alliance key "${text}" is not valid`);
+  return parsed.value;
+}
+
+const alliance: Alliance = {
+  tag: "NML",
+  name: "No Man's Land",
+  kingdom: kingdom(1),
+  power: 208815434,
+  memberCount: 52,
+  capacity: 100,
+  leaderName: "DrLOL",
+};
+
+describe("renderAllianceCard", () => {
+  test("titles the card with the Alliance's tag and name", () => {
+    expect(renderAllianceCard(alliance)).toMatchObject({
+      title: "[NML] No Man's Land",
+    });
+  });
+
+  test("shows Kingdom, Power, Members as count/capacity, and Leader as inline fields", () => {
+    expect(renderAllianceCard(alliance)).toMatchObject({
+      fields: [
+        { name: "Kingdom", value: "#1", inline: true },
+        { name: "Power", value: "208,815,434", inline: true },
+        { name: "Members", value: "52/100", inline: true },
+        { name: "Leader", value: "DrLOL", inline: true },
+      ],
+    });
+  });
+
+  test("shows Unknown as the Leader when the Game gives no leader name", () => {
+    const card = renderAllianceCard({ ...alliance, leaderName: undefined });
+
+    expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "Unknown" });
+  });
+
+  test("credits Last Asylum Tracker in the footer", () => {
+    expect(renderAllianceCard(alliance)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker" },
+    });
+  });
+
+  test("escapes markdown in the tag, the name and the leader name", () => {
+    const card = renderAllianceCard({
+      ...alliance,
+      tag: "N_M",
+      name: "*Bold* ~x~",
+      leaderName: "_DrLOL_",
+    });
+
+    expect(card).toMatchObject({ title: "[N\\_M] \\*Bold\\* \\~x\\~" });
+    expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "\\_DrLOL\\_" });
+  });
+});
+
+describe("lookupMessages for /alliance", () => {
+  test("invalidKingdom gives the contract's text", () => {
+    expect(lookupMessages.invalidKingdom).toBe("The kingdom must be a number from 1 to 9999.");
+  });
+
+  test("invalidAlliance gives the contract's text", () => {
+    expect(lookupMessages.invalidAlliance).toBe("Give the alliance's tag or full name (up to 40 characters).");
+  });
+
+  test("allianceNotFound names the key and the Kingdom", () => {
+    expect(lookupMessages.allianceNotFound(allianceKey("ZZZQX"), kingdom(1))).toBe(
+      'No alliance "ZZZQX" in kingdom #1.',
+    );
+  });
+
+  test("allianceNotFound escapes the key as typed", () => {
+    expect(lookupMessages.allianceNotFound(allianceKey("N_M*"), kingdom(1))).toBe(
+      'No alliance "N\\_M\\*" in kingdom #1.',
+    );
+  });
+
+  test("ambiguous lists each match as [tag] name and asks for the exact tag", () => {
+    const matches: readonly Match[] = [
+      { tag: "NML", name: "No Man's Land", kingdom: 1, uid: "145563254785" },
+      { tag: "NMX", name: "No Man's Land", kingdom: 2, uid: "93159425" },
+    ];
+
+    expect(lookupMessages.ambiguous(allianceKey("No Man's Land"), matches)).toBe(
+      "More than one alliance matches \"No Man's Land\": [NML] No Man's Land, [NMX] No Man's Land. Try the exact tag.",
+    );
+  });
+
+  test("ambiguous escapes the key and the names", () => {
+    const matches: readonly Match[] = [
+      { tag: "N_M", name: "*Bold*", kingdom: 1 },
+      { tag: "NMX", name: "Plain", kingdom: 2 },
+    ];
+
+    expect(lookupMessages.ambiguous(allianceKey("N_M"), matches)).toBe(
+      'More than one alliance matches "N\\_M": [N\\_M] \\*Bold\\*, [NMX] Plain. Try the exact tag.',
+    );
   });
 });

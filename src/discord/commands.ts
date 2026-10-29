@@ -18,5 +18,25 @@ export const player = new SlashCommandBuilder()
       .setMaxLength(32),
   );
 
+export const alliance = new SlashCommandBuilder()
+  .setName("alliance")
+  .setDescription("Look up an alliance in a kingdom")
+  .setContexts(InteractionContextType.Guild)
+  .addIntegerOption((option) =>
+    option
+      .setName("kingdom")
+      .setDescription("The kingdom number")
+      .setRequired(true)
+      .setMinValue(1)
+      .setMaxValue(9999),
+  )
+  .addStringOption((option) =>
+    option
+      .setName("alliance")
+      .setDescription("The alliance tag (or full name)")
+      .setRequired(true)
+      .setMaxLength(40),
+  );
+
 /** Everything registered for the configured server, as REST payloads. */
-export const commands = [ping.toJSON(), player.toJSON()];
+export const commands = [ping.toJSON(), player.toJSON(), alliance.toJSON()];

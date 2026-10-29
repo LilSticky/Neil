@@ -37,7 +37,36 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping and /player", () => {
-    expect(commands.map((command) => command.name).sort()).toEqual(["ping", "player"]);
+  test("hold /alliance, open to anyone, guild only, with a required integer kingdom from 1 to 9999 and a required alliance of at most 40 characters", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "alliance",
+        description: "Look up an alliance in a kingdom",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Integer,
+            name: "kingdom",
+            description: "The kingdom number",
+            required: true,
+            min_value: 1,
+            max_value: 9999,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "alliance",
+            description: "The alliance tag (or full name)",
+            required: true,
+            max_length: 40,
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player and /alliance", () => {
+    expect(commands.map((command) => command.name).sort()).toEqual(["alliance", "ping", "player"]);
   });
 });
