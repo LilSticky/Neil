@@ -18,7 +18,7 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 ## Quota (the "rate limit")
 
-- **1,000 requests per UTC day** on a free account, 2,000 with a paid Patreon membership. Every `/v1`
+- **2,000 requests per UTC day**: our key is on a paid Patreon membership (since 2026-10-29; free is 1,000). Every `/v1`
   call counts, including `/v1/quota`. Resets at 00:00 UTC. No per-second limit is documented.
 - Documented headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset: 00:00 UTC`
   (not yet checked on a real response).

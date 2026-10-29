@@ -3,7 +3,7 @@
 Neil is a Discord bot, written in TypeScript, that manages the members of a Last Asylum: Plague Discord
 server. It gives Members roles and nicknames based on in-game information from the Game API, and runs an
 automated Onboarding Interview for everyone who joins. It is versioned on GitHub
-([LilSticky/Neil](https://github.com/LilSticky/Neil)). The host is still open (ADR 6).
+([LilSticky/Neil](https://github.com/LilSticky/Neil)). Production runs on Wispbyte (ADR 6).
 
 ## Core Principles
 
@@ -89,7 +89,7 @@ Rationale: frequent, visible progress keeps momentum.
   major). The stack stays on current major versions.
 - Two Discord servers: a **test server** for development and acceptance, and the **production server**.
   Guild IDs, role IDs and channel IDs are configuration, never hard-coded.
-- Hosting: not chosen yet (candidates: Wispbyte, Pella; ADR 6). The bot is built in CI and deployed from `main`.
+- Hosting: Wispbyte (ADR 6). The bot is built in CI and deployed from `main`.
 - Configuration and secrets come from environment variables, validated at startup; the bot refuses to
   start with invalid configuration.
 
@@ -116,4 +116,4 @@ Rationale: frequent, visible progress keeps momentum.
 - Every spec, plan and implementation MUST be checked against these principles (the Constitution Check
   in `/speckit-plan`); any deviation MUST be justified in the plan or rejected.
 
-**Version**: 1.0.1 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-10-29 (hosting left open, ADR 6)
+**Version**: 1.0.2 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-10-29 (hosting: Wispbyte, ADR 6)

@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Neil is a Discord bot in TypeScript (user requirement). It will run on a small bot-hosting plan (ADR 6), which may
+Neil is a Discord bot in TypeScript (user requirement). It runs on a small Wispbyte bot-hosting plan (ADR 6), which may
 offer as little as about 100 MB RAM. The constitution asks for current major versions and strict typing.
 
 ## Decision
