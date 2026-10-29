@@ -24,21 +24,21 @@ Tests sit next to their files as `*.test.ts`.
 
 **Purpose**: an empty but working TypeScript project with all checks runnable.
 
-- [ ] T001 Create `package.json` (`"type": "module"`, `"engines": { "node": ">=24" }`, scripts from
+- [X] T001 Create `package.json` (`"type": "module"`, `"engines": { "node": ">=24" }`, scripts from
   [contracts/configuration.md](contracts/configuration.md#npm-scripts): `dev` = `tsx watch --env-file=.env src/main.ts`,
   `build` = `tsc -p tsconfig.build.json`, `start` = `node dist/main.js`, `test` = `vitest run`, `test:watch` = `vitest`,
   `lint` = `eslint .`, `typecheck` = `tsc --noEmit`, `commands:register` = `tsx scripts/register-commands.ts`),
   install `discord.js` and `zod`, dev deps `typescript`, `tsx`, `vitest`, `eslint`, `typescript-eslint`, `@types/node`;
   commit `package-lock.json`; add `.nvmrc` with `24`
-- [ ] T002 [P] Create `tsconfig.json` (strict, `module`/`moduleResolution` `NodeNext`, target ES2024, `noEmit`,
+- [X] T002 [P] Create `tsconfig.json` (strict, `module`/`moduleResolution` `NodeNext`, target ES2024, `noEmit`,
   includes `src`, `scripts`, configs) and `tsconfig.build.json` (extends it, emits `src/` to `dist/`, excludes `*.test.ts`
   and `__fakes__`)
-- [ ] T003 [P] Create `eslint.config.js` (flat config, typescript-eslint `strictTypeChecked`, ignores `dist/`) and
+- [X] T003 [P] Create `eslint.config.js` (flat config, typescript-eslint `strictTypeChecked`, ignores `dist/`) and
   `vitest.config.ts` (node environment, `src/**/*.test.ts`)
-- [ ] T004 [P] Update `.gitignore` (`dist/`, `data/`, `node_modules/`; `.env.*` stays ignored, `env.example` stays
+- [X] T004 [P] Update `.gitignore` (`dist/`, `data/`, `node_modules/`; `.env.*` stays ignored, `env.example` stays
   tracked) and `env.example` (add `DISCORD_TOKEN`, `DISCORD_APPLICATION_ID`, `DISCORD_GUILD_ID`, `DATA_DIR=./data`
   with placeholders; keep `LAP_TRACKER_API_KEY`, `HOME_KINGDOM` marked "from slice 002")
-- [ ] T005 Add a trivial `src/smoke.test.ts` that passes, run `npm run typecheck`, `npm run lint`, `npm run test`
+- [X] T005 Add a trivial `src/smoke.test.ts` that passes, run `npm run typecheck`, `npm run lint`, `npm run test`
   and fix the config until all three are green; delete the smoke test in T009
 
 **Checkpoint**: `npm run typecheck`, `lint`, `test` run green on an empty project.

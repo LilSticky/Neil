@@ -155,3 +155,7 @@ vite.config.ts.timestamp-*
 .idea/claudeCodeEditorTabs.xml
 # JetBrains IDE (per-user)
 .idea/
+
+# Neil runtime data (SQLite) and build output
+data/
+build-info.json
