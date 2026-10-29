@@ -169,7 +169,7 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
 
 **Independent test**: merge to `main`, restart in the panel, `/ping` shows the merge's short sha.
 
-- [ ] T035 [P] [US3] Test `src/build-info.test.ts` (temp folder): `readBuildInfo(path)` returns version `dev` without
+- [X] T035 [P] [US3] Test `src/build-info.test.ts` (temp folder): `readBuildInfo(path)` returns version `dev` without
   the file; `{ version, builtAt }` for a valid file (`version` "non-empty string", `builtAt` "ISO 8601 timestamp");
   a present but invalid file is a startup error
 - [ ] T036 [US3] Implement `src/build-info.ts` and pass the build info into `start` (test in `src/main.test.ts` first)

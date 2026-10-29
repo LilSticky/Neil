@@ -1,8 +1,6 @@
 import { MessageFlags } from "discord.js";
+import type { BuildInfo } from "../build-info.js";
 import type { StartRecord } from "../domain/start-record.js";
-
-/** The running build, or `dev` when no build info was written (local runs). */
-export type BuildInfo = "dev" | { readonly version: string; readonly builtAt: Date };
 
 export interface PingReplyInput {
   readonly latencyMs: number;
