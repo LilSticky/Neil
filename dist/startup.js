@@ -15,7 +15,7 @@ export function redact(text, secrets) {
 }
 /** Config → build info → data folder → start record → Discord; any failure exits 1 before going on. */
 export async function start(deps) {
-    const secrets = [deps.env.DISCORD_TOKEN ?? ""];
+    const secrets = [deps.env.DISCORD_TOKEN ?? "", deps.env.LAP_TRACKER_API_KEY ?? ""];
     let store;
     const fail = (error) => {
         store?.close();
@@ -30,7 +30,8 @@ export async function start(deps) {
         store = deps.openStore(config.dataDir);
         const startRecord = recordStart(store.load(), deps.now());
         store.save(startRecord);
-        connection = await deps.connect(config.discordToken, { buildInfo, startRecord });
+        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version);
+        connection = await deps.connect(config.discordToken, { buildInfo, startRecord, gameApi });
     }
     catch (error) {
         fail(error);

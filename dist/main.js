@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { readBuildInfo } from "./build-info.js";
 import { connect } from "./discord/client.js";
+import { GameApiClient } from "./game-api/client.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
@@ -19,6 +20,14 @@ await start({
         const store = new StartRecordStore(db);
         return { load: () => store.load(), save: (record) => { store.save(record); }, close: () => { db.close(); } };
     },
+    createGameApi: (apiKey, version) => new GameApiClient({
+        apiKey,
+        version,
+        fetch: globalThis.fetch,
+        logError: (line) => {
+            console.error(line);
+        },
+    }),
     connect,
     onStopSignal: (handler) => {
         for (const signal of ["SIGINT", "SIGTERM"])

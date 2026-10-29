@@ -16,6 +16,7 @@ const schema = z.object({
     DISCORD_TOKEN: z.string(required).min(1, required),
     DISCORD_APPLICATION_ID: snowflake,
     DISCORD_GUILD_ID: snowflake,
+    LAP_TRACKER_API_KEY: z.string(required).min(1, required),
     DATA_DIR: z.string().min(1).default("./data"),
 });
 /** Validates the environment; collects every problem and never echoes a value. */
@@ -35,6 +36,7 @@ export function loadConfig(env) {
         discordToken: result.data.DISCORD_TOKEN,
         applicationId: result.data.DISCORD_APPLICATION_ID,
         guildId: result.data.DISCORD_GUILD_ID,
+        gameApiKey: result.data.LAP_TRACKER_API_KEY,
         dataDir: result.data.DATA_DIR,
     };
 }
