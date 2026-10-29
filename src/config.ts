@@ -4,6 +4,7 @@ export interface Configuration {
   readonly discordToken: string;
   readonly applicationId: string;
   readonly guildId: string;
+  readonly gameApiKey: string;
   readonly dataDir: string;
 }
 
@@ -27,6 +28,7 @@ const schema = z.object({
   DISCORD_TOKEN: z.string(required).min(1, required),
   DISCORD_APPLICATION_ID: snowflake,
   DISCORD_GUILD_ID: snowflake,
+  LAP_TRACKER_API_KEY: z.string(required).min(1, required),
   DATA_DIR: z.string().min(1).default("./data"),
 });
 
@@ -46,6 +48,7 @@ export function loadConfig(env: Record<string, string | undefined>): Configurati
     discordToken: result.data.DISCORD_TOKEN,
     applicationId: result.data.DISCORD_APPLICATION_ID,
     guildId: result.data.DISCORD_GUILD_ID,
+    gameApiKey: result.data.LAP_TRACKER_API_KEY,
     dataDir: result.data.DATA_DIR,
   };
 }

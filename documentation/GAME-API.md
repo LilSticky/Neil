@@ -20,8 +20,11 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 - **2,000 requests per UTC day**: our key is on a paid Patreon membership (since 2026-10-29; free is 1,000). Every `/v1`
   call counts, including `/v1/quota`. Resets at 00:00 UTC. No per-second limit is documented.
-- Documented headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset: 00:00 UTC`
-  (not yet checked on a real response).
+- Headers, **verified on `/quota`** (2026-10-29): `x-ratelimit-limit: 1000`, `x-ratelimit-remaining: 990`,
+  `x-ratelimit-reset: 00:00 UTC`. Not sent on a 404 or a Cloudflare 504.
+- **On 2026-10-29 the key still reported `limit: 1000`, `patron: false`**: the Patreon upgrade had not
+  reached the tracker yet. Budget with `x-ratelimit-limit`, not a constant.
+- Failed calls count too: three 504s and a 404 raised `used` by one each.
 - Verified `/quota` body:
   `{"ok":true,"cached":true,"cache_seconds":600,"quota":{"limit":1000,"used":1,"remaining":999,"patron":false,"resets":"00:00 UTC"}}`
 - `429` = daily limit reached. Retrying before the reset is pointless.
@@ -35,7 +38,7 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 | Endpoint | State | Gives us |
 |----------|-------|----------|
-| `GET /alliances/{kingdom}/{alliance}` | **verified** (user: by name; us: by tag `NML` on kingdom 1) | the alliance and its full roster with ranks |
+| `GET /alliances/{kingdom}/{alliance}` | **verified by tag** (`NML` on kingdom 1); by full name (`No Man's Land`, URL-encoded) it gave **404** on 2026-10-29 | the alliance and its full roster with ranks |
 | `GET /players/{uid}` | **verified** (2026-10-29) | one player, their alliance, and that alliance's roster with ranks |
 | `GET /quota` | **verified** | the quota object only; costs one request |
 | `GET /players/name/{name}`, `GET /players/{server}/{name}` | documented, not working for the user so far | a player by name |
@@ -75,7 +78,13 @@ rank is unknown and needs approval by the alliance's R5 (see discovery).
 **Budget consequence**: one `/players/{uid}` call already returns the player, rank and whole alliance; one
 roster call returns a whole alliance. Bulk sync costs about one request per alliance.
 
-## Errors (documented)
+## Errors
+
+Seen on real calls (2026-10-29): a 404 body `{"detail":"alliance_not_found"}` (JSON, at once); a
+**Cloudflare 504 after ~45 s** with the plain-text body `error code: 504` on `/players/{uid}` and
+`/alliances/1/NML` for several minutes. Error bodies are not reliably JSON, so map by status code.
+
+Documented:
 
 | Status | Meaning |
 |--------|---------|
@@ -89,7 +98,10 @@ roster call returns a whole alliance. Bulk sync costs about one request per alli
 
 ## Open questions
 
-- Is `quota` in the body of player and alliance responses (docs say yes; not seen in the truncated
-  samples)? Check the `X-RateLimit-*` headers on a real response.
-- Do `/alliances/{kingdom}/{name}` (full name) and `/{kingdom}/{tag}` behave the same for names with
-  spaces? Record fixtures in slice 002.
+- Answered 2026-10-29: `quota` **is** in player and alliance bodies (with `cached`, `cache_seconds`);
+  `x-ratelimit-*` headers verified on `/quota`. Full alliance names give 404; use the tag.
+- **Unknown uids answer 502 after ~10 s** (`/players/1`, `/players/999999999999`, 2026-10-29), body
+  `error code: 502`; a 404 for a player has not been seen. Neil waits 15 s and treats a player 502 as
+  "maybe unknown uid" (slice 002, research R11).
+- `uid`, `kid`, `aid` are JSON numbers; uids up to 12 digits so far, safely inside JavaScript's
+  integer range.

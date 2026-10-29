@@ -4,6 +4,7 @@ import { startCount, type StartRecord } from "./domain/start-record.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
 const FAKE_TOKEN = "fake-token-never-shown-7f3a9c";
+const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
 
 describe("formatStartupError", () => {
   test("prints a ConfigError as the heading plus one line per problem", () => {
@@ -50,6 +51,7 @@ const VALID_ENV = {
   DISCORD_TOKEN: FAKE_TOKEN,
   DISCORD_APPLICATION_ID: "123456789012345678",
   DISCORD_GUILD_ID: "123456789012345678",
+  LAP_TRACKER_API_KEY: FAKE_API_KEY,
   DATA_DIR: "./data",
 };
 
@@ -57,6 +59,12 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
   const calls: string[] = [];
   const saved: StartRecord[] = [];
   let stop: (() => Promise<void>) | undefined;
+  const built: { apiKey: string; version: string }[] = [];
+  const gameApi = {
+    getPlayer: () => Promise.resolve({ kind: "not-found" } as const),
+    getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+  };
+  const connected: unknown[] = [];
   const deps: StartupDeps = {
     env: VALID_ENV,
     now: () => new Date("2026-10-29T12:00:00Z"),
@@ -70,8 +78,13 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
         close: () => calls.push("closeStore"),
       };
     },
+    createGameApi: (apiKey, version) => {
+      built.push({ apiKey, version });
+      return gameApi;
+    },
     connect: (token, ping) => {
       calls.push(`connect ${token === FAKE_TOKEN ? "token" : "?"} #${ping.startRecord.startCount.toString()}`);
+      connected.push(ping.gameApi);
       return Promise.resolve({
         disconnect: () => {
           calls.push("disconnect");
@@ -84,7 +97,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     exit: (code) => calls.push(`exit ${code.toString()}`),
     ...overrides,
   };
-  return { deps, calls, saved, stop: () => stop?.() };
+  return { deps, calls, saved, built, connected, gameApi, stop: () => stop?.() };
 }
 
 describe("start", () => {
@@ -97,15 +110,44 @@ describe("start", () => {
     expect(saved).toEqual([{ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: 3 }]);
   });
 
+  test("builds the Game API client with the configured key and hands that client to connect", async () => {
+    const fake = fakeDeps();
+
+    await start(fake.deps);
+
+    expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "dev" }]);
+    expect(fake.connected).toEqual([fake.gameApi]);
+  });
+
+  test("gives the Game API client the build version for its User-Agent", async () => {
+    const fake = fakeDeps({ readBuildInfo: () => ({ version: "2f7a537", builtAt: new Date("2026-10-29T14:02:31Z") }) });
+
+    await start(fake.deps);
+
+    expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "2f7a537" }]);
+  });
+
   test("invalid configuration is printed and exits 1 without connecting", async () => {
     const { deps, calls } = fakeDeps({ env: { DISCORD_TOKEN: FAKE_TOKEN } });
 
     await start(deps);
 
     expect(calls).toEqual([
-      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required",
+      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- LAP_TRACKER_API_KEY: required",
       "exit 1",
     ]);
+  });
+
+  test("the game API key is redacted from a startup failure like the token", async () => {
+    const { deps, calls } = fakeDeps({
+      readBuildInfo: () => {
+        throw new Error(`build-info.json is invalid, key ${FAKE_API_KEY}`);
+      },
+    });
+
+    await start(deps);
+
+    expect(calls).toEqual(["stderr Neil cannot start: build-info.json is invalid, key [redacted]", "exit 1"]);
   });
 
   test("a corrupt start record closes the store and exits 1 without connecting", async () => {

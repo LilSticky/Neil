@@ -3,12 +3,14 @@ import { ConfigError, loadConfig } from "./config.js";
 
 const VALID_SNOWFLAKE = "123456789012345678";
 const FAKE_TOKEN = "fake-token-never-shown-7f3a9c";
+const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
 
 function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {
     DISCORD_TOKEN: FAKE_TOKEN,
     DISCORD_APPLICATION_ID: VALID_SNOWFLAKE,
     DISCORD_GUILD_ID: VALID_SNOWFLAKE,
+    LAP_TRACKER_API_KEY: FAKE_API_KEY,
     ...overrides,
   };
 }
@@ -33,6 +35,7 @@ describe("loadConfig", () => {
       discordToken: FAKE_TOKEN,
       applicationId: VALID_SNOWFLAKE,
       guildId: VALID_SNOWFLAKE,
+      gameApiKey: FAKE_API_KEY,
       dataDir: "/srv/neil",
     });
   });
@@ -65,6 +68,27 @@ describe("loadConfig", () => {
     const error = failureOf(validEnv({ DISCORD_GUILD_ID: undefined }));
 
     expect(error.problems).toEqual(["DISCORD_GUILD_ID: required"]);
+  });
+
+  test("reports LAP_TRACKER_API_KEY as required when it is missing", () => {
+    const error = failureOf(validEnv({ LAP_TRACKER_API_KEY: undefined }));
+
+    expect(error.problems).toEqual(["LAP_TRACKER_API_KEY: required"]);
+  });
+
+  test("reports LAP_TRACKER_API_KEY as required when it is empty", () => {
+    const error = failureOf(validEnv({ LAP_TRACKER_API_KEY: "" }));
+
+    expect(error.problems).toEqual(["LAP_TRACKER_API_KEY: required"]);
+  });
+
+  test("never shows the game API key value when other settings are invalid", () => {
+    const error = failureOf(validEnv({ DISCORD_GUILD_ID: "42" }));
+
+    expect(error.message).not.toContain(FAKE_API_KEY);
+    for (const problem of error.problems) {
+      expect(problem).not.toContain(FAKE_API_KEY);
+    }
   });
 
   describe("Discord snowflake rule", () => {
@@ -113,6 +137,7 @@ describe("loadConfig", () => {
       "DISCORD_TOKEN: required",
       "DISCORD_APPLICATION_ID: required",
       "DISCORD_GUILD_ID: must be a Discord ID (17–20 digits)",
+      "LAP_TRACKER_API_KEY: required",
     ]);
   });
 
@@ -121,6 +146,7 @@ describe("loadConfig", () => {
       DISCORD_TOKEN: FAKE_TOKEN,
       DISCORD_APPLICATION_ID: VALID_SNOWFLAKE,
       DISCORD_GUILD_ID: "16-digits-xxx",
+      LAP_TRACKER_API_KEY: FAKE_API_KEY,
     });
 
     expect(error.message).toBe(
@@ -137,6 +163,7 @@ describe("loadConfig", () => {
         "- DISCORD_TOKEN: required",
         "- DISCORD_APPLICATION_ID: required",
         "- DISCORD_GUILD_ID: required",
+        "- LAP_TRACKER_API_KEY: required",
       ].join("\n"),
     );
   });
