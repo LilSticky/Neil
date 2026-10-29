@@ -145,8 +145,9 @@ status mapping.
 - [x] T030 Update `documentation/GAME-API.md` from the recorded fixtures (patron status, headers on 200s,
   names with spaces) and close its answered open questions
 - [x] T031 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`), ready-to-merge PR (`Closes` the slice issue)
-- [ ] T032 Add `LAP_TRACKER_API_KEY` in the Wispbyte panel before the merge deploys (manual, user), merge,
+- [x] T032 Add `LAP_TRACKER_API_KEY` in the Wispbyte panel before the merge deploys (manual, user), merge,
   restart, and repeat T017/T028 against Wispbyte
+  *Done 2026-10-30: key in the panel, PR #6 merged and deployed, `/player` and `/alliance` work on Wispbyte (user).*
 
 ## Dependencies
 
