@@ -87,6 +87,8 @@ export const lookupMessages = {
   invalidKingdom: "The kingdom must be a number from 1 to 9999.",
   invalidAlliance: "Give the alliance's tag (up to 40 characters).",
   playerNotFound: (uid: string): string => `No player has the uid ${escapeText(uid)}.`,
+  playerNotPrepared: (uid: string): string =>
+    `Couldn't find a player with the uid ${escapeText(uid)}. Check the uid; if it's right, the tracker may be busy, so try again later.`,
   allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
   ambiguous: (key: AllianceKey, matches: readonly Match[]): string => {

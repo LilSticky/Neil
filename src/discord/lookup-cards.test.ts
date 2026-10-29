@@ -116,6 +116,18 @@ describe("lookupMessages", () => {
   test("playerNotFound escapes the uid as typed", () => {
     expect(lookupMessages.playerNotFound("1_2*")).toBe("No player has the uid 1\\_2\\*.");
   });
+
+  test("playerNotPrepared names the uid and hints that the uid may be wrong or the tracker busy", () => {
+    expect(lookupMessages.playerNotPrepared("145563254785")).toBe(
+      "Couldn't find a player with the uid 145563254785. Check the uid; if it's right, the tracker may be busy, so try again later.",
+    );
+  });
+
+  test("playerNotPrepared escapes the uid as typed", () => {
+    expect(lookupMessages.playerNotPrepared("1_2*")).toBe(
+      "Couldn't find a player with the uid 1\\_2\\*. Check the uid; if it's right, the tracker may be busy, so try again later.",
+    );
+  });
 });
 
 function allianceKey(text: string): AllianceKey {

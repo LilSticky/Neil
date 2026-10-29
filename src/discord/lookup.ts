@@ -49,6 +49,9 @@ function playerFailureText(failure: Failure<Player>, uid: Uid): string {
   switch (failure.kind) {
     case "not-found":
       return lookupMessages.playerNotFound(uid);
+    case "not-prepared":
+      // The tracker's answer for an unknown uid, but also for its own trouble (research R11).
+      return lookupMessages.playerNotPrepared(uid);
     case "quota-spent":
       return lookupMessages.quotaSpent;
     case "try-again":
@@ -68,6 +71,7 @@ function allianceFailureText(failure: Failure<Alliance>, kingdom: KingdomNumber,
       return lookupMessages.ambiguous(key, failure.matches);
     case "quota-spent":
       return lookupMessages.quotaSpent;
+    case "not-prepared":
     case "try-again":
       return lookupMessages.tryAgain;
     case "unavailable":

@@ -141,6 +141,29 @@ const privateFailures: readonly { readonly label: string; readonly result: Looku
     },
   ];
 
+describe("handlePlayer when the tracker could not prepare the profile", () => {
+  test("removes the thinking placeholder and tells the caller privately to check the uid or try again later", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context } = contextReturning({ kind: "not-prepared" });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content:
+            "Couldn't find a player with the uid 145563254785. Check the uid; if it's right, the tracker may be busy, so try again later.",
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
 describe("handlePlayer failures that give no card", () => {
   test.each(privateFailures)(
     "$label removes the thinking placeholder and tells the caller privately with the contract text, never a card",
@@ -382,6 +405,11 @@ const allianceFailures: readonly {
   {
     label: "try-again",
     result: { kind: "try-again" },
+    text: lookupMessages.tryAgain,
+  },
+  {
+    label: "not-prepared",
+    result: { kind: "not-prepared" },
     text: lookupMessages.tryAgain,
   },
   {

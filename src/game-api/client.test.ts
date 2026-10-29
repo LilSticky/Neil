@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -226,7 +226,7 @@ const failureScenarios: readonly FailureScenario[] = [
   {
     label: "502",
     fetch: failingFetch(() => textResponse(502, "error code: 502")),
-    expected: { kind: "try-again" },
+    expected: { kind: "not-prepared" },
     loggedCause: "502",
   },
   {
@@ -322,6 +322,21 @@ describe("GameApiClient.getPlayer failure mapping", () => {
 
 const ALLIANCE_PATH = "https://api.lastasylumtracker.com/v1/alliances/1/NML";
 
+describe("GameApiClient default timeout", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("a lookup gives up after 15 seconds by default", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const { fetch } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+
+    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(timeout).toHaveBeenCalledWith(15000);
+  });
+});
+
 describe("GameApiClient.getAlliance request", () => {
   test("sends GET to the alliance's path in its Kingdom on the Game API", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
@@ -352,6 +367,17 @@ describe("GameApiClient.getAlliance request", () => {
 });
 
 describe("GameApiClient.getAlliance result", () => {
+  test("a 502 is not-prepared, and is logged once with the path and the status", async () => {
+    const { client, logged } = loggingClientWith(failingFetch(() => textResponse(502, "error code: 502")));
+
+    const result = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(result).toEqual({ kind: "not-prepared" });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("/alliances/");
+    expect(logged[0]).toContain("502");
+  });
+
   test("a 200 for the requested Kingdom is found, mapped to an Alliance", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, alliance));
 

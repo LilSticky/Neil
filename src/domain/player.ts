@@ -50,5 +50,6 @@ export type LookupResult<T> =
   | { readonly kind: "not-found" }
   | { readonly kind: "ambiguous"; readonly matches: readonly Match[] }
   | { readonly kind: "quota-spent" }
+  | { readonly kind: "not-prepared" }
   | { readonly kind: "try-again" }
   | { readonly kind: "unavailable"; readonly reason: "auth" | "unexpected" };

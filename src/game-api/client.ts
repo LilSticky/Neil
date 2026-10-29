@@ -16,7 +16,8 @@ export interface GameApiClientOptions {
   readonly baseUrl?: string;
 }
 
-const DEFAULT_TIMEOUT_MS = 8000;
+/** The tracker takes about 10 s to answer 502 for an unknown uid (research R11). */
+const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_BASE_URL = "https://api.lastasylumtracker.com/v1";
 
 interface Unexpected {
@@ -145,7 +146,8 @@ export class GameApiClient {
     if (status === 404) return { kind: "not-found" };
     const detail = `status ${String(status)}`;
     if (status === 429) return this.fail(endpoint, detail, { kind: "quota-spent" });
-    if (status === 502 || status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
+    if (status === 502) return this.fail(endpoint, detail, { kind: "not-prepared" });
+    if (status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
     if (status === 401 || status === 403) return this.fail(endpoint, detail, { kind: "unavailable", reason: "auth" });
     return this.unexpected(endpoint, detail);
   }
