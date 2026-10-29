@@ -189,11 +189,12 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
   shows the merge's short sha within 15 minutes of the merge. Record here: 2026-10-29, PR #2 merged as `51c8ea0`,
   deploy job green within 2 minutes; the first Restart failed once because the placeholder's `npm install` had left an
   untracked `package-lock.json` (deleted by hand, see HOSTING.md); after Start, `/ping` showed `Version: 51c8ea0`
-- [ ] T040 [US4] **Manual persistence check on Wispbyte**: `/ping` (note first start, #), Restart, `/ping` (same, #+1),
+- [X] T040 [US4] **Manual persistence check on Wispbyte**: `/ping` (note first start, #), Restart, `/ping` (same, #+1),
   merge any small change to redeploy, Restart, `/ping` (same, #+1). Record yes/no here and in
   `documentation/HOSTING.md`; if the first start changed, supersede ADR 5 with the `adr` skill. Record here:
   restart (2026-10-29): `Data kept since 2026-10-29 03:34 UTC · start #1` → after Restart `… 03:34 UTC · start #2`,
-  kept. Redeploy: _merging this record is the redeploy; result in the next PR_
+  kept. Redeploy (PR #3 merged as `7db1eba`, Restart): `Version: 7db1eba`, `… 03:34 UTC · start #3`, kept.
+  **Result: yes**, the data folder survives restarts and redeploys; ADR 5 stands
 
 **Checkpoint**: Neil is live on Wispbyte and the persistence question has an answer (SC-004).
 
@@ -204,7 +205,7 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
 - [X] T041 `bot-reviewer` over `src/` and `.github/workflows/ci.yml` (intents, permissions, secrets, boundary
   validation); fixes through `implementer`
 - [X] T042 `spec-auditor` against spec.md acceptance scenarios; close gaps
-- [ ] T043 Update `documentation/STATUS.md`, `documentation/ROADMAP.md` (slice 001 done), ADRs if affected;
+- [X] T043 Update `documentation/STATUS.md`, `documentation/ROADMAP.md` (slice 001 done), ADRs if affected;
   mark the PR ready, squash-merge when the Definition of Done gate is green, then `housekeeper` cleanup
 
 Note: T039 and T040 need a merged `main`. Merge when T001–T038 and T041–T043 are done and T026/T027 are
