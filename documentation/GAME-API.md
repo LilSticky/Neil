@@ -4,58 +4,78 @@ What we know about the Game API: the **Last Asylum Tracker** HTTP API, a third-p
 Asylum: Plague. Only the Game API client in `src/game-api/` talks to it (constitution IV). Update this
 file whenever something about the API is learned.
 
-Summarised from the tracker's docs page on 2026-10-29. Field names below are the API's, not our
-dictionary terms.
+Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and three test calls made on
+2026-10-29 (`/quota`, `/players/145563254785`, `/alliances/1/NML`). The docs page is partly outdated;
+**what was verified by a real call wins**. Field names below are the API's, not our dictionary terms.
 
-## Source
+## Access
 
-- Docs: the tracker's API page (Docs → API keys); key created there after a Patreon login.
 - Base URL: `https://api.lastasylumtracker.com/v1`
-- Authentication: `Authorization: Bearer lap_…` (or `X-API-Key: lap_…`) on every request. The key lives
-  in the `GAME_API_KEY` environment variable, never in the repository or logs.
+- Authentication: `Authorization: Bearer lap_…` (or `X-API-Key: lap_…`) on every request. The key is in
+  the `LAP_TRACKER_API_KEY` environment variable (`.env` locally, see `env.example`), never in the
+  repository or logs. Created on the tracker's site after a Patreon login.
 - Send a normal `User-Agent`: requests without one get a Cloudflare 403 before the key is checked.
 
 ## Quota (the "rate limit")
 
 - **1,000 requests per UTC day** on a free account, 2,000 with a paid Patreon membership. Every `/v1`
-  call counts, including `/v1/quota`.
-- Resets at 00:00 UTC. No per-second limit is documented.
-- Every response carries the quota, in the JSON body (`quota`) and in headers:
-  `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset: 00:00 UTC`.
-- Quota object: `{ "limit": 1000, "used": 3, "remaining": 997, "patron": false, "resets": "00:00 UTC" }`.
-- `429` = daily limit reached (`quota.remaining` is 0). Retrying before the reset is pointless.
+  call counts, including `/v1/quota`. Resets at 00:00 UTC. No per-second limit is documented.
+- Documented headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset: 00:00 UTC`
+  (not yet checked on a real response).
+- Verified `/quota` body:
+  `{"ok":true,"cached":true,"cache_seconds":600,"quota":{"limit":1000,"used":1,"remaining":999,"patron":false,"resets":"00:00 UTC"}}`
+- `429` = daily limit reached. Retrying before the reset is pointless.
 
 ## Freshness
 
-- The tracker keeps a profile or alliance roster for **10 minutes**; requests inside that window get the
-  same data with `cached: true` (they still cost quota). There is no point caching for less than 10
-  minutes on our side.
+- The tracker keeps a profile or roster for **10 minutes** (`cache_seconds: 600`); requests inside that
+  window get the same data and still cost quota. Our cache never needs to be shorter than 10 minutes.
 
 ## Endpoints
 
-| Endpoint | Gives us |
-|----------|----------|
-| `GET /players/{uid}` | one player profile by uid (also the id in the tracker's profile URL) |
-| `GET /players/name/{name}` | a player by exact name; `409` with `matches` if several share it |
-| `GET /players/{server}/{name}` | a player by name on one server (kingdom) |
-| `GET /alliances/{server}/{tag}` | an alliance by kingdom number and tag, e.g. `/alliances/1/NML`; brackets optional; tags are case-sensitive when both spellings exist |
-| `GET /alliances/name/{name}` | an alliance by name; several matches list servers and tags |
-| `GET /alliances/{alliance_id}` | an alliance by id |
-| `GET /quota` | only the quota object plus `ok`, `cached`, `cache_seconds`; costs one request |
+| Endpoint | State | Gives us |
+|----------|-------|----------|
+| `GET /alliances/{kingdom}/{alliance}` | **verified** (user: by name; us: by tag `NML` on kingdom 1) | the alliance and its full roster with ranks |
+| `GET /players/{uid}` | **verified** (2026-10-29) | one player, their alliance, and that alliance's roster with ranks |
+| `GET /quota` | **verified** | the quota object only; costs one request |
+| `GET /players/name/{name}`, `GET /players/{server}/{name}` | documented, not working for the user so far | a player by name |
+| `GET /alliances/name/{name}`, `GET /alliances/{alliance_id}` | documented, not working for the user so far | an alliance by name or id |
 
-**Player profile**: `nick`, `uid`, `power`, `kills`, sanctuary `lv` and `skin_name`, kingdom `kid`,
-coordinates `x`/`y`, alliance name and abbreviation, plus `vip`, `likes`, `language`, `gender` and
-`ranks` when on the profile; `cached`.
+Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
+[discovery](discovery/initial.md)), so name lookups are not needed for onboarding.
 
-**Alliance**: name, abbreviation, level, member count, `declaration`, and `members[]`, each with `name`,
-`uid`, `power`, sanctuary level, `x`/`y`, `online`, `last_online_at`, `joined_at`, `active` (weekly
-activity), `daily_honor`, `daily_tech` (tech points donated today). A missing value means the roster did
-not include it.
+### Player (`/players/{uid}`), verified fields
 
-**Budget consequence**: one alliance roster call returns every member, so syncing a whole alliance costs
-1 request, while per-player lookups cost 1 each. Prefer the roster for bulk work.
+- Identity: `uid` (= `player_id`), `nick` (= `nick_name`), `kid` (= `sid`, the kingdom number),
+  `kingdom_flag`
+- Game: `power`, `lv` (= `level`, sanctuary level), `kills`, `vip`, `likes`, `language`, `gender`,
+  `skin_name`, `x`, `y`, `first_seen_at`, `last_seen_at` (Unix seconds, fractional)
+- Alliance: `aid` (= `union_id`), `alliance_name`, `alliance_abbr`, and an `alliance` object with
+  `name`, `abbr`, `power`, `member_count`, `capacity`, `language`, **`leader_id`**, `leader_name`
+- **`alliance_members[]`**: the player's whole alliance roster, same fields as below, including
+  `rank_label`. The player's own rank is their row in it.
+- `ranks`: `{}` in the sample; **not the alliance rank**. Ignore it.
+- `history[]`: earlier observations (nick, power, alliance, coordinates, `change_flags`)
+- Image paths are relative (`/static/…`) to the tracker's site.
 
-## Errors
+### Alliance (`/alliances/{kingdom}/{alliance}`), verified fields
+
+- `union_id`, `sid` (kingdom), `name`, `abbr`, `power`, `member_count`, `capacity`, `language`,
+  `leader_id`, `leader_name`, `bulletin`, `updated_at`
+- `members[]`: `uid`, `nick_name`, `power`, `lv`, `kid`, `kills`, **`rank_code` (101–105) and
+  `rank_label` (`"R1"`–`"R5"`)**, `online`, `last_online_at`, `joined_at`, `active` (weekly activity),
+  `daily_honor`, `daily_tech`, `aid`. `null` means the roster did not include it.
+
+### Rank
+
+The alliance rank R1–R5 **is available**: `rank_label` in `members[]` / `alliance_members[]`. The leader
+(R5) is also `leader_id`. When a player has no roster row (no alliance, or the roster misses them), the
+rank is unknown and needs approval by the alliance's R5 (see discovery).
+
+**Budget consequence**: one `/players/{uid}` call already returns the player, rank and whole alliance; one
+roster call returns a whole alliance. Bulk sync costs about one request per alliance.
+
+## Errors (documented)
 
 | Status | Meaning |
 |--------|---------|
@@ -67,10 +87,9 @@ not include it.
 | 503 | API busy; try again shortly |
 | 504 | request took too long |
 
-Example: `curl -H "Authorization: Bearer lap_your_key" https://api.lastasylumtracker.com/v1/players/145563254785`
-
 ## Open questions
 
-- Whether `ranks` contains the in-alliance rank (R1–R5) or something else: record a real response.
-- Exact JSON shape (top-level wrapper, `ok` field on every response?): record fixtures in slice 2.
-- Whether a player's alliance rank is visible in the alliance roster.
+- Is `quota` in the body of player and alliance responses (docs say yes; not seen in the truncated
+  samples)? Check the `X-RateLimit-*` headers on a real response.
+- Do `/alliances/{kingdom}/{name}` (full name) and `/{kingdom}/{tag}` behave the same for names with
+  spaces? Record fixtures in slice 002.

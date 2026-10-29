@@ -19,12 +19,14 @@ None.
 
 ## Open questions
 
-See [discovery/initial.md](discovery/initial.md#open-questions): Officer Review on top of the uid, Alliance Rank in the
-API, brackets, Home Kingdom and existing roles, nicknames over 32 characters, finding the uid in game,
-host (Wispbyte or Pella) and disk persistence, Patreon tier. Only the host is needed before slice 001 ends.
+See [discovery/initial.md](discovery/initial.md#open-questions): brackets, Home Kingdom and existing roles,
+nicknames over 32 characters, reaching the R5 for a Rank Approval, host (Wispbyte or Pella) and disk
+persistence, Patreon tier. Only the host is needed before slice 001 ends.
 
 ## Standing notes
 
 - Sessions wrap up before the plan limit: `.claude/hooks/usage-guard.mjs` tells a session once, at 95% of the
   5-hour or 7-day usage (`NEIL_USAGE_WRAP_UP`), to commit, update STATUS, push and stop.
-- The Game API's limit is a daily quota (1,000/UTC day), not a per-second limit; see ADR 4.
+- The Game API's limit is a daily quota (1,000/UTC day), not a per-second limit; see ADR 4. The key is
+  `LAP_TRACKER_API_KEY` in `.env` (git-ignored; template in `env.example`). Code uses only the endpoints
+  verified in [GAME-API.md](GAME-API.md).
