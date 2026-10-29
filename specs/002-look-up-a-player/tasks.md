@@ -29,7 +29,9 @@ and the handlers of US1, so it follows US1 directly.
   `src/game-api/__fixtures__/` as `player-in-alliance.json`, `player-not-found.json`, `alliance.json`,
   `alliance-not-found.json`; prints status and `x-ratelimit-remaining`; never prints the key). Run it; if the tracker
   answers 504 again (research R1), commit the script only and note it in STATUS, then continue with T002 and
-  retry before T009
+  retry before T009. *Done 2026-10-29: player, alliance and alliance-404 recorded (trimmed); `GET /players/1`
+  answered 502, so `player-not-found.json` does not exist and the player 404 is tested with an inline body
+  (see `src/game-api/__fixtures__/README.md`). SC-002 end to end: `src/discord/recorded-cards.test.ts`.*
 - [x] T002 [P] Add `LAP_TRACKER_API_KEY` to the startup secrets: test in `src/config.test.ts` (required, non-empty;
   `Configuration.gameApiKey`; the value never appears in the error) and `src/startup.test.ts` (the key is redacted
   like the token), then implement in `src/config.ts` and `src/startup.ts`; move the key in `env.example` out of the
