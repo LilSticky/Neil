@@ -35,4 +35,4 @@ Never contains the value of `DISCORD_TOKEN` (or any later secret).
 | `npm start` | `node dist/main.js` (settings from the environment) |
 | `npm run test` / `test:watch` | Vitest |
 | `npm run lint` / `typecheck` | ESLint / `tsc --noEmit` |
-| `npm run commands:register` | register guild commands for `DISCORD_GUILD_ID` (env file per bot) |
+| `npm run commands:register` | register guild commands for `DISCORD_GUILD_ID` (settings from `.env`) |

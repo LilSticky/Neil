@@ -9,8 +9,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 001 "Greet the test server", branch `001-greet-the-test-server`. Spec written:
 [specs/001-greet-the-test-server/spec.md](../specs/001-greet-the-test-server/spec.md). The toolkit and plan
-(PR #1) are on `main`. Decided: the Wispbyte instance is the production bot, invited only to the test
-server for this slice.
+(PR #1) are on `main`. Decided: Neil is the only bot application; it runs on Wispbyte, invited only to
+the test server for this slice, and locally with the same token while Wispbyte is stopped.
 
 Clarified: `/ping` is open to anyone and temporary; Wispbyte's details are unknown and get researched in the plan.
 

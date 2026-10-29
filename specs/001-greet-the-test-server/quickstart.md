@@ -3,9 +3,10 @@
 ## Prerequisites
 
 - Node.js 24, `npm ci` done.
-- Two Discord applications (test bot, production bot), each invited to the **test server** with scopes
+- Neil's one Discord application, invited to the **test server** with scopes
   `bot applications.commands` and permissions `0`.
-- `.env` (test bot) and `.env.production` (production bot) filled from `env.example`; both git-ignored.
+- `.env` filled from `env.example` with Neil's values; git-ignored.
+- For local runs, the Wispbyte server is **stopped**, so only one copy of Neil answers.
 
 ## 1. Automated checks (FR-009)
 
@@ -27,18 +28,18 @@ npm run commands:register   # once per command change
 npm run dev
 ```
 
-On the test server: Neil (test bot) shows online; `/` offers `/ping`; running it gives the ephemeral
+Stop the Wispbyte server first. On the test server: Neil shows online; `/` offers `/ping`; running it gives the ephemeral
 reply from [contracts/ping-command.md](contracts/ping-command.md) within 3 seconds, version `dev`.
 
 ## 4. Wispbyte (User Story 3)
 
 Follow `documentation/HOSTING.md` (written in this slice). Merge a change to `main`, wait for CI and
-the deploy job, click **Restart** in the panel, then `/ping` the production bot: the version is the
+the deploy job, click **Restart** in the panel, then `/ping`: the version is the
 merge commit's short sha.
 
 ## 5. Persistence (User Story 4)
 
-On the production bot: `/ping` (note first start and start #), restart the server from the panel,
+On Wispbyte: `/ping` (note first start and start #), restart the server from the panel,
 `/ping` (same first start, # +1), redeploy (merge any change), `/ping` (same first start, # +1).
 Record the result in `tasks.md` and `documentation/HOSTING.md`; if the first start changed, supersede
 ADR 5.

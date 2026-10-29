@@ -130,8 +130,8 @@ Jest (Vitest is the constitution's choice).
 permissions `0`; interaction replies need no permission. `GuildMembers` (ADR 6) is added in slice 004,
 when Neil first reacts to joins. Commands are registered per guild with
 `npm run commands:register` (REST `PUT /applications/{app}/guilds/{guild}/commands`), run from a
-developer machine with the right env file (`--env-file=.env` for test, `--env-file=.env.production` for
-the Wispbyte bot); Neil does not register commands on startup.
+developer machine with the local `.env` (one bot application, so one set of guild commands serves both
+local runs and Wispbyte); Neil does not register commands on startup.
 
 **Rationale**: least privilege (constitution V, FR-008); registration as a separate repeatable step
 (FR-006, ADR 6).
@@ -156,9 +156,8 @@ report that Wispbyte "stores configuration in .env without exporting it".
 **Decision**: settings are entered in the panel's environment variables (Wispbyte's security
 guidance); at startup, before validating configuration, Neil loads `.env` from its working directory if
 the file exists (`process.loadEnvFile`, built into Node). Variables already set in the process
-environment win over the file, so hosts that do export variables keep working. Locally the same `.env`
-holds the test bot's settings; `.env.production` is used only to register the production bot's
-commands. `.env` is untracked, so `git pull` on start leaves it alone, and it must never be committed
+environment win over the file, so hosts that do export variables keep working. Locally `.env` holds
+the same bot's settings (there is only one bot application; stop Wispbyte while running locally). `.env` is untracked, so `git pull` on start leaves it alone, and it must never be committed
 to `deploy`.
 
 **Rationale**: it is the only way the panel's settings reach Neil; the start command stays a plain

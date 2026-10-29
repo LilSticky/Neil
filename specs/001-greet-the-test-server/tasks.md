@@ -122,10 +122,10 @@ The reply's start record line comes from US4 (T034) and the real version from US
 - [ ] T024 [US1] Implement `scripts/register-commands.ts`: reads config via `loadConfig`, `PUT` the command list to
   `/applications/{applicationId}/guilds/{guildId}/commands` with discord.js `REST`; prints count, never the token;
   add a test only if it grows logic beyond the call
-- [ ] T025 [US1] **Manual (user)**: create the production bot application; invite the test bot and the production
-  bot to the test server with scopes `bot applications.commands`, permissions `0`; fill `.env` (test bot) and
-  `.env.production` (production bot) from `env.example`
-- [ ] T026 [US1] **Manual check on the test server**: `npm run commands:register`, `npm run dev`; Neil is online,
+- [ ] T025 [US1] **Manual (user)**: fill the local `.env` from `env.example` with Neil's values (the one bot
+  application, already on the test server). Before each local run, **Stop** the Wispbyte server; **Start** it
+  afterwards
+- [ ] T026 [US1] **Manual check on the test server**: Wispbyte stopped, `npm run commands:register`, `npm run dev`; Neil is online,
   `/` offers `/ping` with its description, the reply arrives within 3 s, ephemeral, version `dev`. Record the date
   and result here: _not yet done_
 - [ ] T027 [US2] **Manual check**: `npm start` with `DISCORD_TOKEN` and `DISCORD_GUILD_ID` removed exits 1 within
@@ -180,9 +180,9 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
   force-push, never include `.env` or `data/`)
 - [ ] T038 [US3] Update `documentation/HOSTING.md`: Server Configuration values (research R1), settings in the panel's
   environment variables → `.env` (R8), the `deploy` branch, manual **Restart** after each deploy, `data/` as the
-  persistent folder, a reinstall wiping it, registering commands with `--env-file=.env.production`
+  persistent folder, a reinstall wiping it, stop Wispbyte before `npm run dev`
 - [ ] T039 [US3] **Manual check on Wispbyte** after this branch merges: CI deploy job green, `deploy` branch has the
-  build, **Restart** in the panel, `npm run commands:register` with `.env.production`, `/ping` on the production bot
+  build, **Restart** in the panel, `/ping`
   shows the merge's short sha within 15 minutes of the merge. Record here: _not yet done_
 - [ ] T040 [US4] **Manual persistence check on Wispbyte**: `/ping` (note first start, #), Restart, `/ping` (same, #+1),
   merge any small change to redeploy, Restart, `/ping` (same, #+1). Record yes/no here and in

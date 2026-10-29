@@ -15,6 +15,9 @@ deploy (ADR 6), persistence check (does Wispbyte's disk persist across restarts/
 
 ### Session 2026-10-29
 
+- Q: Is there a separate test bot for local development? → A: No, only Neil. Local runs use Neil's
+  token; stop the Wispbyte server first so only one copy answers interactions.
+
 - Q: Where does the Wispbyte instance live during this slice? → A: The production bot application, invited
   only to the test server; it joins the production server in a later slice.
 - Q: Who may run `/ping`? → A: Anyone on the server. `/ping` is temporary and will be removed in a later
@@ -174,8 +177,9 @@ time. The first-start time stays the same and the start count goes up if the dat
 - `/ping` is open to every Member of the server (it reveals nothing sensitive) and is temporary: a
   later slice removes it.
 - The production bot application runs on Wispbyte and, for this slice, is invited only to the test
-  server; it joins the production server in a later slice (user decision, 2026-10-29). The test bot
-  application runs locally with `npm run dev`.
+  server; it joins the production server in a later slice (user decision, 2026-10-29). There is only this
+  one bot application: `npm run dev` runs it locally with the same token while the Wispbyte server is
+  stopped (user decision, 2026-10-29).
 - The version shown is the commit identifier of the build, supplied by the build (see research R6).
 - Wispbyte offers environment variables, a folder that may persist, and a way to run
   `npm ci && npm run build && npm start` (ADR 6). Nobody knows the details yet; the plan researches them.

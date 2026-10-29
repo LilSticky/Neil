@@ -1,13 +1,14 @@
 # Hosting
 
-How Neil runs: a **test bot** locally for development, the **production bot** on Wispbyte (ADR 6).
+How Neil runs: one bot application, Neil, on Wispbyte (ADR 6), and locally for development with the same
+token while the Wispbyte server is stopped.
 Why it is set up this way: [specs/001-greet-the-test-server/research.md](../specs/001-greet-the-test-server/research.md)
 (R1, R2, R8). Never paste tokens into chats, issues or commits.
 
-## 1. Discord applications (once per bot)
+## 1. Discord application (once)
 
-Do this twice in the [Discord developer portal](https://discord.com/developers/applications): one
-application named for testing (the test bot), one for production (Neil).
+In the [Discord developer portal](https://discord.com/developers/applications), one application: Neil.
+There is no separate test bot.
 
 1. **New Application**, give it a name.
 2. **General Information**: copy the **Application ID** → `DISCORD_APPLICATION_ID`.
@@ -18,27 +19,27 @@ application named for testing (the test bot), one for production (Neil).
    URL and add the bot to the **test server**.
 
 Test server ID: Discord **User Settings → Advanced → Developer Mode** on, then right-click the server
-icon → **Copy Server ID** → `DISCORD_GUILD_ID`. Both bots use the test server's ID during slice 001.
+icon → **Copy Server ID** → `DISCORD_GUILD_ID`. Neil uses the test server's ID during slice 001.
 
 ## 2. Local settings
 
-From `env.example`, in the repository root (both files are git-ignored):
+From `env.example`, in the repository root: `.env` (git-ignored) with Neil's values, the same as in the
+Wispbyte panel. Used by `npm run dev` and `npm run commands:register`.
 
-- `.env`: the test bot's values. Used by `npm run dev` and `npm run commands:register`.
-- `.env.production`: the production bot's values. Used only to register its commands:
-  `npm run commands:register -- --env-file=.env.production` (exact form fixed in slice 001).
+**Before `npm run dev`, Stop the Wispbyte server** in the panel, and Start it again when done. Two running
+copies of one bot both receive every `/ping`; only one can answer, the other logs an error.
 
 ## 3. Wispbyte server
 
 **Account**: turn on two-factor authentication (Wispbyte's security advice).
 
 **Startup** tab: choose the Node.js **24** image, and set these **environment variables** (production
-bot's values; names exactly as written):
+Neil's values; names exactly as written):
 
 | Variable | Value |
 |----------|-------|
-| `DISCORD_TOKEN` | the production bot's token |
-| `DISCORD_APPLICATION_ID` | the production bot's Application ID |
+| `DISCORD_TOKEN` | Neil's token |
+| `DISCORD_APPLICATION_ID` | Neil's Application ID |
 | `DISCORD_GUILD_ID` | the test server's ID (during slice 001) |
 | `DATA_DIR` | `./data` |
 

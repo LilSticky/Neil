@@ -105,11 +105,13 @@ Tests sit next to their files (`*.test.ts`), as the `tdd` skill describes. Root 
 
 These need the user's accounts; tasks.md lists them where they block:
 
-1. Create the production bot application in the Discord developer portal; invite both bots to the test
-   server (scopes `bot applications.commands`, permissions `0`).
+1. Neil's bot application exists and is on the test server (scopes `bot applications.commands`,
+   permissions `0`); fill the local `.env` with its values. There is no separate test bot.
 2. On the Wispbyte server: choose the Node.js 24 image, enter the Server Configuration values from
-   research R1, and enter the production bot's settings as environment variables (research R8).
-3. After each deploy, click **Restart** in the panel (not automatable, research R1 "Restarts").
+   research R1, and enter Neil's settings as environment variables (research R8).
+3. Before `npm run dev`, **Stop** the Wispbyte server; **Start** it again afterwards. Two running copies
+   of one bot both receive every interaction, and only one can answer.
+4. After each deploy, click **Restart** in the panel (not automatable, research R1 "Restarts").
 
 ## Complexity Tracking
 
