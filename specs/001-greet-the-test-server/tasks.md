@@ -147,15 +147,15 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
   `{ firstStartedAt: now, startCount: 1 }`; `recordStart(previous, now)` keeps `firstStartedAt` and adds 1;
   the `StartRecord` type allows only `startCount` "integer ≥ 1"
 - [X] T029 [US4] Implement `src/domain/start-record.ts` (pure, time passed in, no I/O)
-- [ ] T030 [US4] Test `src/storage/database.test.ts` (real `node:sqlite`, temp folder): `openDatabase(dataDir)` creates
+- [X] T030 [US4] Test `src/storage/database.test.ts` (real `node:sqlite`, temp folder): `openDatabase(dataDir)` creates
   `neil.db`, creates `schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`, applies migration 1
   `start_record(id INTEGER PRIMARY KEY CHECK (id = 1), first_started_at TEXT NOT NULL, start_count INTEGER NOT NULL
   CHECK (start_count >= 1))` in a transaction, and does not reapply it on a second open
-- [ ] T031 [US4] Implement `src/storage/database.ts` with an ordered migrations list
-- [ ] T032 [US4] Test `src/storage/start-record-store.test.ts`: `load()` returns `undefined` on an empty table, the
+- [X] T031 [US4] Implement `src/storage/database.ts` with an ordered migrations list
+- [X] T032 [US4] Test `src/storage/start-record-store.test.ts`: `load()` returns `undefined` on an empty table, the
   saved record after `save()`; a corrupt row (bad timestamp, `start_count` 0 written past the check, wrong type) is
   a startup error naming the start record, never a reset (spec edge case)
-- [ ] T033 [US4] Implement `src/storage/start-record-store.ts` with zod validation of the row
+- [X] T033 [US4] Implement `src/storage/start-record-store.ts` with zod validation of the row
 - [ ] T034 [US4] Wire the store into `start` in `src/main.ts` (load → `recordStart` → save before login, record passed
   to the ping handler) and extend `src/main.test.ts` first
 
