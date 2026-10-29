@@ -153,3 +153,5 @@ vite.config.ts.timestamp-*
 .claude/worktrees/
 .claude/scheduled_tasks.lock
 .idea/claudeCodeEditorTabs.xml
+# JetBrains IDE (per-user)
+.idea/
