@@ -107,8 +107,8 @@ These need the user's accounts; tasks.md lists them where they block:
 
 1. Create the production bot application in the Discord developer portal; invite both bots to the test
    server (scopes `bot applications.commands`, permissions `0`).
-2. Create the Wispbyte server (Node.js, version 24) and enter its Git/branch/startup settings and
-   environment variables as `documentation/HOSTING.md` says; report the panel's actual field names.
+2. On the Wispbyte server: choose the Node.js 24 image, enter the Server Configuration values from
+   research R1, and upload `.env` with the production bot's settings (research R8).
 3. Optionally create a panel API key for automatic restarts and add it as a GitHub secret.
 
 ## Complexity Tracking

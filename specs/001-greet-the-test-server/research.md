@@ -38,9 +38,33 @@ manual upload needs only the same `deploy` branch contents as a zip.
 deploy, and the build needs dev dependencies and memory); manual upload of a zip from CI (fallback if
 the panel cannot clone a Git branch); a different host (rejected: ADR 6).
 
-**Open until the user sets up the server** (recorded as a manual task): exact variable names in
-Wispbyte's egg, whether the repository must be public for cloning or accepts a token, whether the client
-API is available, Node.js version offered (needs 24).
+**Confirmed from the user's panel screenshot (2026-10-29)**: the "Server Configuration" page is the
+standard Pterodactyl Node.js egg with exactly these fields: Git Repo Address, Install Branch, User
+Uploaded Files (0/1), Auto Update (0/1, `git pull` on startup), JS file (default `index.js`), Git
+Username, Git Access Token, Uninstall Node packages. There is **no field for custom environment
+variables**. That egg's startup runs, in order: `git pull` (if Auto Update = 1 and `.git` exists),
+`npm install` (if `package.json` exists), then `node <JS file>`.
+
+Settings for Neil:
+
+| Field | Value |
+|-------|-------|
+| Git Repo Address | `https://github.com/LilSticky/Neil` (public, so no Git Username / Access Token) |
+| Install Branch | `deploy` |
+| User Uploaded Files | `0` |
+| Auto Update | `1` |
+| JS file | `dist/main.js` |
+
+Consequences for the design:
+
+- The `deploy` branch MUST only grow (one new commit per deploy, never force-pushed), or the startup
+  `git pull` fails on diverged history.
+- The deploy job strips `devDependencies` from the `package.json` it commits, so the startup
+  `npm install` installs only runtime dependencies.
+- Settings go in a `.env` file placed in the server folder through the panel's file manager (see R8).
+
+**Still open** (checked when the server is set up): the Node.js image offered on the Startup tab (needs
+24), whether the panel offers an API key for remote restarts.
 
 ## R2. Will the data folder persist?
 
@@ -98,6 +122,21 @@ version is `dev`.
 **Rationale**: the version must change with each deploy without anyone editing Wispbyte's settings;
 baking it into the build does that. (Spec assumption "supplied through configuration" is adjusted to
 "supplied by the build".)
+
+## R8. Where settings live on Wispbyte
+
+**Decision**: Neil loads `.env` from its working directory at startup if the file exists
+(`process.loadEnvFile`, built into Node), before validating configuration. Variables already set in
+the environment win over the file. On Wispbyte the `.env` is uploaded once through the file manager; it
+is not tracked on the `deploy` branch, so `git pull` leaves it alone. Locally the same `.env` serves
+`npm run dev` and `npm start`.
+
+**Rationale**: the panel has no environment-variable fields (R1); a file next to the code is the only
+place left, and loading it in-process keeps the start command a plain `node dist/main.js`. Secrets
+still never enter the repository.
+
+**Alternatives**: putting values in the panel's unused fields (abuse of the egg, fragile); a start
+script with `--env-file` (the egg's JS file field only takes a file, not flags).
 
 ## R7. Failure behaviour
 

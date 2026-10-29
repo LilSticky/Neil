@@ -5,8 +5,9 @@ not dictionary terms.
 
 ## Configuration
 
-Validated once at startup from environment variables (`src/config.ts`); the rest of the code receives
-the typed result and never reads `process.env`.
+Validated once at startup from environment variables (`src/config.ts`), after loading `.env` from the
+working directory if it exists (research R8); the rest of the code receives the typed result and never
+reads `process.env`.
 
 | Field | Env variable | Rule | Secret |
 |-------|--------------|------|--------|
