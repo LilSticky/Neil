@@ -113,11 +113,11 @@ The reply's start record line comes from US4 (T034) and the real version from US
 - [X] T020 [US1] Test `src/discord/client.test.ts`: `createClient()` requests intents `Guilds` only (FR-008);
   the interaction router calls `handlePing` for chat-input `ping` and ignores everything else
 - [X] T021 [US1] Implement `src/discord/client.ts` (client factory, interaction router, `login`, `destroy`)
-- [ ] T022 [US1] Test `src/main.test.ts` for `start(deps)` with fakes for config, data folder, store and client:
+- [X] T022 [US1] Test `src/startup.test.ts` (moved from `src/main.test.ts` so `main.ts` has no import side effects to test around) for `start(deps)` with fakes for config, data folder, store and client:
   the order is `.env` load → config → data folder → start record → login; any failure before login prints
   `formatStartupError` to stderr and exits 1 without calling login; rejected login exits 1 without the token in
   output; `SIGINT`/`SIGTERM` destroy the client, close the database and exit 0 (FR-012)
-- [ ] T023 [US1] Implement `src/main.ts`: `process.loadEnvFile('.env')` only if the file exists (process env wins,
+- [X] T023 [US1] Implement `src/main.ts`: `process.loadEnvFile('.env')` only if the file exists (process env wins,
   research R8), then `start` with real dependencies; no logic beyond composition
 - [ ] T024 [US1] Implement `scripts/register-commands.ts`: reads config via `loadConfig`, `PUT` the command list to
   `/applications/{applicationId}/guilds/{guildId}/commands` with discord.js `REST`; prints count, never the token;
@@ -128,8 +128,10 @@ The reply's start record line comes from US4 (T034) and the real version from US
 - [ ] T026 [US1] **Manual check on the test server**: Wispbyte stopped, `npm run commands:register`, `npm run dev`; Neil is online,
   `/` offers `/ping` with its description, the reply arrives within 3 s, ephemeral, version `dev`. Record the date
   and result here: _not yet done_
-- [ ] T027 [US2] **Manual check**: `npm start` with `DISCORD_TOKEN` and `DISCORD_GUILD_ID` removed exits 1 within
-  5 s and names both, no token shown. Record here: _not yet done_
+- [X] T027 [US2] **Manual check**: `npm start` with `DISCORD_TOKEN` and `DISCORD_GUILD_ID` removed exits 1 within
+  5 s and names both, no token shown. Record here: 2026-10-29, built `dist/main.js` without `DISCORD_TOKEN` and
+  `DISCORD_GUILD_ID`: both named, exit 1 after 0.4 s; a bogus token gives `An invalid token was provided.`, exit 1,
+  token not shown
 
 **Checkpoint**: MVP, the bot runs locally and answers `/ping`.
 
@@ -156,7 +158,7 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
   saved record after `save()`; a corrupt row (bad timestamp, `start_count` 0 written past the check, wrong type) is
   a startup error naming the start record, never a reset (spec edge case)
 - [X] T033 [US4] Implement `src/storage/start-record-store.ts` with zod validation of the row
-- [ ] T034 [US4] Wire the store into `start` in `src/main.ts` (load → `recordStart` → save before login, record passed
+- [X] T034 [US4] Wire the store into `start` in `src/main.ts` (load → `recordStart` → save before login, record passed
   to the ping handler) and extend `src/main.test.ts` first
 
 **Checkpoint**: `/ping` locally shows "Data kept since … · start #N", and N rises with each `npm run dev` restart.
@@ -172,7 +174,7 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
 - [X] T035 [P] [US3] Test `src/build-info.test.ts` (temp folder): `readBuildInfo(path)` returns version `dev` without
   the file; `{ version, builtAt }` for a valid file (`version` "non-empty string", `builtAt` "ISO 8601 timestamp");
   a present but invalid file is a startup error
-- [ ] T036 [US3] Implement `src/build-info.ts` and pass the build info into `start` (test in `src/main.test.ts` first)
+- [X] T036 [US3] Implement `src/build-info.ts` and pass the build info into `start` (test in `src/main.test.ts` first)
 - [ ] T037 [US3] Add job `deploy` to `.github/workflows/ci.yml`: only on `push` to `main`, `needs: checks`,
   `permissions: contents: write`, `concurrency` group so deploys never overlap; builds, writes `build-info.json`
   (short sha, UTC time), strips `devDependencies` and `scripts.prepare` from `package.json`, and commits `dist/`,
