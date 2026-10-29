@@ -100,7 +100,8 @@ Documented:
 
 - Answered 2026-10-29: `quota` **is** in player and alliance bodies (with `cached`, `cache_seconds`);
   `x-ratelimit-*` headers verified on `/quota`. Full alliance names give 404; use the tag.
-- `GET /players/1` answered **502**, not 404: does an unknown uid always give 502, or only some? A
-  real 404 for a player has not been seen yet.
+- **Unknown uids answer 502 after ~10 s** (`/players/1`, `/players/999999999999`, 2026-10-29), body
+  `error code: 502`; a 404 for a player has not been seen. Neil waits 15 s and treats a player 502 as
+  "maybe unknown uid" (slice 002, research R11).
 - `uid`, `kid`, `aid` are JSON numbers; uids up to 12 digits so far, safely inside JavaScript's
   integer range.
