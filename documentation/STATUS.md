@@ -7,7 +7,7 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 002 "Look up a player" (branch `002-look-up-a-player`): spec, plan and tasks written ([spec.md](../specs/002-look-up-a-player/spec.md), [plan.md](../specs/002-look-up-a-player/plan.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+Slice 002 "Look up a player" (branch `002-look-up-a-player`, draft PR #6, issue #5): `/player` and `/alliance` implemented, green (230 tests) and reviewed; waiting for the manual test-server check (T017, T028). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
 `main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
