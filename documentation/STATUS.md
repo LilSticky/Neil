@@ -21,7 +21,9 @@ Wispbyte is set up and verified (HOSTING.md): it pulls the `deploy` branch on ea
 holds a diagnostic placeholder until the first CI deploy. Panel variables arrive as `.env`, not as
 environment variables. Restarts after a deploy are manual.
 
-**Next step:** `/speckit-tasks` for slice 001.
+Tasks: [tasks.md](../specs/001-greet-the-test-server/tasks.md) (43 tasks, TDD pairs).
+
+**Next step:** `/speckit-implement` for slice 001, starting at T001 (project setup).
 
 ## Known broken / WIP
 
