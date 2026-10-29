@@ -4,6 +4,7 @@ import { startCount, type StartRecord } from "./domain/start-record.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
 const FAKE_TOKEN = "fake-token-never-shown-7f3a9c";
+const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
 
 describe("formatStartupError", () => {
   test("prints a ConfigError as the heading plus one line per problem", () => {
@@ -50,6 +51,7 @@ const VALID_ENV = {
   DISCORD_TOKEN: FAKE_TOKEN,
   DISCORD_APPLICATION_ID: "123456789012345678",
   DISCORD_GUILD_ID: "123456789012345678",
+  LAP_TRACKER_API_KEY: FAKE_API_KEY,
   DATA_DIR: "./data",
 };
 
@@ -103,9 +105,21 @@ describe("start", () => {
     await start(deps);
 
     expect(calls).toEqual([
-      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required",
+      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- LAP_TRACKER_API_KEY: required",
       "exit 1",
     ]);
+  });
+
+  test("the game API key is redacted from a startup failure like the token", async () => {
+    const { deps, calls } = fakeDeps({
+      readBuildInfo: () => {
+        throw new Error(`build-info.json is invalid, key ${FAKE_API_KEY}`);
+      },
+    });
+
+    await start(deps);
+
+    expect(calls).toEqual(["stderr Neil cannot start: build-info.json is invalid, key [redacted]", "exit 1"]);
   });
 
   test("a corrupt start record closes the store and exits 1 without connecting", async () => {

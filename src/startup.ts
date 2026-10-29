@@ -51,7 +51,7 @@ export interface StartupDeps {
 
 /** Config → build info → data folder → start record → Discord; any failure exits 1 before going on. */
 export async function start(deps: StartupDeps): Promise<void> {
-  const secrets = [deps.env.DISCORD_TOKEN ?? ""];
+  const secrets = [deps.env.DISCORD_TOKEN ?? "", deps.env.LAP_TRACKER_API_KEY ?? ""];
   let store: StartRecordStorage | undefined;
   const fail = (error: unknown): void => {
     store?.close();
