@@ -30,7 +30,7 @@ and the handlers of US1, so it follows US1 directly.
   `alliance-not-found.json`; prints status and `x-ratelimit-remaining`; never prints the key). Run it; if the tracker
   answers 504 again (research R1), commit the script only and note it in STATUS, then continue with T002 and
   retry before T009
-- [ ] T002 [P] Add `LAP_TRACKER_API_KEY` to the startup secrets: test in `src/config.test.ts` (required, non-empty;
+- [x] T002 [P] Add `LAP_TRACKER_API_KEY` to the startup secrets: test in `src/config.test.ts` (required, non-empty;
   `Configuration.gameApiKey`; the value never appears in the error) and `src/startup.test.ts` (the key is redacted
   like the token), then implement in `src/config.ts` and `src/startup.ts`; move the key in `env.example` out of the
   "from slice 002" block
@@ -39,14 +39,14 @@ and the handlers of US1, so it follows US1 directly.
 
 ## Phase 2: Foundational (domain)
 
-- [ ] T003 [P] Test `src/domain/lookup-input.test.ts`: `parseUid` accepts "1–20 digits" after trimming
+- [x] T003 [P] Test `src/domain/lookup-input.test.ts`: `parseUid` accepts "1–20 digits" after trimming
   (`" 145563254785 "` → `"145563254785"`), rejects empty, letters, `-1`, 21 digits; `parseKingdom` accepts a
   "whole number 1–9999", rejects 0, 10000, 1.5; `parseAllianceKey` trims and accepts "1–40 characters", rejects
   empty/whitespace and 41 characters; each returns `{ ok: true, value } | { ok: false }`
-- [ ] T004 [P] Implement `src/domain/lookup-input.ts` (branded `Uid`, `KingdomNumber`, `AllianceKey`)
-- [ ] T005 [P] Test `src/domain/alliance-rank.test.ts`: `rankFromRoster(uid, roster)` gives the row's `rank_label`
+- [x] T004 [P] Implement `src/domain/lookup-input.ts` (branded `Uid`, `KingdomNumber`, `AllianceKey`)
+- [x] T005 [P] Test `src/domain/alliance-rank.test.ts`: `rankFromRoster(uid, roster)` gives the row's `rank_label`
   for `R1`–`R5`; `unknown` for a missing row, `null` label or any other label (e.g. `"R6"`, `"leader"`)
-- [ ] T006 [P] Implement `src/domain/alliance-rank.ts` and the types in `src/domain/player.ts` (`Player` with the
+- [x] T006 [P] Implement `src/domain/alliance-rank.ts` and the types in `src/domain/player.ts` (`Player` with the
   union "no Alliance ⇒ no Alliance Rank", `Alliance`, `AllianceRank`, `LookupResult<T>`, `Match`) as in
   [data-model.md](data-model.md)
 
