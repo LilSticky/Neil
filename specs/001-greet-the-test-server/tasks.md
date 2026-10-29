@@ -107,12 +107,12 @@ The reply's start record line comes from US4 (T034) and the real version from US
   `createdTimestamp` with an injected clock; a reply that throws is logged without tokens and does not rethrow
 - [X] T017 [US1] Implement `handlePing` in `src/discord/ping.ts`, typed against a narrow interaction port (only the
   fields it uses), not the full discord.js class
-- [ ] T018 [P] [US1] Test `src/discord/commands.test.ts`: the command list holds exactly `ping`, description
+- [X] T018 [P] [US1] Test `src/discord/commands.test.ts`: the command list holds exactly `ping`, description
   `Check that Neil is online`, no options, no default member permissions, contexts guild only
-- [ ] T019 [US1] Implement `src/discord/commands.ts` with `SlashCommandBuilder`
-- [ ] T020 [US1] Test `src/discord/client.test.ts`: `createClient()` requests intents `Guilds` only (FR-008);
+- [X] T019 [US1] Implement `src/discord/commands.ts` with `SlashCommandBuilder`
+- [X] T020 [US1] Test `src/discord/client.test.ts`: `createClient()` requests intents `Guilds` only (FR-008);
   the interaction router calls `handlePing` for chat-input `ping` and ignores everything else
-- [ ] T021 [US1] Implement `src/discord/client.ts` (client factory, interaction router, `login`, `destroy`)
+- [X] T021 [US1] Implement `src/discord/client.ts` (client factory, interaction router, `login`, `destroy`)
 - [ ] T022 [US1] Test `src/main.test.ts` for `start(deps)` with fakes for config, data folder, store and client:
   the order is `.env` load → config → data folder → start record → login; any failure before login prints
   `formatStartupError` to stderr and exits 1 without calling login; rejected login exits 1 without the token in
