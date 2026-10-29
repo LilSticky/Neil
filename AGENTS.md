@@ -2,7 +2,7 @@
 
 Neil is a Discord bot (TypeScript, discord.js) that manages the Members of a Last Asylum: Plague Discord
 server: roles and nicknames from in-game information (the Game API), and an automated Onboarding
-Interview for everyone who joins. Versioned on GitHub, hosted on Pella.
+Interview for everyone who joins. Versioned on GitHub; the host is not chosen yet (ADR 6).
 
 Everything you need to resume lives in the repository. Keep it that way.
 

@@ -11,4 +11,4 @@ with a new one and update both statuses here.
 | 3 | [Framework-free domain with adapters](0003-framework-free-domain-with-adapters.md) | Proposed |
 | 4 | [Daily quota budget for the Game API](0004-daily-quota-budget-for-the-game-api.md) | Proposed |
 | 5 | [SQLite for Links, interviews and quota](0005-sqlite-storage.md) | Proposed |
-| 6 | [Test and production server, deployed from main to Pella](0006-two-servers-deployed-from-main-to-pella.md) | Proposed |
+| 6 | [Test and production server, deployed from main](0006-two-servers-deployed-from-main.md) | Proposed |

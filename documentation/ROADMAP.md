@@ -11,7 +11,7 @@ States: `planned` · `in progress` · `in review` · `done`
 
 | # | Slice | Lets… | Domain | Adapters | State |
 |---|-------|-------|--------|----------|-------|
-| 001 | Greet the test server | an Officer see Neil online and answer `/ping` on the test server, deployed from `main` to Pella | – (config validation) | discord.js client, slash-command registration, env config, CI, Pella deploy | planned |
+| 001 | Greet the test server | an Officer see Neil online and answer `/ping` on the test server, deployed from `main` to the host | – (config validation) | discord.js client, slash-command registration, env config, CI, deploy to the host (ADR 6) | planned |
 | 002 | Look up a player | any Member run `/player` by uid, name, or kingdom + name, and see a profile card | Player, Kingdom, Alliance; ambiguous-name handling | Game API client (auth, User-Agent, schema validation, error mapping), recorded fixtures, embed | planned |
 | 003 | Look up players within the daily quota | lookups to keep working all day: repeated lookups served from cache, a reserve kept, `/quota` for Officers, a clear message when the quota is spent | quota budget (reserve, per-purpose shares) | cache (≥10 min TTL), persisted quota counter, `X-RateLimit-*` headers, 429/503 handling | planned |
 | 004 | Interview a new member | a Member who joins be walked through naming their Player and submitting In-game Proof, and an Officer approve or reject it | Onboarding Interview (state machine), In-game Proof, Officer Review, Link | `guildMemberAdd`, private thread or DM, buttons/modals, review channel, storage | planned |

@@ -8,8 +8,8 @@ Proposed
 
 ## Context
 
-Neil is a Discord bot in TypeScript (user requirement). It runs on Pella, whose free tier offers little
-memory (100 MB RAM, 0.1 CPU). The constitution asks for current major versions and strict typing.
+Neil is a Discord bot in TypeScript (user requirement). It will run on a small bot-hosting plan (ADR 6), which may
+offer as little as about 100 MB RAM. The constitution asks for current major versions and strict typing.
 
 ## Decision
 

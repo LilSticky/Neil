@@ -69,5 +69,5 @@ so our cache never needs to be shorter. Exact split: ADR 4.
 5. **Nickname longer than 32 characters** (Discord's limit): shorten the nickname part, keep tag and kingdom?
 6. **Where does the interview run**: DMs, a private thread per joiner, or a gated onboarding channel?
    (DMs are often closed; a private thread is more reliable.)
-7. **Pella plan**: free tier (100 MB RAM, 0.1 CPU, 5 GB disk) or paid; does the disk survive redeploys?
+7. **Host**: Wispbyte or Pella (or another), which plan, and does its disk survive redeploys? (ADR 6, ADR 5)
 8. **Patreon tier** for the API key: free 1,000/day or 2,000/day?

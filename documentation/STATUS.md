@@ -22,7 +22,7 @@ None.
 
 See [discovery/initial.md](discovery/initial.md#open-questions): In-game Proof method, Alliance Rank in the
 API, brackets, Home Kingdom and existing roles, nicknames over 32 characters, where the interview runs,
-Pella plan and disk persistence, Patreon tier. None blocks slice 001.
+host (Wispbyte or Pella) and disk persistence, Patreon tier. Only the host is needed before slice 001 ends.
 
 ## Standing notes
 
