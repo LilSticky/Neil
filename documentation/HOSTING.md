@@ -57,14 +57,34 @@ bot's values; names exactly as written):
 **Order matters.** The panel clones only into an empty server folder, and the `deploy` branch exists
 only after the first green build on `main`. So:
 
-1. Wait until the `deploy` branch exists on GitHub. Until then, leave the server stopped and don't
-   upload files.
-2. **Settings → Reinstall Server**, so the folder gets the clone.
-3. **Start**. The console should show Neil logging in; `/ping` on the test server answers.
+Wispbyte clones only when the server is installed, and refuses to start an empty folder ("no files").
+If the Git fields were filled in after the install, the folder stays empty. Then bootstrap the clone
+once from the file manager:
+
+1. **Files**: create folder `dist`, and in it a file `main.js` with this content:
+
+   ```js
+   // One-time Wispbyte bootstrap: turns the server folder into a checkout of the deploy branch.
+   const { execFileSync } = require("node:child_process");
+   const { rmSync } = require("node:fs");
+   const git = (...args) => execFileSync("git", args, { stdio: "inherit" });
+   rmSync("dist", { recursive: true, force: true });
+   git("init", "-q");
+   git("remote", "add", "origin", "https://github.com/LilSticky/Neil");
+   git("fetch", "-q", "origin", "deploy");
+   git("checkout", "-q", "-b", "deploy", "--track", "origin/deploy");
+   console.log("Bootstrap done: restart the server.");
+   ```
+
+2. **Start**. The console prints `Bootstrap done`. **Restart**: from now on every start runs `git pull`
+   (Auto Update) and then the real `dist/main.js`.
+
+Each start then prints what is running; with the `deploy` placeholder it is the Node version and
+whether the settings are present.
 
 Each later deploy: CI adds a commit to `deploy`; click **Restart** in the panel and the server pulls
 it on startup. Restarts can't be automated: Wispbyte's restart needs a browser login behind a bot
-check, not an API key. A crash is restarted by Wispbyte itself. A reinstall wipes the folder,
+check, not an API key. A crash is restarted by Wispbyte itself. A reinstall (if the panel offers one) wipes the folder,
 including `data/`; avoid it after the first setup.
 
 Free plan: log in to Wispbyte at least every two weeks to keep the server.
