@@ -98,10 +98,10 @@ Done before US1 because US1's composition root needs the typed `Configuration`.
 The reply's start record line comes from US4 (T034) and the real version from US3 (T036). Until then
 `start` passes version `dev` and an in-memory start record of `{ firstStartedAt: now, startCount: 1 }`.
 
-- [ ] T014 [P] [US1] Test `src/discord/ping.test.ts`: `renderPingReply(input)` produces exactly the four lines
+- [X] T014 [P] [US1] Test `src/discord/ping.test.ts`: `renderPingReply(input)` produces exactly the four lines
   of [contracts/ping-command.md](contracts/ping-command.md#reply); gateway `–` when the ping is unknown (`-1` or
   undefined); version `dev` without the `(built …)` part; times UTC at minute precision
-- [ ] T015 [US1] Implement `renderPingReply` in `src/discord/ping.ts`
+- [X] T015 [US1] Implement `renderPingReply` in `src/discord/ping.ts`
 - [ ] T016 [US1] Test `src/discord/ping.test.ts` (handler) with a fake interaction in `src/discord/__fakes__/interaction.ts`:
   `handlePing` replies once, ephemeral (`MessageFlags.Ephemeral`), with the rendered text, latency measured from
   `createdTimestamp` with an injected clock; a reply that throws is logged without tokens and does not rethrow
@@ -143,10 +143,10 @@ The reply's start record line comes from US4 (T034) and the real version from US
 
 Placed before US3 so the deploy ships the store; the Wispbyte part of the check (T040) runs after US3.
 
-- [ ] T028 [P] [US4] Test `src/domain/start-record.test.ts`: `recordStart(undefined, now)` →
+- [X] T028 [P] [US4] Test `src/domain/start-record.test.ts`: `recordStart(undefined, now)` →
   `{ firstStartedAt: now, startCount: 1 }`; `recordStart(previous, now)` keeps `firstStartedAt` and adds 1;
   the `StartRecord` type allows only `startCount` "integer ≥ 1"
-- [ ] T029 [US4] Implement `src/domain/start-record.ts` (pure, time passed in, no I/O)
+- [X] T029 [US4] Implement `src/domain/start-record.ts` (pure, time passed in, no I/O)
 - [ ] T030 [US4] Test `src/storage/database.test.ts` (real `node:sqlite`, temp folder): `openDatabase(dataDir)` creates
   `neil.db`, creates `schema_migrations(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`, applies migration 1
   `start_record(id INTEGER PRIMARY KEY CHECK (id = 1), first_started_at TEXT NOT NULL, start_count INTEGER NOT NULL
