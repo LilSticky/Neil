@@ -16,12 +16,11 @@ Built and merged through PR #2: validated configuration, `/ping` (private reply 
 start record), SQLite start record, CI checks, and a deploy job that turns a green `main` into one new
 commit on the `deploy` branch. Checked on the test server with `npm run dev` (T026, T027).
 
-Open until checked on Wispbyte, after the merge's deploy: T039 (Restart in the panel, `/ping` shows the
-merge's short sha) and T040 (persistence across a restart and a redeploy). Both are recorded in a
-follow-up `docs:` PR, which also marks slice 001 done in the ROADMAP.
+Live on Wispbyte: `/ping` shows `51c8ea0` (T039). Persistence (T040): the data folder survives a
+Restart; the redeploy half is checked with the deploy of this docs change.
 
-**Next step:** after the deploy job on `main` is green, click **Restart** in the Wispbyte panel, run `/ping`
-on the test server, and record T039; then do the persistence check T040.
+**Next step:** after this change's deploy, Restart Wispbyte, `/ping`: same first-start time and start #3
+means data survives redeploys. Record T040, mark slice 001 done in the ROADMAP.
 
 ## Known broken / WIP
 

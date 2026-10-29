@@ -105,6 +105,12 @@ than starting over.
 **Running locally**: there is only one bot application, so **Stop** the Wispbyte server before
 `npm run dev`, and **Start** it again when done.
 
+**If `git pull` fails on start** with "untracked working tree files would be overwritten", the old
+build keeps running. Delete the named file in **Files** (never `.env` or `data/`) and **Start**. It happened
+once, on 2026-10-29: the placeholder had no lockfile, so the server's `npm install` created an untracked
+`package-lock.json` that the first real deploy then tracked. Since `deploy` ships a lockfile that
+`npm install` leaves unchanged, it should not recur.
+
 A crash is restarted by Wispbyte itself, but it gives up after two crashes within 60 seconds. A
 reinstall (if the panel offers one) wipes the folder, including `data/`; avoid it after the first setup.
 
@@ -116,4 +122,5 @@ the `.env` settings, the token and the server membership.
 
 ## 5. Persistence check
 
-Result recorded here after the check in slice 001 (quickstart step 5): *not yet done.*
+Restart (2026-10-29): **kept**. `/ping` showed `Data kept since 2026-10-29 03:34 UTC · start #1`, then
+`start #2` with the same time after a Restart. Redeploy: *pending*.
