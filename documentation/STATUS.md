@@ -2,7 +2,7 @@
 
 Where work stands right now. Updated in every change (constitution, principle VI).
 Plan: [ROADMAP.md](ROADMAP.md) · Decisions: [adr/](adr/README.md) · Language: [DICTIONARY.md](DICTIONARY.md) ·
-Game API: [GAME-API.md](GAME-API.md) · Discovery: [discovery/initial.md](discovery/initial.md) ·
+Game API: [GAME-API.md](GAME-API.md) · Hosting: [HOSTING.md](HOSTING.md) · Discovery: [discovery/initial.md](discovery/initial.md) ·
 Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
