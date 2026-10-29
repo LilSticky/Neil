@@ -54,11 +54,10 @@ bot's values; names exactly as written):
 | Git Username / Git Access Token | empty (the repository is public) |
 | Uninstall Node packages | empty |
 
-**First clone.** Wispbyte clones only when the server is installed, and refuses to start an empty
-folder ("no files"). After filling in the fields above, use **Settings → Reinstall Server**, then
-**Start**. Every later start runs `git pull` (Auto Update) and then `dist/main.js`.
-
-Fallback if no reinstall is offered: bootstrap the clone once from the file manager:
+**First clone.** Wispbyte refuses to start an empty folder ("no files"), and on 2026-10-29
+**Settings → Reinstall Server** did not clone the repository. What worked: bootstrap the clone once
+from the file manager. Afterwards every start runs `git pull` (Auto Update), `npm install`, then
+`node dist/main.js`.
 
 1. **Files**: create folder `dist`, and in it a file `main.js` with this content:
 

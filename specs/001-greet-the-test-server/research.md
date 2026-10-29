@@ -83,7 +83,11 @@ therefore ends with a manual **Restart**. A crashed process is restarted by Wisp
 ([Wispbyte tutorial](https://wispbyte.com/how-to-host-discord-bot-wispbyte)). SC-003 ("without copying
 code by hand") still holds; the restart click is the one manual step.
 
-**Still open** (checked when the server is set up): the Node.js images offered (needs 24).
+**Verified on the server (2026-10-29)**: the image runs Node.js v24.22.1; the startup command is the
+egg's (`git pull` if `.git` and Auto Update = 1, `npm install` if `package.json`, `node
+/home/container/${JS_FILE}`). Reinstall did not clone; a one-time bootstrap script did (HOSTING.md),
+and the next start pulled and ran the `deploy` placeholder. Wispbyte auto-restarts a crashed process
+but gives up after two crashes within 60 seconds.
 
 ## R2. Will the data folder persist?
 
