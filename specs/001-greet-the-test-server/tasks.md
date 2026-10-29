@@ -114,7 +114,7 @@ The reply's start record line comes from US4 (T034) and the real version from US
   the interaction router calls `handlePing` for chat-input `ping` and ignores everything else
 - [X] T021 [US1] Implement `src/discord/client.ts` (client factory, interaction router, `login`, `destroy`)
 - [X] T022 [US1] Test `src/startup.test.ts` (moved from `src/main.test.ts` so `main.ts` has no import side effects to test around) for `start(deps)` with fakes for config, data folder, store and client:
-  the order is `.env` load → config → data folder → start record → login; any failure before login prints
+  the order is config → build info → data folder → start record → login (`.env` is loaded by `main.ts` before); any failure before login prints
   `formatStartupError` to stderr and exits 1 without calling login; rejected login exits 1 without the token in
   output; `SIGINT`/`SIGTERM` destroy the client, close the database and exit 0 (FR-012)
 - [X] T023 [US1] Implement `src/main.ts`: `process.loadEnvFile('.env')` only if the file exists (process env wins,
@@ -160,7 +160,7 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
   a startup error naming the start record, never a reset (spec edge case)
 - [X] T033 [US4] Implement `src/storage/start-record-store.ts` with zod validation of the row
 - [X] T034 [US4] Wire the store into `start` in `src/main.ts` (load → `recordStart` → save before login, record passed
-  to the ping handler) and extend `src/main.test.ts` first
+  to the ping handler) and extend `src/startup.test.ts` first
 
 **Checkpoint**: `/ping` locally shows "Data kept since … · start #N", and N rises with each `npm run dev` restart.
 
@@ -175,7 +175,7 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
 - [X] T035 [P] [US3] Test `src/build-info.test.ts` (temp folder): `readBuildInfo(path)` returns version `dev` without
   the file; `{ version, builtAt }` for a valid file (`version` "non-empty string", `builtAt` "ISO 8601 timestamp");
   a present but invalid file is a startup error
-- [X] T036 [US3] Implement `src/build-info.ts` and pass the build info into `start` (test in `src/main.test.ts` first)
+- [X] T036 [US3] Implement `src/build-info.ts` and pass the build info into `start` (test in `src/startup.test.ts` first)
 - [X] T037 [US3] Add job `deploy` to `.github/workflows/ci.yml`: only on `push` to `main`, `needs: checks`,
   `permissions: contents: write`, `concurrency` group so deploys never overlap; builds, writes `build-info.json`
   (short sha, UTC time), strips `devDependencies` and `scripts.prepare` from `package.json`, and commits `dist/`,
@@ -198,9 +198,9 @@ Placed before US3 so the deploy ships the store; the Wispbyte part of the check 
 
 ## Phase 7: Polish
 
-- [ ] T041 `bot-reviewer` over `src/` and `.github/workflows/ci.yml` (intents, permissions, secrets, boundary
+- [X] T041 `bot-reviewer` over `src/` and `.github/workflows/ci.yml` (intents, permissions, secrets, boundary
   validation); fixes through `implementer`
-- [ ] T042 `spec-auditor` against spec.md acceptance scenarios; close gaps
+- [X] T042 `spec-auditor` against spec.md acceptance scenarios; close gaps
 - [ ] T043 Update `documentation/STATUS.md`, `documentation/ROADMAP.md` (slice 001 done), ADRs if affected;
   mark the PR ready, squash-merge when the Definition of Done gate is green, then `housekeeper` cleanup
 
