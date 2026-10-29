@@ -1,7 +1,8 @@
 import { describe, expect, test, vi } from "vitest";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
+import type { LookupResult, Player } from "../domain/player.js";
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
-import { GameApiClient } from "./client.js";
+import { type FetchLike, GameApiClient } from "./client.js";
 
 const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
 const VERSION = "0.1.0";
@@ -155,5 +156,145 @@ describe("GameApiClient.getPlayer result", () => {
     const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
 
     expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
+  });
+});
+
+function textResponse(status: number, body: string): Response {
+  return new Response(body, { status, headers: { "content-type": "text/plain" } });
+}
+
+function failingFetch(respond: () => Response): FetchLike {
+  return () => Promise.resolve(respond());
+}
+
+function rejectingFetch(error: Error): FetchLike {
+  return () => Promise.reject(error);
+}
+
+/** A client whose log lines are collected, so the tests can check exactly what was logged. */
+function loggingClientWith(fetch: FetchLike) {
+  const logged: string[] = [];
+  const client = new GameApiClient({
+    apiKey: FAKE_API_KEY,
+    version: VERSION,
+    fetch,
+    logError: (line: string) => {
+      logged.push(line);
+    },
+  });
+  return { client, logged };
+}
+
+interface FailureScenario {
+  readonly label: string;
+  readonly fetch: FetchLike;
+  readonly expected: LookupResult<Player>;
+  /** The cause that the one log line must name: the status, "timeout" or "network". */
+  readonly loggedCause: string;
+}
+
+const PLAYER_PATH_IN_LOG = /\/players\/(\{uid\}|145563254785)/;
+
+const failureScenarios: readonly FailureScenario[] = [
+  {
+    label: "429",
+    fetch: failingFetch(() => jsonResponse(429, { detail: "rate_limited" })),
+    expected: { kind: "quota-spent" },
+    loggedCause: "429",
+  },
+  {
+    label: "502",
+    fetch: failingFetch(() => textResponse(502, "error code: 502")),
+    expected: { kind: "try-again" },
+    loggedCause: "502",
+  },
+  {
+    label: "503",
+    fetch: failingFetch(() => textResponse(503, "error code: 503")),
+    expected: { kind: "try-again" },
+    loggedCause: "503",
+  },
+  {
+    label: "504",
+    fetch: failingFetch(() => textResponse(504, "error code: 504")),
+    expected: { kind: "try-again" },
+    loggedCause: "504",
+  },
+  {
+    label: "timeout",
+    fetch: rejectingFetch(new DOMException("The operation was aborted due to timeout", "TimeoutError")),
+    expected: { kind: "try-again" },
+    loggedCause: "timeout",
+  },
+  {
+    label: "network error",
+    fetch: rejectingFetch(new TypeError("fetch failed")),
+    expected: { kind: "try-again" },
+    loggedCause: "network",
+  },
+  {
+    label: "401",
+    fetch: failingFetch(() => jsonResponse(401, { detail: "invalid_key" })),
+    expected: { kind: "unavailable", reason: "auth" },
+    loggedCause: "401",
+  },
+  {
+    label: "403",
+    fetch: failingFetch(() => jsonResponse(403, { detail: "forbidden" })),
+    expected: { kind: "unavailable", reason: "auth" },
+    loggedCause: "403",
+  },
+  {
+    label: "500",
+    fetch: failingFetch(() => textResponse(500, "Internal Server Error")),
+    expected: { kind: "unavailable", reason: "unexpected" },
+    loggedCause: "500",
+  },
+  {
+    label: "418",
+    fetch: failingFetch(() => textResponse(418, "I'm a teapot")),
+    expected: { kind: "unavailable", reason: "unexpected" },
+    loggedCause: "418",
+  },
+];
+
+describe("GameApiClient.getPlayer failure mapping", () => {
+  test.each(failureScenarios)("$label gives $expected.kind", async (scenario) => {
+    const { client } = loggingClientWith(scenario.fetch);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual(scenario.expected);
+  });
+
+  test.each(failureScenarios)("$label logs one line with the path and the cause, never the key", async (scenario) => {
+    const { client, logged } = loggingClientWith(scenario.fetch);
+
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatch(PLAYER_PATH_IN_LOG);
+    expect(logged[0]).toContain(scenario.loggedCause);
+    expect(logged.join("\n")).not.toContain(FAKE_API_KEY);
+  });
+
+  test("a 404 is not logged", async () => {
+    const { client, logged } = loggingClientWith(failingFetch(() => jsonResponse(404, { detail: "player_not_found" })));
+
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(logged).toEqual([]);
+  });
+
+  test("a 200 with an invalid body is unavailable, and the one log line names the zod issue path, never the key", async () => {
+    const body = { ...playerInAlliance, nick: undefined };
+    const { client, logged } = loggingClientWith(failingFetch(() => jsonResponse(200, body)));
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("nick");
+    expect(logged.join("\n")).not.toContain(FAKE_API_KEY);
   });
 });

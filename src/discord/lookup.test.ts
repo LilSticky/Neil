@@ -117,3 +117,47 @@ describe("handlePlayer", () => {
     expect(logged).toEqual([expect.stringContaining("Unknown interaction")]);
   });
 });
+
+const privateFailures: readonly { readonly label: string; readonly result: LookupResult<Player>; readonly text: string }[] =
+  [
+    {
+      label: "quota-spent",
+      result: { kind: "quota-spent" },
+      text: "Lookups are used up for today. They work again after 00:00 UTC.",
+    },
+    {
+      label: "try-again",
+      result: { kind: "try-again" },
+      text: "The game tracker is busy right now. Try again in a moment.",
+    },
+    {
+      label: "unavailable (auth)",
+      result: { kind: "unavailable", reason: "auth" },
+      text: "Lookups are not working right now. Please tell an Officer.",
+    },
+  ];
+
+describe("handlePlayer failures that give no card", () => {
+  test.each(privateFailures)(
+    "$label removes the thinking placeholder and tells the caller privately with the contract text, never a card",
+    async ({ result, text }) => {
+      const interaction = new FakeLookupInteraction(UID);
+      const { context } = contextReturning(result);
+
+      await handlePlayer(interaction, context);
+
+      expect(interaction.calls).toEqual([
+        { method: "deferReply" },
+        { method: "deleteReply" },
+        {
+          method: "followUp",
+          options: {
+            content: text,
+            flags: MessageFlags.Ephemeral,
+            allowedMentions: { parse: [] },
+          },
+        },
+      ]);
+    },
+  );
+});

@@ -23,6 +23,9 @@ interface Unexpected {
   readonly reason: "unexpected";
 }
 
+/** Every lookup result except a found value. */
+type Failure = Exclude<LookupResult<never>, { readonly kind: "found" }>;
+
 /** The only code that talks to the Game API. Never throws for an API failure; the key is never logged. */
 export class GameApiClient {
   private readonly apiKey: string;
@@ -44,15 +47,8 @@ export class GameApiClient {
   async getPlayer(uid: Uid): Promise<LookupResult<Player>> {
     const endpoint = "/players/{uid}";
 
-    let response: Response;
-    try {
-      response = await this.send(`/players/${uid}`);
-    } catch {
-      return this.unexpected(endpoint, "network error");
-    }
-
-    if (response.status === 404) return { kind: "not-found" };
-    if (response.status !== 200) return this.unexpected(endpoint, `status ${String(response.status)}`);
+    const response = await this.request(endpoint, `/players/${uid}`);
+    if (!(response instanceof Response)) return response;
 
     let raw: unknown;
     try {
@@ -98,6 +94,30 @@ export class GameApiClient {
         allianceRank: rankFromRoster(uid, roster),
       },
     };
+  }
+
+  /** A 200 response, or the failure every endpoint shares; only the status is read, as error bodies may be plain text. */
+  private async request(endpoint: string, path: string): Promise<Response | Failure> {
+    let response: Response;
+    try {
+      response = await this.send(path);
+    } catch (error) {
+      const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+      return this.fail(endpoint, timedOut ? "timeout" : "network", { kind: "try-again" });
+    }
+    const status = response.status;
+    if (status === 200) return response;
+    if (status === 404) return { kind: "not-found" };
+    const detail = `status ${String(status)}`;
+    if (status === 429) return this.fail(endpoint, detail, { kind: "quota-spent" });
+    if (status === 502 || status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
+    if (status === 401 || status === 403) return this.fail(endpoint, detail, { kind: "unavailable", reason: "auth" });
+    return this.unexpected(endpoint, detail);
+  }
+
+  private fail(endpoint: string, detail: string, failure: Failure): Failure {
+    this.logError(`Game API ${endpoint}: ${failure.kind}, ${detail}`);
+    return failure;
   }
 
   private send(path: string): Promise<Response> {

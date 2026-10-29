@@ -99,14 +99,14 @@ and the handlers of US1, so it follows US1 directly.
 **Independent test**: `src/game-api/client.test.ts` and `src/discord/lookup.test.ts` cover every row of the
 status mapping.
 
-- [ ] T018 [US3] Test in `src/game-api/client.test.ts`: 429 → `quota-spent`; 502, 503, 504 (plain-text body
+- [x] T018 [US3] Test in `src/game-api/client.test.ts`: 429 → `quota-spent`; 502, 503, 504 (plain-text body
   `error code: 504`), abort/timeout, network error → `try-again`; 401, 403 → `unavailable/auth`; 500, 418 and a
   200 failing validation → `unavailable/unexpected`; `logError` gets path and status (and zod issue paths), and
   the key appears in no logged line
-- [ ] T019 [US3] Implement the mapping and logging in `src/game-api/client.ts`
-- [ ] T020 [US3] Test in `src/discord/lookup.test.ts`: `quota-spent`, `try-again`, `unavailable` each give the
+- [x] T019 [US3] Implement the mapping and logging in `src/game-api/client.ts`
+- [x] T020 [US3] Test in `src/discord/lookup.test.ts`: `quota-spent`, `try-again`, `unavailable` each give the
   contract's ephemeral text and never a card
-- [ ] T021 [US3] Implement in `src/discord/lookup.ts`
+- [x] T021 [US3] Implement in `src/discord/lookup.ts`
 
 ---
 
