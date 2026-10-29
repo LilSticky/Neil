@@ -61,3 +61,13 @@ describe("parseAllianceKey", () => {
     expect(parseAllianceKey(input)).toEqual({ ok: false });
   });
 });
+
+describe("parseAllianceKey with dots only", () => {
+  test.each([
+    ["one dot", "."],
+    ["two dots", ".."],
+    ["three dots", "..."],
+  ])("rejects an Alliance key of %s, because it would be a path segment", (_label, input) => {
+    expect(parseAllianceKey(input)).toEqual({ ok: false });
+  });
+});

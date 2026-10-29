@@ -86,3 +86,9 @@ describe("ambiguousBodySchema", () => {
     expect(ambiguousBodySchema.safeParse({ detail: "alliance_ambiguous" }).success).toBe(false);
   });
 });
+
+describe("playerBodySchema empty text", () => {
+  test("rejects a body whose nick is an empty string", () => {
+    expect(playerBodySchema.safeParse({ ...playerInAlliance, nick: "" }).success).toBe(false);
+  });
+});

@@ -418,3 +418,68 @@ describe("handleAlliance failures that give no card", () => {
     },
   );
 });
+
+describe("handlePlayer when the card cannot be sent", () => {
+  test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    interaction.fail("editReply", new Error("Unknown interaction"));
+    const { context, logged } = contextReturning({ kind: "found", value: player });
+
+    await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "Vex" })],
+          allowedMentions: { parse: [] },
+        },
+      },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("Unknown interaction")]);
+  });
+});
+
+describe("handleAlliance when the card cannot be sent", () => {
+  test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { alliance: "NML" },
+      integers: { kingdom: 1 },
+    });
+    interaction.fail("editReply", new Error("Unknown interaction"));
+    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance });
+
+    await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
+          allowedMentions: { parse: [] },
+        },
+      },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("Unknown interaction")]);
+  });
+});

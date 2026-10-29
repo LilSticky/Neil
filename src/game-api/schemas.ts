@@ -11,7 +11,7 @@ const rosterRowSchema = z.object({
 /** The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us. */
 export const playerBodySchema = z.object({
   uid: idSchema,
-  nick: z.string(),
+  nick: z.string().min(1),
   kid: z.number().int(),
   power: z.number().int().nonnegative(),
   lv: z.number().int().positive(),
@@ -31,7 +31,11 @@ export const allianceBodySchema = z.object({
   power: z.number().int().nonnegative(),
   member_count: z.number().int().nonnegative(),
   capacity: z.number().int().nonnegative(),
-  leader_name: z.string().nullish(),
+  /** An empty leader_name means no Leader is known, the same as a missing one. */
+  leader_name: z
+    .string()
+    .nullish()
+    .transform((name) => (name === "" ? undefined : name)),
 });
 
 export type AllianceBody = z.infer<typeof allianceBodySchema>;

@@ -436,3 +436,52 @@ describe("GameApiClient.getAlliance result", () => {
     expect(result).toEqual({ kind: "quota-spent" });
   });
 });
+
+describe("GameApiClient.getPlayer with an empty nick", () => {
+  test("a 200 with an empty nick is unavailable, reason unexpected", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, { ...playerInAlliance, nick: "" }));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
+  });
+});
+
+describe("GameApiClient.getAlliance with an empty leader name", () => {
+  test("an empty leader_name gives an Alliance without a leader name", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, { ...alliance, leader_name: "" }));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: { tag: "NML", leaderName: undefined },
+    });
+  });
+});
+
+/** A response whose body is a stream that records when the client cancels it. */
+function streamedResponse(status: number) {
+  const cancel = vi.fn<(reason?: unknown) => Promise<void>>(() => Promise.resolve());
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode("error code"));
+    },
+    cancel,
+  });
+  return { response: new Response(body, { status }), cancel };
+}
+
+describe("GameApiClient non-200 answers", () => {
+  test.each([401, 404, 429, 503])(
+    "a %s answer has its body cancelled, so the connection is released",
+    async (status) => {
+      const { response, cancel } = streamedResponse(status);
+      const { client } = loggingClientWith(failingFetch(() => response));
+
+      await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+      expect(cancel).toHaveBeenCalledTimes(1);
+    },
+  );
+});

@@ -3,10 +3,29 @@ import type { AllianceKey, KingdomNumber } from "../domain/lookup-input.js";
 import type { Alliance, Match, Player } from "../domain/player.js";
 
 const FOOTER = "Data from Last Asylum Tracker";
+const TITLE_MAX_LENGTH = 256;
+const AMBIGUOUS_LIST_LIMIT = 10;
 
 /** Escapes Game API and user text for Discord markdown; discord.js leaves a lone `~` alone, so it is escaped here. */
 function escapeText(text: string): string {
   return escapeMarkdown(text).replaceAll("~", "\\~");
+}
+
+/**
+ * Fits an escaped title into Discord's 256 characters, ending with an ellipsis. It cuts after escaping, so the
+ * limit counts what Discord shows, and it never leaves a backslash without the character it escapes.
+ */
+function fitTitle(escaped: string): string {
+  if (escaped.length <= TITLE_MAX_LENGTH) return escaped;
+  let kept = escaped.slice(0, TITLE_MAX_LENGTH - 1);
+  const trailingBackslashes = /\\*$/.exec(kept)?.[0] ?? "";
+  if (trailingBackslashes.length % 2 === 1) kept = kept.slice(0, -1);
+  return `${kept}…`;
+}
+
+/** A Game API text for a field: the escaped text, or Unknown when the Game left it out or sent it empty. */
+function valueOrUnknown(text: string | undefined): string {
+  return text === undefined || text === "" ? "Unknown" : escapeText(text);
 }
 
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
@@ -27,7 +46,7 @@ export function renderPlayerCard(player: Player): APIEmbed {
     fields.push({ name: "Alliance Rank", value: rank, inline: true });
   }
   return {
-    title: escapeText(player.name),
+    title: fitTitle(escapeText(player.name)),
     fields,
     footer: { text: FOOTER },
   };
@@ -45,12 +64,12 @@ export function renderAllianceCard(alliance: Alliance): APIEmbed {
     },
     {
       name: "Leader",
-      value: alliance.leaderName === undefined ? "Unknown" : escapeText(alliance.leaderName),
+      value: valueOrUnknown(alliance.leaderName),
       inline: true,
     },
   ];
   return {
-    title: `[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`,
+    title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`),
     fields,
     footer: { text: FOOTER },
   };
@@ -70,8 +89,12 @@ export const lookupMessages = {
   playerNotFound: (uid: string): string => `No player has the uid ${escapeText(uid)}.`,
   allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
-  ambiguous: (key: AllianceKey, matches: readonly Match[]): string =>
-    `More than one alliance matches "${escapeText(key)}": ${matches.map(matchLabel).join(", ")}. Try the exact tag.`,
+  ambiguous: (key: AllianceKey, matches: readonly Match[]): string => {
+    const listed = matches.slice(0, AMBIGUOUS_LIST_LIMIT).map(matchLabel).join(", ");
+    const more = matches.length - AMBIGUOUS_LIST_LIMIT;
+    const rest = more > 0 ? ` and ${more.toString()} more` : "";
+    return `More than one alliance matches "${escapeText(key)}": ${listed}${rest}. Try the exact tag.`;
+  },
   quotaSpent: "Lookups are used up for today. They work again after 00:00 UTC.",
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",

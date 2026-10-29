@@ -141,6 +141,7 @@ export class GameApiClient {
     const status = response.status;
     if (status === 200) return response;
     if (status === 409 && conflictIsAnswer) return response;
+    await this.discardBody(response);
     if (status === 404) return { kind: "not-found" };
     const detail = `status ${String(status)}`;
     if (status === 429) return this.fail(endpoint, detail, { kind: "quota-spent" });
@@ -166,6 +167,15 @@ export class GameApiClient {
       return { ok: false, failure: this.unexpected(endpoint, `${status}, invalid body at ${paths}`) };
     }
     return { ok: true, body: parsed.data };
+  }
+
+  /** Cancels a body that will not be read, so its connection is released. Never throws. */
+  private async discardBody(response: Response): Promise<void> {
+    try {
+      await response.body?.cancel();
+    } catch {
+      // The connection is released or closed either way; nothing to report.
+    }
   }
 
   private fail(endpoint: string, detail: string, failure: Failure): Failure {

@@ -75,6 +75,11 @@ function allianceFailureText(failure: Failure<Alliance>, kingdom: KingdomNumber,
   }
 }
 
+/** The text of a thrown value, for a log line. */
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Keeps a failed Discord call from escaping the handler; the failure is logged instead. */
 async function answer(
   command: string,
@@ -83,7 +88,7 @@ async function answer(
   try {
     await respond();
   } catch (error) {
-    context.logError(`Answering ${command} failed: ${error instanceof Error ? error.message : String(error)}`);
+    context.logError(`Answering ${command} failed: ${errorText(error)}`);
   }
 }
 
@@ -92,29 +97,36 @@ async function replyPrivately(interaction: LookupInteraction, content: string): 
   await interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions });
 }
 
+/** Removes the thinking placeholder and tells the caller the text privately. */
+async function removePlaceholderAndTell(interaction: LookupInteraction, content: string): Promise<void> {
+  await interaction.deleteReply();
+  await interaction.followUp({ content, flags: MessageFlags.Ephemeral, allowedMentions });
+}
+
 /**
- * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, the
- * placeholder is removed and the reason is told privately.
+ * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
+ * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged.
  */
 async function showLookup<T>(
   interaction: LookupInteraction,
+  context: { readonly logError: (message: string) => void },
   ask: () => Promise<LookupResult<T>>,
   render: (value: T) => APIEmbed,
   failureText: (failure: Failure<T>) => string,
 ): Promise<void> {
   await interaction.deferReply();
   const result = await ask();
-  if (result.kind === "found") {
-    await interaction.editReply({ embeds: [render(result.value)], allowedMentions });
+  if (result.kind !== "found") {
+    await removePlaceholderAndTell(interaction, failureText(result));
     return;
   }
 
-  await interaction.deleteReply();
-  await interaction.followUp({
-    content: failureText(result),
-    flags: MessageFlags.Ephemeral,
-    allowedMentions,
-  });
+  try {
+    await interaction.editReply({ embeds: [render(result.value)], allowedMentions });
+  } catch (error) {
+    context.logError(`Showing the card failed: ${errorText(error)}`);
+    await removePlaceholderAndTell(interaction, lookupMessages.unavailable);
+  }
 }
 
 /** Answers /player: invalid input privately at once, otherwise a public card or the reason in private. */
@@ -129,6 +141,7 @@ export async function handlePlayer(interaction: LookupInteraction, context: Look
     const uid = parsed.value;
     await showLookup(
       interaction,
+      context,
       () => context.gameApi.getPlayer(uid),
       renderPlayerCard,
       (failure) => playerFailureText(failure, uid),
@@ -158,6 +171,7 @@ export async function handleAlliance(
     const allianceKey = key.value;
     await showLookup(
       interaction,
+      context,
       () => context.gameApi.getAlliance(kingdomNumber, allianceKey),
       renderAllianceCard,
       (failure) => allianceFailureText(failure, kingdomNumber, allianceKey),

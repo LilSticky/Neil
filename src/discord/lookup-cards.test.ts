@@ -220,3 +220,50 @@ describe("lookupMessages for /alliance", () => {
     );
   });
 });
+
+describe("lookupMessages.ambiguous with many matches", () => {
+  const manyMatches: readonly Match[] = Array.from({ length: 60 }, (_, index) => ({
+    tag: `T${index.toString().padStart(2, "0")}`,
+    name: "C".repeat(40),
+    kingdom: index + 1,
+  }));
+
+  test("lists at most 10 matches, then says how many more there are", () => {
+    const text = lookupMessages.ambiguous(allianceKey("Clan"), manyMatches);
+
+    expect(text.match(/\[T\d{2}\] C{40}/g)).toHaveLength(10);
+    expect(text).toContain("[T09] " + "C".repeat(40));
+    expect(text).not.toContain("[T10] " + "C".repeat(40));
+    expect(text).toContain("and 50 more");
+  });
+
+  test("keeps the whole text within Discord's 2000-character message limit", () => {
+    expect(lookupMessages.ambiguous(allianceKey("Clan"), manyMatches).length).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe("card titles within Discord's 256-character limit", () => {
+  const longName = "A".repeat(300);
+
+  test("truncates a Player's name of 300 characters to at most 256, ending with an ellipsis", () => {
+    const title = renderPlayerCard({ ...inAlliance, name: longName }).title ?? "";
+
+    expect(title.length).toBeLessThanOrEqual(256);
+    expect(title.endsWith("…")).toBe(true);
+  });
+
+  test("truncates an Alliance's title of 300 characters to at most 256, ending with an ellipsis", () => {
+    const title = renderAllianceCard({ ...alliance, name: longName }).title ?? "";
+
+    expect(title.length).toBeLessThanOrEqual(256);
+    expect(title.endsWith("…")).toBe(true);
+  });
+});
+
+describe("renderAllianceCard with an empty leader name", () => {
+  test("shows Unknown as the Leader, never an empty field value", () => {
+    const card = renderAllianceCard({ ...alliance, leaderName: "" });
+
+    expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "Unknown" });
+  });
+});
