@@ -23,7 +23,7 @@ and the handlers of US1, so it follows US1 directly.
 
 ## Phase 1: Setup
 
-- [ ] T001 Write `scripts/record-fixtures.ts` (reads `.env`, `LAP_TRACKER_API_KEY`, User-Agent as in
+- [x] T001 Write `scripts/record-fixtures.ts` (reads `.env`, `LAP_TRACKER_API_KEY`, User-Agent as in
   [contracts/game-api-client.md](contracts/game-api-client.md#requests), 60 s timeout; writes the raw 200/4xx bodies
   of `GET /players/145563254785`, `GET /players/1`, `GET /alliances/1/NML`, `GET /alliances/1/ZZZQX` to
   `src/game-api/__fixtures__/` as `player-in-alliance.json`, `player-not-found.json`, `alliance.json`,
@@ -60,17 +60,17 @@ and the handlers of US1, so it follows US1 directly.
 
 **Independent test**: `/player uid:145563254785` on the test server shows the card (quickstart steps 2–4).
 
-- [ ] T007 [US1] Test `src/game-api/schemas.test.ts`: the player schema parses `player-in-alliance.json`
+- [x] T007 [US1] Test `src/game-api/schemas.test.ts`: the player schema parses `player-in-alliance.json`
   (or, until T001 has recorded it, a fixture built from the verified fields in `GAME-API.md`, marked as such in
   `src/game-api/__fixtures__/README.md`) and rejects a body missing `uid`, `nick`, `kid`, `power` or `lv`;
   `alliance_members[].rank_label` may be `null`; extra fields are allowed
-- [ ] T008 [US1] Implement the player schema in `src/game-api/schemas.ts`
-- [ ] T009 [US1] Test `src/game-api/client.test.ts` with a fake `fetch`: `getPlayer` sends `GET {base}/players/{uid}`
+- [x] T008 [US1] Implement the player schema in `src/game-api/schemas.ts`
+- [x] T009 [US1] Test `src/game-api/client.test.ts` with a fake `fetch`: `getPlayer` sends `GET {base}/players/{uid}`
   with `Authorization: Bearer …`, `User-Agent: Neil/{version} (+https://github.com/LilSticky/Neil)`, a timeout signal;
   200 → `found` with the mapped `Player` (name, uid, Kingdom, power, sanctuary level, Alliance tag and name,
   Alliance Rank from the roster); `aid` 0/null → no Alliance and no rank; 404 → `not-found`; a 200 for another
   uid → `unavailable/unexpected`
-- [ ] T010 [US1] Implement `GameApiClient.getPlayer` in `src/game-api/client.ts`
+- [x] T010 [US1] Implement `GameApiClient.getPlayer` in `src/game-api/client.ts`
 - [ ] T011 [P] [US1] Test `src/discord/lookup-cards.test.ts`: `renderPlayerCard(player)` gives the embed of
   [contracts/lookup-commands.md](contracts/lookup-commands.md#player-card-embed) (power `1,234,567`, `No alliance`
   without the rank field, `Unknown` rank); names with `*_\`@` are escaped; the messages table texts, with
