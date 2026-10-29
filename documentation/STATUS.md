@@ -7,11 +7,12 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-None yet. Branch `000-agentic-toolkit` holds the toolkit (constitution 1.0.2, AGENTS.md, Spec Kit 1.2.0,
-agents, skills, TDD and usage guard hooks) and the plan: initial discovery, the Game API summary, the
-roadmap (slices 001–005), ADRs 1–6 accepted (production on Wispbyte).
+001 "Greet the test server", branch `001-greet-the-test-server`. Spec written:
+[specs/001-greet-the-test-server/spec.md](../specs/001-greet-the-test-server/spec.md). The toolkit and plan
+(PR #1) are on `main`. Decided: the Wispbyte instance is the production bot, invited only to the test
+server for this slice.
 
-**Next step:** `/speckit-specify` for slice 001 "Greet the test server" on branch `001-greet-the-test-server`.
+**Next step:** `/speckit-clarify` for slice 001.
 
 ## Known broken / WIP
 

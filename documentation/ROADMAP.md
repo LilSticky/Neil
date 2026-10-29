@@ -11,7 +11,7 @@ States: `planned` · `in progress` · `in review` · `done`
 
 | # | Slice | Lets… | Domain | Adapters | State |
 |---|-------|-------|--------|----------|-------|
-| 001 | Greet the test server | an Officer see Neil online and answer `/ping` on the test server, deployed from `main` to Wispbyte | – (config validation) | discord.js client, slash-command registration, env config, CI, Wispbyte deploy (ADR 6), persistence check | planned |
+| 001 | Greet the test server | an Officer see Neil online and answer `/ping` on the test server, deployed from `main` to Wispbyte | – (config validation) | discord.js client, slash-command registration, env config, CI, Wispbyte deploy (ADR 6), persistence check | in progress |
 | 002 | Look up a player | any Member run `/player` by uid (and `/alliance` by kingdom + alliance) and see a profile card with rank | Player, Kingdom, Alliance, Alliance Rank | Game API client (auth, User-Agent, schema validation, error mapping), recorded fixtures, embed | planned |
 | 003 | Look up players within the daily quota | lookups to keep working all day: repeated lookups served from cache, a reserve kept, `/quota` for Officers, a clear message when the quota is spent | quota budget (reserve, per-purpose shares) | cache (≥10 min TTL), persisted quota counter, `X-RateLimit-*` headers, 429/503 handling | planned |
 | 004 | Interview a new member | a Member who joins be walked through giving their player uid in a private thread, confirm the Player Neil found, and get Linked (an already linked uid is refused; an unknown rank goes to the Alliance's R5) | Onboarding Interview (state machine), In-game Proof (uid), Link, Rank Approval | `guildMemberAdd`, private thread, buttons/modals, storage | planned |
