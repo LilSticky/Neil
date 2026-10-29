@@ -4,7 +4,7 @@ Date: 2026-10-29
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -16,8 +16,7 @@ hosts usually offer some disk, but whether it survives redeploys must be confirm
 
 We will store data in one SQLite file through Node's built-in `node:sqlite`, behind the store ports
 (ADR 3), with numbered schema migrations run at startup. The file path is configuration (`DATA_DIR`). We
-store only Discord user IDs, player uids, interview state and review decisions; screenshots of In-game
-Proof stay in Discord, referenced by message link, and are not copied.
+store only Discord user IDs, player uids and interview state.
 
 If the chosen host's disk does not persist across redeploys, this ADR is superseded by a hosted database.
 
