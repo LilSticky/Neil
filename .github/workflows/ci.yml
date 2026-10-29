@@ -39,7 +39,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      # No install scripts while this job holds a write token (node:sqlite is built in, nothing to compile).
+      - run: npm ci --ignore-scripts
       - run: npm run build
       - name: Assemble the deploy commit on top of origin/deploy
         run: |
