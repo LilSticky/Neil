@@ -12,12 +12,12 @@ Slice 002 "Look up a player" (branch `002-look-up-a-player`): spec, plan and tas
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Next step:** T001 in [tasks.md](../specs/002-look-up-a-player/tasks.md) (record fixtures), on branch
-`002-look-up-a-player`.
+**Next step:** the user runs the test-server check in [quickstart.md](../specs/002-look-up-a-player/quickstart.md) (Wispbyte stopped, `npm run commands:register`, `npm run dev`); then T031–T032 in [tasks.md](../specs/002-look-up-a-player/tasks.md).
 
 ## Known broken / WIP
 
-None.
+- Wispbyte needs `LAP_TRACKER_API_KEY` in its panel before slice 002 is deployed, or Neil refuses to start.
+- The tracker still reports our key as `limit 1000, patron false` (2026-10-29); see GAME-API.md.
 
 ## Open questions
 

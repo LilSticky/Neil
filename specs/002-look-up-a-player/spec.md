@@ -56,7 +56,7 @@ tracker's data for that Player; in automated tests, with recorded Game API answe
 
 ### User Story 2 - Look up an Alliance (Priority: P2)
 
-A Member runs `/alliance` with a Kingdom number and an Alliance tag (or name) and sees an Alliance card:
+A Member runs `/alliance` with a Kingdom number and an Alliance tag and sees an Alliance card:
 name, tag, Kingdom, power, members out of capacity, and leader.
 
 **Why this priority**: useful for Officers checking an Alliance, but nothing later in the roadmap depends
@@ -70,9 +70,9 @@ the tracker; in automated tests, with recorded Game API answers.
 1. **Given** an Alliance exists in a Kingdom, **When** a Member runs `/alliance` with that Kingdom and
    its tag, **Then** the channel sees a card with the Alliance's name, tag, Kingdom, power, member count
    and capacity, and leader's name.
-2. **Given** no Alliance with that tag or name in that Kingdom, **When** a Member looks it up, **Then**
+2. **Given** no Alliance with that tag in that Kingdom, **When** a Member looks it up, **Then**
    only that Member sees a message that no such Alliance was found in that Kingdom.
-3. **Given** the tag or name matches more than one Alliance, **When** a Member looks it up, **Then** only
+3. **Given** the tag matches more than one Alliance, **When** a Member looks it up, **Then** only
    that Member sees the matches (tag and name) so they can try again with a more exact value.
 4. **Given** a Kingdom that is not a positive whole number, **When** a Member runs `/alliance`, **Then**
    only that Member sees an explanation, and the Game API is not asked.
@@ -111,7 +111,7 @@ malformed answer) to the lookup and read the message.
   `@`): shown as plain text, never as formatting or mentions.
 - Very large numbers (power in the billions): shown with thousands separators.
 - The roster lists the Player with an unexpected rank label: treated as an unknown Alliance Rank.
-- Alliance names with spaces: accepted; the Kingdom and the tag or name are passed to the Game API
+- Tags with unusual characters: accepted; the Kingdom and the tag are passed to the Game API
   safely encoded.
 - Leading or trailing spaces around a uid or tag are ignored.
 - The Game API returns a different Player or Kingdom than asked for: treated as data Neil cannot read.
@@ -122,7 +122,7 @@ malformed answer) to the lookup and read the message.
 
 - **FR-001**: Neil MUST offer `/player` with one required option, the Player's uid.
 - **FR-002**: Neil MUST offer `/alliance` with two required options: the Kingdom number and the
-  Alliance's tag or name.
+  Alliance's tag (the Game API answers 404 for full names, research R10).
 - **FR-003**: Neil MUST validate the options before asking the Game API and MUST NOT spend quota on
   invalid input.
 - **FR-004**: The Player card MUST show the Player's name, uid, Kingdom, power, sanctuary level, Alliance
