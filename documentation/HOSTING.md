@@ -93,6 +93,10 @@ including `data/`; avoid it after the first setup.
 
 Free plan: log in to Wispbyte at least every two weeks to keep the server.
 
+**Set up and verified 2026-10-29**: production bot "Neil" (Application ID `1565184120471027963`) on the
+test server (`819691545195577395`); the `deploy` placeholder confirmed Node 24.22.1, the Git checkout,
+the `.env` settings, the token and the server membership.
+
 ## 4. Persistence check
 
 Result recorded here after the check in slice 001 (quickstart step 5): *not yet done.*

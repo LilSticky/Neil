@@ -17,6 +17,10 @@ Clarified: `/ping` is open to anyone and temporary; Wispbyte's details are unkno
 Planned: [plan.md](../specs/001-greet-the-test-server/plan.md). CI builds a green `main` into a `deploy`
 branch that Wispbyte pulls on start; a start record in SQLite makes persistence visible in `/ping`.
 
+Wispbyte is set up and verified (HOSTING.md): it pulls the `deploy` branch on each start; the branch
+holds a diagnostic placeholder until the first CI deploy. Panel variables arrive as `.env`, not as
+environment variables. Restarts after a deploy are manual.
+
 **Next step:** `/speckit-tasks` for slice 001.
 
 ## Known broken / WIP
