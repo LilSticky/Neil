@@ -176,7 +176,7 @@ time. The first-start time stays the same and the start count goes up if the dat
 - The production bot application runs on Wispbyte and, for this slice, is invited only to the test
   server; it joins the production server in a later slice (user decision, 2026-10-29). The test bot
   application runs locally with `npm run dev`.
-- The version shown is the commit identifier of the build, supplied through configuration.
+- The version shown is the commit identifier of the build, supplied by the build (see research R6).
 - Wispbyte offers environment variables, a folder that may persist, and a way to run
   `npm ci && npm run build && npm start` (ADR 6). Nobody knows the details yet; the plan researches them.
   If Wispbyte cannot pull from GitHub, SC-003 may need a manual step, which the plan states and justifies.

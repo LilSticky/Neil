@@ -14,7 +14,10 @@ server for this slice.
 
 Clarified: `/ping` is open to anyone and temporary; Wispbyte's details are unknown and get researched in the plan.
 
-**Next step:** `/speckit-plan` for slice 001 (includes researching Wispbyte's deploy options).
+Planned: [plan.md](../specs/001-greet-the-test-server/plan.md). CI builds a green `main` into a `deploy`
+branch that Wispbyte pulls on start; a start record in SQLite makes persistence visible in `/ping`.
+
+**Next step:** `/speckit-tasks` for slice 001.
 
 ## Known broken / WIP
 
