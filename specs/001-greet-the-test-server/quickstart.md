@@ -33,7 +33,7 @@ reply from [contracts/ping-command.md](contracts/ping-command.md) within 3 secon
 ## 4. Wispbyte (User Story 3)
 
 Follow `documentation/HOSTING.md` (written in this slice). Merge a change to `main`, wait for CI and
-the deploy job, restart if the restart is manual, then `/ping` the production bot: the version is the
+the deploy job, click **Restart** in the panel, then `/ping` the production bot: the version is the
 merge commit's short sha.
 
 ## 5. Persistence (User Story 4)

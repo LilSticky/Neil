@@ -26,9 +26,8 @@ Sources: [Wispbyte blog: free hosting comparison](https://wispbyte.com/blog/free
 3. The Wispbyte server is set up once to clone `deploy` (`GIT_ADDRESS` + `BRANCH=deploy`,
    `AUTO_UPDATE=1`), so every start pulls the latest green build, installs production dependencies and
    runs `node dist/main.js`.
-4. A restart makes the new build live. If the panel exposes the Pterodactyl client API
-   (`POST /api/client/servers/{id}/power`), the deploy job restarts the server with a key stored as a
-   GitHub secret; otherwise the restart is one manual click, documented in `documentation/HOSTING.md`.
+4. A restart makes the new build live. It is one manual click on **Restart** in the panel (see
+   "Restarts" below for why it is not automated).
 
 **Rationale**: only green `main` builds ever reach the `deploy` branch (FR-010); Wispbyte needs no build
 tools, TypeScript or dev dependencies (fits 512 MB); the code stays host-neutral (ADR 6); switching to
@@ -42,7 +41,8 @@ the panel cannot clone a Git branch); a different host (rejected: ADR 6).
 standard Pterodactyl Node.js egg with exactly these fields: Git Repo Address, Install Branch, User
 Uploaded Files (0/1), Auto Update (0/1, `git pull` on startup), JS file (default `index.js`), Git
 Username, Git Access Token, Uninstall Node packages. There is **no field for custom environment
-variables**. That egg's startup runs, in order: `git pull` (if Auto Update = 1 and `.git` exists),
+variables** on that page; the user reports a separate place for environment variables, which
+Wispbyte's knowledge base confirms (below). That egg's startup runs, in order: `git pull` (if Auto Update = 1 and `.git` exists),
 `npm install` (if `package.json` exists), then `node <JS file>`.
 
 Settings for Neil:
@@ -61,10 +61,29 @@ Consequences for the design:
   `git pull` fails on diverged history.
 - The deploy job strips `devDependencies` from the `package.json` it commits, so the startup
   `npm install` installs only runtime dependencies.
-- Settings go in a `.env` file placed in the server folder through the panel's file manager (see R8).
+- Settings go in the panel's environment variables (see R8).
 
-**Still open** (checked when the server is set up): the Node.js image offered on the Startup tab (needs
-24), whether the panel offers an API key for remote restarts.
+**Wispbyte knowledge base** (second research pass, 2026-10-29; pages are only readable through search
+results, the site blocks automated fetching): the client panel has console, file manager, startup
+settings, logs and resource graphs; SFTP is premium only. Setup is: choose a Docker image, set the
+startup and environment variables. The security page says to keep bot tokens in **Startup →
+environment variables** rather than in uploaded files, and to enable two-factor authentication. Fair
+use: one free account per person and one bot per Discord server. Sources:
+[KB](https://wispbyte.com/kb), [Getting Started](https://wispbyte.com/kb/getting-started),
+[Server Management](https://wispbyte.com/kb/server-management),
+[Security Best Practices](https://wispbyte.com/kb/security),
+[community: bot not working](https://wispbyte.com/community/t/9a1f1ed1-213d-4601-8363-3d6e7feb44b3).
+
+**Restarts**: Wispbyte is not plain Pterodactyl. Its panel is its own client area
+(`wispbyte.com/client`), and its restart endpoint (`/client/api/server/restart`) takes a browser login
+session behind a Cloudflare Turnstile check, not an API key; community auto-restart scripts drive a
+real browser to get through it ([example](https://github.com/lovevampde5/Wispbyte)). We do not automate
+that: it would mean storing the account password in CI and getting around a bot check. Each deploy
+therefore ends with a manual **Restart**. A crashed process is restarted by Wispbyte itself
+([Wispbyte tutorial](https://wispbyte.com/how-to-host-discord-bot-wispbyte)). SC-003 ("without copying
+code by hand") still holds; the restart click is the one manual step.
+
+**Still open** (checked when the server is set up): the Node.js images offered (needs 24).
 
 ## R2. Will the data folder persist?
 
@@ -125,18 +144,17 @@ baking it into the build does that. (Spec assumption "supplied through configura
 
 ## R8. Where settings live on Wispbyte
 
-**Decision**: Neil loads `.env` from its working directory at startup if the file exists
-(`process.loadEnvFile`, built into Node), before validating configuration. Variables already set in
-the environment win over the file. On Wispbyte the `.env` is uploaded once through the file manager; it
-is not tracked on the `deploy` branch, so `git pull` leaves it alone. Locally the same `.env` serves
-`npm run dev` and `npm start`.
+**Decision**: on Wispbyte, settings are the panel's **environment variables** (Startup); Neil reads only
+`process.env` and loads no file itself. Locally, the npm scripts pass `--env-file=.env` to Node (and
+`.env.production` for registering the production bot's commands).
 
-**Rationale**: the panel has no environment-variable fields (R1); a file next to the code is the only
-place left, and loading it in-process keeps the start command a plain `node dist/main.js`. Secrets
-still never enter the repository.
+**Rationale**: Wispbyte's own security guidance; nothing extra in the server folder (an uploaded file
+would also block the first clone, which needs an empty folder); the same code runs anywhere that sets
+environment variables (ADR 6).
 
-**Alternatives**: putting values in the panel's unused fields (abuse of the egg, fragile); a start
-script with `--env-file` (the egg's JS file field only takes a file, not flags).
+**Alternatives**: a `.env` uploaded through the file manager, loaded with `process.loadEnvFile`
+(rejected after the second research pass: Wispbyte advises against secrets in files, and it complicates
+the first clone).
 
 ## R7. Failure behaviour
 

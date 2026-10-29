@@ -11,7 +11,7 @@ application named for testing (the test bot), one for production (Neil).
 
 1. **New Application**, give it a name.
 2. **General Information**: copy the **Application ID** → `DISCORD_APPLICATION_ID`.
-3. **Bot**: **Reset Token**, copy it → `DISCORD_TOKEN` (shown once; keep it only in the `.env` files).
+3. **Bot**: **Reset Token**, copy it → `DISCORD_TOKEN` (shown once; keep it only in the `.env` files and the Wispbyte panel).
    Leave all privileged gateway intents off for now (Server Members arrives with slice 004).
    Turn **Public Bot** off so only you can invite it.
 4. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`, no bot permissions. Open the
@@ -30,7 +30,17 @@ From `env.example`, in the repository root (both files are git-ignored):
 
 ## 3. Wispbyte server
 
-**Startup** tab: choose the Node.js **24** image.
+**Account**: turn on two-factor authentication (Wispbyte's security advice).
+
+**Startup** tab: choose the Node.js **24** image, and set these **environment variables** (production
+bot's values; names exactly as written):
+
+| Variable | Value |
+|----------|-------|
+| `DISCORD_TOKEN` | the production bot's token |
+| `DISCORD_APPLICATION_ID` | the production bot's Application ID |
+| `DISCORD_GUILD_ID` | the test server's ID (during slice 001) |
+| `DATA_DIR` | `./data` |
 
 **Server Configuration**:
 
@@ -47,15 +57,15 @@ From `env.example`, in the repository root (both files are git-ignored):
 **Order matters.** The panel clones only into an empty server folder, and the `deploy` branch exists
 only after the first green build on `main`. So:
 
-1. Wait until the `deploy` branch exists on GitHub.
+1. Wait until the `deploy` branch exists on GitHub. Until then, leave the server stopped and don't
+   upload files.
 2. **Settings → Reinstall Server**, so the folder gets the clone.
-3. **Files**: create `.env` in the top folder with the production bot's values
-   (`DATA_DIR` stays `./data`).
-4. **Start**. The console should show Neil logging in; `/ping` on the test server answers.
+3. **Start**. The console should show Neil logging in; `/ping` on the test server answers.
 
-Each later deploy: CI adds a commit to `deploy`, then the server restarts (automatic if a panel API
-key is configured, otherwise **Restart** in the panel) and pulls it. A reinstall wipes the folder,
-including `.env` and `data/`; avoid it after the first setup.
+Each later deploy: CI adds a commit to `deploy`; click **Restart** in the panel and the server pulls
+it on startup. Restarts can't be automated: Wispbyte's restart needs a browser login behind a bot
+check, not an API key. A crash is restarted by Wispbyte itself. A reinstall wipes the folder,
+including `data/`; avoid it after the first setup.
 
 Free plan: log in to Wispbyte at least every two weeks to keep the server.
 

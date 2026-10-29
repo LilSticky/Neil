@@ -5,9 +5,9 @@ not dictionary terms.
 
 ## Configuration
 
-Validated once at startup from environment variables (`src/config.ts`), after loading `.env` from the
-working directory if it exists (research R8); the rest of the code receives the typed result and never
-reads `process.env`.
+Validated once at startup from environment variables (`src/config.ts`; on Wispbyte the panel's
+variables, locally `--env-file=.env`, research R8); the rest of the code receives the typed result and
+never reads `process.env`.
 
 | Field | Env variable | Rule | Secret |
 |-------|--------------|------|--------|
