@@ -75,7 +75,7 @@ rank approved) → nickname and roles applied → (later) Player's profile chang
 
 ## Proposed dictionary terms
 
-Still proposed: the user decided on 2026-10-29 to confirm them later, when slice 002 needs them.
+Kingdom, Alliance and Alliance Rank were confirmed on 2026-10-29 for slice 002 (see DICTIONARY.md); the rest are still proposed.
 
 | Term | Proposed meaning |
 |------|------------------|

@@ -8,7 +8,7 @@ discovery.
 
 # Server
 
-## Member *(proposed)*
+## Member
 * A person on the Discord server
 * Not the same as a game alliance member; see Player
 
@@ -17,12 +17,24 @@ discovery.
 
 # Game
 
-## Player *(proposed)*
+## Player
 * A character in Last Asylum: Plague, as the Game API describes it
 * Identified by a player ID from the game
 
-## Game API *(proposed)*
+## Game API
 * The external source of in-game information about Players
+
+## Kingdom
+* A game server, identified by its number
+* A Player belongs to exactly one Kingdom
+
+## Alliance
+* A group of Players in one Kingdom, with a tag and a name
+* Identified within its Kingdom by its tag (or name)
+
+## Alliance Rank
+* R1–R5, a Player's rank in their Alliance; R5 is the Alliance's leader
+* Unknown when the Game API lists no rank for the Player
 
 # Onboarding
 
