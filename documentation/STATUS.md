@@ -7,20 +7,13 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-001 "Greet the test server": [spec](../specs/001-greet-the-test-server/spec.md) ·
-[plan](../specs/001-greet-the-test-server/plan.md) · [tasks](../specs/001-greet-the-test-server/tasks.md).
-Neil is the only bot application; it runs on Wispbyte (test server only for now) and locally with the
-same token while Wispbyte is stopped.
+None. Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+`main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
+restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
+[HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-Built and merged through PR #2: validated configuration, `/ping` (private reply with latency, version and
-start record), SQLite start record, CI checks, and a deploy job that turns a green `main` into one new
-commit on the `deploy` branch. Checked on the test server with `npm run dev` (T026, T027).
-
-Live on Wispbyte: `/ping` shows `51c8ea0` (T039). Persistence (T040): the data folder survives a
-Restart; the redeploy half is checked with the deploy of this docs change.
-
-**Next step:** after this change's deploy, Restart Wispbyte, `/ping`: same first-start time and start #3
-means data survives redeploys. Record T040, mark slice 001 done in the ROADMAP.
+**Next step:** `/speckit-specify` for slice 002 "Look up a player" (ROADMAP), on branch
+`002-look-up-a-player`.
 
 ## Known broken / WIP
 
@@ -29,7 +22,7 @@ None.
 ## Open questions
 
 See [discovery/initial.md](discovery/initial.md#open-questions): which Discord roles exist and which Neil
-may manage (needed by slice 005); whether Wispbyte's disk persists (checked in slice 001).
+may manage (needed by slice 005); (Wispbyte's disk persistence: answered yes in slice 001.)
 
 ## Standing notes
 

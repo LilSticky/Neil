@@ -123,4 +123,5 @@ the `.env` settings, the token and the server membership.
 ## 5. Persistence check
 
 Restart (2026-10-29): **kept**. `/ping` showed `Data kept since 2026-10-29 03:34 UTC · start #1`, then
-`start #2` with the same time after a Restart. Redeploy: *pending*.
+`start #2` with the same time after a Restart. Redeploy (2026-10-29, `7db1eba`): **kept**, `start #3`
+with the same time. `data/` persists; a reinstall is still expected to wipe it.
