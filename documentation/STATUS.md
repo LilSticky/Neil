@@ -7,16 +7,16 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 002 "Look up a player" (branch `002-look-up-a-player`, draft PR #6, issue #5): `/player` and `/alliance` implemented, green (238 tests), reviewed, audited and checked on the test server (T017, T028); PR ready, merge held until Wispbyte has the key. Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+None in progress. Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
 `main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Next step:** the user confirms `LAP_TRACKER_API_KEY` is in the Wispbyte panel; then squash-merge PR #6, restart Wispbyte and repeat the checks there (T032).
+**Next step:** restart Wispbyte (local `npm run dev` stopped), run `/player` and `/alliance` there and tick T032; then `/speckit-specify` for slice 003 "Look up players within the daily quota" (ROADMAP), on branch `003-look-up-players-within-the-daily-quota`.
 
 ## Known broken / WIP
 
-- Wispbyte needs `LAP_TRACKER_API_KEY` in its panel before slice 002 is deployed, or Neil refuses to start.
+- Slice 002 has no cache or quota counter yet (constitution IV exception, plan Complexity Tracking): slice 003 must land before Neil joins the production server.
 - The tracker still reports our key as `limit 1000, patron false` (2026-10-29); see GAME-API.md.
 
 ## Open questions
