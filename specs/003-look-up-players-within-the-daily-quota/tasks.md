@@ -50,12 +50,12 @@ description: "Task list for slice 003, Look up players within the daily quota"
   a reopened database keeps it; a corrupt row (inserted by SQL with `day 'x'`) throws "the Daily Quota in neil.db is corrupt"
 - [x] T006 Implement migration 2 in `src/storage/database.ts` (table exactly as in
   [data-model.md](data-model.md#storage-neildb-migration-2)) and `src/storage/daily-quota-store.ts` (zod row check)
-- [ ] T007 Test `src/game-api/quota-keeper.test.ts` with a fake store and fake clock: `today()` rolls to a new day at
+- [x] T007 Test `src/game-api/quota-keeper.test.ts` with a fake store and fake clock: `today()` rolls to a new day at
   00:00 UTC; `tryCount()` returns false without saving when `canSend` is false, else counts, saves at once and
   tracks one in-flight request; `settle(figures | undefined)` ends that in-flight request and adopts figures with the
   other in-flight requests added; `limitReached()` marks and saves; a keeper built on a store with today's spent row
   refuses at once (restart, SC-002/SC-003)
-- [ ] T008 Implement `src/game-api/quota-keeper.ts` (store port `{ load(): DailyQuota | undefined; save(q): void }`)
+- [x] T008 Implement `src/game-api/quota-keeper.ts` (store port `{ load(): DailyQuota | undefined; save(q): void }`)
 - [ ] T009 [P] Test `src/game-api/schemas.test.ts`: `quotaFiguresFrom(body, headers)` reads body `quota`
   (`limit ≥ 1`, `used`, `remaining` whole numbers ≥ 0) first, else headers `x-ratelimit-limit` /
   `x-ratelimit-remaining` (`used = limit − remaining`); returns `undefined` when absent and `"malformed"` when present
