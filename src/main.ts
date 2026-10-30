@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { setTimeout as sleepFor } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { readBuildInfo } from "./build-info.js";
 import { connect } from "./discord/client.js";
@@ -35,6 +36,8 @@ await start({
       now: () => new Date(),
       quota,
       cacheTtlMs,
+      sleep: (ms) => sleepFor(ms),
+      random: Math.random,
       logError: (line) => {
         console.error(line);
       },

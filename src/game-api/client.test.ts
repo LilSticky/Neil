@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { DailyQuota } from "../domain/daily-quota.js";
+import { todaysQuota, type DailyQuota } from "../domain/daily-quota.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -9,6 +9,7 @@ import {
   type Uid,
 } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
+import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
@@ -88,10 +89,43 @@ function quotaOn(store: FakeQuotaStore, now: () => Date): QuotaKeeper {
   return new QuotaKeeper({ store, now });
 }
 
+/** The random factor of a retry pause: the middle of [0, 1), so the pause is exactly retryDelay(n, 0.5). */
+const JITTER = 0.5;
+
+/** A pause that returns at once, for the tests that do not look at pauses. */
+const noPause = (): Promise<void> => Promise.resolve();
+
+/**
+ * A clock the tests move by hand. Its sleep records each pause and advances the clock by it, as a real pause
+ * would, so a retry sees the time its pause used up.
+ */
+class FakeClock {
+  readonly pauses: number[] = [];
+  private current: Date;
+
+  constructor(start: Date) {
+    this.current = start;
+  }
+
+  now = (): Date => new Date(this.current.getTime());
+
+  /** Moves the clock on as if the Game API took `ms` to answer. */
+  took = (ms: number): void => {
+    this.current = new Date(this.current.getTime() + ms);
+  };
+
+  sleep = (ms: number): Promise<void> => {
+    this.pauses.push(ms);
+    this.took(ms);
+    return Promise.resolve();
+  };
+}
+
 function clientWith(
   fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>,
   now: () => Date = () => FIXED_NOW,
   quota: QuotaKeeper = quotaOn(new FakeQuotaStore(), now),
+  sleep: (ms: number) => Promise<void> = noPause,
 ) {
   return new GameApiClient({
     apiKey: FAKE_API_KEY,
@@ -99,6 +133,8 @@ function clientWith(
     fetch,
     now,
     quota,
+    sleep,
+    random: () => JITTER,
     cacheTtlMs: CACHE_TTL_MS,
     logError: vi.fn<(line: string) => void>(),
   });
@@ -229,6 +265,7 @@ function loggingClientWith(
   fetch: FetchLike,
   now: () => Date = () => FIXED_NOW,
   quota: QuotaKeeper = quotaOn(new FakeQuotaStore(), now),
+  sleep: (ms: number) => Promise<void> = noPause,
 ) {
   const logged: string[] = [];
   const client = new GameApiClient({
@@ -237,6 +274,8 @@ function loggingClientWith(
     fetch,
     now,
     quota,
+    sleep,
+    random: () => JITTER,
     cacheTtlMs: CACHE_TTL_MS,
     logError: (line: string) => {
       logged.push(line);
@@ -774,5 +813,135 @@ describe("GameApiClient Daily Quota gate", () => {
     await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
 
     expect(store.current).toMatchObject({ used: 1 });
+  });
+});
+
+describe("GameApiClient.quotaToday", () => {
+  test("returns today's Daily Quota as the QuotaKeeper has it, and sends no request", () => {
+    const store = new FakeQuotaStore();
+    store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 5 });
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const client = clientWith(fetch, () => FIXED_NOW, quotaOn(store, () => FIXED_NOW));
+
+    expect(client.quotaToday()).toEqual({ ...todaysQuota(undefined, FIXED_NOW), used: 5 });
+    expect(sent).toEqual([]);
+  });
+});
+
+describe("GameApiClient retries", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test("a 503 then a 200 gives the found player after one pause, with two requests", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    let attempt = 0;
+    const { fetch, sent } = fakeFetch(() => {
+      attempt += 1;
+      return attempt === 1 ? textResponse(503, "error code: 503") : jsonResponse(200, playerInAlliance);
+    });
+    const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toMatchObject({ kind: "found", fetchedAt: new Date(FIXED_NOW.getTime() + retryDelay(1, JITTER)) });
+    expect(sent).toHaveLength(2);
+    expect(clock.pauses).toEqual([retryDelay(1, JITTER)]);
+  });
+
+  test("a 504 every time gives try-again after MAX_ATTEMPTS requests, with a growing pause before each retry", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    const { fetch, sent } = fakeFetch(() => textResponse(504, "error code: 504"));
+    const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual({ kind: "try-again" });
+    expect(sent).toHaveLength(MAX_ATTEMPTS);
+    expect(clock.pauses).toEqual([retryDelay(1, JITTER), retryDelay(2, JITTER)]);
+  });
+
+  test.each([
+    ["502", () => textResponse(502, "error code: 502"), { kind: "not-prepared" }],
+    ["404", () => jsonResponse(404, { detail: "player_not_found" }), { kind: "not-found" }],
+    ["401", () => jsonResponse(401, { detail: "invalid_key" }), { kind: "unavailable", reason: "auth" }],
+    ["429", () => jsonResponse(429, { detail: "rate_limited" }), { kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC }],
+  ])("a %s is not retried: one request, no pause", async (_label, respond, expected) => {
+    const clock = new FakeClock(FIXED_NOW);
+    const { fetch, sent } = fakeFetch(respond);
+    const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual(expected);
+    expect(sent).toHaveLength(1);
+    expect(clock.pauses).toEqual([]);
+  });
+
+  test("a 503 on the last request the Daily Quota allows is not retried", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    const store = new FakeQuotaStore();
+    store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 999 });
+    const { fetch, sent } = fakeFetch(() => textResponse(503, "error code: 503"));
+    const { client } = loggingClientWith(fetch, clock.now, quotaOn(store, clock.now), clock.sleep);
+
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(sent).toHaveLength(1);
+    expect(clock.pauses).toEqual([]);
+  });
+
+  test("a 504 is not retried when the first attempt used up 17.5 s of the 20 s lookup", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    const { fetch, sent } = fakeFetch(() => {
+      clock.took(17_500);
+      return textResponse(504, "error code: 504");
+    });
+    const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual({ kind: "try-again" });
+    expect(sent).toHaveLength(1);
+    expect(clock.pauses).toEqual([]);
+  });
+
+  test("a 504 is retried when exactly 2 s of the lookup remain after the pause", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    let attempt = 0;
+    const { fetch, sent } = fakeFetch(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        clock.took(17_000);
+        return textResponse(504, "error code: 504");
+      }
+      return jsonResponse(200, playerInAlliance);
+    });
+    const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toMatchObject({ kind: "found" });
+    expect(sent).toHaveLength(2);
+  });
+
+  test("each attempt's timeout is 15 s or the time left in the 20 s lookup, whichever is less", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    let attempt = 0;
+    const { fetch } = fakeFetch(() => {
+      attempt += 1;
+      if (attempt === 1) {
+        clock.took(6_000);
+        return textResponse(503, "error code: 503");
+      }
+      return jsonResponse(200, playerInAlliance);
+    });
+    const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
+
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    // After 6 s and a 1 s pause, 13 s of the lookup are left.
+    expect(timeout.mock.calls).toEqual([[15_000], [13_000]]);
   });
 });

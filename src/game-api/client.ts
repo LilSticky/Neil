@@ -1,8 +1,9 @@
 import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
-import { nextReset, type DailyQuota } from "../domain/daily-quota.js";
+import { canSend, nextReset, type DailyQuota } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
+import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import type { QuotaKeeper } from "./quota-keeper.js";
 import { InFlight, LookupCache, type CacheEntry } from "./lookup-cache.js";
 import {
@@ -23,6 +24,10 @@ export interface GameApiClientOptions {
   readonly now: () => Date;
   /** Counts every request against the Daily Quota and answers quota-spent when it is used up. */
   readonly quota: QuotaKeeper;
+  /** Waits between attempts; tests pass a fake that does not wait. */
+  readonly sleep: (ms: number) => Promise<void>;
+  /** A random number in [0, 1) for the jitter of a retry pause. */
+  readonly random: () => number;
   readonly logError: (line: string) => void;
   /** How long a found answer stays fresh; from GAME_API_CACHE_MINUTES. */
   readonly cacheTtlMs: number;
@@ -33,6 +38,10 @@ export interface GameApiClientOptions {
 /** The tracker takes about 10 s to answer 502 for an unknown uid (research R11). */
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_BASE_URL = "https://api.lastasylumtracker.com/v1";
+/** All attempts of one lookup, retries included, end by this deadline (research R6). */
+const LOOKUP_DEADLINE_MS = 20_000;
+/** A retry is only made when at least this much of the deadline is left after its pause (research R6). */
+const MIN_TIME_FOR_RETRY_MS = 2_000;
 
 interface Unexpected {
   readonly kind: "unavailable";
@@ -41,6 +50,12 @@ interface Unexpected {
 
 /** Every lookup result except a found value. */
 type Failure = Exclude<LookupResult<never>, { readonly kind: "found" }>;
+
+/** A 503 or 504: retried while the lookup allows; if the lookup ends on it, `detail` goes into the one log line. */
+interface Transient {
+  readonly kind: "transient";
+  readonly detail: string;
+}
 
 /** A body that passed its schema, or the unexpected failure that was already logged. */
 type ReadBody<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly failure: Unexpected };
@@ -52,6 +67,8 @@ export class GameApiClient {
   private readonly fetchFn: FetchLike;
   private readonly now: () => Date;
   private readonly quota: QuotaKeeper;
+  private readonly sleep: (ms: number) => Promise<void>;
+  private readonly random: () => number;
   private readonly logError: (line: string) => void;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
@@ -66,6 +83,8 @@ export class GameApiClient {
     this.fetchFn = options.fetch;
     this.now = options.now;
     this.quota = options.quota;
+    this.sleep = options.sleep;
+    this.random = options.random;
     this.logError = options.logError;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
@@ -189,13 +208,41 @@ export class GameApiClient {
   /**
    * A 200 response, or the failure every endpoint shares. Only the status is read, as error bodies may be plain text.
    * A 409 comes back as a response only when the endpoint can answer with one (`conflictIsAnswer`).
+   * A 503 or 504 is retried with a pause while the Daily Quota, MAX_ATTEMPTS and the lookup deadline allow.
+   * Only the outcome of the whole lookup is logged.
    */
   private async request(endpoint: string, path: string, conflictIsAnswer = false): Promise<Response | Failure> {
+    const deadline = this.now().getTime() + LOOKUP_DEADLINE_MS;
+    for (let attempt = 1; ; attempt += 1) {
+      const outcome = await this.attempt(endpoint, path, deadline, conflictIsAnswer);
+      if (outcome instanceof Response || outcome.kind !== "transient") return outcome;
+
+      const pause = retryDelay(attempt, this.random());
+      if (!this.mayRetry(attempt, pause, deadline)) return this.fail(endpoint, outcome.detail, { kind: "try-again" });
+      await this.sleep(pause);
+    }
+  }
+
+  /** Whether another attempt may follow the pause: attempts left, Daily Quota left, and enough of the deadline. */
+  private mayRetry(attempt: number, pause: number, deadline: number): boolean {
+    const leftAfterPause = deadline - (this.now().getTime() + pause);
+    return attempt < MAX_ATTEMPTS && canSend(this.quota.today()) && leftAfterPause >= MIN_TIME_FOR_RETRY_MS;
+  }
+
+  /** One attempt, counted against the Daily Quota and settled once. A transient failure is returned unlogged. */
+  private async attempt(
+    endpoint: string,
+    path: string,
+    deadline: number,
+    conflictIsAnswer: boolean,
+  ): Promise<Response | Failure | Transient> {
     if (!this.quota.tryCount()) return { kind: "quota-spent", resetsAt: nextReset(this.now()) };
 
+    // A pause that ran long can leave no time; a timeout of 0 then gives up at once rather than throwing.
+    const timeoutMs = Math.max(0, Math.min(this.timeoutMs, deadline - this.now().getTime()));
     let response: Response;
     try {
-      response = await this.send(path);
+      response = await this.send(path, timeoutMs);
     } catch (error) {
       this.quota.settle(undefined);
       const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
@@ -214,7 +261,7 @@ export class GameApiClient {
     this.settleFigures(endpoint, undefined, response.headers);
     if (status === 404) return { kind: "not-found" };
     if (status === 502) return this.fail(endpoint, detail, { kind: "not-prepared" });
-    if (status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
+    if (status === 503 || status === 504) return { kind: "transient", detail };
     if (status === 401 || status === 403) return this.fail(endpoint, detail, { kind: "unavailable", reason: "auth" });
     return this.unexpected(endpoint, detail);
   }
@@ -265,7 +312,7 @@ export class GameApiClient {
     return failure;
   }
 
-  private send(path: string): Promise<Response> {
+  private send(path: string, timeoutMs: number): Promise<Response> {
     return this.fetchFn(`${this.baseUrl}${path}`, {
       method: "GET",
       headers: {
@@ -273,7 +320,7 @@ export class GameApiClient {
         "User-Agent": `Neil/${this.version} (+https://github.com/LilSticky/Neil)`,
         Accept: "application/json",
       },
-      signal: AbortSignal.timeout(this.timeoutMs),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   }
 

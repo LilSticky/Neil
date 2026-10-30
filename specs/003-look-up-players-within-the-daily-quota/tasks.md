@@ -140,11 +140,11 @@ description: "Task list for slice 003, Look up players within the daily quota"
 - [x] T026 [P] [US4] Test `src/domain/retry.test.ts`: `MAX_ATTEMPTS` is 3; `retryDelay(1, 0)` 500, `retryDelay(1, 0.999…)`
   just under 1,500, `retryDelay(2, 0.5)` 2,000
 - [x] T027 [P] [US4] Implement `src/domain/retry.ts`
-- [ ] T028 [US4] Test in `src/game-api/client.test.ts` (fake `sleep` records pauses and advances the fake clock):
+- [x] T028 [US4] Test in `src/game-api/client.test.ts` (fake `sleep` records pauses and advances the fake clock):
   503 then 200 → found, 2 fetches; 504 ×3 → `try-again`, 3 fetches, 2 pauses; 502, 404, 401, 429 → 1 fetch;
   no retry when the quota is spent after the first attempt; no retry when fewer than 2 s of the 20 s deadline would
   remain after the pause; each attempt's timeout is `min(15 s, time left)`
-- [ ] T029 [US4] Implement retries in `src/game-api/client.ts` (options `sleep`, `random`; `main.ts` passes
+- [x] T029 [US4] Implement retries in `src/game-api/client.ts` (options `sleep`, `random`; `main.ts` passes
   `setTimeout`-based sleep and `Math.random`)
 
 ---

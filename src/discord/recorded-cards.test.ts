@@ -17,6 +17,8 @@ function clientAnswering(body: unknown): GameApiClient {
     now,
     quota: new QuotaKeeper({ store: { load: () => undefined, save: () => undefined }, now }),
     cacheTtlMs: 600_000,
+    sleep: () => Promise.resolve(),
+    random: () => 0.5,
     fetch: () =>
       Promise.resolve(
         new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }),
