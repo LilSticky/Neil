@@ -23,7 +23,7 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 ## Phase 1: Setup (configuration)
 
-- [ ] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `DISCORD_MODERATOR_ROLE_ID` and
+- [x] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `DISCORD_MODERATOR_ROLE_ID` and
   `DISCORD_KING_ROLE_ID` are required and "Discord ID (17–20 digits)" like `DISCORD_GUILD_ID`
   (`Configuration.officerRoleIds: readonly [string, string]`); `GAME_API_CACHE_MINUTES` is optional, "whole number
   ≥ 10", default 10 (`Configuration.cacheTtlMs`); errors never echo values. Add all three to `env.example`. Update
