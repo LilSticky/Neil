@@ -12,7 +12,7 @@ Slice 003 "Look up players within the daily quota" is merged (PR #9, closes #8):
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Roadmap (2026-10-30):** new slice 004 "Find a player by name or alliance" (`/player` by name, `/alliance` lists members with uids) comes before the Interview (now 005) and naming (now 006); approximate alliance-name search is in Later. The name endpoints were verified (see GAME-API.md).
+**Roadmap (2026-10-30):** new slice 004 "Find a player by name or alliance" (`/player` by name, `/alliance` lists members with uids, and lookups leave the Quota Reserve for Onboarding Interviews) comes before the Interview (now 005) and naming (now 006); approximate alliance-name search is in Later. The name endpoints were verified (see GAME-API.md).
 
 **Next step:** confirm T033 on Wispbyte (`DISCORD_MODERATOR_ROLE_ID` and `DISCORD_KING_ROLE_ID` set, Neil restarted, `/quota` answers), then start slice 004 with `/speckit-specify`.
 
