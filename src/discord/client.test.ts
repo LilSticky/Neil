@@ -1,6 +1,6 @@
 import { Events, GatewayIntentBits, IntentsBitField } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
-import { createClient } from "./client.js";
+import { createClient, memberRoleIds } from "./client.js";
 
 function chatInput(commandName: string) {
   return { isChatInputCommand: () => true, commandName };
@@ -12,6 +12,7 @@ function handlers() {
     ping: vi.fn(() => Promise.resolve()),
     player: vi.fn(() => Promise.resolve()),
     alliance: vi.fn(() => Promise.resolve()),
+    quota: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -66,6 +67,19 @@ describe("createClient", () => {
     expect(routed.player).not.toHaveBeenCalled();
   });
 
+  test("hands /quota to the quota handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = chatInput("quota");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.quota).toHaveBeenCalledWith(interaction);
+    expect(routed.ping).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+    expect(routed.alliance).not.toHaveBeenCalled();
+  });
+
   test("ignores other commands and other interaction kinds", () => {
     const routed = handlers();
     const client = createClient(routed);
@@ -75,5 +89,32 @@ describe("createClient", () => {
 
     expect(routed.ping).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+  });
+});
+
+describe("memberRoleIds", () => {
+  test("gives the role IDs in the cache of a guild member", () => {
+    const member = {
+      roles: {
+        cache: new Map<string, unknown>([
+          ["111", {}],
+          ["222", {}],
+        ]),
+      },
+    };
+
+    expect(memberRoleIds(member)).toEqual(["111", "222"]);
+  });
+
+  test("gives the role IDs of an API member", () => {
+    expect(memberRoleIds({ roles: ["333"] })).toEqual(["333"]);
+  });
+
+  test("gives no role IDs for anything else", () => {
+    expect(memberRoleIds(null)).toEqual([]);
+    expect(memberRoleIds(undefined)).toEqual([]);
+    expect(memberRoleIds(42)).toEqual([]);
+    expect(memberRoleIds({})).toEqual([]);
   });
 });

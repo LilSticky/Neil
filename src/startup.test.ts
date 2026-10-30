@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
+import { utcDayOf } from "./domain/daily-quota.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
@@ -51,6 +52,8 @@ const VALID_ENV = {
   DISCORD_TOKEN: FAKE_TOKEN,
   DISCORD_APPLICATION_ID: "123456789012345678",
   DISCORD_GUILD_ID: "123456789012345678",
+  DISCORD_MODERATOR_ROLE_ID: "223456789012345678",
+  DISCORD_KING_ROLE_ID: "323456789012345678",
   LAP_TRACKER_API_KEY: FAKE_API_KEY,
   DATA_DIR: "./data",
 };
@@ -63,6 +66,13 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
   const gameApi = {
     getPlayer: () => Promise.resolve({ kind: "not-found" } as const),
     getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+    quotaToday: () => ({
+      day: utcDayOf(new Date("2026-10-29T12:00:00Z")),
+      used: 0,
+      limit: 1000,
+      limitReached: false,
+      confirmedAt: undefined,
+    }),
   };
   const connected: unknown[] = [];
   const deps: StartupDeps = {
@@ -76,6 +86,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
         load: () => ({ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: startCount(2) }),
         save: (record) => saved.push(record),
         close: () => calls.push("closeStore"),
+        dailyQuota: { load: () => undefined, save: () => undefined },
       };
     },
     createGameApi: (apiKey, version) => {
@@ -133,7 +144,7 @@ describe("start", () => {
     await start(deps);
 
     expect(calls).toEqual([
-      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- LAP_TRACKER_API_KEY: required",
+      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- DISCORD_MODERATOR_ROLE_ID: required\n- DISCORD_KING_ROLE_ID: required\n- LAP_TRACKER_API_KEY: required",
       "exit 1",
     ]);
   });
@@ -158,6 +169,7 @@ describe("start", () => {
         },
         save: () => undefined,
         close: () => calls.push("closeStore"),
+        dailyQuota: { load: () => undefined, save: () => undefined },
       }),
     });
 
@@ -167,6 +179,31 @@ describe("start", () => {
       "prepareDataDir ./data",
       "closeStore",
       "stderr Neil cannot start: the start record in neil.db is corrupt",
+      "exit 1",
+    ]);
+  });
+
+  test("a corrupt Daily Quota closes the store and exits 1 without connecting", async () => {
+    const { deps, calls } = fakeDeps({
+      openStore: () => ({
+        load: () => ({ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: startCount(2) }),
+        save: () => undefined,
+        close: () => calls.push("closeStore"),
+        dailyQuota: {
+          load: () => {
+            throw new Error("the Daily Quota in neil.db is corrupt; fix or remove it by hand");
+          },
+          save: () => undefined,
+        },
+      }),
+    });
+
+    await start(deps);
+
+    expect(calls).toEqual([
+      "prepareDataDir ./data",
+      "closeStore",
+      "stderr Neil cannot start: the Daily Quota in neil.db is corrupt; fix or remove it by hand",
       "exit 1",
     ]);
   });

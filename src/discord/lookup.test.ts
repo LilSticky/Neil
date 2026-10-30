@@ -3,10 +3,13 @@ import { describe, expect, test, vi } from "vitest";
 import { parseKingdom, parseUid, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
-import { lookupMessages, renderAllianceCard } from "./lookup-cards.js";
+import { lookupMessages } from "./lookup-cards.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
 const UID = "145563254785";
+const FETCHED_AT = new Date("2026-10-30T15:20:00Z");
+const NOW = new Date("2026-10-30T16:00:00Z");
+const RESETS_AT = new Date("2026-10-31T00:00:00Z");
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -33,6 +36,7 @@ function contextReturning(result: LookupResult<Player>) {
   const getPlayer = vi.fn<(uid: Uid) => Promise<LookupResult<Player>>>(() => Promise.resolve(result));
   const context = {
     gameApi: { getPlayer },
+    now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
@@ -45,7 +49,7 @@ describe("handlePlayer", () => {
     const interaction = new FakeLookupInteraction({
       strings: { uid: "14556abc" },
     });
-    const { context, getPlayer } = contextReturning({ kind: "found", value: player });
+    const { context, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -66,7 +70,7 @@ describe("handlePlayer", () => {
     const interaction = new FakeLookupInteraction({
       strings: { uid: ` ${UID} ` },
     });
-    const { context, getPlayer } = contextReturning({ kind: "found", value: player });
+    const { context, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -75,7 +79,7 @@ describe("handlePlayer", () => {
 
   test("defers publicly, then shows the Player card to everyone", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
-    const { context } = contextReturning({ kind: "found", value: player });
+    const { context } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -84,7 +88,38 @@ describe("handlePlayer", () => {
       {
         method: "editReply",
         options: {
-          embeds: [expect.objectContaining({ title: "Vex" })],
+          embeds: [
+            expect.objectContaining({
+              title: "Vex",
+              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+            }),
+          ],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("shows the day of the fetch in the footer when the Player was fetched on an earlier UTC day", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context } = contextReturning({
+      kind: "found",
+      value: player,
+      fetchedAt: new Date("2026-10-29T23:50:00Z"),
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [
+            expect.objectContaining({
+              footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
+            }),
+          ],
           allowedMentions: { parse: [] },
         },
       },
@@ -114,7 +149,7 @@ describe("handlePlayer", () => {
   test("logs a rejected reply and resolves instead of throwing", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = contextReturning({ kind: "found", value: player });
+    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
@@ -126,8 +161,8 @@ const privateFailures: readonly { readonly label: string; readonly result: Looku
   [
     {
       label: "quota-spent",
-      result: { kind: "quota-spent" },
-      text: "Lookups are used up for today. They work again after 00:00 UTC.",
+      result: { kind: "quota-spent", resetsAt: RESETS_AT },
+      text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 8 h 0 min).",
     },
     {
       label: "try-again",
@@ -215,6 +250,7 @@ function allianceContextReturning(result: LookupResult<Alliance>) {
   );
   const context = {
     gameApi: { getAlliance },
+    now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
@@ -233,6 +269,7 @@ describe("handleAlliance", () => {
       const { context, getAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
+        fetchedAt: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -264,6 +301,7 @@ describe("handleAlliance", () => {
       const { context, getAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
+        fetchedAt: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -290,6 +328,7 @@ describe("handleAlliance", () => {
     const { context, getAlliance } = allianceContextReturning({
       kind: "found",
       value: alliance,
+      fetchedAt: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -305,6 +344,7 @@ describe("handleAlliance", () => {
     const { context } = allianceContextReturning({
       kind: "found",
       value: alliance,
+      fetchedAt: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -314,7 +354,12 @@ describe("handleAlliance", () => {
       {
         method: "editReply",
         options: {
-          embeds: [renderAllianceCard(alliance)],
+          embeds: [
+            expect.objectContaining({
+              title: "[NML] No Man's Land",
+              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+            }),
+          ],
           allowedMentions: { parse: [] },
         },
       },
@@ -384,6 +429,7 @@ describe("handleAlliance", () => {
     const { context, logged } = allianceContextReturning({
       kind: "found",
       value: alliance,
+      fetchedAt: FETCHED_AT,
     });
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
@@ -399,8 +445,8 @@ const allianceFailures: readonly {
 }[] = [
   {
     label: "quota-spent",
-    result: { kind: "quota-spent" },
-    text: lookupMessages.quotaSpent,
+    result: { kind: "quota-spent", resetsAt: RESETS_AT },
+    text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 8 h 0 min).",
   },
   {
     label: "try-again",
@@ -451,7 +497,7 @@ describe("handlePlayer when the card cannot be sent", () => {
   test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = contextReturning({ kind: "found", value: player });
+    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
@@ -478,6 +524,55 @@ describe("handlePlayer when the card cannot be sent", () => {
   });
 });
 
+describe("handlers when the Daily Quota is spent", () => {
+  const LATER = new Date("2026-10-30T20:48:00Z");
+  const spentText =
+    "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 3 h 12 min).";
+
+  test("/player tells the caller privately, with the time left counted from the context's now", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context } = contextReturning({ kind: "quota-spent", resetsAt: RESETS_AT });
+
+    await handlePlayer(interaction, { ...context, now: () => LATER });
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: spentText,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("/alliance tells the caller privately, with the time left counted from the context's now", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { alliance: "NML" },
+      integers: { kingdom: 1 },
+    });
+    const { context } = allianceContextReturning({ kind: "quota-spent", resetsAt: RESETS_AT });
+
+    await handleAlliance(interaction, { ...context, now: () => LATER });
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: spentText,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
 describe("handleAlliance when the card cannot be sent", () => {
   test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({
@@ -485,7 +580,7 @@ describe("handleAlliance when the card cannot be sent", () => {
       integers: { kingdom: 1 },
     });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance });
+    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance, fetchedAt: FETCHED_AT });
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
 
@@ -509,5 +604,74 @@ describe("handleAlliance when the card cannot be sent", () => {
       },
     ]);
     expect(logged).toEqual([expect.stringContaining("Unknown interaction")]);
+  });
+});
+
+describe("handlePlayer when the Game API throws", () => {
+  test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const logged: string[] = [];
+    const getPlayer = vi.fn<(uid: Uid) => Promise<LookupResult<Player>>>(() =>
+      Promise.reject(new Error("tracker connection reset")),
+    );
+    const context = {
+      gameApi: { getPlayer },
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+    };
+
+    await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("tracker connection reset")]);
+  });
+});
+
+describe("handleAlliance when the Game API throws", () => {
+  test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { alliance: "NML" },
+      integers: { kingdom: 1 },
+    });
+    const logged: string[] = [];
+    const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey) => Promise<LookupResult<Alliance>>>(() =>
+      Promise.reject(new Error("tracker connection reset")),
+    );
+    const context = {
+      gameApi: { getAlliance },
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+    };
+
+    await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("tracker connection reset")]);
   });
 });

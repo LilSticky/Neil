@@ -19,7 +19,7 @@ describe("openDatabase", () => {
     const db = openDatabase(dataDir);
 
     expect(existsSync(join(dataDir, "neil.db"))).toBe(true);
-    expect(db.prepare("SELECT version FROM schema_migrations").all()).toEqual([{ version: 1 }]);
+    expect(db.prepare("SELECT version FROM schema_migrations").all()).toEqual([{ version: 1 }, { version: 2 }]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
     });
@@ -30,7 +30,7 @@ describe("openDatabase", () => {
     openDatabase(dataDir).close();
     const db = openDatabase(dataDir);
 
-    expect(db.prepare("SELECT version FROM schema_migrations").all()).toEqual([{ version: 1 }]);
+    expect(db.prepare("SELECT version FROM schema_migrations").all()).toEqual([{ version: 1 }, { version: 2 }]);
     db.close();
   });
 
@@ -39,7 +39,16 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 1");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 2");
+  });
+
+  test("migration 2 creates daily_quota", () => {
+    const db = openDatabase(dataDir);
+
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_quota'").get()).toEqual({
+      name: "daily_quota",
+    });
+    db.close();
   });
 
   test("start_record allows one row with a count of at least 1", () => {

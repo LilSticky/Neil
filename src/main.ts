@@ -1,10 +1,12 @@
 import { existsSync } from "node:fs";
+import { setTimeout as sleepFor } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { readBuildInfo } from "./build-info.js";
 import { connect } from "./discord/client.js";
 import { GameApiClient } from "./game-api/client.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
+import { DailyQuotaStore } from "./storage/daily-quota-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
 import { start } from "./startup.js";
 
@@ -19,13 +21,23 @@ await start({
   openStore: (dataDir) => {
     const db = openDatabase(dataDir);
     const store = new StartRecordStore(db);
-    return { load: () => store.load(), save: (record) => { store.save(record); }, close: () => { db.close(); } };
+    return {
+      load: () => store.load(),
+      save: (record) => { store.save(record); },
+      close: () => { db.close(); },
+      dailyQuota: new DailyQuotaStore(db),
+    };
   },
-  createGameApi: (apiKey, version) =>
+  createGameApi: (apiKey, version, cacheTtlMs, quota) =>
     new GameApiClient({
       apiKey,
       version,
       fetch: globalThis.fetch,
+      now: () => new Date(),
+      quota,
+      cacheTtlMs,
+      sleep: (ms) => sleepFor(ms),
+      random: Math.random,
       logError: (line) => {
         console.error(line);
       },
