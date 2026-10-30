@@ -14,7 +14,7 @@ restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-th
 
 **Roadmap (2026-10-30):** new slice 004 "Find a player by name or alliance" (`/player` by name, `/alliance` lists members with uids, and lookups leave the Quota Reserve for Onboarding Interviews) comes before the Interview (now 005) and naming (now 006); approximate alliance-name search is in Later. The name endpoints were verified (see GAME-API.md).
 
-**Next step:** slice 004 plan done (branch `004-find-a-player-by-name-or-alliance`); run `/speckit-tasks`.
+**Next step:** slice 004 (issue #13) tasks ready; `/speckit-implement` from T001.
 
 ## Known broken / WIP
 
