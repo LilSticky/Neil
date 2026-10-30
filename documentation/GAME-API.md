@@ -44,11 +44,13 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 | `GET /alliances/{kingdom}/{alliance}` | **verified by tag** (`NML` on kingdom 1); by full name (`No Man's Land`, URL-encoded) it gave **404** on 2026-10-29 | the alliance and its full roster with ranks |
 | `GET /players/{uid}` | **verified** (2026-10-29) | one player, their alliance, and that alliance's roster with ranks |
 | `GET /quota` | **verified** | the quota object only; costs one request |
-| `GET /players/name/{name}`, `GET /players/{server}/{name}` | documented, not working for the user so far | a player by name |
-| `GET /alliances/name/{name}`, `GET /alliances/{alliance_id}` | documented, not working for the user so far | an alliance by name or id |
+| `GET /players/name/{name}`, `GET /players/{server}/{name}` | **verified** (2026-10-30): exact nick, case-insensitive; same body as `/players/{uid}`. A name shared by several players gives **409** with `matches` (`uid`, `server`, `name`), also across kingdoms (`drlol` → kingdoms 1 and 180); `{server}` narrows to one kingdom. No partial match (`drlo` matched only nicks equal to it) | a player by name |
+| `GET /alliances/name/{name}` | **verified for the exact full name** (`No Man's Land`, URL-encoded, 2026-10-30); a part of the name gave 404 `alliance_not_found`, the tag (`NML`) gave 502 | an alliance and its roster by full name |
+| `GET /alliances/{alliance_id}` | documented, not tried | an alliance by id |
 
 Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
-[discovery](discovery/initial.md)), so name lookups are not needed for onboarding.
+[discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004). There is
+no approximate (fuzzy) name search in the API.
 
 ### Player (`/players/{uid}`), verified fields
 
@@ -102,7 +104,8 @@ Documented:
 ## Open questions
 
 - Answered 2026-10-29: `quota` **is** in player and alliance bodies (with `cached`, `cache_seconds`);
-  `x-ratelimit-*` headers verified on `/quota`. Full alliance names give 404; use the tag.
+  `x-ratelimit-*` headers verified on `/quota`. Full alliance names give 404 on
+  `/alliances/{kingdom}/{alliance}`; use the tag there, or `/alliances/name/{name}` for the full name.
 - **Unknown uids answer 502 after ~10 s** (`/players/1`, `/players/999999999999`, 2026-10-29), body
   `error code: 502`; a 404 for a player has not been seen. Neil waits 15 s and treats a player 502 as
   "maybe unknown uid" (slice 002, research R11).

@@ -13,7 +13,7 @@ There is no separate test bot.
 1. **New Application**, give it a name.
 2. **General Information**: copy the **Application ID** → `DISCORD_APPLICATION_ID`.
 3. **Bot**: **Reset Token**, copy it → `DISCORD_TOKEN` (shown once; keep it only in the `.env` files and the Wispbyte panel).
-   Leave all privileged gateway intents off for now (Server Members arrives with slice 004).
+   Leave all privileged gateway intents off for now (Server Members arrives with slice 005).
    Turn **Public Bot** off so only you can invite it.
 4. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`, no bot permissions. Open the
    URL and add the bot to the **test server**.
