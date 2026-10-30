@@ -202,6 +202,14 @@ describe("parseCustomId", () => {
     expect(parseCustomId(`pick:${sessionId}:select`)).toEqual({ sessionId, action: "select" });
   });
 
+  test("reads the select menu id of a roster page, with the page number", () => {
+    expect(parseCustomId(`pick:${sessionId}:select:2`)).toEqual({ sessionId, action: "select", page: 2 });
+  });
+
+  test("reads the select menu id of roster page 0, with page 0", () => {
+    expect(parseCustomId(`pick:${sessionId}:select:0`)).toEqual({ sessionId, action: "select", page: 0 });
+  });
+
   test("reads a page button id with its page number", () => {
     expect(parseCustomId(`pick:${sessionId}:page:2`)).toEqual({ sessionId, action: "page", page: 2 });
   });
@@ -219,6 +227,10 @@ describe("parseCustomId", () => {
     ["a negative page", `pick:${sessionId}:page:-1`],
     ["a fractional page", `pick:${sessionId}:page:1.5`],
     ["a page that is not a number", `pick:${sessionId}:page:two`],
+    ["a select page without a number", `pick:${sessionId}:select:`],
+    ["a negative select page", `pick:${sessionId}:select:-1`],
+    ["a fractional select page", `pick:${sessionId}:select:1.5`],
+    ["a select page that is not a number", `pick:${sessionId}:select:two`],
     ["an unknown action with extra parts", `pick:${sessionId}:select:extra`],
     ["an empty session id", "pick::select"],
     ["a different prefix", `roster:${sessionId}:select`],

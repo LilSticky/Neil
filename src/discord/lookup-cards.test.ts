@@ -1,4 +1,4 @@
-import { ComponentType, type APIEmbed } from "discord.js";
+import { ComponentType, type APIActionRowComponent, type APIComponentInMessageActionRow, type APIEmbed } from "discord.js";
 import { describe, expect, test } from "vitest";
 import {
   parseAllianceKey,
@@ -590,7 +590,7 @@ describe("renderRosterComponents", () => {
         components: [
           {
             type: ComponentType.StringSelect,
-            custom_id: "pick:a1b2c3d4:select",
+            custom_id: "pick:a1b2c3d4:select:0",
             placeholder: "Look up a member…",
             options: [
               { label: "R4 · M00", description: "uid 100000000000", value: "0" },
@@ -743,5 +743,78 @@ describe("lookupMessages for /alliance by name", () => {
     expect(lookupMessages.allianceNameNotFound(allianceKey("N_M*"))).toBe(
       'No alliance is named exactly "N\\_M\\*". Use the full name, or the kingdom and tag; approximate names are not supported.',
     );
+  });
+});
+
+function rosterMembers(count: number): RosterEntry[] {
+  return Array.from({ length: count }, (_, index) =>
+    rosterEntry((100_000_000_000 + index).toString(), `M${index.toString().padStart(2, "0")}`, "R4"),
+  );
+}
+
+/** The custom ids of every component in the rows that have one; link buttons have none. */
+function customIdsOf(rows: readonly APIActionRowComponent<APIComponentInMessageActionRow>[]): string[] {
+  return rows.flatMap((row) =>
+    row.components.flatMap((component) => ("custom_id" in component ? [component.custom_id] : [])),
+  );
+}
+
+describe("renderRosterComponents custom ids are unique within the message", () => {
+  test.each([26, 50, 60, 100])("gives every component of a %d-member roster its own custom id on every page", (count) => {
+    const pages = Math.ceil(count / 25);
+    for (let page = 0; page < pages; page += 1) {
+      const ids = customIdsOf(renderRosterComponents(rosterMembers(count), page, "a1b2c3d4"));
+
+      expect(new Set(ids).size).toBe(ids.length);
+    }
+  });
+
+  test("gives the disabled Page indicator the custom id pick:{id}:info", () => {
+    const rows = renderRosterComponents(rosterMembers(60), 1, "a1b2c3d4");
+
+    expect(rows[1]).toMatchObject({
+      components: expect.arrayContaining([
+        expect.objectContaining({ label: "Page 2/3", disabled: true, custom_id: "pick:a1b2c3d4:info" }),
+      ]) as unknown,
+    });
+  });
+});
+
+/** The labels of every select menu option in the rows. */
+function optionLabelsOf(rows: readonly APIActionRowComponent<APIComponentInMessageActionRow>[]): string[] {
+  return rows.flatMap((row) =>
+    row.components.flatMap((component) =>
+      component.type === ComponentType.StringSelect ? component.options.map((option) => option.label) : [],
+    ),
+  );
+}
+
+describe("select menu option labels stay within 100 characters", () => {
+  const longName = "A".repeat(150);
+
+  test("cuts a Player pick list label of a 150-character Game name to 100, ending with an ellipsis", () => {
+    const pickList = renderPlayerPickList(
+      playerName("DrLOL"),
+      [{ uid: "145563254785", name: longName, kingdom: 12 }],
+      "a1b2c3d4",
+    );
+
+    expect(optionLabelsOf(pickList.components)).toEqual([`${"A".repeat(99)}…`]);
+  });
+
+  test("cuts an Alliance pick list label of a 150-character Game name to 100, ending with an ellipsis", () => {
+    const pickList = renderAlliancePickList(
+      allianceKey("NML"),
+      [{ tag: "NML", name: longName, kingdom: 1 }],
+      "a1b2c3d4",
+    );
+
+    expect(optionLabelsOf(pickList.components)).toEqual([`[NML] ${"A".repeat(93)}…`]);
+  });
+
+  test("cuts a roster menu label of a 150-character Game name to 100, ending with an ellipsis", () => {
+    const roster = [rosterEntry("145563254785", longName, "R4")];
+
+    expect(optionLabelsOf(renderRosterComponents(roster, 0, "a1b2c3d4"))).toEqual([`R4 · ${"A".repeat(94)}…`]);
   });
 });

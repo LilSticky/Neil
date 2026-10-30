@@ -140,7 +140,7 @@ export class GameApiClient {
     const fresh = this.players.get(key, this.now());
     if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
 
-    return this.playerLookups.share(key, async () => {
+    return this.playerLookups.share(flightKey(purpose, key), async () => {
       const result = await this.fetchPlayer(uid, purpose);
       if (result.kind === "found") this.players.store(key, result.value, result.fetchedAt);
       return orStale(result, foundBy(this.players.getStale(key)));
@@ -158,7 +158,7 @@ export class GameApiClient {
     purpose: RequestPurpose,
   ): Promise<LookupResult<Player>> {
     const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
-    return this.byName(this.playerNames, this.playerNameLookups, key, () =>
+    return this.byName(this.playerNames, this.playerNameLookups, key, purpose, () =>
       this.fetchPlayerByName(name, kingdom, purpose),
     );
   }
@@ -168,25 +168,31 @@ export class GameApiClient {
    * The full name is compared in lower case. The purpose decides whether the request may use the Quota Reserve.
    */
   async findAlliance(name: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
-    return this.byName(this.allianceNames, this.allianceNameLookups, `alliance-name:${name.toLowerCase()}`, () =>
-      this.fetchAllianceByName(name, purpose),
+    return this.byName(
+      this.allianceNames,
+      this.allianceNameLookups,
+      `alliance-name:${name.toLowerCase()}`,
+      purpose,
+      () => this.fetchAllianceByName(name, purpose),
     );
   }
 
   /**
-   * The name lookups' cache flow: a fresh answer from the cache, else one request shared by concurrent callers.
-   * A found answer and a match list are cached; a failure is not. A spent or reserved quota answers with a stale entry.
+   * The name lookups' cache flow: a fresh answer from the cache, else one request shared by concurrent callers with
+   * the same purpose. A found answer and a match list are cached; a failure is not. A spent or reserved quota answers
+   * with a stale entry.
    */
   private async byName<T>(
     cache: LookupCache<NameAnswer<T>>,
     inFlight: InFlight<LookupResult<T>>,
     key: string,
+    purpose: RequestPurpose,
     fetch: () => Promise<LookupResult<T>>,
   ): Promise<LookupResult<T>> {
     const fresh = cache.get(key, this.now());
     if (fresh !== undefined) return answerOf(fresh);
 
-    return inFlight.share(key, async () => {
+    return inFlight.share(flightKey(purpose, key), async () => {
       const result = await fetch();
       if (result.kind === "found") {
         cache.store(key, { kind: "found", value: result.value }, result.fetchedAt);
@@ -207,7 +213,7 @@ export class GameApiClient {
     const fresh = this.alliances.get(cacheKey, this.now());
     if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
 
-    return this.allianceLookups.share(cacheKey, async () => {
+    return this.allianceLookups.share(flightKey(purpose, cacheKey), async () => {
       const result = await this.fetchAlliance(kingdom, key, purpose);
       if (result.kind === "found") this.alliances.store(cacheKey, result.value, result.fetchedAt);
       return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
@@ -493,6 +499,14 @@ export class GameApiClient {
 function orStale<T>(result: LookupResult<T>, stale: LookupResult<T> | undefined): LookupResult<T> {
   if ((result.kind !== "quota-spent" && result.kind !== "reserve-kept") || stale === undefined) return result;
   return stale;
+}
+
+/**
+ * The key one request is shared under while it is in flight. The purpose is part of it: an Onboarding Interview never
+ * joins a lookup's request, which may have been refused at the Quota Reserve. The cache is shared by every purpose.
+ */
+function flightKey(purpose: RequestPurpose, key: string): string {
+  return `${purpose}:${key}`;
 }
 
 /** A cached Player as a found answer. */

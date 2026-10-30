@@ -21,7 +21,7 @@ const LIFETIME_MS = 15 * 60_000;
 const MAX_SESSIONS = 500;
 const PAGE_SIZE = 25;
 
-const CUSTOM_ID_PATTERN = /^pick:([^:]+):(?:(select)|page:(\d+))$/;
+const CUSTOM_ID_PATTERN = /^pick:([^:]+):(?:select(?::(\d+))?|page:(\d+))$/;
 
 /** Memory-only pick lists: a restart ends them, and the oldest is dropped beyond 500. */
 export class PickSessions {
@@ -79,18 +79,21 @@ export function pageCount(entries: readonly unknown[]): number {
   return Math.ceil(entries.length / PAGE_SIZE);
 }
 
-/** What a component interaction asks for, read back from `pick:{sessionId}:select` or `pick:{sessionId}:page:{n}`. */
+/**
+ * What a component interaction asks for, read back from `pick:{sessionId}:select`, `pick:{sessionId}:select:{page}`
+ * (a roster menu, with the page it shows) or `pick:{sessionId}:page:{n}`.
+ */
 export type ParsedCustomId =
-  | { readonly sessionId: string; readonly action: "select" }
+  | { readonly sessionId: string; readonly action: "select"; readonly page?: number }
   | { readonly sessionId: string; readonly action: "page"; readonly page: number };
 
 /** Reads a pick list's custom id; anything else, including a malformed `pick:` id, gives undefined. */
 export function parseCustomId(customId: string): ParsedCustomId | undefined {
   const match = CUSTOM_ID_PATTERN.exec(customId);
   if (match === null) return undefined;
-  const [, sessionId, select, page] = match;
+  const [, sessionId, selectPage, page] = match;
   if (sessionId === undefined) return undefined;
-  if (select !== undefined) return { sessionId, action: "select" };
-  if (page === undefined) return undefined;
-  return { sessionId, action: "page", page: Number(page) };
+  if (page !== undefined) return { sessionId, action: "page", page: Number(page) };
+  if (selectPage === undefined) return { sessionId, action: "select" };
+  return { sessionId, action: "select", page: Number(selectPage) };
 }

@@ -1,4 +1,4 @@
-import { MessageFlags } from "discord.js";
+import { MessageFlags, type InteractionReplyOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { sortRoster } from "../domain/alliance-rank.js";
 import type { RequestPurpose } from "../domain/daily-quota.js";
@@ -317,7 +317,7 @@ describe("handlePick page buttons of a roster", () => {
 
     await handlePick(new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID }), context);
     await handlePick(
-      new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["0"] }),
+      new FakePickInteraction({ customId: `pick:${pickId}:select:1`, userId: OWNER_ID, values: ["0"] }),
       context,
     );
 
@@ -354,7 +354,7 @@ describe("handlePick from a Member who did not open a roster or Alliance pick li
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
     const interaction = new FakePickInteraction({
-      customId: `pick:${pickId}:select`,
+      customId: `pick:${pickId}:select:0`,
       userId: OTHER_MEMBER_ID,
       values: ["1"],
     });
@@ -406,7 +406,7 @@ describe("handlePick for the owner choosing a roster member", () => {
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
     const interaction = new FakePickInteraction({
-      customId: `pick:${pickId}:select`,
+      customId: `pick:${pickId}:select:0`,
       userId: OWNER_ID,
       values: ["1"],
     });
@@ -429,7 +429,7 @@ describe("handlePick for the owner choosing a roster member", () => {
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
     const interaction = new FakePickInteraction({
-      customId: `pick:${pickId}:select`,
+      customId: `pick:${pickId}:select:0`,
       userId: OWNER_ID,
       values: ["1"],
     });
@@ -553,5 +553,56 @@ describe("handlePick when the Quota Reserve is kept for Onboarding Interviews", 
         allowedMentions: { parse: [] },
       },
     });
+  });
+});
+
+describe("handlePick for a roster menu's page named in its custom id", () => {
+  test("picks the member of the page the menu shows, not the page the roster was last turned to", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+
+    await handlePick(new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID }), context);
+    await handlePick(
+      new FakePickInteraction({ customId: `pick:${pickId}:select:0`, userId: OWNER_ID, values: ["0"] }),
+      context,
+    );
+
+    expect(getPlayer).toHaveBeenCalledWith(uid("100000000000"), "lookup");
+  });
+});
+
+/** A select-menu interaction whose public card cannot be posted: the attempt is recorded, then refused. */
+class CardRefusedInteraction extends FakePickInteraction {
+  override followUp(options: InteractionReplyOptions): Promise<void> {
+    if (options.flags === MessageFlags.Ephemeral) return super.followUp(options);
+    this.calls.push({ method: "followUp", options });
+    return Promise.reject(new Error("Discord refused the card"));
+  }
+}
+
+describe("handlePick when the public card cannot be posted after the menu said what is shown", () => {
+  test("tells the owner privately that lookups are not working, and logs the failure", async () => {
+    const sessions = new PickSessions();
+    const pickId = openPickList(sessions);
+    const interaction = new CardRefusedInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+    const { context, logged } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls.map((call) => call.method)).toEqual(["update", "followUp", "followUp"]);
+    expect(interaction.calls.at(-1)).toEqual({
+      method: "followUp",
+      options: {
+        content: "Lookups are not working right now. Please tell an Officer.",
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(logged.some((line) => line.includes("Discord refused the card"))).toBe(true);
   });
 });

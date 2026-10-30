@@ -80,7 +80,7 @@ async function showPicked(interaction: PickInteraction, label: string): Promise<
 
 /**
  * Answers a pick from a pick list once the menu says what is shown: a card is posted publicly as a follow-up, the
- * reason privately. A lookup that throws is logged and told as unavailable.
+ * reason privately. A lookup that throws, or a card that cannot be posted, is logged and told as unavailable.
  */
 async function answerPick<T>(
   interaction: PickInteraction,
@@ -101,7 +101,12 @@ async function answerPick<T>(
     await followUpPrivately(interaction, failureMessage(result, context.now()));
     return;
   }
-  await interaction.followUp({ ...card(result.value, result.fetchedAt, context.now()), allowedMentions });
+  try {
+    await interaction.followUp({ ...card(result.value, result.fetchedAt, context.now()), allowedMentions });
+  } catch (error) {
+    context.logError(`Showing the picked card failed: ${errorText(error)}`);
+    await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+  }
 }
 
 /** The owner picked a Player match: the Player's card is posted publicly, looked up by uid for the lookup. */
@@ -164,7 +169,7 @@ async function pickAllianceMatch(
 
 /**
  * The owner picked a member of the roster menu's page: the member's Player card is posted publicly as a reply under
- * the thinking placeholder, and the Alliance card stays as it is.
+ * the thinking placeholder, and the Alliance card stays as it is. `shownEntries` is the page the menu shows.
  */
 async function pickRosterMember(
   interaction: PickInteraction,
@@ -187,8 +192,16 @@ async function pickRosterMember(
   );
 }
 
-/** Answers a select menu of a pick list: the match or roster member the value names, by the kind of pick list. */
-async function pickFrom(interaction: PickInteraction, session: PickSession, context: PickContext): Promise<void> {
+/**
+ * Answers a select menu of a pick list: the match or roster member the value names, by the kind of pick list. A roster
+ * menu names its page in its custom id; an id without one (sent before pages were named) takes the page last turned to.
+ */
+async function pickFrom(
+  interaction: PickInteraction,
+  session: PickSession,
+  menuPage: number | undefined,
+  context: PickContext,
+): Promise<void> {
   const value = interaction.values?.[0];
   const { choice } = session;
   switch (choice.kind) {
@@ -199,7 +212,7 @@ async function pickFrom(interaction: PickInteraction, session: PickSession, cont
       await pickAllianceMatch(interaction, pickedAt(listedAllianceMatches(choice.matches).listed, value), context);
       return;
     case "roster":
-      await pickRosterMember(interaction, pageOf(choice.entries, session.page), value, context);
+      await pickRosterMember(interaction, pageOf(choice.entries, menuPage ?? session.page), value, context);
       return;
   }
 }
@@ -237,6 +250,6 @@ export async function handlePick(interaction: PickInteraction, context: PickCont
       await turnRosterPage(interaction, session, parsed.page, context);
       return;
     }
-    await pickFrom(interaction, session, context);
+    await pickFrom(interaction, session, parsed.page, context);
   });
 }

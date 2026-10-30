@@ -51,6 +51,7 @@ const schema = z.object({
   GAME_API_QUOTA_RESERVE: z
     .string()
     .regex(/^\d+$/, quotaReserveRule)
+    .refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER, quotaReserveRule)
     .transform(Number)
     .optional(),
   DATA_DIR: z.string().min(1).default("./data"),

@@ -227,6 +227,7 @@ describe("loadConfig", () => {
     test.each([
       ["0", 0],
       ["250", 250],
+      ["9007199254740991", Number.MAX_SAFE_INTEGER],
     ])("reads GAME_API_QUOTA_RESERVE %s as a Quota Reserve of %d", (value, quotaReserve) => {
       const config = loadConfig(validEnv({ GAME_API_QUOTA_RESERVE: value }));
 
@@ -237,6 +238,7 @@ describe("loadConfig", () => {
       ["-1 (negative)", "-1"],
       ["a fraction", "1.5"],
       ["words", "one hundred"],
+      ["above Number.MAX_SAFE_INTEGER", "9007199254740992"],
     ])("rejects %s", (_label, value) => {
       const error = failureOf(validEnv({ GAME_API_QUOTA_RESERVE: value }));
 

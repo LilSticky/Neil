@@ -31,6 +31,8 @@ const FIELD_VALUE_MAX_LENGTH = 1024;
 const EMBED_MAX_LENGTH = 6000;
 const ROSTER_FIELD = "Roster";
 const EMPTY_ROSTER_TEXT = "The tracker lists no members.";
+/** Discord's limit on a select menu option's label. */
+const OPTION_LABEL_MAX_LENGTH = 100;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const MINUTE_MS = 60_000;
@@ -81,6 +83,12 @@ function fitTitle(escaped: string): string {
   const trailingBackslashes = /\\*$/.exec(kept)?.[0] ?? "";
   if (trailingBackslashes.length % 2 === 1) kept = kept.slice(0, -1);
   return `${kept}…`;
+}
+
+/** A select menu option's label, cut to 100 characters when longer, ending with an ellipsis. */
+function optionLabel(text: string): string {
+  if (text.length <= OPTION_LABEL_MAX_LENGTH) return text;
+  return `${text.slice(0, OPTION_LABEL_MAX_LENGTH - 1)}…`;
 }
 
 /** A Game API text for a field: the escaped text, or Unknown when the Game left it out or sent it empty. */
@@ -268,7 +276,7 @@ export function renderPlayerPickList(
   const { listed, leftOut } = listedPlayerMatches(matches);
   const note = leftOut > 0 ? `\n${PLAYER_PICK_LIMIT_NOTE}` : "";
   const options = listed.map((match, index) => ({
-    label: playerPickLabel(match),
+    label: optionLabel(playerPickLabel(match)),
     value: index.toString(),
   }));
   return {
@@ -302,7 +310,7 @@ export function renderAlliancePickList(
   const { listed, leftOut } = listedAllianceMatches(matches);
   const note = leftOut > 0 ? `\n${ALLIANCE_PICK_LIMIT_NOTE}` : "";
   const options = listed.map((match, index) => ({
-    label: alliancePickLabel(match),
+    label: optionLabel(alliancePickLabel(match)),
     value: index.toString(),
   }));
   return {
@@ -332,7 +340,7 @@ export function renderRosterComponents(
   const pages = pageCount(ordered);
   const current = clampPage(page, ordered);
   const options = pageOf(ordered, current).map((entry, index) => ({
-    label: `${rankLabel(entry.allianceRank)} · ${entry.name}`,
+    label: optionLabel(`${rankLabel(entry.allianceRank)} · ${entry.name}`),
     description: `uid ${entry.uid}`,
     value: index.toString(),
   }));
@@ -342,7 +350,7 @@ export function renderRosterComponents(
       components: [
         {
           type: ComponentType.StringSelect,
-          custom_id: `pick:${sessionId}:select`,
+          custom_id: `pick:${sessionId}:select:${current.toString()}`,
           placeholder: "Look up a member…",
           options,
         },
@@ -365,7 +373,7 @@ export function renderRosterComponents(
           type: ComponentType.Button,
           style: ButtonStyle.Secondary,
           label: `Page ${(current + 1).toString()}/${pages.toString()}`,
-          custom_id: `pick:${sessionId}:page:${current.toString()}`,
+          custom_id: `pick:${sessionId}:info`,
           disabled: true,
         },
         {

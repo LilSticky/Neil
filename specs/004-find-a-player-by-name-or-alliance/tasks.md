@@ -145,10 +145,12 @@ sessions, roster in the domain) is shared by all three.
 
 ## Phase 6: Polish
 
-- [ ] T024 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/domain/`; fixes via `implementer`
+- [x] T024 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/domain/`; fixes via `implementer`
+  *Done 2026-10-30: 2 must fix, 1 should fix, 4 nits; all but #6 fixed ([review.md](review.md)).*
 - [x] T028 Test then implement the startup warning when the Quota Reserve is at or above the stored limit (spec edge
   case; split from T007, as `StartupDeps` has no warning seam yet) in `src/startup.test.ts` / `src/startup.ts`
-- [ ] T025 Update GAME-API.md if an alliance-name 409 or a name 502 behaves other than assumed (research R3)
+- [x] T025 Update GAME-API.md if an alliance-name 409 or a name 502 behaves other than assumed (research R3)
+  *Nothing new learned in automated work; revisit after T026 if the test server shows otherwise.*
 - [ ] T026 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)) after
   `npm run commands:register` (user); record the result here
 - [ ] T027 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`); PR (`Closes` the slice issue)

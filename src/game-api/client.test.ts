@@ -1410,3 +1410,53 @@ describe("GameApiClient.findAlliance cache", () => {
     expect(second).toMatchObject({ kind: "found" });
   });
 });
+
+describe("GameApiClient in-flight requests per purpose", () => {
+  let clock: Date;
+  const now = (): Date => clock;
+
+  beforeEach(() => {
+    clock = FIXED_NOW;
+  });
+
+  test.each([
+    {
+      label: "a player",
+      body: playerInAlliance,
+      ask: (client: GameApiClient, purpose: RequestPurpose): Promise<unknown> =>
+        client.getPlayer(parsedUid(PLAYER_UID_TEXT), purpose),
+    },
+    {
+      label: "an alliance",
+      body: alliance,
+      ask: (client: GameApiClient, purpose: RequestPurpose): Promise<unknown> =>
+        client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), purpose),
+    },
+  ])(
+    "an Onboarding Interview does not join a lookup's request in flight for $label when only the Quota Reserve is left, and fetches",
+    async ({ body, ask }) => {
+      const store = new FakeQuotaStore();
+      store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 899 });
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, body));
+      const gatedFetch: FetchLike = async (input, init) => {
+        await fetch(input, init);
+        await gate;
+        return jsonResponse(200, body);
+      };
+      const client = clientWith(gatedFetch, now, quotaOn(store, now));
+
+      const lookup = ask(client, "lookup");
+      const interview = ask(client, "onboarding-interview");
+      release();
+      const [lookupResult, interviewResult] = await Promise.all([lookup, interview]);
+
+      expect(sent).toHaveLength(2);
+      expect(lookupResult).toMatchObject({ kind: "found" });
+      expect(interviewResult).toMatchObject({ kind: "found" });
+    },
+  );
+});

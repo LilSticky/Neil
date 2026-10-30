@@ -74,8 +74,11 @@ Domain types live in `src/domain/` (pure); adapter types in `src/game-api/` and 
 
 ### Custom ids
 
-`pick:{sessionId}:select` for select menus, `pick:{sessionId}:page:{n}` for page buttons. Anything else that
-starts with `pick:` but does not parse answers "run the command again".
+`pick:{sessionId}:select` for the select menus of a Player or Alliance pick list, `pick:{sessionId}:select:{page}` for
+the roster menu (the page it shows, so a pick takes that page's member), `pick:{sessionId}:page:{n}` for the Previous
+and Next buttons, and `pick:{sessionId}:info` for the disabled Page indicator (never answered). Anything else that
+starts with `pick:` but does not parse answers "run the command again". Every component of one message has its own
+custom id. Select option labels are at most 100 characters; a longer one is cut to 99 and ends with `…`.
 
 ## Configuration (`config.ts`)
 

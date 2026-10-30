@@ -50,7 +50,9 @@ Slice 003's card plus roster fields:
 - Empty roster: one field `Roster` = `The tracker lists no members.` and no menu.
 - Components (when the roster is not empty): row 1 a select menu `Look up a member…` with the page's ≤ 25
   Players (label `{rank} · {name}`, description `uid {uid}`, value = index on the page); row 2 (only when
-  more than 25) buttons `◀ Previous`, `Page {p}/{n}` (disabled), `Next ▶`.
+  more than 25) buttons `◀ Previous`, `Page {p}/{n}` (disabled), `Next ▶`. Custom ids: the menu
+  `pick:{id}:select:{p}` (the page it shows), the buttons `pick:{id}:page:{n}`, the disabled indicator `pick:{id}:info`.
+  Option labels stay within 100 characters; a longer one is cut and ends with `…`.
 
 ## Pick list (several matches)
 
