@@ -12,8 +12,9 @@ discovery.
 * A person on the Discord server
 * Not the same as a game alliance member; see Player
 
-## Officer *(proposed)*
-* A Member who manages other Members (approves, corrects roles); exact Discord roles to be discovered
+## Officer
+* A Member with the Moderator or King Discord role (both role IDs in configuration)
+* Manages other Members: approves, corrects roles, sees the Daily Quota
 
 # Game
 
@@ -35,6 +36,13 @@ discovery.
 ## Alliance Rank
 * R1–R5, a Player's rank in their Alliance; R5 is the Alliance's leader
 * Unknown when the Game API lists no rank for the Player
+
+## Daily Quota
+* The number of Game API requests Neil may make per UTC day; the limit is what the Game API reports
+* Every request counts, failed ones too; resets at 00:00 UTC
+
+## Quota Reserve
+* The part of the Daily Quota that only Onboarding Interviews may use (from slice 004)
 
 # Onboarding
 

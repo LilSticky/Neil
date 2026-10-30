@@ -7,12 +7,12 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-None in progress. Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server and on Wispbyte ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+Slice 003 "Look up players within the daily quota" is in progress on branch `003-look-up-players-within-the-daily-quota`: [spec](../specs/003-look-up-players-within-the-daily-quota/spec.md) written and clarified with the user (Officer = Moderator or King; no shares or Quota Reserve yet, the reserve comes with slice 004; cards show "as of"). Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server and on Wispbyte ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
 `main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Next step:** `/speckit-specify` for slice 003 "Look up players within the daily quota" (ROADMAP), on branch `003-look-up-players-within-the-daily-quota`.
+**Next step:** `/speckit-plan` for slice 003.
 
 ## Known broken / WIP
 
