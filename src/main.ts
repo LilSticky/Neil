@@ -26,6 +26,7 @@ await start({
       apiKey,
       version,
       fetch: globalThis.fetch,
+      now: () => new Date(),
       logError: (line) => {
         console.error(line);
       },

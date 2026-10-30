@@ -40,7 +40,7 @@ description: "Task list for slice 003, Look up players within the daily quota"
   `limitReached`; `countRequest` adds 1; `adoptReported(q, { used: 10, limit: 2000 }, inFlight 2, now)` →
   `used 12`, `limit 2000`, `confirmedAt now`; `markLimitReached`; `remaining` never below 0
 - [x] T003 [P] Implement `src/domain/daily-quota.ts` (branded `UtcDay`, readonly `DailyQuota`, pure functions; no I/O)
-- [ ] T004 [P] Change `LookupResult` in `src/domain/player.ts`:
+- [x] T004 [P] Change `LookupResult` in `src/domain/player.ts`:
   `found` gains `fetchedAt: Date`, `quota-spent` gains `resetsAt: Date`. Test-first through the existing client
   and handler tests: update `src/game-api/client.test.ts` so `found` carries `fetchedAt` from an injected `now` and
   `429` gives `quota-spent` with `resetsAt` = next 00:00 UTC; update fakes and handler tests in `src/discord/`

@@ -10,6 +10,7 @@ function clientAnswering(body: unknown): GameApiClient {
   return new GameApiClient({
     apiKey: "fake-key",
     version: "test",
+    now: () => new Date("2026-10-30T15:20:00Z"),
     fetch: () =>
       Promise.resolve(
         new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }),

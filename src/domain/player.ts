@@ -46,10 +46,10 @@ export interface Match {
 
 /** What the Game API client returns for every lookup; an API failure is a value, never a throw. */
 export type LookupResult<T> =
-  | { readonly kind: "found"; readonly value: T }
+  | { readonly kind: "found"; readonly value: T; readonly fetchedAt: Date }
   | { readonly kind: "not-found" }
   | { readonly kind: "ambiguous"; readonly matches: readonly Match[] }
-  | { readonly kind: "quota-spent" }
+  | { readonly kind: "quota-spent"; readonly resetsAt: Date }
   | { readonly kind: "not-prepared" }
   | { readonly kind: "try-again" }
   | { readonly kind: "unavailable"; readonly reason: "auth" | "unexpected" };

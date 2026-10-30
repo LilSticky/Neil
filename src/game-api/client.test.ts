@@ -17,6 +17,8 @@ const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
 const VERSION = "0.1.0";
 const PLAYER_UID_TEXT = "145563254785";
 const PLAYER_PATH = `https://api.lastasylumtracker.com/v1/players/${PLAYER_UID_TEXT}`;
+const FIXED_NOW = new Date("2026-10-30T15:20:00Z");
+const NEXT_MIDNIGHT_UTC = new Date("2026-10-31T00:00:00Z");
 
 interface SentRequest {
   readonly url: string;
@@ -65,11 +67,15 @@ function firstRequest(sent: readonly SentRequest[]): SentRequest {
   return request;
 }
 
-function clientWith(fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>) {
+function clientWith(
+  fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>,
+  now: () => Date = () => FIXED_NOW,
+) {
   return new GameApiClient({
     apiKey: FAKE_API_KEY,
     version: VERSION,
     fetch,
+    now,
     logError: vi.fn<(line: string) => void>(),
   });
 }
@@ -121,6 +127,7 @@ describe("GameApiClient.getPlayer result", () => {
         alliance: { tag: "NML", name: "No Man's Land" },
         allianceRank: "R5",
       },
+      fetchedAt: FIXED_NOW,
     });
   });
 
@@ -144,6 +151,7 @@ describe("GameApiClient.getPlayer result", () => {
         alliance: undefined,
         allianceRank: undefined,
       },
+      fetchedAt: FIXED_NOW,
     });
   });
 
@@ -199,6 +207,7 @@ function loggingClientWith(fetch: FetchLike) {
     apiKey: FAKE_API_KEY,
     version: VERSION,
     fetch,
+    now: () => FIXED_NOW,
     logError: (line: string) => {
       logged.push(line);
     },
@@ -220,7 +229,7 @@ const failureScenarios: readonly FailureScenario[] = [
   {
     label: "429",
     fetch: failingFetch(() => jsonResponse(429, { detail: "rate_limited" })),
-    expected: { kind: "quota-spent" },
+    expected: { kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC },
     loggedCause: "429",
   },
   {
@@ -392,7 +401,7 @@ describe("GameApiClient.getAlliance result", () => {
       capacity: 100,
       leaderName: "DrLOL",
     };
-    expect(result).toEqual({ kind: "found", value: expected });
+    expect(result).toEqual({ kind: "found", value: expected, fetchedAt: FIXED_NOW });
   });
 
   test("a null leader_name gives an Alliance without a leader name", async () => {
@@ -459,7 +468,7 @@ describe("GameApiClient.getAlliance result", () => {
 
     const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
 
-    expect(result).toEqual({ kind: "quota-spent" });
+    expect(result).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
   });
 });
 
@@ -510,4 +519,28 @@ describe("GameApiClient non-200 answers", () => {
       expect(cancel).toHaveBeenCalledTimes(1);
     },
   );
+});
+
+describe("GameApiClient clock", () => {
+  test("a found answer's fetchedAt is the time the answer arrived, not the time the request was sent", async () => {
+    let clock = new Date("2026-10-30T15:20:00Z");
+    const fetch: FetchLike = () => {
+      clock = new Date("2026-10-30T15:20:05Z");
+      return Promise.resolve(jsonResponse(200, playerInAlliance));
+    };
+
+    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:05Z") });
+  });
+
+  test("a 429 resets at the next 00:00 UTC after now, on whatever day now is", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(429, { detail: "rate_limited" }));
+
+    const result = await clientWith(fetch, () => new Date("2026-10-29T08:00:00Z")).getPlayer(
+      parsedUid(PLAYER_UID_TEXT),
+    );
+
+    expect(result).toEqual({ kind: "quota-spent", resetsAt: new Date("2026-10-30T00:00:00Z") });
+  });
 });

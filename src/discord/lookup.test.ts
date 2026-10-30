@@ -7,6 +7,8 @@ import { lookupMessages, renderAllianceCard } from "./lookup-cards.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
 const UID = "145563254785";
+const FETCHED_AT = new Date("2026-10-30T15:20:00Z");
+const RESETS_AT = new Date("2026-10-31T00:00:00Z");
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -45,7 +47,7 @@ describe("handlePlayer", () => {
     const interaction = new FakeLookupInteraction({
       strings: { uid: "14556abc" },
     });
-    const { context, getPlayer } = contextReturning({ kind: "found", value: player });
+    const { context, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -66,7 +68,7 @@ describe("handlePlayer", () => {
     const interaction = new FakeLookupInteraction({
       strings: { uid: ` ${UID} ` },
     });
-    const { context, getPlayer } = contextReturning({ kind: "found", value: player });
+    const { context, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -75,7 +77,7 @@ describe("handlePlayer", () => {
 
   test("defers publicly, then shows the Player card to everyone", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
-    const { context } = contextReturning({ kind: "found", value: player });
+    const { context } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -114,7 +116,7 @@ describe("handlePlayer", () => {
   test("logs a rejected reply and resolves instead of throwing", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = contextReturning({ kind: "found", value: player });
+    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
@@ -126,7 +128,7 @@ const privateFailures: readonly { readonly label: string; readonly result: Looku
   [
     {
       label: "quota-spent",
-      result: { kind: "quota-spent" },
+      result: { kind: "quota-spent", resetsAt: RESETS_AT },
       text: "Lookups are used up for today. They work again after 00:00 UTC.",
     },
     {
@@ -233,6 +235,7 @@ describe("handleAlliance", () => {
       const { context, getAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
+        fetchedAt: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -264,6 +267,7 @@ describe("handleAlliance", () => {
       const { context, getAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
+        fetchedAt: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -290,6 +294,7 @@ describe("handleAlliance", () => {
     const { context, getAlliance } = allianceContextReturning({
       kind: "found",
       value: alliance,
+      fetchedAt: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -305,6 +310,7 @@ describe("handleAlliance", () => {
     const { context } = allianceContextReturning({
       kind: "found",
       value: alliance,
+      fetchedAt: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -384,6 +390,7 @@ describe("handleAlliance", () => {
     const { context, logged } = allianceContextReturning({
       kind: "found",
       value: alliance,
+      fetchedAt: FETCHED_AT,
     });
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
@@ -399,7 +406,7 @@ const allianceFailures: readonly {
 }[] = [
   {
     label: "quota-spent",
-    result: { kind: "quota-spent" },
+    result: { kind: "quota-spent", resetsAt: RESETS_AT },
     text: lookupMessages.quotaSpent,
   },
   {
@@ -451,7 +458,7 @@ describe("handlePlayer when the card cannot be sent", () => {
   test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = contextReturning({ kind: "found", value: player });
+    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
@@ -485,7 +492,7 @@ describe("handleAlliance when the card cannot be sent", () => {
       integers: { kingdom: 1 },
     });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance });
+    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance, fetchedAt: FETCHED_AT });
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
 

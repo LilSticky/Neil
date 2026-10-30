@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
+import { nextReset } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { allianceBodySchema, ambiguousBodySchema, playerBodySchema, type AmbiguousBody } from "./schemas.js";
@@ -11,6 +12,7 @@ export interface GameApiClientOptions {
   readonly apiKey: string;
   readonly version: string;
   readonly fetch: FetchLike;
+  readonly now: () => Date;
   readonly logError: (line: string) => void;
   readonly timeoutMs?: number;
   readonly baseUrl?: string;
@@ -36,6 +38,7 @@ export class GameApiClient {
   private readonly apiKey: string;
   private readonly version: string;
   private readonly fetchFn: FetchLike;
+  private readonly now: () => Date;
   private readonly logError: (line: string) => void;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
@@ -44,6 +47,7 @@ export class GameApiClient {
     this.apiKey = options.apiKey;
     this.version = options.version;
     this.fetchFn = options.fetch;
+    this.now = options.now;
     this.logError = options.logError;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
@@ -54,6 +58,7 @@ export class GameApiClient {
 
     const response = await this.request(endpoint, `/players/${uid}`);
     if (!(response instanceof Response)) return response;
+    const fetchedAt = this.now();
 
     const read = await this.readBody(endpoint, response, playerBodySchema);
     if (!read.ok) return read.failure;
@@ -73,7 +78,7 @@ export class GameApiClient {
     };
 
     if (body.aid === null || body.aid === 0) {
-      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined } };
+      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, fetchedAt };
     }
 
     if (typeof body.alliance_abbr !== "string" || typeof body.alliance_name !== "string") {
@@ -88,6 +93,7 @@ export class GameApiClient {
         alliance: { tag: body.alliance_abbr, name: body.alliance_name },
         allianceRank: rankFromRoster(uid, roster),
       },
+      fetchedAt,
     };
   }
 
@@ -109,6 +115,7 @@ export class GameApiClient {
 
     const read = await this.readBody(endpoint, response, allianceBodySchema);
     if (!read.ok) return read.failure;
+    const fetchedAt = this.now();
 
     const body = read.body;
     if (body.sid !== kingdom) return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
@@ -124,6 +131,7 @@ export class GameApiClient {
         capacity: body.capacity,
         leaderName: body.leader_name ?? undefined,
       },
+      fetchedAt,
     };
   }
 
@@ -145,7 +153,9 @@ export class GameApiClient {
     await this.discardBody(response);
     if (status === 404) return { kind: "not-found" };
     const detail = `status ${String(status)}`;
-    if (status === 429) return this.fail(endpoint, detail, { kind: "quota-spent" });
+    if (status === 429) {
+      return this.fail(endpoint, detail, { kind: "quota-spent", resetsAt: nextReset(this.now()) });
+    }
     if (status === 502) return this.fail(endpoint, detail, { kind: "not-prepared" });
     if (status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
     if (status === 401 || status === 403) return this.fail(endpoint, detail, { kind: "unavailable", reason: "auth" });
