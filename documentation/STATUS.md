@@ -7,14 +7,14 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 003 "Look up players within the daily quota" is merged (PR #9, closes #8): cache, persisted Daily Quota with a hard stop (also after a 429 and across restarts), retries on 503/504, `/quota` for Officers; reviewed, audited, and checked on the test server (T031) and on Wispbyte with the new role IDs set (T033, 2026-10-30). Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server and on Wispbyte ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+Slice 004 "Find a player by name or alliance" (#13) is implemented on its branch: `/player` by name with a private pick list, `/alliance` by full name with the Alliance Roster and a paged member menu, lookups stop at the Quota Reserve (100), `/quota` shows it. 640 tests green, bot-reviewed ([review.md](../specs/004-find-a-player-by-name-or-alliance/review.md)) and spec-audited; the test-server check (T026) is open. Slice 003 "Look up players within the daily quota" is merged (PR #9, closes #8): cache, persisted Daily Quota with a hard stop (also after a 429 and across restarts), retries on 503/504, `/quota` for Officers; reviewed, audited, and checked on the test server (T031) and on Wispbyte with the new role IDs set (T033, 2026-10-30). Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server and on Wispbyte ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
 `main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
 **Roadmap (2026-10-30):** new slice 004 "Find a player by name or alliance" (`/player` by name, `/alliance` lists members with uids, and lookups leave the Quota Reserve for Onboarding Interviews) comes before the Interview (now 005) and naming (now 006); approximate alliance-name search is in Later. The name endpoints were verified (see GAME-API.md).
 
-**Next step:** slice 004 (issue #13) tasks ready; `/speckit-implement` from T001.
+**Next step:** T026, the manual check of slice 004 on the test server ([quickstart.md](../specs/004-find-a-player-by-name-or-alliance/quickstart.md#on-the-test-server)) after `npm run commands:register` (user); then merge PR for #13.
 
 ## Known broken / WIP
 
