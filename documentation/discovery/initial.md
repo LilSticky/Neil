@@ -100,5 +100,5 @@ so our cache never needs to be shorter. Exact split: ADR 4.
 ## Open questions
 
 1. **Which Discord roles exist today** on the server (alliance, rank, kingdom, Moderator, King), and
-   which of them Neil may manage. Needed by slice 005.
+   which of them Neil may manage. Needed by slice 006.
 2. **Wispbyte plan**: does its disk survive redeploys and restarts (ADR 5)? Checked in slice 001.
