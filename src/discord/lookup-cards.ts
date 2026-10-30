@@ -1,10 +1,28 @@
 import { escapeMarkdown, type APIEmbed, type APIEmbedField } from "discord.js";
+import { utcDayOf } from "../domain/daily-quota.js";
 import type { AllianceKey, KingdomNumber } from "../domain/lookup-input.js";
 import type { Alliance, Match, Player } from "../domain/player.js";
 
-const FOOTER = "Data from Last Asylum Tracker";
+const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
 const AMBIGUOUS_LIST_LIMIT = 10;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+
+function twoDigits(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
+/**
+ * The card footer: the source and when the data was fetched, in UTC. Today's fetch shows the time only; an earlier
+ * day shows the day and English month too. Formatted by hand so no locale changes it.
+ */
+function footerFor(fetchedAt: Date, now: Date): { readonly text: string } {
+  const time = `${twoDigits(fetchedAt.getUTCHours())}:${twoDigits(fetchedAt.getUTCMinutes())} UTC`;
+  const when = utcDayOf(fetchedAt) === utcDayOf(now)
+    ? time
+    : `${fetchedAt.getUTCDate().toString()} ${MONTHS[fetchedAt.getUTCMonth()] ?? ""} ${time}`;
+  return { text: `${FOOTER_SOURCE} · as of ${when}` };
+}
 
 /** Escapes Game API and user text for Discord markdown; discord.js leaves a lone `~` alone, so it is escaped here. */
 function escapeText(text: string): string {
@@ -29,7 +47,7 @@ function valueOrUnknown(text: string | undefined): string {
 }
 
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
-export function renderPlayerCard(player: Player): APIEmbed {
+export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): APIEmbed {
   const alliance =
     player.alliance === undefined
       ? "No alliance"
@@ -48,12 +66,12 @@ export function renderPlayerCard(player: Player): APIEmbed {
   return {
     title: fitTitle(escapeText(player.name)),
     fields,
-    footer: { text: FOOTER },
+    footer: footerFor(fetchedAt, now),
   };
 }
 
 /** The public card for an Alliance. Every Game API text is escaped; a missing Leader reads Unknown. */
-export function renderAllianceCard(alliance: Alliance): APIEmbed {
+export function renderAllianceCard(alliance: Alliance, fetchedAt: Date, now: Date): APIEmbed {
   const fields: APIEmbedField[] = [
     { name: "Kingdom", value: `#${alliance.kingdom.toString()}`, inline: true },
     { name: "Power", value: alliance.power.toLocaleString("en-US"), inline: true },
@@ -71,7 +89,7 @@ export function renderAllianceCard(alliance: Alliance): APIEmbed {
   return {
     title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`),
     fields,
-    footer: { text: FOOTER },
+    footer: footerFor(fetchedAt, now),
   };
 }
 

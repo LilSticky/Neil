@@ -22,6 +22,9 @@ function kingdom(number: number): KingdomNumber {
   return parsed.value;
 }
 
+const FETCHED_AT = new Date("2026-10-30T14:05:00Z");
+const NOW = new Date("2026-10-30T16:00:00Z");
+
 const inAlliance: Player = {
   uid: uid("145563254785"),
   name: "Vex",
@@ -44,11 +47,11 @@ const withoutAlliance: Player = {
 
 describe("renderPlayerCard", () => {
   test("titles the card with the Player's name", () => {
-    expect(renderPlayerCard(inAlliance)).toMatchObject({ title: "Vex" });
+    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({ title: "Vex" });
   });
 
   test("shows uid, Kingdom, Power, Sanctuary level, Alliance and Alliance Rank as inline fields", () => {
-    expect(renderPlayerCard(inAlliance)).toMatchObject({
+    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
       fields: [
         { name: "uid", value: "145563254785", inline: true },
         { name: "Kingdom", value: "#330", inline: true },
@@ -61,7 +64,7 @@ describe("renderPlayerCard", () => {
   });
 
   test("shows No alliance and leaves out the Alliance Rank field without an Alliance", () => {
-    const card = renderPlayerCard(withoutAlliance);
+    const card = renderPlayerCard(withoutAlliance, FETCHED_AT, NOW);
 
     expect(card).toMatchObject({
       fields: [
@@ -76,13 +79,15 @@ describe("renderPlayerCard", () => {
   });
 
   test("shows Unknown as the Alliance Rank when the Game gives none", () => {
-    const card = renderPlayerCard({ ...inAlliance, allianceRank: "unknown" });
+    const card = renderPlayerCard({ ...inAlliance, allianceRank: "unknown" }, FETCHED_AT, NOW);
 
     expect(card.fields?.find((field) => field.name === "Alliance Rank")).toMatchObject({ value: "Unknown" });
   });
 
   test("credits Last Asylum Tracker in the footer", () => {
-    expect(renderPlayerCard(inAlliance)).toMatchObject({ footer: { text: "Data from Last Asylum Tracker" } });
+    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+    });
   });
 
   test("escapes markdown in the Player's name and in the Alliance's name", () => {
@@ -90,7 +95,7 @@ describe("renderPlayerCard", () => {
       ...inAlliance,
       name: "*Bold_* `x`",
       alliance: { tag: "NML", name: "_Tilted_ ~Men~" },
-    });
+    }, FETCHED_AT, NOW);
 
     expect(card).toMatchObject({ title: "\\*Bold\\_\\* \\`x\\`" });
     expect(card.fields?.find((field) => field.name === "Alliance")).toMatchObject({
@@ -148,13 +153,13 @@ const alliance: Alliance = {
 
 describe("renderAllianceCard", () => {
   test("titles the card with the Alliance's tag and name", () => {
-    expect(renderAllianceCard(alliance)).toMatchObject({
+    expect(renderAllianceCard(alliance, FETCHED_AT, NOW)).toMatchObject({
       title: "[NML] No Man's Land",
     });
   });
 
   test("shows Kingdom, Power, Members as count/capacity, and Leader as inline fields", () => {
-    expect(renderAllianceCard(alliance)).toMatchObject({
+    expect(renderAllianceCard(alliance, FETCHED_AT, NOW)).toMatchObject({
       fields: [
         { name: "Kingdom", value: "#1", inline: true },
         { name: "Power", value: "208,815,434", inline: true },
@@ -165,14 +170,14 @@ describe("renderAllianceCard", () => {
   });
 
   test("shows Unknown as the Leader when the Game gives no leader name", () => {
-    const card = renderAllianceCard({ ...alliance, leaderName: undefined });
+    const card = renderAllianceCard({ ...alliance, leaderName: undefined }, FETCHED_AT, NOW);
 
     expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "Unknown" });
   });
 
   test("credits Last Asylum Tracker in the footer", () => {
-    expect(renderAllianceCard(alliance)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker" },
+    expect(renderAllianceCard(alliance, FETCHED_AT, NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
     });
   });
 
@@ -182,7 +187,7 @@ describe("renderAllianceCard", () => {
       tag: "N_M",
       name: "*Bold* ~x~",
       leaderName: "_DrLOL_",
-    });
+    }, FETCHED_AT, NOW);
 
     expect(card).toMatchObject({ title: "[N\\_M] \\*Bold\\* \\~x\\~" });
     expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "\\_DrLOL\\_" });
@@ -258,14 +263,14 @@ describe("card titles within Discord's 256-character limit", () => {
   const longName = "A".repeat(300);
 
   test("truncates a Player's name of 300 characters to at most 256, ending with an ellipsis", () => {
-    const title = renderPlayerCard({ ...inAlliance, name: longName }).title ?? "";
+    const title = renderPlayerCard({ ...inAlliance, name: longName }, FETCHED_AT, NOW).title ?? "";
 
     expect(title.length).toBeLessThanOrEqual(256);
     expect(title.endsWith("…")).toBe(true);
   });
 
   test("truncates an Alliance's title of 300 characters to at most 256, ending with an ellipsis", () => {
-    const title = renderAllianceCard({ ...alliance, name: longName }).title ?? "";
+    const title = renderAllianceCard({ ...alliance, name: longName }, FETCHED_AT, NOW).title ?? "";
 
     expect(title.length).toBeLessThanOrEqual(256);
     expect(title.endsWith("…")).toBe(true);
@@ -274,8 +279,70 @@ describe("card titles within Discord's 256-character limit", () => {
 
 describe("renderAllianceCard with an empty leader name", () => {
   test("shows Unknown as the Leader, never an empty field value", () => {
-    const card = renderAllianceCard({ ...alliance, leaderName: "" });
+    const card = renderAllianceCard({ ...alliance, leaderName: "" }, FETCHED_AT, NOW);
 
     expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "Unknown" });
+  });
+});
+
+describe("card footers say when the data was fetched", () => {
+  test.each([
+    {
+      label: "the Player card",
+      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+    },
+    {
+      label: "the Alliance card",
+      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+    },
+  ])("$label shows zero-padded UTC time for a fetch on today's UTC day", ({ render }) => {
+    expect(render(new Date("2026-10-30T09:05:00Z"), NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker · as of 09:05 UTC" },
+    });
+  });
+
+  test.each([
+    {
+      label: "the Player card",
+      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+    },
+    {
+      label: "the Alliance card",
+      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+    },
+  ])("$label shows the day, English month and UTC time for a fetch on an earlier UTC day", ({ render }) => {
+    expect(render(new Date("2026-10-29T23:50:00Z"), NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
+    });
+  });
+
+  test.each([
+    {
+      label: "the Player card",
+      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+    },
+    {
+      label: "the Alliance card",
+      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+    },
+  ])("$label counts a fetch from just before midnight UTC as an earlier day, right after midnight", ({ render }) => {
+    expect(render(new Date("2026-10-29T23:50:00Z"), new Date("2026-10-30T00:05:00Z"))).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
+    });
+  });
+
+  test.each([
+    {
+      label: "the Player card",
+      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+    },
+    {
+      label: "the Alliance card",
+      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+    },
+  ])("$label writes the day of the month without a leading zero", ({ render }) => {
+    expect(render(new Date("2026-10-03T09:05:00Z"), NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker · as of 3 Oct 09:05 UTC" },
+    });
   });
 });

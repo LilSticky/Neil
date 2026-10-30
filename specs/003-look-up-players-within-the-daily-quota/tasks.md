@@ -75,16 +75,16 @@ description: "Task list for slice 003, Look up players within the daily quota"
   concurrent callers and runs `run` once, then forgets it when it settles (also on rejection); only `found` results
   are stored; more than 2,000 entries drop the oldest stored
 - [x] T012 [P] [US1] Implement `src/game-api/lookup-cache.ts`
-- [ ] T013 [US1] Test in `src/game-api/client.test.ts`: `getPlayer` twice within the TTL → one fetch, same
+- [x] T013 [US1] Test in `src/game-api/client.test.ts`: `getPlayer` twice within the TTL → one fetch, same
   `fetchedAt`; after the TTL → two fetches; two concurrent calls → one fetch; `getAlliance(1, "NML")` and
   `getAlliance(1, " nml ")` share one cache key (key `alliance:<kingdom>:<tag lower case>`); a `not-found` or
   `not-prepared` result is not cached
-- [ ] T014 [US1] Wire the cache into `src/game-api/client.ts` (option `cacheTtlMs`) and pass `config.cacheTtlMs`
+- [x] T014 [US1] Wire the cache into `src/game-api/client.ts` (option `cacheTtlMs`) and pass `config.cacheTtlMs`
   through `src/startup.ts` / `src/main.ts`
-- [ ] T015 [P] [US1] Test `src/discord/lookup-cards.test.ts`: footers per
+- [x] T015 [P] [US1] Test `src/discord/lookup-cards.test.ts`: footers per
   [contracts/lookup-changes.md](contracts/lookup-changes.md#cards): `Data from Last Asylum Tracker · as of 14:05 UTC`
   for today, `… · as of 29 Oct 23:50 UTC` for an earlier day (render functions take `fetchedAt` and `now`)
-- [ ] T016 [US1] Implement the footer in `src/discord/lookup-cards.ts` and pass `fetchedAt` and an injected `now`
+- [x] T016 [US1] Implement the footer in `src/discord/lookup-cards.ts` and pass `fetchedAt` and an injected `now`
   from `src/discord/lookup.ts` (context gains `now: () => Date`; `src/discord/client.ts` passes `() => new Date()`)
 
 **Checkpoint**: `/player` twice on the test server shows the same `as of`.

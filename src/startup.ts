@@ -41,7 +41,7 @@ export interface StartupDeps {
   readonly readBuildInfo: () => BuildInfo;
   readonly prepareDataDir: (dataDir: string) => void;
   readonly openStore: (dataDir: string) => StartRecordStorage;
-  readonly createGameApi: (apiKey: string, version: string) => LookupApi;
+  readonly createGameApi: (apiKey: string, version: string, cacheTtlMs: number) => LookupApi;
   readonly connect: (
     token: string,
     options: { readonly buildInfo: BuildInfo; readonly startRecord: StartRecord; readonly gameApi: LookupApi },
@@ -69,7 +69,11 @@ export async function start(deps: StartupDeps): Promise<void> {
     store = deps.openStore(config.dataDir);
     const startRecord = recordStart(store.load(), deps.now());
     store.save(startRecord);
-    const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version);
+    const gameApi = deps.createGameApi(
+      config.gameApiKey,
+      buildInfo === "dev" ? "dev" : buildInfo.version,
+      config.cacheTtlMs,
+    );
     connection = await deps.connect(config.discordToken, { buildInfo, startRecord, gameApi });
   } catch (error) {
     fail(error);

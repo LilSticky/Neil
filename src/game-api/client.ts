@@ -3,6 +3,7 @@ import { rankFromRoster } from "../domain/alliance-rank.js";
 import { nextReset } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
+import { InFlight, LookupCache } from "./lookup-cache.js";
 import { allianceBodySchema, ambiguousBodySchema, playerBodySchema, type AmbiguousBody } from "./schemas.js";
 
 /** The part of the global fetch the client uses; tests pass a fake. */
@@ -14,6 +15,8 @@ export interface GameApiClientOptions {
   readonly fetch: FetchLike;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
+  /** How long a found answer stays fresh; from GAME_API_CACHE_MINUTES. */
+  readonly cacheTtlMs: number;
   readonly timeoutMs?: number;
   readonly baseUrl?: string;
 }
@@ -42,6 +45,10 @@ export class GameApiClient {
   private readonly logError: (line: string) => void;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
+  private readonly players: LookupCache<Player>;
+  private readonly alliances: LookupCache<Alliance>;
+  private readonly playerLookups = new InFlight<LookupResult<Player>>();
+  private readonly allianceLookups = new InFlight<LookupResult<Alliance>>();
 
   constructor(options: GameApiClientOptions) {
     this.apiKey = options.apiKey;
@@ -51,9 +58,37 @@ export class GameApiClient {
     this.logError = options.logError;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+    this.players = new LookupCache<Player>({ ttlMs: options.cacheTtlMs });
+    this.alliances = new LookupCache<Alliance>({ ttlMs: options.cacheTtlMs });
   }
 
+  /** A fresh cached answer, else one shared request; only a found answer is cached. */
   async getPlayer(uid: Uid): Promise<LookupResult<Player>> {
+    const key = `player:${uid}`;
+    const fresh = this.players.get(key, this.now());
+    if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+
+    return this.playerLookups.share(key, async () => {
+      const result = await this.fetchPlayer(uid);
+      if (result.kind === "found") this.players.store(key, result.value, result.fetchedAt);
+      return result;
+    });
+  }
+
+  /** A fresh cached answer, else one shared request; only a found answer is cached. Tags are compared in lower case. */
+  async getAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
+    const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
+    const fresh = this.alliances.get(cacheKey, this.now());
+    if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+
+    return this.allianceLookups.share(cacheKey, async () => {
+      const result = await this.fetchAlliance(kingdom, key);
+      if (result.kind === "found") this.alliances.store(cacheKey, result.value, result.fetchedAt);
+      return result;
+    });
+  }
+
+  private async fetchPlayer(uid: Uid): Promise<LookupResult<Player>> {
     const endpoint = "/players/{uid}";
 
     const response = await this.request(endpoint, `/players/${uid}`);
@@ -97,7 +132,7 @@ export class GameApiClient {
     };
   }
 
-  async getAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
+  private async fetchAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
     const endpoint = "/alliances/{kingdom}/{key}";
 
     const response = await this.request(

@@ -5,12 +5,15 @@ import playerBody from "../game-api/__fixtures__/player-in-alliance.json" with {
 import { GameApiClient } from "../game-api/client.js";
 import { renderAllianceCard, renderPlayerCard } from "./lookup-cards.js";
 
+const NOW = new Date("2026-10-30T16:00:00Z");
+
 /** A client whose every request is answered with the given recorded body (SC-002). */
 function clientAnswering(body: unknown): GameApiClient {
   return new GameApiClient({
     apiKey: "fake-key",
     version: "test",
     now: () => new Date("2026-10-30T15:20:00Z"),
+    cacheTtlMs: 600_000,
     fetch: () =>
       Promise.resolve(
         new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } }),
@@ -27,7 +30,7 @@ describe("cards from recorded Game API answers", () => {
     const result = await clientAnswering(playerBody).getPlayer(uid.value);
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    expect(renderPlayerCard(result.value)).toEqual({
+    expect(renderPlayerCard(result.value, result.fetchedAt, NOW)).toEqual({
       title: "DrLOL",
       fields: [
         { name: "uid", value: "145563254785", inline: true },
@@ -37,7 +40,7 @@ describe("cards from recorded Game API answers", () => {
         { name: "Alliance", value: "[NML] No Man's Land", inline: true },
         { name: "Alliance Rank", value: "R5", inline: true },
       ],
-      footer: { text: "Data from Last Asylum Tracker" },
+      footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
   });
 
@@ -49,7 +52,7 @@ describe("cards from recorded Game API answers", () => {
     const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value);
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    expect(renderAllianceCard(result.value)).toMatchObject({
+    expect(renderAllianceCard(result.value, result.fetchedAt, NOW)).toMatchObject({
       title: "[NML] No Man's Land",
       fields: [
         { name: "Kingdom", value: "#1" },
@@ -57,6 +60,7 @@ describe("cards from recorded Game API answers", () => {
         { name: "Members", value: "52/100" },
         { name: "Leader", value: "DrLOL" },
       ],
+      footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
   });
 });

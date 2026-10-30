@@ -3,11 +3,12 @@ import { describe, expect, test, vi } from "vitest";
 import { parseKingdom, parseUid, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
-import { lookupMessages, renderAllianceCard } from "./lookup-cards.js";
+import { lookupMessages } from "./lookup-cards.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
 const UID = "145563254785";
 const FETCHED_AT = new Date("2026-10-30T15:20:00Z");
+const NOW = new Date("2026-10-30T16:00:00Z");
 const RESETS_AT = new Date("2026-10-31T00:00:00Z");
 
 function uid(text: string): Uid {
@@ -35,6 +36,7 @@ function contextReturning(result: LookupResult<Player>) {
   const getPlayer = vi.fn<(uid: Uid) => Promise<LookupResult<Player>>>(() => Promise.resolve(result));
   const context = {
     gameApi: { getPlayer },
+    now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
@@ -86,7 +88,38 @@ describe("handlePlayer", () => {
       {
         method: "editReply",
         options: {
-          embeds: [expect.objectContaining({ title: "Vex" })],
+          embeds: [
+            expect.objectContaining({
+              title: "Vex",
+              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+            }),
+          ],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("shows the day of the fetch in the footer when the Player was fetched on an earlier UTC day", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context } = contextReturning({
+      kind: "found",
+      value: player,
+      fetchedAt: new Date("2026-10-29T23:50:00Z"),
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [
+            expect.objectContaining({
+              footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
+            }),
+          ],
           allowedMentions: { parse: [] },
         },
       },
@@ -217,6 +250,7 @@ function allianceContextReturning(result: LookupResult<Alliance>) {
   );
   const context = {
     gameApi: { getAlliance },
+    now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
@@ -320,7 +354,12 @@ describe("handleAlliance", () => {
       {
         method: "editReply",
         options: {
-          embeds: [renderAllianceCard(alliance)],
+          embeds: [
+            expect.objectContaining({
+              title: "[NML] No Man's Land",
+              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+            }),
+          ],
           allowedMentions: { parse: [] },
         },
       },

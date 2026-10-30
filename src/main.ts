@@ -21,12 +21,13 @@ await start({
     const store = new StartRecordStore(db);
     return { load: () => store.load(), save: (record) => { store.save(record); }, close: () => { db.close(); } };
   },
-  createGameApi: (apiKey, version) =>
+  createGameApi: (apiKey, version, cacheTtlMs) =>
     new GameApiClient({
       apiKey,
       version,
       fetch: globalThis.fetch,
       now: () => new Date(),
+      cacheTtlMs,
       logError: (line) => {
         console.error(line);
       },

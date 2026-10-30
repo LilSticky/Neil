@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { LookupCache } from "./lookup-cache.js";
+import { InFlight, LookupCache } from "./lookup-cache.js";
 
 const TTL_MS = 10 * 60_000;
 const fetchedAt = new Date("2026-10-30T10:00:00Z");
@@ -86,14 +86,14 @@ describe("LookupCache.store capacity", () => {
   });
 });
 
-describe("LookupCache.share", () => {
+describe("InFlight.share", () => {
   test("gives concurrent callers with the same key the same promise and runs once", async () => {
-    const cache = new LookupCache<string>({ ttlMs: TTL_MS });
+    const inFlight = new InFlight<string>();
     const lookup = deferred<string>();
     const run = vi.fn(() => lookup.promise);
 
-    const first = cache.share(playerKey, run);
-    const second = cache.share(playerKey, run);
+    const first = inFlight.share(playerKey, run);
+    const second = inFlight.share(playerKey, run);
 
     expect(second).toBe(first);
     expect(run).toHaveBeenCalledTimes(1);
@@ -104,24 +104,24 @@ describe("LookupCache.share", () => {
   });
 
   test("runs again for a later call once the shared promise has resolved", async () => {
-    const cache = new LookupCache<string>({ ttlMs: TTL_MS });
+    const inFlight = new InFlight<string>();
 
-    await expect(cache.share(playerKey, () => Promise.resolve("Alice"))).resolves.toBe("Alice");
+    await expect(inFlight.share(playerKey, () => Promise.resolve("Alice"))).resolves.toBe("Alice");
 
     const later = vi.fn(() => Promise.resolve("Alice again"));
-    await expect(cache.share(playerKey, later)).resolves.toBe("Alice again");
+    await expect(inFlight.share(playerKey, later)).resolves.toBe("Alice again");
     expect(later).toHaveBeenCalledTimes(1);
   });
 
   test("forgets the shared promise when it rejects, so a later call runs again", async () => {
-    const cache = new LookupCache<string>({ ttlMs: TTL_MS });
+    const inFlight = new InFlight<string>();
 
     await expect(
-      cache.share(playerKey, () => Promise.reject(new Error("Game API unreachable"))),
+      inFlight.share(playerKey, () => Promise.reject(new Error("Game API unreachable"))),
     ).rejects.toThrow("Game API unreachable");
 
     const later = vi.fn(() => Promise.resolve("Alice"));
-    await expect(cache.share(playerKey, later)).resolves.toBe("Alice");
+    await expect(inFlight.share(playerKey, later)).resolves.toBe("Alice");
     expect(later).toHaveBeenCalledTimes(1);
   });
 });

@@ -12,14 +12,34 @@ export interface LookupCacheOptions {
 const DEFAULT_MAX_ENTRIES = 2000;
 
 /**
+ * Shares one in-flight run per key between concurrent callers. The promise is forgotten when it settles, so a later
+ * call runs again (also after a rejection).
+ */
+export class InFlight<R> {
+  private readonly pending = new Map<string, Promise<R>>();
+
+  share(key: string, run: () => Promise<R>): Promise<R> {
+    const existing = this.pending.get(key);
+    if (existing !== undefined) return existing;
+
+    const shared: Promise<R> = new Promise<R>((resolve) => {
+      resolve(run());
+    }).finally(() => {
+      if (this.pending.get(key) === shared) this.pending.delete(key);
+    });
+    this.pending.set(key, shared);
+    return shared;
+  }
+}
+
+/**
  * An in-memory cache of Game API answers keyed by lookup. Entries are fresh for `ttlMs` after their `fetchedAt`.
- * Past `maxEntries` the oldest stored entry is dropped. Also shares one in-flight lookup between concurrent callers.
+ * Past `maxEntries` the oldest stored entry is dropped.
  */
 export class LookupCache<T> {
   private readonly ttlMs: number;
   private readonly maxEntries: number;
   private readonly entries = new Map<string, CacheEntry<T>>();
-  private readonly inFlight = new Map<string, Promise<T>>();
 
   constructor(options: LookupCacheOptions) {
     this.ttlMs = options.ttlMs;
@@ -46,22 +66,5 @@ export class LookupCache<T> {
       const oldest = this.entries.keys().next();
       if (oldest.done !== true) this.entries.delete(oldest.value);
     }
-  }
-
-  /**
-   * Runs `run` once for `key` while it is in flight: concurrent callers get the same promise. The promise is
-   * forgotten when it settles, so a later call runs again (also after a rejection).
-   */
-  share(key: string, run: () => Promise<T>): Promise<T> {
-    const existing = this.inFlight.get(key);
-    if (existing !== undefined) return existing;
-
-    const pending: Promise<T> = new Promise<T>((resolve) => {
-      resolve(run());
-    }).finally(() => {
-      if (this.inFlight.get(key) === pending) this.inFlight.delete(key);
-    });
-    this.inFlight.set(key, pending);
-    return pending;
   }
 }

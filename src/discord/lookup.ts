@@ -36,6 +36,7 @@ export interface LookupInteraction {
 /** What one command needs: its own Game API method, and where to log a failure. */
 export interface LookupContext<Method extends keyof LookupApi> {
   readonly gameApi: Pick<LookupApi, Method>;
+  readonly now: () => Date;
   readonly logError: (message: string) => void;
 }
 
@@ -113,9 +114,9 @@ async function removePlaceholderAndTell(interaction: LookupInteraction, content:
  */
 async function showLookup<T>(
   interaction: LookupInteraction,
-  context: { readonly logError: (message: string) => void },
+  context: { readonly now: () => Date; readonly logError: (message: string) => void },
   ask: () => Promise<LookupResult<T>>,
-  render: (value: T) => APIEmbed,
+  render: (value: T, fetchedAt: Date, now: Date) => APIEmbed,
   failureText: (failure: Failure<T>) => string,
 ): Promise<void> {
   await interaction.deferReply();
@@ -126,7 +127,8 @@ async function showLookup<T>(
   }
 
   try {
-    await interaction.editReply({ embeds: [render(result.value)], allowedMentions });
+    const embed = render(result.value, result.fetchedAt, context.now());
+    await interaction.editReply({ embeds: [embed], allowedMentions });
   } catch (error) {
     context.logError(`Showing the card failed: ${errorText(error)}`);
     await removePlaceholderAndTell(interaction, lookupMessages.unavailable);

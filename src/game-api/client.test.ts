@@ -19,6 +19,7 @@ const PLAYER_UID_TEXT = "145563254785";
 const PLAYER_PATH = `https://api.lastasylumtracker.com/v1/players/${PLAYER_UID_TEXT}`;
 const FIXED_NOW = new Date("2026-10-30T15:20:00Z");
 const NEXT_MIDNIGHT_UTC = new Date("2026-10-31T00:00:00Z");
+const CACHE_TTL_MS = 600_000;
 
 interface SentRequest {
   readonly url: string;
@@ -76,6 +77,7 @@ function clientWith(
     version: VERSION,
     fetch,
     now,
+    cacheTtlMs: CACHE_TTL_MS,
     logError: vi.fn<(line: string) => void>(),
   });
 }
@@ -208,6 +210,7 @@ function loggingClientWith(fetch: FetchLike) {
     version: VERSION,
     fetch,
     now: () => FIXED_NOW,
+    cacheTtlMs: CACHE_TTL_MS,
     logError: (line: string) => {
       logged.push(line);
     },
@@ -542,5 +545,88 @@ describe("GameApiClient clock", () => {
     );
 
     expect(result).toEqual({ kind: "quota-spent", resetsAt: new Date("2026-10-30T00:00:00Z") });
+  });
+});
+
+describe("GameApiClient cache", () => {
+  test("a second getPlayer within the TTL is answered from the cache, with the same fetchedAt", async () => {
+    let clock = FIXED_NOW;
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const client = clientWith(fetch, () => clock);
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    const first = await client.getPlayer(uid);
+    clock = new Date(FIXED_NOW.getTime() + 60_000);
+    const second = await client.getPlayer(uid);
+
+    expect(sent).toHaveLength(1);
+    expect(second).toEqual(first);
+    expect(second).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+  });
+
+  test("a getPlayer after the TTL fetches again, and the new answer has a new fetchedAt", async () => {
+    let clock = FIXED_NOW;
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const client = clientWith(fetch, () => clock);
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    await client.getPlayer(uid);
+    clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
+    const later = await client.getPlayer(uid);
+
+    expect(sent).toHaveLength(2);
+    expect(later).toMatchObject({ kind: "found", fetchedAt: clock });
+  });
+
+  test("two concurrent getPlayer calls for the same uid share one fetch, and both are found", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const gatedFetch: FetchLike = async (input, init) => {
+      await fetch(input, init);
+      await gate;
+      return jsonResponse(200, playerInAlliance);
+    };
+    const client = clientWith(gatedFetch);
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    const first = client.getPlayer(uid);
+    const second = client.getPlayer(uid);
+    release();
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(sent).toHaveLength(1);
+    expect(a).toMatchObject({ kind: "found" });
+    expect(b).toMatchObject({ kind: "found" });
+  });
+
+  test("getAlliance keys the cache by tag in lower case, so NML then nml fetches once", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
+    const client = clientWith(fetch);
+
+    const upper = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const lower = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("nml"));
+
+    expect(sent).toHaveLength(1);
+    expect(upper).toMatchObject({ kind: "found" });
+    expect(lower).toEqual(upper);
+  });
+
+  test.each([
+    ["a 404 not-found", () => jsonResponse(404, { detail: "player_not_found" }), { kind: "not-found" }],
+    ["a 502 not-prepared", () => textResponse(502, "error code: 502"), { kind: "not-prepared" }],
+  ])("%s is not cached, so the next getPlayer fetches again", async (_label, respond, expected) => {
+    const { fetch, sent } = fakeFetch(respond);
+    const client = clientWith(fetch);
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    const first = await client.getPlayer(uid);
+    const second = await client.getPlayer(uid);
+
+    expect(sent).toHaveLength(2);
+    expect(first).toEqual(expected);
+    expect(second).toEqual(expected);
   });
 });

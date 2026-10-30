@@ -59,8 +59,9 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           startRecord: options.startRecord,
           logError,
         }),
-      player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, logError }),
-      alliance: (interaction) => handleAlliance(interaction, { gameApi: options.gameApi, logError }),
+      player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, now: () => new Date(), logError }),
+      alliance: (interaction) =>
+        handleAlliance(interaction, { gameApi: options.gameApi, now: () => new Date(), logError }),
     },
   );
   try {
