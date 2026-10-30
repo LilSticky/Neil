@@ -22,11 +22,10 @@ import {
   type Player,
   type RosterEntry,
 } from "../domain/player.js";
-import { pageCount, pageOf } from "./pick-sessions.js";
+import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
 
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
-const AMBIGUOUS_LIST_LIMIT = 10;
 /** Discord's limits: a field's value, and everything in one embed (title, footers, field names and values). */
 const FIELD_VALUE_MAX_LENGTH = 1024;
 const EMBED_MAX_LENGTH = 6000;
@@ -218,11 +217,6 @@ export function renderAllianceCard(alliance: Alliance, fetchedAt: Date, now: Dat
   return { ...embed, fields: [...fields, ...rosterSection(alliance.roster, embedCharacters(embed))] };
 }
 
-/** One candidate of an ambiguous lookup, as `[tag] name`; a field the Game left out reads Unknown. */
-function matchLabel(match: Match): string {
-  return `[${escapeText(match.tag ?? "Unknown")}] ${escapeText(match.name ?? "Unknown")}`;
-}
-
 /** The Player pick list's note when matches were left out. */
 const PLAYER_PICK_LIMIT_NOTE = "Only the first 25 are listed; add a kingdom to narrow it.";
 
@@ -245,12 +239,6 @@ export const lookupMessages = {
     `Couldn't find a player named "${escapeText(name)}". Check the name; if it's right, the tracker may be busy, so try again later.`,
   allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
-  ambiguous: (key: AllianceKey, matches: readonly Match[]): string => {
-    const listed = matches.slice(0, AMBIGUOUS_LIST_LIMIT).map(matchLabel).join(", ");
-    const more = matches.length - AMBIGUOUS_LIST_LIMIT;
-    const rest = more > 0 ? ` and ${more.toString()} more` : "";
-    return `More than one alliance matches "${escapeText(key)}": ${listed}${rest}. Try the exact tag.`;
-  },
   quotaSpent: (resetsAt: Date, now: Date): string =>
     `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
@@ -296,7 +284,7 @@ export function renderPlayerPickList(
 const ALLIANCE_PICK_LIMIT_NOTE = "Only the first 25 are listed; use the kingdom and tag.";
 
 /** An Alliance match as the pick list labels it: its tag, name and Kingdom. */
-function alliancePickLabel(match: PickableAllianceMatch): string {
+export function alliancePickLabel(match: PickableAllianceMatch): string {
   return `[${match.tag}] ${match.name ?? "Unknown"} · kingdom #${match.kingdom.toString()}`;
 }
 
@@ -340,7 +328,7 @@ export function renderRosterComponents(
 
   const ordered = sortRoster(entries);
   const pages = pageCount(ordered);
-  const current = Math.min(Math.max(page, 0), pages - 1);
+  const current = clampPage(page, ordered);
   const options = pageOf(ordered, current).map((entry, index) => ({
     label: `${rankLabel(entry.allianceRank)} · ${entry.name}`,
     description: `uid ${entry.uid}`,

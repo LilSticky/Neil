@@ -117,11 +117,11 @@ sessions, roster in the domain) is shared by all three.
   under 6,000 characters with `… and {n} more, see the menu below`; empty roster → `The tracker lists no members.`;
   roster components (select `Look up a member…` with ≤ 25 options `{rank} · {name}` / `uid {uid}`; page row only past
   25); the alliance pick list and the `/alliance` texts. Implement in `src/discord/lookup-cards.ts`.
-- [ ] T020 [US2] Test `src/discord/lookup.test.ts`: kingdom + tag → `getAlliance`; name alone → `findAlliance`; any
+- [x] T020 [US2] Test `src/discord/lookup.test.ts`: kingdom + tag → `getAlliance`; name alone → `findAlliance`; any
   other combination → private text, no API call; a found Alliance with members → public card with the roster menu
   and a roster session for the caller; `ambiguous` (tag or name) → private alliance pick list. Implement in
   `src/discord/lookup.ts`.
-- [ ] T021 [US2] Test `src/discord/pick.test.ts`: page buttons update the message to that page, no API call;
+- [x] T021 [US2] Test `src/discord/pick.test.ts`: page buttons update the message to that page, no API call;
   non-owner page or pick → private note; owner picks a roster member → `getPlayer(uid, "lookup")` and the card as a
   public reply, the Alliance card unchanged; owner picks an Alliance match → `getAlliance(kingdom, tag, "lookup")`
   and the card publicly. Implement in `src/discord/pick.ts`.

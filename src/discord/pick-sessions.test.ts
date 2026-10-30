@@ -1,4 +1,6 @@
 import { describe, expect, test } from "vitest";
+import { parseUid } from "../domain/lookup-input.js";
+import type { RosterEntry } from "../domain/player.js";
 import { isOwner, pageCount, pageOf, parseCustomId, PickSessions, type PickSession } from "./pick-sessions.js";
 
 const OWNER_ID = "123456789012345678";
@@ -135,6 +137,61 @@ describe("pageCount", () => {
     [60, 3],
   ])("gives %d entries %d page(s)", (entryCount, expected) => {
     expect(pageCount(range(0, entryCount))).toBe(expected);
+  });
+});
+
+/** A roster of the given size, with uids and names in the order the roster menu shows them. */
+function rosterOf(count: number): RosterEntry[] {
+  return Array.from({ length: count }, (_value, index) => {
+    const parsed = parseUid((100_000_000_000 + index).toString());
+    if (!parsed.ok) throw new Error(`test uid for member ${index.toString()} is not valid`);
+    return { uid: parsed.value, name: `M${index.toString().padStart(2, "0")}`, allianceRank: "R4" };
+  });
+}
+
+describe("PickSessions.turnPage", () => {
+  test("starts a roster pick list on its first page", () => {
+    const sessions = new PickSessions();
+    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+
+    expect(sessions.get(id, OPENED_AT)).toMatchObject({ page: 0 });
+  });
+
+  test("remembers the page the Member turned to", () => {
+    const sessions = new PickSessions();
+    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+
+    sessions.turnPage(id, 2);
+
+    expect(sessions.get(id, OPENED_AT)).toMatchObject({ page: 2 });
+  });
+
+  test("clamps a page past the last one to the last page", () => {
+    const sessions = new PickSessions();
+    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+
+    sessions.turnPage(id, 9);
+
+    expect(sessions.get(id, OPENED_AT)).toMatchObject({ page: 2 });
+  });
+
+  test("clamps a negative page to the first page", () => {
+    const sessions = new PickSessions();
+    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+    sessions.turnPage(id, 2);
+
+    sessions.turnPage(id, -1);
+
+    expect(sessions.get(id, OPENED_AT)).toMatchObject({ page: 0 });
+  });
+
+  test("does nothing for an id that was never opened", () => {
+    const sessions = new PickSessions();
+
+    expect(() => {
+      sessions.turnPage("never-opened", 1);
+    }).not.toThrow();
+    expect(sessions.get("never-opened", OPENED_AT)).toBe("expired");
   });
 });
 

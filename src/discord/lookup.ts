@@ -1,10 +1,10 @@
 import {
   MessageFlags,
-  type APIEmbed,
   type InteractionEditReplyOptions,
   type InteractionReplyOptions,
   type MessageMentionOptions,
 } from "discord.js";
+import { sortRoster } from "../domain/alliance-rank.js";
 import type { GameApiClient } from "../game-api/client.js";
 import {
   parseAllianceKey,
@@ -17,25 +17,43 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import { listedPlayerMatches, type Alliance, type LookupResult, type Match, type Player } from "../domain/player.js";
-import { lookupMessages, renderAllianceCard, renderPlayerCard, renderPlayerPickList } from "./lookup-cards.js";
+import {
+  listedAllianceMatches,
+  listedPlayerMatches,
+  type Alliance,
+  type LookupResult,
+  type Match,
+  type Player,
+} from "../domain/player.js";
+import {
+  lookupMessages,
+  renderAllianceCard,
+  renderAlliancePickList,
+  renderPlayerCard,
+  renderPlayerPickList,
+  renderRosterComponents,
+} from "./lookup-cards.js";
 import type { PickSessions } from "./pick-sessions.js";
 
 /** The part of the Game API client the lookup commands use. */
-export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAlliance">;
+export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAlliance" | "findAlliance">;
+
+/** The part of a discord.js interaction that shows a thinking placeholder, then a card or a private follow-up. */
+export interface PlaceholderInteraction {
+  deferReply(): Promise<unknown>;
+  editReply(options: InteractionEditReplyOptions): Promise<unknown>;
+  deleteReply(): Promise<unknown>;
+  followUp(options: InteractionReplyOptions): Promise<unknown>;
+}
 
 /** The part of a discord.js chat-input interaction that /player and /alliance use. */
-export interface LookupInteraction {
+export interface LookupInteraction extends PlaceholderInteraction {
   readonly user: { readonly id: string };
   readonly options: {
     getString(name: string, required?: false): string | null;
     getInteger(name: string, required?: false): number | null;
   };
   reply(options: InteractionReplyOptions): Promise<unknown>;
-  deferReply(): Promise<unknown>;
-  editReply(options: InteractionEditReplyOptions): Promise<unknown>;
-  deleteReply(): Promise<unknown>;
-  followUp(options: InteractionReplyOptions): Promise<unknown>;
 }
 
 /** What one command needs: its own Game API methods, the pick lists it may open, and where to log a failure. */
@@ -47,13 +65,16 @@ export interface LookupContext<Method extends keyof LookupApi> {
 }
 
 /** A private message: its text and, for a pick list, its select menu. */
-type PrivateMessage = Pick<InteractionReplyOptions, "content" | "components">;
+export type PrivateMessage = Pick<InteractionReplyOptions, "content" | "components">;
+
+/** A public card: its embed and, for an Alliance with members, its roster menu. */
+export type CardMessage = Pick<InteractionEditReplyOptions, "embeds" | "components">;
 
 /** Lookups never mention anyone, whatever the Game API or the Member typed. */
 export const allowedMentions: MessageMentionOptions = { parse: [] };
 
 /** Every result that gives no card. */
-type Failure<T> = Exclude<LookupResult<T>, { readonly kind: "found" }>;
+export type Failure<T> = Exclude<LookupResult<T>, { readonly kind: "found" }>;
 
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
 function sharedPlayerFailureText(
@@ -83,28 +104,6 @@ export function playerFailureText(failure: Failure<Player>, uid: Uid, now: Date)
       return lookupMessages.playerNotPrepared(uid);
     default:
       return sharedPlayerFailureText(failure, now);
-  }
-}
-
-function allianceFailureText(
-  failure: Failure<Alliance>,
-  kingdom: KingdomNumber,
-  key: AllianceKey,
-  now: Date,
-): string {
-  switch (failure.kind) {
-    case "not-found":
-      return lookupMessages.allianceNotFound(key, kingdom);
-    case "ambiguous":
-      return lookupMessages.ambiguous(key, failure.matches);
-    case "quota-spent":
-    case "reserve-kept":
-      return lookupMessages.quotaSpent(failure.resetsAt, now);
-    case "not-prepared":
-    case "try-again":
-      return lookupMessages.tryAgain;
-    case "unavailable":
-      return lookupMessages.unavailable;
   }
 }
 
@@ -143,6 +142,71 @@ function playerNameFailureMessage(
   }
 }
 
+/** The private pick list for an ambiguous Alliance, opened for the caller; with nothing to pick, a broken lookup. */
+function alliancePickList(
+  key: AllianceKey,
+  matches: readonly Match[],
+  ownerId: string,
+  pickSessions: Pick<PickSessions, "open">,
+  now: Date,
+): PrivateMessage {
+  const { listed } = listedAllianceMatches(matches);
+  if (listed.length === 0) return { content: lookupMessages.unavailable };
+  const sessionId = pickSessions.open(ownerId, { kind: "alliances", matches: listed }, now);
+  return renderAlliancePickList(key, matches, sessionId);
+}
+
+/**
+ * The private answer to an Alliance lookup that gave no card. `notFound` is the text for a missing Alliance, which
+ * depends on how the Member asked; an ambiguous answer becomes a pick list.
+ */
+export function allianceFailureMessage(
+  failure: Failure<Alliance>,
+  key: AllianceKey,
+  notFound: string,
+  ownerId: string,
+  pickSessions: Pick<PickSessions, "open">,
+  now: Date,
+): PrivateMessage {
+  switch (failure.kind) {
+    case "not-found":
+      return { content: notFound };
+    case "ambiguous":
+      return alliancePickList(key, failure.matches, ownerId, pickSessions, now);
+    case "quota-spent":
+    case "reserve-kept":
+      return { content: lookupMessages.quotaSpent(failure.resetsAt, now) };
+    case "not-prepared":
+    case "try-again":
+      return { content: lookupMessages.tryAgain };
+    case "unavailable":
+      return { content: lookupMessages.unavailable };
+  }
+}
+
+/** The public reply that shows a Player: the Player card. */
+export function playerCardMessage(player: Player, fetchedAt: Date, now: Date): CardMessage {
+  return { embeds: [renderPlayerCard(player, fetchedAt, now)] };
+}
+
+/**
+ * The public reply that shows an Alliance: its card and, when the roster has members, the roster menu under it. The
+ * menu's pick list is opened for the caller, with the roster in the order the card lists it.
+ */
+export function allianceCardMessage(
+  alliance: Alliance,
+  fetchedAt: Date,
+  now: Date,
+  ownerId: string,
+  pickSessions: Pick<PickSessions, "open">,
+): CardMessage {
+  const embeds = [renderAllianceCard(alliance, fetchedAt, now)];
+  if (alliance.roster.length === 0) return { embeds };
+  const entries = sortRoster(alliance.roster);
+  const sessionId = pickSessions.open(ownerId, { kind: "roster", entries }, now);
+  return { embeds, components: renderRosterComponents(entries, 0, sessionId) };
+}
+
 /** The text of a thrown value, for a log line. */
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -170,7 +234,7 @@ export async function replyPrivately(
 }
 
 /** Removes the thinking placeholder and tells the caller the message privately. */
-async function removePlaceholderAndTell(interaction: LookupInteraction, message: PrivateMessage): Promise<void> {
+async function removePlaceholderAndTell(interaction: PlaceholderInteraction, message: PrivateMessage): Promise<void> {
   await interaction.deleteReply();
   await interaction.followUp({ ...message, flags: MessageFlags.Ephemeral, allowedMentions });
 }
@@ -180,11 +244,11 @@ async function removePlaceholderAndTell(interaction: LookupInteraction, message:
  * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
  * that throws is logged and told as unavailable.
  */
-async function showLookup<T>(
-  interaction: LookupInteraction,
+export async function showLookup<T>(
+  interaction: PlaceholderInteraction,
   context: { readonly now: () => Date; readonly logError: (message: string) => void },
   ask: () => Promise<LookupResult<T>>,
-  render: (value: T, fetchedAt: Date, now: Date) => APIEmbed,
+  card: (value: T, fetchedAt: Date, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
 ): Promise<void> {
   await interaction.deferReply();
@@ -202,17 +266,12 @@ async function showLookup<T>(
   }
 
   try {
-    const embed = render(result.value, result.fetchedAt, context.now());
-    await interaction.editReply({ embeds: [embed], allowedMentions });
+    const message = card(result.value, result.fetchedAt, context.now());
+    await interaction.editReply({ ...message, allowedMentions });
   } catch (error) {
     context.logError(`Showing the card failed: ${errorText(error)}`);
     await removePlaceholderAndTell(interaction, { content: lookupMessages.unavailable });
   }
-}
-
-/** A Kingdom option that must be there: a missing or invalid one is invalid input. */
-function parseKingdomOption(value: number | null): ParseResult<KingdomNumber> {
-  return value === null ? { ok: false } : parseKingdom(value);
 }
 
 /** A Kingdom option that may be left out: none is valid, an invalid one is not. */
@@ -238,7 +297,7 @@ async function lookUpPlayerByUid(
     interaction,
     context,
     () => context.gameApi.getPlayer(uid, "lookup"),
-    renderPlayerCard,
+    playerCardMessage,
     (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
   );
 }
@@ -265,7 +324,7 @@ async function lookUpPlayerByName(
     interaction,
     context,
     () => context.gameApi.findPlayer(playerName, playerKingdom, "lookup"),
-    renderPlayerCard,
+    playerCardMessage,
     (failure, now) =>
       playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now),
   );
@@ -294,33 +353,98 @@ export async function handlePlayer(
   });
 }
 
-/** Answers /alliance: invalid input privately at once, otherwise a public card or the reason in private. */
+/**
+ * The shared Alliance flow for both ways of asking: the card with its roster menu, or the reason in private, and a
+ * pick list for an ambiguous answer.
+ */
+async function showAlliance(
+  interaction: LookupInteraction,
+  context: LookupContext<"getAlliance" | "findAlliance">,
+  key: AllianceKey,
+  ask: () => Promise<LookupResult<Alliance>>,
+  notFound: string,
+): Promise<void> {
+  const ownerId = interaction.user.id;
+  await showLookup(
+    interaction,
+    context,
+    ask,
+    (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions),
+    (failure, now) => allianceFailureMessage(failure, key, notFound, ownerId, context.pickSessions, now),
+  );
+}
+
+/** /alliance with a Kingdom and a tag: the Alliance of that Kingdom with that tag. */
+async function lookUpAllianceByTag(
+  interaction: LookupInteraction,
+  context: LookupContext<"getAlliance" | "findAlliance">,
+  kingdomValue: number,
+  tagText: string,
+): Promise<void> {
+  const kingdom = parseKingdom(kingdomValue);
+  if (!kingdom.ok) {
+    await replyPrivately(interaction, lookupMessages.invalidKingdom);
+    return;
+  }
+  const parsedTag = parseAllianceKey(tagText);
+  if (!parsedTag.ok) {
+    await replyPrivately(interaction, lookupMessages.invalidAlliance);
+    return;
+  }
+
+  const allianceKingdom = kingdom.value;
+  const tag = parsedTag.value;
+  await showAlliance(
+    interaction,
+    context,
+    tag,
+    () => context.gameApi.getAlliance(allianceKingdom, tag, "lookup"),
+    lookupMessages.allianceNotFound(tag, allianceKingdom),
+  );
+}
+
+/** /alliance with a full name alone: every Alliance with exactly that name, from any Kingdom. */
+async function lookUpAllianceByName(
+  interaction: LookupInteraction,
+  context: LookupContext<"getAlliance" | "findAlliance">,
+  nameText: string,
+): Promise<void> {
+  const parsedName = parseAllianceKey(nameText);
+  if (!parsedName.ok) {
+    await replyPrivately(interaction, lookupMessages.giveKingdomAndTagOrName);
+    return;
+  }
+
+  const name = parsedName.value;
+  await showAlliance(
+    interaction,
+    context,
+    name,
+    () => context.gameApi.findAlliance(name, "lookup"),
+    lookupMessages.allianceNameNotFound(name),
+  );
+}
+
+/**
+ * Answers /alliance: a Kingdom with a tag, or a full name alone, never a mix. Invalid input is answered privately at
+ * once; otherwise a public card, a private pick list for an ambiguous answer, or the reason in private.
+ */
 export async function handleAlliance(
   interaction: LookupInteraction,
-  context: LookupContext<"getAlliance">,
+  context: LookupContext<"getAlliance" | "findAlliance">,
 ): Promise<void> {
   await answer("/alliance", context, async () => {
-    const kingdom = parseKingdomOption(interaction.options.getInteger("kingdom"));
-    if (!kingdom.ok) {
-      await replyPrivately(interaction, lookupMessages.invalidKingdom);
+    const kingdomValue = interaction.options.getInteger("kingdom");
+    const tagText = interaction.options.getString("alliance");
+    const nameText = interaction.options.getString("name");
+    if (kingdomValue !== null && tagText !== null && nameText === null) {
+      await lookUpAllianceByTag(interaction, context, kingdomValue, tagText);
       return;
     }
-
-    const keyText = interaction.options.getString("alliance");
-    const key = keyText === null ? { ok: false as const } : parseAllianceKey(keyText);
-    if (!key.ok) {
-      await replyPrivately(interaction, lookupMessages.invalidAlliance);
+    if (kingdomValue === null && tagText === null && nameText !== null) {
+      await lookUpAllianceByName(interaction, context, nameText);
       return;
     }
-
-    const kingdomNumber = kingdom.value;
-    const allianceKey = key.value;
-    await showLookup(
-      interaction,
-      context,
-      () => context.gameApi.getAlliance(kingdomNumber, allianceKey, "lookup"),
-      renderAllianceCard,
-      (failure, now) => ({ content: allianceFailureText(failure, kingdomNumber, allianceKey, now) }),
-    );
+    await replyPrivately(interaction, lookupMessages.giveKingdomAndTagOrName);
   });
 }

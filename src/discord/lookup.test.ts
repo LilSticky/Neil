@@ -1,7 +1,9 @@
 import { ComponentType, MessageFlags } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import { sortRoster } from "../domain/alliance-rank.js";
 import {
+  parseAllianceKey,
   parseKingdom,
   parsePlayerName,
   parseUid,
@@ -10,9 +12,9 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
+import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
-import { lookupMessages } from "./lookup-cards.js";
+import { lookupMessages, renderRosterComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
@@ -55,6 +57,7 @@ type FindPlayer = (
   purpose: RequestPurpose,
 ) => Promise<LookupResult<Player>>;
 type GetAlliance = (kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
+type FindAlliance = (name: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
 
 /** A pick list store that opens every pick list with the same id. */
 function pickSessionsSpy() {
@@ -512,20 +515,21 @@ const alliance: Alliance = {
   roster: [],
 };
 
-/** A context whose fake Game API answers every alliance lookup with the given result. */
+/** A context whose fake Game API answers every alliance lookup, by tag or by full name, with the given result. */
 function allianceContextReturning(result: LookupResult<Alliance>) {
   const logged: string[] = [];
   const getAlliance = vi.fn<GetAlliance>(() => Promise.resolve(result));
+  const findAlliance = vi.fn<FindAlliance>(() => Promise.resolve(result));
   const pickSessions = pickSessionsSpy();
   const context = {
-    gameApi: { getAlliance },
+    gameApi: { getAlliance, findAlliance },
     pickSessions,
     now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
   };
-  return { context, getAlliance, pickSessions, logged };
+  return { context, getAlliance, findAlliance, pickSessions, logged };
 }
 
 describe("handleAlliance", () => {
@@ -659,30 +663,45 @@ describe("handleAlliance", () => {
     ]);
   });
 
-  test("removes the thinking placeholder and privately lists the matches when the key is ambiguous", async () => {
+  test("removes the thinking placeholder, opens a private alliance pick list for the caller when the tag is ambiguous", async () => {
     const matches: readonly Match[] = [
-      { tag: "NML", name: "No Man's Land", kingdom: 1, uid: "145563254785" },
-      { tag: "NMX", name: "No Man's Land", kingdom: 2, uid: "93159425" },
+      { tag: "NML", name: "No Man's Land", kingdom: 1 },
+      { tag: "NMX", name: "No Man's Land", kingdom: 2 },
     ];
     const interaction = new FakeLookupInteraction({
       strings: { alliance: "NML" },
       integers: { kingdom: 1 },
-    });
-    const { context } = allianceContextReturning({
+    }, USER_ID);
+    const { context, pickSessions } = allianceContextReturning({
       kind: "ambiguous",
       matches,
     });
 
     await handleAlliance(interaction, context);
 
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "alliances", matches }, NOW);
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
       { method: "deleteReply" },
       {
         method: "followUp",
         options: {
-          content:
-            "More than one alliance matches \"NML\": [NML] No Man's Land, [NMX] No Man's Land. Try the exact tag.",
+          content: 'Several alliances are named "NML". Pick one:',
+          components: [
+            {
+              type: ComponentType.ActionRow,
+              components: [
+                {
+                  type: ComponentType.StringSelect,
+                  custom_id: `pick:${PICK_ID}:select`,
+                  options: [
+                    { label: "[NML] No Man's Land · kingdom #1", value: "0" },
+                    { label: "[NMX] No Man's Land · kingdom #2", value: "1" },
+                  ],
+                },
+              ],
+            },
+          ],
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -759,6 +778,207 @@ describe("handleAlliance failures that give no card", () => {
           },
         },
       ]);
+    },
+  );
+});
+
+function allianceKey(text: string): AllianceKey {
+  const parsed = parseAllianceKey(text);
+  if (!parsed.ok) throw new Error(`test Alliance key "${text}" is not valid`);
+  return parsed.value;
+}
+
+/** Members of the Alliance, in the order the tracker lists them; the card and the menu show them by rank. */
+const rosterMembers: readonly RosterEntry[] = [
+  { uid: uid("93159425"), name: "Benedict", allianceRank: "R3" },
+  { uid: uid("179060285441"), name: "etranger", allianceRank: "R4" },
+  { uid: uid("147744374785"), name: "Settong", allianceRank: "R1" },
+];
+const allianceWithRoster: Alliance = { ...alliance, roster: rosterMembers };
+const sortedMembers = sortRoster(rosterMembers);
+
+describe("handleAlliance by kingdom and tag, with a roster", () => {
+  test("defers publicly, shows the card with the roster menu to everyone, and opens a roster pick list for the caller", async () => {
+    const interaction = new FakeLookupInteraction(
+      { strings: { alliance: "NML" }, integers: { kingdom: 1 } },
+      USER_ID,
+    );
+    const { context, pickSessions } = allianceContextReturning({
+      kind: "found",
+      value: allianceWithRoster,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers }, NOW);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
+          components: renderRosterComponents(sortedMembers, 0, PICK_ID),
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("shows the card without a roster menu, and opens no roster pick list, when the roster is empty", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { alliance: "NML" }, integers: { kingdom: 1 } });
+    const { context, pickSessions } = allianceContextReturning({
+      kind: "found",
+      value: alliance,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).not.toHaveBeenCalled();
+    expect(interaction.calls).toHaveLength(2);
+    const reply = interaction.calls[1];
+    expect(reply?.method === "editReply" ? reply.options.components ?? [] : undefined).toEqual([]);
+  });
+});
+
+describe("handleAlliance by the Alliance's full name", () => {
+  test("asks the Game API for the Alliance by its full name, for the lookup, and no Kingdom is needed", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const { context, findAlliance, getAlliance } = allianceContextReturning({
+      kind: "found",
+      value: allianceWithRoster,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey("No Man's Land"), "lookup");
+    expect(getAlliance).not.toHaveBeenCalled();
+  });
+
+  test("defers publicly, shows the card with the roster menu, and opens a roster pick list when the name matches one Alliance", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } }, USER_ID);
+    const { context, pickSessions } = allianceContextReturning({
+      kind: "found",
+      value: allianceWithRoster,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers }, NOW);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
+          components: renderRosterComponents(sortedMembers, 0, PICK_ID),
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("removes the thinking placeholder and privately opens an alliance pick list when several Alliances have the name", async () => {
+    const matches: readonly Match[] = [
+      { tag: "NML", name: "No Man's Land", kingdom: 1 },
+      { tag: "NMX", name: "No Man's Land", kingdom: 2 },
+    ];
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } }, USER_ID);
+    const { context, pickSessions } = allianceContextReturning({ kind: "ambiguous", matches });
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "alliances", matches }, NOW);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: 'Several alliances are named "No Man\'s Land". Pick one:',
+          components: [
+            {
+              type: ComponentType.ActionRow,
+              components: [
+                {
+                  type: ComponentType.StringSelect,
+                  custom_id: `pick:${PICK_ID}:select`,
+                  options: [
+                    { label: "[NML] No Man's Land · kingdom #1", value: "0" },
+                    { label: "[NMX] No Man's Land · kingdom #2", value: "1" },
+                  ],
+                },
+              ],
+            },
+          ],
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("removes the thinking placeholder and tells the caller privately when no Alliance has exactly that name", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const { context } = allianceContextReturning({ kind: "not-found" });
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content:
+            'No alliance is named exactly "No Man\'s Land". Use the full name, or the kingdom and tag; approximate names are not supported.',
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handleAlliance with a combination that is neither a kingdom and tag nor a full name", () => {
+  test.each([
+    { label: "nothing at all", strings: {}, integers: {} },
+    { label: "a Kingdom alone", strings: {}, integers: { kingdom: 1 } },
+    { label: "a tag alone, without a Kingdom", strings: { alliance: "NML" }, integers: {} },
+    { label: "a full name with a Kingdom", strings: { name: "No Man's Land" }, integers: { kingdom: 1 } },
+    { label: "a full name with a tag", strings: { name: "No Man's Land", alliance: "NML" }, integers: {} },
+    {
+      label: "a full name, a tag and a Kingdom",
+      strings: { name: "No Man's Land", alliance: "NML" },
+      integers: { kingdom: 1 },
+    },
+  ])(
+    "answers $label privately with the contract text, without deferring or asking the Game API",
+    async ({ strings, integers }) => {
+      const interaction = new FakeLookupInteraction({ strings, integers });
+      const { context, getAlliance, findAlliance } = allianceContextReturning({
+        kind: "found",
+        value: alliance,
+        fetchedAt: FETCHED_AT,
+      });
+
+      await handleAlliance(interaction, context);
+
+      expect(interaction.calls).toEqual([
+        {
+          method: "reply",
+          options: {
+            content: lookupMessages.giveKingdomAndTagOrName,
+            flags: MessageFlags.Ephemeral,
+            allowedMentions: { parse: [] },
+          },
+        },
+      ]);
+      expect(getAlliance).not.toHaveBeenCalled();
+      expect(findAlliance).not.toHaveBeenCalled();
     },
   );
 });
@@ -918,8 +1138,9 @@ describe("handleAlliance when the Game API throws", () => {
     });
     const logged: string[] = [];
     const getAlliance = vi.fn<GetAlliance>(() => Promise.reject(new Error("tracker connection reset")));
+    const findAlliance = vi.fn<FindAlliance>(() => Promise.reject(new Error("tracker connection reset")));
     const context = {
-      gameApi: { getAlliance },
+      gameApi: { getAlliance, findAlliance },
       pickSessions: pickSessionsSpy(),
       now: () => NOW,
       logError: (message: string) => {

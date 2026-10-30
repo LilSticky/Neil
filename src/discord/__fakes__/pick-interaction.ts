@@ -1,11 +1,13 @@
-import type { InteractionReplyOptions, InteractionUpdateOptions } from "discord.js";
+import type { InteractionEditReplyOptions, InteractionReplyOptions, InteractionUpdateOptions } from "discord.js";
 
-export type PickCallName = "update" | "deferUpdate" | "followUp" | "reply";
+export type PickCallName = "update" | "deferReply" | "editReply" | "deleteReply" | "followUp" | "reply";
 
 /** One call the handler made on a component interaction, in the order it was made. */
 export type PickCall =
   | { readonly method: "update"; readonly options: InteractionUpdateOptions }
-  | { readonly method: "deferUpdate" }
+  | { readonly method: "deferReply" }
+  | { readonly method: "editReply"; readonly options: InteractionEditReplyOptions }
+  | { readonly method: "deleteReply" }
   | { readonly method: "followUp"; readonly options: InteractionReplyOptions }
   | { readonly method: "reply"; readonly options: InteractionReplyOptions };
 
@@ -30,8 +32,18 @@ export class FakePickInteraction {
     return Promise.resolve();
   }
 
-  deferUpdate(): Promise<void> {
-    this.calls.push({ method: "deferUpdate" });
+  deferReply(): Promise<void> {
+    this.calls.push({ method: "deferReply" });
+    return Promise.resolve();
+  }
+
+  editReply(options: InteractionEditReplyOptions): Promise<void> {
+    this.calls.push({ method: "editReply", options });
+    return Promise.resolve();
+  }
+
+  deleteReply(): Promise<void> {
+    this.calls.push({ method: "deleteReply" });
     return Promise.resolve();
   }
 

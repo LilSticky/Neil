@@ -67,6 +67,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     getPlayer: () => Promise.resolve({ kind: "not-found" } as const),
     findPlayer: () => Promise.resolve({ kind: "not-found" } as const),
     getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+    findAlliance: () => Promise.resolve({ kind: "not-found" } as const),
     quotaToday: () => ({
       day: utcDayOf(new Date("2026-10-29T12:00:00Z")),
       used: 0,

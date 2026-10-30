@@ -225,49 +225,6 @@ describe("lookupMessages for /alliance", () => {
       'No alliance "N\\_M\\*" in kingdom #1.',
     );
   });
-
-  test("ambiguous lists each match as [tag] name and asks for the exact tag", () => {
-    const matches: readonly Match[] = [
-      { tag: "NML", name: "No Man's Land", kingdom: 1, uid: "145563254785" },
-      { tag: "NMX", name: "No Man's Land", kingdom: 2, uid: "93159425" },
-    ];
-
-    expect(lookupMessages.ambiguous(allianceKey("No Man's Land"), matches)).toBe(
-      "More than one alliance matches \"No Man's Land\": [NML] No Man's Land, [NMX] No Man's Land. Try the exact tag.",
-    );
-  });
-
-  test("ambiguous escapes the key and the names", () => {
-    const matches: readonly Match[] = [
-      { tag: "N_M", name: "*Bold*", kingdom: 1 },
-      { tag: "NMX", name: "Plain", kingdom: 2 },
-    ];
-
-    expect(lookupMessages.ambiguous(allianceKey("N_M"), matches)).toBe(
-      'More than one alliance matches "N\\_M": [N\\_M] \\*Bold\\*, [NMX] Plain. Try the exact tag.',
-    );
-  });
-});
-
-describe("lookupMessages.ambiguous with many matches", () => {
-  const manyMatches: readonly Match[] = Array.from({ length: 60 }, (_, index) => ({
-    tag: `T${index.toString().padStart(2, "0")}`,
-    name: "C".repeat(40),
-    kingdom: index + 1,
-  }));
-
-  test("lists at most 10 matches, then says how many more there are", () => {
-    const text = lookupMessages.ambiguous(allianceKey("Clan"), manyMatches);
-
-    expect(text.match(/\[T\d{2}\] C{40}/g)).toHaveLength(10);
-    expect(text).toContain("[T09] " + "C".repeat(40));
-    expect(text).not.toContain("[T10] " + "C".repeat(40));
-    expect(text).toContain("and 50 more");
-  });
-
-  test("keeps the whole text within Discord's 2000-character message limit", () => {
-    expect(lookupMessages.ambiguous(allianceKey("Clan"), manyMatches).length).toBeLessThanOrEqual(2000);
-  });
 });
 
 describe("card titles within Discord's 256-character limit", () => {
