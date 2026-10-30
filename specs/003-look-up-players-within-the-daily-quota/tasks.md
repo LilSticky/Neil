@@ -161,7 +161,7 @@ description: "Task list for slice 003, Look up players within the daily quota"
 - [x] T032 `spec-auditor` against spec.md; update GAME-API.md if figures behaved unexpectedly; STATUS, ROADMAP
   (`done`), remove the "no cache or quota counter" known-broken item; PR (`Closes` the slice issue)
   *Done 2026-10-30: audit gaps closed with tests (6775d97); figures behaved as documented; PR #9 closes #8.*
-- [ ] T033 Add `DISCORD_MODERATOR_ROLE_ID` and `DISCORD_KING_ROLE_ID` in the Wispbyte panel before the merge deploys
+- [x] T033 Add `DISCORD_MODERATOR_ROLE_ID` and `DISCORD_KING_ROLE_ID` in the Wispbyte panel before the merge deploys
   (manual, user), merge, restart, repeat T031's `/quota` step against Wispbyte
 
 ## Dependencies
