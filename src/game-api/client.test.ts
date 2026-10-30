@@ -89,6 +89,18 @@ function quotaOn(store: FakeQuotaStore, now: () => Date): QuotaKeeper {
   return new QuotaKeeper({ store, now });
 }
 
+function jsonResponseWithHeaders(status: number, body: unknown, headers: Record<string, string>): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json", ...headers },
+  });
+}
+
+/** The body of a player answer without its `quota` key, so only the x-ratelimit headers can carry the figures. */
+function bodyWithoutQuota(body: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(body).filter(([key]) => key !== "quota"));
+}
+
 /** The random factor of a retry pause: the middle of [0, 1), so the pause is exactly retryDelay(n, 0.5). */
 const JITTER = 0.5;
 
@@ -758,6 +770,22 @@ describe("GameApiClient Daily Quota gate", () => {
     expect(refused).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
   });
 
+  test.each([
+    ["200", 200, bodyWithoutQuota(playerInAlliance)],
+    ["404", 404, { detail: "player_not_found" }],
+  ])(
+    "a %s without a body quota adopts the x-ratelimit headers as the Daily Quota figures",
+    async (_label, status, body) => {
+      const store = new FakeQuotaStore();
+      const headers = { "x-ratelimit-limit": "2000", "x-ratelimit-remaining": "5" };
+      const { fetch } = fakeFetch(() => jsonResponseWithHeaders(status, body, headers));
+
+      await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+      expect(store.current).toMatchObject({ used: 1995, limit: 2000, confirmedAt: FIXED_NOW });
+    },
+  );
+
   test("after a 429 makes no fetch until 00:00 UTC, then fetches again once the clock passes midnight", async () => {
     const store = new FakeQuotaStore();
     let answer: () => Response = () => jsonResponse(429, { detail: "rate_limited" });
@@ -791,6 +819,23 @@ describe("GameApiClient Daily Quota gate", () => {
     answer = () => jsonResponse(429, { detail: "rate_limited" });
     await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
     const stale = await client.getPlayer(uid);
+
+    expect(sent).toHaveLength(2);
+    expect(stale).toEqual(first);
+    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+  });
+
+  test("when spent, a cached alliance past its TTL is answered as found with its old fetchedAt, and no fetch", async () => {
+    const store = new FakeQuotaStore();
+    let answer: () => Response = () => jsonResponse(200, alliance);
+    const { fetch, sent } = fakeFetch(() => answer());
+    const client = clientWith(fetch, now, quotaOn(store, now));
+
+    const first = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
+    answer = () => jsonResponse(429, { detail: "rate_limited" });
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const stale = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);

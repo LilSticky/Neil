@@ -183,6 +183,31 @@ describe("start", () => {
     ]);
   });
 
+  test("a corrupt Daily Quota closes the store and exits 1 without connecting", async () => {
+    const { deps, calls } = fakeDeps({
+      openStore: () => ({
+        load: () => ({ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: startCount(2) }),
+        save: () => undefined,
+        close: () => calls.push("closeStore"),
+        dailyQuota: {
+          load: () => {
+            throw new Error("the Daily Quota in neil.db is corrupt; fix or remove it by hand");
+          },
+          save: () => undefined,
+        },
+      }),
+    });
+
+    await start(deps);
+
+    expect(calls).toEqual([
+      "prepareDataDir ./data",
+      "closeStore",
+      "stderr Neil cannot start: the Daily Quota in neil.db is corrupt; fix or remove it by hand",
+      "exit 1",
+    ]);
+  });
+
   test("invalid build info exits 1 without connecting", async () => {
     const { deps, calls } = fakeDeps({
       readBuildInfo: () => {
