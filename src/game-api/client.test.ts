@@ -603,6 +603,27 @@ describe("GameApiClient clock", () => {
     expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:05Z") });
   });
 
+  test("a found player's fetchedAt is the time its body was read, after the body took 1 s to arrive", async () => {
+    let clock = new Date("2026-10-30T15:20:00Z");
+    class SlowBodyResponse extends Response {
+      override text = async (): Promise<string> => {
+        clock = new Date("2026-10-30T15:20:01Z");
+        return Response.prototype.text.call(this);
+      };
+    }
+    const fetch: FetchLike = () =>
+      Promise.resolve(
+        new SlowBodyResponse(JSON.stringify(playerInAlliance), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+
+    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:01Z") });
+  });
+
   test("a 429 resets at the next 00:00 UTC after now, on whatever day now is", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(429, { detail: "rate_limited" }));
 
@@ -943,5 +964,22 @@ describe("GameApiClient retries", () => {
 
     // After 6 s and a 1 s pause, 13 s of the lookup are left.
     expect(timeout.mock.calls).toEqual([[15_000], [13_000]]);
+  });
+
+  test("a retry pause that runs past the 20 s lookup deadline sends no further request and counts none", async () => {
+    const clock = new FakeClock(FIXED_NOW);
+    const store = new FakeQuotaStore();
+    const { fetch, sent } = fakeFetch(() => textResponse(503, "error code: 503"));
+    const overrunningPause = (): Promise<void> => {
+      clock.took(21_000);
+      return Promise.resolve();
+    };
+    const { client } = loggingClientWith(fetch, clock.now, quotaOn(store, clock.now), overrunningPause);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toEqual({ kind: "try-again" });
+    expect(sent).toHaveLength(1);
+    expect(store.current).toMatchObject({ used: 1 });
   });
 });

@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
-import { canSend, nextReset, type DailyQuota } from "../domain/daily-quota.js";
+import { canSend, nextReset, type DailyQuota, type UtcDay } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
@@ -55,6 +55,13 @@ type Failure = Exclude<LookupResult<never>, { readonly kind: "found" }>;
 interface Transient {
   readonly kind: "transient";
   readonly detail: string;
+}
+
+/** A response to read, and the UTC day its request was counted on, which settles that count. */
+interface Reply {
+  readonly kind: "reply";
+  readonly response: Response;
+  readonly day: UtcDay;
 }
 
 /** A body that passed its schema, or the unexpected failure that was already logged. */
@@ -126,12 +133,12 @@ export class GameApiClient {
   private async fetchPlayer(uid: Uid): Promise<LookupResult<Player>> {
     const endpoint = "/players/{uid}";
 
-    const response = await this.request(endpoint, `/players/${uid}`);
-    if (!(response instanceof Response)) return response;
-    const fetchedAt = this.now();
+    const reply = await this.request(endpoint, `/players/${uid}`);
+    if (reply.kind !== "reply") return reply;
 
-    const read = await this.readBody(endpoint, response, playerBodySchema);
+    const read = await this.readBody(endpoint, reply, playerBodySchema);
     if (!read.ok) return read.failure;
+    const fetchedAt = this.now();
 
     const body = read.body;
     if (body.uid !== uid) return this.unexpected(endpoint, "status 200, answer is for another uid");
@@ -170,20 +177,20 @@ export class GameApiClient {
   private async fetchAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
     const endpoint = "/alliances/{kingdom}/{key}";
 
-    const response = await this.request(
+    const reply = await this.request(
       endpoint,
       `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
       true,
     );
-    if (!(response instanceof Response)) return response;
+    if (reply.kind !== "reply") return reply;
 
-    if (response.status === 409) {
-      const read = await this.readBody(endpoint, response, ambiguousBodySchema);
+    if (reply.response.status === 409) {
+      const read = await this.readBody(endpoint, reply, ambiguousBodySchema);
       if (!read.ok) return read.failure;
       return { kind: "ambiguous", matches: read.body.matches.map(toMatch) };
     }
 
-    const read = await this.readBody(endpoint, response, allianceBodySchema);
+    const read = await this.readBody(endpoint, reply, allianceBodySchema);
     if (!read.ok) return read.failure;
     const fetchedAt = this.now();
 
@@ -211,11 +218,11 @@ export class GameApiClient {
    * A 503 or 504 is retried with a pause while the Daily Quota, MAX_ATTEMPTS and the lookup deadline allow.
    * Only the outcome of the whole lookup is logged.
    */
-  private async request(endpoint: string, path: string, conflictIsAnswer = false): Promise<Response | Failure> {
+  private async request(endpoint: string, path: string, conflictIsAnswer = false): Promise<Reply | Failure> {
     const deadline = this.now().getTime() + LOOKUP_DEADLINE_MS;
     for (let attempt = 1; ; attempt += 1) {
       const outcome = await this.attempt(endpoint, path, deadline, conflictIsAnswer);
-      if (outcome instanceof Response || outcome.kind !== "transient") return outcome;
+      if (outcome.kind !== "transient") return outcome;
 
       const pause = retryDelay(attempt, this.random());
       if (!this.mayRetry(attempt, pause, deadline)) return this.fail(endpoint, outcome.detail, { kind: "try-again" });
@@ -235,8 +242,13 @@ export class GameApiClient {
     path: string,
     deadline: number,
     conflictIsAnswer: boolean,
-  ): Promise<Response | Failure | Transient> {
-    if (!this.quota.tryCount()) return { kind: "quota-spent", resetsAt: nextReset(this.now()) };
+  ): Promise<Reply | Failure | Transient> {
+    // A pause may have used up the deadline; then the lookup ends here, before anything is counted or sent.
+    if (this.now().getTime() >= deadline) {
+      return this.fail(endpoint, "lookup deadline passed", { kind: "try-again" });
+    }
+    const day = this.quota.tryCount();
+    if (day === undefined) return { kind: "quota-spent", resetsAt: nextReset(this.now()) };
 
     // A pause that ran long can leave no time; a timeout of 0 then gives up at once rather than throwing.
     const timeoutMs = Math.max(0, Math.min(this.timeoutMs, deadline - this.now().getTime()));
@@ -244,21 +256,21 @@ export class GameApiClient {
     try {
       response = await this.send(path, timeoutMs);
     } catch (error) {
-      this.quota.settle(undefined);
+      this.quota.settle(day, undefined);
       const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
       return this.fail(endpoint, timedOut ? "timeout" : "network", { kind: "try-again" });
     }
     const status = response.status;
     // An answer's body may carry the Daily Quota figures, so readBody settles it after reading the body.
-    if (status === 200) return response;
-    if (status === 409 && conflictIsAnswer) return response;
+    if (status === 200) return { kind: "reply", response, day };
+    if (status === 409 && conflictIsAnswer) return { kind: "reply", response, day };
     await this.discardBody(response);
     const detail = `status ${String(status)}`;
     if (status === 429) {
-      this.quota.limitReached();
+      this.quota.limitReached(day);
       return this.fail(endpoint, detail, { kind: "quota-spent", resetsAt: nextReset(this.now()) });
     }
-    this.settleFigures(endpoint, undefined, response.headers);
+    this.settleFigures(endpoint, day, undefined, response.headers);
     if (status === 404) return { kind: "not-found" };
     if (status === 502) return this.fail(endpoint, detail, { kind: "not-prepared" });
     if (status === 503 || status === 504) return { kind: "transient", detail };
@@ -267,17 +279,18 @@ export class GameApiClient {
   }
 
   /** Parses the body as JSON and checks it against the schema; a failure is logged with the reason. Settles the request. */
-  private async readBody<T>(endpoint: string, response: Response, schema: z.ZodType<T>): Promise<ReadBody<T>> {
+  private async readBody<T>(endpoint: string, reply: Reply, schema: z.ZodType<T>): Promise<ReadBody<T>> {
+    const { response, day } = reply;
     const status = `status ${response.status.toString()}`;
 
     let raw: unknown;
     try {
       raw = JSON.parse(await response.text());
     } catch {
-      this.settleFigures(endpoint, undefined, response.headers);
+      this.settleFigures(endpoint, day, undefined, response.headers);
       return { ok: false, failure: this.unexpected(endpoint, `${status}, body is not JSON`) };
     }
-    this.settleFigures(endpoint, raw, response.headers);
+    this.settleFigures(endpoint, day, raw, response.headers);
 
     const parsed = schema.safeParse(raw);
     if (!parsed.success) {
@@ -297,14 +310,14 @@ export class GameApiClient {
   }
 
   /** Ends the request in flight, adopting the Daily Quota figures from the body or headers when they can be read. */
-  private settleFigures(endpoint: string, body: unknown, headers: Headers): void {
+  private settleFigures(endpoint: string, day: UtcDay, body: unknown, headers: Headers): void {
     const figures = quotaFiguresFrom(body, headers);
     if (figures === "malformed") {
       this.logError(`Game API ${endpoint}: quota figures unreadable`);
-      this.quota.settle(undefined);
+      this.quota.settle(day, undefined);
       return;
     }
-    this.quota.settle(figures);
+    this.quota.settle(day, figures);
   }
 
   private fail(endpoint: string, detail: string, failure: Failure): Failure {

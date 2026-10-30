@@ -606,3 +606,72 @@ describe("handleAlliance when the card cannot be sent", () => {
     expect(logged).toEqual([expect.stringContaining("Unknown interaction")]);
   });
 });
+
+describe("handlePlayer when the Game API throws", () => {
+  test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const logged: string[] = [];
+    const getPlayer = vi.fn<(uid: Uid) => Promise<LookupResult<Player>>>(() =>
+      Promise.reject(new Error("tracker connection reset")),
+    );
+    const context = {
+      gameApi: { getPlayer },
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+    };
+
+    await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("tracker connection reset")]);
+  });
+});
+
+describe("handleAlliance when the Game API throws", () => {
+  test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { alliance: "NML" },
+      integers: { kingdom: 1 },
+    });
+    const logged: string[] = [];
+    const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey) => Promise<LookupResult<Alliance>>>(() =>
+      Promise.reject(new Error("tracker connection reset")),
+    );
+    const context = {
+      gameApi: { getAlliance },
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+    };
+
+    await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("tracker connection reset")]);
+  });
+});

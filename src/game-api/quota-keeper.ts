@@ -5,6 +5,7 @@ import {
   markLimitReached,
   todaysQuota,
   type DailyQuota,
+  type UtcDay,
 } from "../domain/daily-quota.js";
 
 /** The storage port for today's Daily Quota row; the storage adapter implements it. */
@@ -40,26 +41,36 @@ export class QuotaKeeper {
     return quota;
   }
 
-  /** Counts one request before it is sent. False, with nothing saved, when the Daily Quota is spent. */
-  tryCount(): boolean {
+  /**
+   * Counts one request before it is sent and returns the UTC day it is counted on. Undefined, with nothing saved,
+   * when the Daily Quota is spent.
+   */
+  tryCount(): UtcDay | undefined {
     const quota = this.today();
-    if (!canSend(quota)) return false;
+    if (!canSend(quota)) return undefined;
     this.store.save(countRequest(quota));
     this.inFlight += 1;
-    return true;
+    return quota.day;
   }
 
-  /** Ends one request in flight. With the Game API's figures, adopts them plus the requests still in flight. */
-  settle(figures: { readonly used: number; readonly limit: number } | undefined): void {
+  /**
+   * Ends one request in flight, counted on `day`. With the Game API's figures, adopts them plus the requests still
+   * in flight. Figures for a day that is over are dropped, as they describe a day that no longer counts.
+   */
+  settle(day: UtcDay, figures: { readonly used: number; readonly limit: number } | undefined): void {
     this.endRequest();
     if (figures === undefined) return;
-    this.store.save(adoptReported(this.today(), figures, this.inFlight, this.now()));
+    const quota = this.today();
+    if (quota.day !== day) return;
+    this.store.save(adoptReported(quota, figures, this.inFlight, this.now()));
   }
 
-  /** Ends the refused request in flight and marks today's Daily Quota as spent, as the Game API reported. */
-  limitReached(): void {
+  /** Ends the refused request in flight, counted on `day`, and marks that day's Daily Quota as spent. */
+  limitReached(day: UtcDay): void {
     this.endRequest();
-    this.store.save(markLimitReached(this.today(), this.now()));
+    const quota = this.today();
+    if (quota.day !== day) return;
+    this.store.save(markLimitReached(quota, this.now()));
   }
 
   private endRequest(): void {

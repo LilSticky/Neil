@@ -115,7 +115,8 @@ async function removePlaceholderAndTell(interaction: LookupInteraction, content:
 
 /**
  * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
- * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged.
+ * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
+ * that throws is logged and told as unavailable.
  */
 async function showLookup<T>(
   interaction: LookupInteraction,
@@ -125,7 +126,14 @@ async function showLookup<T>(
   failureText: (failure: Failure<T>, now: Date) => string,
 ): Promise<void> {
   await interaction.deferReply();
-  const result = await ask();
+  let result: LookupResult<T>;
+  try {
+    result = await ask();
+  } catch (error) {
+    context.logError(`Looking up failed: ${errorText(error)}`);
+    await removePlaceholderAndTell(interaction, lookupMessages.unavailable);
+    return;
+  }
   if (result.kind !== "found") {
     await removePlaceholderAndTell(interaction, failureText(result, context.now()));
     return;

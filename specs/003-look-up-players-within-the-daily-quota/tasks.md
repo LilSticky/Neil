@@ -151,7 +151,7 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 ## Phase 7: Polish
 
-- [ ] T030 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/storage/`; fixes via `implementer`
+- [x] T030 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/storage/`; fixes via `implementer`
 - [ ] T031 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)), needs the role IDs
   in `.env` (user); record the result here
 - [ ] T032 `spec-auditor` against spec.md; update GAME-API.md if figures behaved unexpectedly; STATUS, ROADMAP
