@@ -6,13 +6,24 @@ function chatInput(commandName: string) {
   return { isChatInputCommand: () => true, commandName };
 }
 
-/** One handler per slash command, each recording its calls. */
+/** A select menu or button interaction; the pick list custom id decides where it goes. */
+function component(kind: "select" | "button", customId: string) {
+  return {
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => kind === "select",
+    isButton: () => kind === "button",
+    customId,
+  };
+}
+
+/** One handler per slash command and per pick list interaction, each recording its calls. */
 function handlers() {
   return {
     ping: vi.fn(() => Promise.resolve()),
     player: vi.fn(() => Promise.resolve()),
     alliance: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
+    pick: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -85,11 +96,50 @@ describe("createClient", () => {
     const client = createClient(routed);
 
     client.emit(Events.InteractionCreate, chatInput("other") as never);
-    client.emit(Events.InteractionCreate, { isChatInputCommand: () => false } as never);
+    client.emit(
+      Events.InteractionCreate,
+      { isChatInputCommand: () => false, isStringSelectMenu: () => false, isButton: () => false } as never,
+    );
 
     expect(routed.ping).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands a string select menu whose custom id starts with pick: to the pick handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = component("select", "pick:a1b2c3d4:select");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.pick).toHaveBeenCalledWith(interaction);
+    expect(routed.player).not.toHaveBeenCalled();
+    expect(routed.alliance).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with pick: to the pick handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = component("button", "pick:a1b2c3d4:page:2");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.pick).toHaveBeenCalledWith(interaction);
+    expect(routed.player).not.toHaveBeenCalled();
+    expect(routed.alliance).not.toHaveBeenCalled();
+  });
+
+  test("ignores a component whose custom id is not a pick list's", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+
+    client.emit(Events.InteractionCreate, component("button", "roster:a1b2c3d4") as never);
+    client.emit(Events.InteractionCreate, component("select", "picks:a1b2c3d4:select") as never);
+
+    expect(routed.pick).not.toHaveBeenCalled();
   });
 });
 

@@ -1,13 +1,24 @@
-import { MessageFlags } from "discord.js";
+import { ComponentType, MessageFlags } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
-import { parseKingdom, parseUid, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import {
+  parseKingdom,
+  parsePlayerName,
+  parseUid,
+  type AllianceKey,
+  type KingdomNumber,
+  type PlayerName,
+  type Uid,
+} from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
 import { lookupMessages } from "./lookup-cards.js";
+import type { PickChoice } from "./pick-sessions.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
 const UID = "145563254785";
+const USER_ID = "310000000000000001";
+const PICK_ID = "a1b2c3d4";
 const FETCHED_AT = new Date("2026-10-30T15:20:00Z");
 const NOW = new Date("2026-10-30T16:00:00Z");
 const RESETS_AT = new Date("2026-10-31T00:00:00Z");
@@ -15,6 +26,12 @@ const RESETS_AT = new Date("2026-10-31T00:00:00Z");
 function uid(text: string): Uid {
   const parsed = parseUid(text);
   if (!parsed.ok) throw new Error(`test uid "${text}" is not a valid uid`);
+  return parsed.value;
+}
+
+function playerName(text: string): PlayerName {
+  const parsed = parsePlayerName(text);
+  if (!parsed.ok) throw new Error(`test Player Name "${text}" is not valid`);
   return parsed.value;
 }
 
@@ -31,18 +48,34 @@ const player: Player = {
   allianceRank: undefined,
 };
 
-/** A context whose fake Game API answers every lookup with the given result. */
+type GetPlayer = (uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>;
+type FindPlayer = (
+  name: PlayerName,
+  kingdom: KingdomNumber | undefined,
+  purpose: RequestPurpose,
+) => Promise<LookupResult<Player>>;
+type GetAlliance = (kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
+
+/** A pick list store that opens every pick list with the same id. */
+function pickSessionsSpy() {
+  return { open: vi.fn<(ownerId: string, choice: PickChoice, now: Date) => string>(() => PICK_ID) };
+}
+
+/** A context whose fake Game API answers every Player lookup, by uid or by name, with the given result. */
 function contextReturning(result: LookupResult<Player>) {
   const logged: string[] = [];
-  const getPlayer = vi.fn<(uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>>(() => Promise.resolve(result));
+  const getPlayer = vi.fn<GetPlayer>(() => Promise.resolve(result));
+  const findPlayer = vi.fn<FindPlayer>(() => Promise.resolve(result));
+  const pickSessions = pickSessionsSpy();
   const context = {
-    gameApi: { getPlayer },
+    gameApi: { getPlayer, findPlayer },
+    pickSessions,
     now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
   };
-  return { context, getPlayer, logged };
+  return { context, getPlayer, findPlayer, pickSessions, logged };
 }
 
 describe("handlePlayer", () => {
@@ -158,6 +191,241 @@ describe("handlePlayer", () => {
   });
 });
 
+describe("handlePlayer with a uid, a name or neither", () => {
+  test.each([
+    { label: "neither uid nor name", strings: {}, integers: {} },
+    { label: "a Kingdom alone", strings: {}, integers: { kingdom: 330 } },
+    { label: "both uid and name", strings: { uid: UID, name: "Vex" }, integers: {} },
+  ])(
+    "answers $label privately with the help text, without deferring or asking the Game API",
+    async ({ strings, integers }) => {
+      const interaction = new FakeLookupInteraction({ strings, integers });
+      const { context, getPlayer, findPlayer } = contextReturning({
+        kind: "found",
+        value: player,
+        fetchedAt: FETCHED_AT,
+      });
+
+      await handlePlayer(interaction, context);
+
+      expect(interaction.calls).toEqual([
+        {
+          method: "reply",
+          options: {
+            content: lookupMessages.giveUidOrName,
+            flags: MessageFlags.Ephemeral,
+            allowedMentions: { parse: [] },
+          },
+        },
+      ]);
+      expect(getPlayer).not.toHaveBeenCalled();
+      expect(findPlayer).not.toHaveBeenCalled();
+    },
+  );
+
+  test("uses the uid flow when a uid comes with a Kingdom, and ignores the Kingdom", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { uid: UID },
+      integers: { kingdom: 330 },
+    });
+    const { context, getPlayer, findPlayer } = contextReturning({
+      kind: "found",
+      value: player,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(findPlayer).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    { label: "only dots", text: ".." },
+    { label: "longer than 32 characters", text: "x".repeat(33) },
+  ])(
+    "answers a name that is $label privately with the help text, without deferring or asking the Game API",
+    async ({ text }) => {
+      const interaction = new FakeLookupInteraction({ strings: { name: text } });
+      const { context, getPlayer, findPlayer } = contextReturning({
+        kind: "found",
+        value: player,
+        fetchedAt: FETCHED_AT,
+      });
+
+      await handlePlayer(interaction, context);
+
+      expect(interaction.calls).toEqual([
+        {
+          method: "reply",
+          options: {
+            content: lookupMessages.invalidPlayerName,
+            flags: MessageFlags.Ephemeral,
+            allowedMentions: { parse: [] },
+          },
+        },
+      ]);
+      expect(getPlayer).not.toHaveBeenCalled();
+      expect(findPlayer).not.toHaveBeenCalled();
+    },
+  );
+
+  test("asks the Game API for the Player by the trimmed name, without a Kingdom when none is given", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: " Vex " } });
+    const { context, findPlayer, getPlayer } = contextReturning({
+      kind: "found",
+      value: player,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), undefined, "lookup");
+    expect(getPlayer).not.toHaveBeenCalled();
+  });
+
+  test("asks the Game API for the Player by name in the given Kingdom", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { name: "Vex" },
+      integers: { kingdom: 330 },
+    });
+    const { context, findPlayer } = contextReturning({
+      kind: "found",
+      value: player,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), kingdom.value, "lookup");
+  });
+
+  test("defers publicly, then shows the Player card to everyone when the name matches one player", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "Vex" } });
+    const { context } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "Vex" })],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handlePlayer when a name matches several players", () => {
+  test("removes the thinking placeholder, opens a pick list for the caller and sends it privately", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "DrLOL" } }, USER_ID);
+    const matches: readonly Match[] = [
+      { uid: "93159425", name: "DrLOL", kingdom: 330 },
+      { name: "DrLOL" },
+      { uid: UID, name: "DrLOL", kingdom: 12 },
+    ];
+    const { context, pickSessions } = contextReturning({ kind: "ambiguous", matches });
+
+    await handlePlayer(interaction, context);
+
+    expect(pickSessions.open).toHaveBeenCalledWith(
+      USER_ID,
+      {
+        kind: "players",
+        matches: [
+          { uid: UID, name: "DrLOL", kingdom: 12 },
+          { uid: "93159425", name: "DrLOL", kingdom: 330 },
+        ],
+      },
+      NOW,
+    );
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: 'Several players are named "DrLOL". Pick one:',
+          components: [
+            {
+              type: ComponentType.ActionRow,
+              components: [
+                {
+                  type: ComponentType.StringSelect,
+                  custom_id: `pick:${PICK_ID}:select`,
+                  options: [
+                    { label: "DrLOL · kingdom #12", value: "0" },
+                    { label: "DrLOL · kingdom #330", value: "1" },
+                  ],
+                },
+              ],
+            },
+          ],
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handlePlayer when no player has the name", () => {
+  test.each([
+    {
+      label: "in a Kingdom",
+      integers: { kingdom: 330 },
+      text: 'No player is named "Vex" in kingdom #330. The name must be complete; a uid always works.',
+    },
+    {
+      label: "in any Kingdom",
+      integers: {},
+      text: 'No player is named "Vex". The name must be complete; a uid always works.',
+    },
+  ])("removes the thinking placeholder and tells the caller privately, $label", async ({ integers, text }) => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "Vex" }, integers });
+    const { context } = contextReturning({ kind: "not-found" });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: text,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("removes the thinking placeholder and tells the caller privately to check the name or try again later when the tracker could not prepare it", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "Vex" } });
+    const { context } = contextReturning({ kind: "not-prepared" });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content:
+            "Couldn't find a player named \"Vex\". Check the name; if it's right, the tracker may be busy, so try again later.",
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
 const privateFailures: readonly { readonly label: string; readonly result: LookupResult<Player>; readonly text: string }[] =
   [
     {
@@ -247,17 +515,17 @@ const alliance: Alliance = {
 /** A context whose fake Game API answers every alliance lookup with the given result. */
 function allianceContextReturning(result: LookupResult<Alliance>) {
   const logged: string[] = [];
-  const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>>(() =>
-    Promise.resolve(result),
-  );
+  const getAlliance = vi.fn<GetAlliance>(() => Promise.resolve(result));
+  const pickSessions = pickSessionsSpy();
   const context = {
     gameApi: { getAlliance },
+    pickSessions,
     now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
   };
-  return { context, getAlliance, logged };
+  return { context, getAlliance, pickSessions, logged };
 }
 
 describe("handleAlliance", () => {
@@ -613,11 +881,11 @@ describe("handlePlayer when the Game API throws", () => {
   test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     const logged: string[] = [];
-    const getPlayer = vi.fn<(uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>>(() =>
-      Promise.reject(new Error("tracker connection reset")),
-    );
+    const getPlayer = vi.fn<GetPlayer>(() => Promise.reject(new Error("tracker connection reset")));
+    const findPlayer = vi.fn<FindPlayer>(() => Promise.reject(new Error("tracker connection reset")));
     const context = {
-      gameApi: { getPlayer },
+      gameApi: { getPlayer, findPlayer },
+      pickSessions: pickSessionsSpy(),
       now: () => NOW,
       logError: (message: string) => {
         logged.push(message);
@@ -649,11 +917,10 @@ describe("handleAlliance when the Game API throws", () => {
       integers: { kingdom: 1 },
     });
     const logged: string[] = [];
-    const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>>(() =>
-      Promise.reject(new Error("tracker connection reset")),
-    );
+    const getAlliance = vi.fn<GetAlliance>(() => Promise.reject(new Error("tracker connection reset")));
     const context = {
       gameApi: { getAlliance },
+      pickSessions: pickSessionsSpy(),
       now: () => NOW,
       logError: (message: string) => {
         logged.push(message);

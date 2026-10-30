@@ -8,7 +8,13 @@ import {
 } from "discord.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import type { AllianceKey, KingdomNumber, PlayerName } from "../domain/lookup-input.js";
-import { listedPlayerMatches, type Alliance, type Match, type Player } from "../domain/player.js";
+import {
+  listedPlayerMatches,
+  type Alliance,
+  type Match,
+  type PickablePlayerMatch,
+  type Player,
+} from "../domain/player.js";
 
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
@@ -154,7 +160,13 @@ export const lookupMessages = {
     `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",
+  showing: (label: string): string => `Showing ${escapeText(label)}.`,
 } as const;
+
+/** A Player match as the pick list labels it: its name and Kingdom. */
+export function playerPickLabel(match: PickablePlayerMatch): string {
+  return `${match.name ?? "Unknown"} · kingdom #${match.kingdom.toString()}`;
+}
 
 /**
  * The private pick list for an ambiguous Player name: a select menu of the pickable matches, valued by their index
@@ -168,7 +180,7 @@ export function renderPlayerPickList(
   const { listed, leftOut } = listedPlayerMatches(matches);
   const note = leftOut > 0 ? `\n${PLAYER_PICK_LIMIT_NOTE}` : "";
   const options = listed.map((match, index) => ({
-    label: `${match.name ?? "Unknown"} · kingdom #${match.kingdom.toString()}`,
+    label: playerPickLabel(match),
     value: index.toString(),
   }));
   return {

@@ -81,16 +81,16 @@ sessions, roster in the domain) is shared by all three.
   [contracts/commands.md](contracts/commands.md#player) (option combination, invalid name, not found with and without
   Kingdom, not prepared) and the private pick list (`Several players are named …`, ≤ 25 options labelled
   `{name} · kingdom #{k}`, the "first 25" note). Implement in `src/discord/lookup-cards.ts`.
-- [ ] T013 [US1] Test `src/discord/lookup.test.ts` (fake interaction; `getString(name, false)` may return null):
+- [x] T013 [US1] Test `src/discord/lookup.test.ts` (fake interaction; `getString(name, false)` may return null):
   both or neither of uid and name → private text, no API call; uid with kingdom → uid flow; name → `findPlayer` with
   the Kingdom; `ambiguous` → placeholder removed and the private pick list sent, a session opened for the caller.
   Implement in `src/discord/lookup.ts`.
-- [ ] T014 [US1] Test `src/discord/pick.test.ts` (fake component interaction: `customId`, `user.id`, `values`,
+- [x] T014 [US1] Test `src/discord/pick.test.ts` (fake component interaction: `customId`, `user.id`, `values`,
   `update`, `deferUpdate`, `followUp`, `reply`): non-owner → private note, no API call (spec 1.6, SC-005); expired or
   unknown session → `This menu has expired. Run the command again.`; owner picks a Player match → private message
   updated to `Showing …` without components, `getPlayer(uid, "lookup")`, public card as follow-up; a failure → the
   uid texts privately. Implement `src/discord/pick.ts`.
-- [ ] T015 [US1] Test then implement routing in `src/discord/client.ts`: string-select and button interactions whose
+- [x] T015 [US1] Test then implement routing in `src/discord/client.ts`: string-select and button interactions whose
   custom id starts with `pick:` go to the pick handler; `connect` builds one `PickSessions` (clock injected) shared by
   the lookups and the pick handler.
 
