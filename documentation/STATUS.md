@@ -12,7 +12,7 @@ Slice 003 "Look up players within the daily quota" is in progress on branch `003
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Next step:** `/speckit-tasks` for slice 003 ([plan](../specs/003-look-up-players-within-the-daily-quota/plan.md) done).
+**Next step:** T001 in [tasks.md](../specs/003-look-up-players-within-the-daily-quota/tasks.md) (config: Officer role IDs, cache minutes).
 
 ## Known broken / WIP
 
