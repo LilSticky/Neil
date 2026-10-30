@@ -3,16 +3,20 @@ import { todaysQuota, type DailyQuota, type RequestPurpose } from "../domain/dai
 import {
   parseAllianceKey,
   parseKingdom,
+  parsePlayerName,
   parseUid,
   type AllianceKey,
   type KingdomNumber,
+  type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { type: "json" };
+import playerByName from "./__fixtures__/player-by-name.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
+import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
 import { type FetchLike, GameApiClient } from "./client.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./quota-keeper.js";
 
@@ -1110,5 +1114,184 @@ describe("GameApiClient retries", () => {
     expect(result).toEqual({ kind: "try-again" });
     expect(sent).toHaveLength(1);
     expect(store.current).toMatchObject({ used: 1 });
+  });
+});
+
+const PLAYER_NAME_PATH = "https://api.lastasylumtracker.com/v1/players/name/DrLOL";
+
+function parsedPlayerName(text: string): PlayerName {
+  const parsed = parsePlayerName(text);
+  if (!parsed.ok) throw new Error(`test player name "${text}" must parse`);
+  return parsed.value;
+}
+
+describe("GameApiClient.findPlayer request", () => {
+  test("takes a name, an optional Kingdom and a required purpose", () => {
+    const client = clientWith(fakeFetch(() => jsonResponse(200, playerByName)).fetch);
+
+    expectTypeOf<GameApiClient["findPlayer"]>().parameters.toEqualTypeOf<
+      [PlayerName, KingdomNumber | undefined, RequestPurpose]
+    >();
+    expect(client.findPlayer.length).toBe(3);
+  });
+
+  test("without a Kingdom sends GET to /players/name/{name} on the Game API", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+
+    await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(firstRequest(sent).url).toBe(PLAYER_NAME_PATH);
+  });
+
+  test("with a Kingdom sends GET to /players/{kingdom}/{name} on the Game API", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+
+    await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), parsedKingdom(1), "lookup");
+
+    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/players/1/DrLOL");
+  });
+
+  test("percent-encodes a name with a space", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+
+    await clientWith(fetch).findPlayer(parsedPlayerName("Dr LOL"), undefined, "lookup");
+
+    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/players/name/Dr%20LOL");
+  });
+});
+
+describe("GameApiClient.findPlayer result", () => {
+  test("a 200 for the name is found, mapped to a Player with its Alliance Rank", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, playerByName));
+
+    const result = await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(result).toEqual({
+      kind: "found",
+      value: {
+        uid: "145563254785",
+        name: "DrLOL",
+        kingdom: 1,
+        power: 15902728,
+        sanctuaryLevel: 23,
+        alliance: { tag: "NML", name: "No Man's Land" },
+        allianceRank: "R5",
+      },
+      fetchedAt: FIXED_NOW,
+    });
+  });
+
+  test("a 409 is ambiguous, each match with its uid and its server as Kingdom", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(409, playersAmbiguous));
+
+    const result = await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(result).toEqual({
+      kind: "ambiguous",
+      matches: [
+        { name: "DrLOL", kingdom: 1, uid: "145563254785" },
+        { name: "DrLOL", kingdom: 180, uid: "100000000002" },
+      ],
+    });
+  });
+
+  test("a 404 is not-found", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(404, { detail: "player_not_found" }));
+
+    const result = await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(result).toEqual({ kind: "not-found" });
+  });
+
+  test("a 502 is not-prepared", async () => {
+    const { fetch } = fakeFetch(() => textResponse(502, "error code: 502"));
+
+    const result = await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(result).toEqual({ kind: "not-prepared" });
+  });
+});
+
+describe("GameApiClient.findPlayer cache", () => {
+  test("names that differ only in case and surrounding spaces share one fetch", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+    const client = clientWith(fetch);
+
+    const first = await client.findPlayer(parsedPlayerName(" DrLol "), undefined, "lookup");
+    const second = await client.findPlayer(parsedPlayerName("drlol"), undefined, "lookup");
+
+    expect(sent).toHaveLength(1);
+    expect(second).toEqual(first);
+  });
+
+  test("a match list is cached too, so the same ambiguous name fetches once", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(409, playersAmbiguous));
+    const client = clientWith(fetch);
+
+    const first = await client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+    const second = await client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(sent).toHaveLength(1);
+    expect(first).toMatchObject({ kind: "ambiguous" });
+    expect(second).toEqual(first);
+  });
+
+  test("a name with a Kingdom is cached apart from the same name without one", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+    const client = clientWith(fetch);
+
+    await client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+    await client.findPlayer(parsedPlayerName("DrLOL"), parsedKingdom(1), "lookup");
+
+    expect(sent).toHaveLength(2);
+  });
+
+  test("a found Player is not also cached under its uid, so getPlayer fetches again", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+    const client = clientWith(fetch);
+
+    await client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(sent).toHaveLength(2);
+  });
+
+  test.each([
+    ["a 404 not-found", () => jsonResponse(404, { detail: "player_not_found" }), { kind: "not-found" }],
+    ["a 502 not-prepared", () => textResponse(502, "error code: 502"), { kind: "not-prepared" }],
+  ])("%s is not cached, so the next findPlayer fetches again", async (_label, respond, expected) => {
+    const { fetch, sent } = fakeFetch(respond);
+    const client = clientWith(fetch);
+
+    const first = await client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+    const second = await client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
+
+    expect(sent).toHaveLength(2);
+    expect(first).toEqual(expected);
+    expect(second).toEqual(expected);
+  });
+
+  test("two concurrent findPlayer calls for the same name share one fetch, and both are found", async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerByName));
+    const gatedFetch: FetchLike = async (input, init) => {
+      await fetch(input, init);
+      await gate;
+      return jsonResponse(200, playerByName);
+    };
+    const client = clientWith(gatedFetch);
+    const name = parsedPlayerName("DrLOL");
+
+    const first = client.findPlayer(name, undefined, "lookup");
+    const second = client.findPlayer(name, undefined, "lookup");
+    release();
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(sent).toHaveLength(1);
+    expect(a).toMatchObject({ kind: "found" });
+    expect(b).toMatchObject({ kind: "found" });
   });
 });

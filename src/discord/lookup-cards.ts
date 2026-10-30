@@ -1,7 +1,14 @@
-import { escapeMarkdown, type APIEmbed, type APIEmbedField } from "discord.js";
+import {
+  ComponentType,
+  escapeMarkdown,
+  type APIActionRowComponent,
+  type APIEmbed,
+  type APIEmbedField,
+  type APIStringSelectComponent,
+} from "discord.js";
 import { utcDayOf } from "../domain/daily-quota.js";
-import type { AllianceKey, KingdomNumber } from "../domain/lookup-input.js";
-import type { Alliance, Match, Player } from "../domain/player.js";
+import type { AllianceKey, KingdomNumber, PlayerName } from "../domain/lookup-input.js";
+import { listedPlayerMatches, type Alliance, type Match, type Player } from "../domain/player.js";
 
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
@@ -115,15 +122,26 @@ function matchLabel(match: Match): string {
   return `[${escapeText(match.tag ?? "Unknown")}] ${escapeText(match.name ?? "Unknown")}`;
 }
 
+/** The Player pick list's note when matches were left out. */
+const PLAYER_PICK_LIMIT_NOTE = "Only the first 25 are listed; add a kingdom to narrow it.";
+
 /** Texts Neil sends privately when a lookup does not give a card. Interpolated input is escaped. */
 export const lookupMessages = {
+  giveUidOrName: "Give a uid, or a name (and optionally a kingdom).",
   invalidUid:
     "That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid.",
+  invalidPlayerName: "Give the player's complete in-game name (up to 32 characters).",
   invalidKingdom: "The kingdom must be a number from 1 to 9999.",
   invalidAlliance: "Give the alliance's tag (up to 40 characters).",
   playerNotFound: (uid: string): string => `No player has the uid ${escapeText(uid)}.`,
   playerNotPrepared: (uid: string): string =>
     `Couldn't find a player with the uid ${escapeText(uid)}. Check the uid; if it's right, the tracker may be busy, so try again later.`,
+  playerNameNotFound: (name: PlayerName, kingdom: KingdomNumber | undefined): string => {
+    const inKingdom = kingdom === undefined ? "" : ` in kingdom #${kingdom.toString()}`;
+    return `No player is named "${escapeText(name)}"${inKingdom}. The name must be complete; a uid always works.`;
+  },
+  playerNameNotPrepared: (name: PlayerName): string =>
+    `Couldn't find a player named "${escapeText(name)}". Check the name; if it's right, the tracker may be busy, so try again later.`,
   allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
   ambiguous: (key: AllianceKey, matches: readonly Match[]): string => {
@@ -137,3 +155,29 @@ export const lookupMessages = {
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",
 } as const;
+
+/**
+ * The private pick list for an ambiguous Player name: a select menu of the pickable matches, valued by their index
+ * in the list, under the session id the pick handler looks up.
+ */
+export function renderPlayerPickList(
+  name: PlayerName,
+  matches: readonly Match[],
+  sessionId: string,
+): { readonly content: string; readonly components: APIActionRowComponent<APIStringSelectComponent>[] } {
+  const { listed, leftOut } = listedPlayerMatches(matches);
+  const note = leftOut > 0 ? `\n${PLAYER_PICK_LIMIT_NOTE}` : "";
+  const options = listed.map((match, index) => ({
+    label: `${match.name ?? "Unknown"} · kingdom #${match.kingdom.toString()}`,
+    value: index.toString(),
+  }));
+  return {
+    content: `Several players are named "${escapeText(name)}". Pick one:${note}`,
+    components: [
+      {
+        type: ComponentType.ActionRow,
+        components: [{ type: ComponentType.StringSelect, custom_id: `pick:${sessionId}:select`, options }],
+      },
+    ],
+  };
+}

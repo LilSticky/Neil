@@ -1,14 +1,23 @@
+import { ComponentType } from "discord.js";
 import { describe, expect, test } from "vitest";
 import {
   parseAllianceKey,
   parseKingdom,
+  parsePlayerName,
   parseUid,
   type AllianceKey,
   type KingdomNumber,
+  type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
 import type { Alliance, Match, Player } from "../domain/player.js";
-import { lookupMessages, renderAllianceCard, renderPlayerCard, timeLeft } from "./lookup-cards.js";
+import {
+  lookupMessages,
+  renderAllianceCard,
+  renderPlayerCard,
+  renderPlayerPickList,
+  timeLeft,
+} from "./lookup-cards.js";
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -371,5 +380,123 @@ describe("card footers say when the data was fetched", () => {
     expect(render(new Date("2026-10-03T09:05:00Z"), NOW)).toMatchObject({
       footer: { text: "Data from Last Asylum Tracker · as of 3 Oct 09:05 UTC" },
     });
+  });
+});
+
+function playerName(text: string): PlayerName {
+  const parsed = parsePlayerName(text);
+  if (!parsed.ok) throw new Error(`test player name "${text}" is not valid`);
+  return parsed.value;
+}
+
+describe("lookupMessages for /player by name", () => {
+  test("giveUidOrName gives the contract's text", () => {
+    expect(lookupMessages.giveUidOrName).toBe("Give a uid, or a name (and optionally a kingdom).");
+  });
+
+  test("invalidPlayerName gives the contract's text", () => {
+    expect(lookupMessages.invalidPlayerName).toBe(
+      "Give the player's complete in-game name (up to 32 characters).",
+    );
+  });
+
+  test("playerNameNotFound with a Kingdom names the name and the Kingdom", () => {
+    expect(lookupMessages.playerNameNotFound(playerName("DrLOL"), kingdom(1))).toBe(
+      'No player is named "DrLOL" in kingdom #1. The name must be complete; a uid always works.',
+    );
+  });
+
+  test("playerNameNotFound without a Kingdom names only the name", () => {
+    expect(lookupMessages.playerNameNotFound(playerName("DrLOL"), undefined)).toBe(
+      'No player is named "DrLOL". The name must be complete; a uid always works.',
+    );
+  });
+
+  test("playerNameNotFound escapes the name as typed", () => {
+    expect(lookupMessages.playerNameNotFound(playerName("Dr_LOL"), undefined)).toBe(
+      'No player is named "Dr\\_LOL". The name must be complete; a uid always works.',
+    );
+  });
+
+  test("playerNameNotPrepared names the name and hints that the name may be wrong or the tracker busy", () => {
+    expect(lookupMessages.playerNameNotPrepared(playerName("DrLOL"))).toBe(
+      "Couldn't find a player named \"DrLOL\". Check the name; if it's right, the tracker may be busy, so try again later.",
+    );
+  });
+
+  test("playerNameNotPrepared escapes the name as typed", () => {
+    expect(lookupMessages.playerNameNotPrepared(playerName("Dr_LOL"))).toBe(
+      "Couldn't find a player named \"Dr\\_LOL\". Check the name; if it's right, the tracker may be busy, so try again later.",
+    );
+  });
+});
+
+describe("renderPlayerPickList", () => {
+  const unordered: readonly Match[] = [
+    { name: "Vex", kingdom: 330, uid: "145563254785" },
+    { name: "DrLOL", kingdom: 1, uid: "100000000002" },
+  ];
+
+  test("asks which player is meant, naming the typed name, with no note when every match is listed", () => {
+    expect(renderPlayerPickList(playerName("DrLOL"), unordered, "a1b2c3d4")).toMatchObject({
+      content: 'Several players are named "DrLOL". Pick one:',
+    });
+  });
+
+  test("offers the matches in one select menu, ordered by Kingdom, valued by index in that order", () => {
+    expect(renderPlayerPickList(playerName("DrLOL"), unordered, "a1b2c3d4")).toMatchObject({
+      components: [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.StringSelect,
+              custom_id: "pick:a1b2c3d4:select",
+              options: [
+                { label: "DrLOL · kingdom #1", value: "0" },
+                { label: "Vex · kingdom #330", value: "1" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  test("escapes the typed name in the question", () => {
+    expect(renderPlayerPickList(playerName("Dr_LOL"), unordered, "a1b2c3d4")).toMatchObject({
+      content: 'Several players are named "Dr\\_LOL". Pick one:',
+    });
+  });
+});
+
+describe("renderPlayerPickList with more than 25 matches", () => {
+  const thirtyMatches: readonly Match[] = Array.from({ length: 30 }, (_, index) => ({
+    name: `P${index.toString()}`,
+    kingdom: index + 1,
+    uid: (100_000_000_000 + index).toString(),
+  })).reverse();
+
+  test("offers only the first 25 by Kingdom, with values 0 to 24", () => {
+    expect(renderPlayerPickList(playerName("DrLOL"), thirtyMatches, "a1b2c3d4")).toMatchObject({
+      components: [
+        {
+          components: [
+            {
+              custom_id: "pick:a1b2c3d4:select",
+              options: Array.from({ length: 25 }, (_, index) => ({
+                label: `P${index.toString()} · kingdom #${(index + 1).toString()}`,
+                value: index.toString(),
+              })),
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  test("says that only the first 25 are listed and how to narrow the list", () => {
+    const pickList = renderPlayerPickList(playerName("DrLOL"), thirtyMatches, "a1b2c3d4");
+    expect(pickList.content).toContain("Only the first 25 are listed; add a kingdom to narrow it.");
   });
 });

@@ -8,14 +8,29 @@ export const ping = new SlashCommandBuilder()
 
 export const player = new SlashCommandBuilder()
   .setName("player")
-  .setDescription("Look up a player by uid")
+  .setDescription("Look up a player by uid or name")
   .setContexts(InteractionContextType.Guild)
   .addStringOption((option) =>
     option
       .setName("uid")
       .setDescription("The player's uid (the number under the profile picture)")
-      .setRequired(true)
+      .setRequired(false)
       .setMaxLength(32),
+  )
+  .addStringOption((option) =>
+    option
+      .setName("name")
+      .setDescription("The player's complete in-game name")
+      .setRequired(false)
+      .setMaxLength(32),
+  )
+  .addIntegerOption((option) =>
+    option
+      .setName("kingdom")
+      .setDescription("The player's kingdom number, with a name")
+      .setRequired(false)
+      .setMinValue(1)
+      .setMaxValue(9999),
   );
 
 export const alliance = new SlashCommandBuilder()

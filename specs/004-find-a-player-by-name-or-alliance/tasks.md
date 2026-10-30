@@ -67,17 +67,17 @@ sessions, roster in the domain) is shared by all three.
 
 **Independent test**: one match → card; several → private pick list → card; no match → private text.
 
-- [ ] T009 [P] [US1] Record fixtures in `src/game-api/__fixtures__/`: `player-by-name.json` (a copy of
+- [x] T009 [P] [US1] Record fixtures in `src/game-api/__fixtures__/`: `player-by-name.json` (a copy of
   `player-in-alliance.json` is fine), `players-ambiguous.json` (409 body with `matches` of `uid`, `server`, `name`,
   as GAME-API.md documents for `drlol`); note them in the fixtures README.
-- [ ] T010 [US1] Test in `src/game-api/client.test.ts`: `findPlayer(name, undefined, "lookup")` calls
+- [x] T010 [US1] Test in `src/game-api/client.test.ts`: `findPlayer(name, undefined, "lookup")` calls
   `/players/name/{encoded name}`, with a Kingdom `/players/{kingdom}/{encoded name}`; 200 → `found` Player; 409 →
   `ambiguous` with matches; 404 → `not-found`; 502 → `not-prepared`; " DrLol " and "drlol" share one cache entry
   (`player-name:{kingdom|*}:{lower name}`), a match list is cached too, failures are not; concurrent calls share one
   fetch. Implement `findPlayer` in `src/game-api/client.ts`.
-- [ ] T011 [US1] Test then implement the `/player` definition in `src/discord/commands.ts`: options `uid` (string ≤ 32),
+- [x] T011 [US1] Test then implement the `/player` definition in `src/discord/commands.ts`: options `uid` (string ≤ 32),
   `name` (string ≤ 32), `kingdom` (integer 1–9999), all optional; description `Look up a player by uid or name`.
-- [ ] T012 [P] [US1] Test `src/discord/lookup-cards.test.ts`: texts from
+- [x] T012 [P] [US1] Test `src/discord/lookup-cards.test.ts`: texts from
   [contracts/commands.md](contracts/commands.md#player) (option combination, invalid name, not found with and without
   Kingdom, not prepared) and the private pick list (`Several players are named …`, ≤ 25 options labelled
   `{name} · kingdom #{k}`, the "first 25" note). Implement in `src/discord/lookup-cards.ts`.

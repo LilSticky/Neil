@@ -1,7 +1,14 @@
 import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
 import { nextReset, type DailyQuota, type RequestPurpose, type UtcDay } from "../domain/daily-quota.js";
-import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import {
+  parseKingdom,
+  parseUid,
+  type AllianceKey,
+  type KingdomNumber,
+  type PlayerName,
+  type Uid,
+} from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import type { QuotaKeeper } from "./quota-keeper.js";
@@ -12,6 +19,7 @@ import {
   playerBodySchema,
   quotaFiguresFrom,
   type AmbiguousBody,
+  type PlayerBody,
 } from "./schemas.js";
 
 /** The part of the global fetch the client uses; tests pass a fake. */
@@ -72,6 +80,9 @@ interface Call {
   readonly conflictIsAnswer: boolean;
 }
 
+/** A Player Name answer as cached: the Player, or the matches when the name is ambiguous. */
+type NameAnswer<T> = { readonly kind: "found"; readonly value: T } | { readonly kind: "ambiguous"; readonly matches: readonly Match[] };
+
 /** A body that passed its schema, or the unexpected failure that was already logged. */
 type ReadBody<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly failure: Unexpected };
 
@@ -89,7 +100,9 @@ export class GameApiClient {
   private readonly baseUrl: string;
   private readonly players: LookupCache<Player>;
   private readonly alliances: LookupCache<Alliance>;
+  private readonly playerNames: LookupCache<NameAnswer<Player>>;
   private readonly playerLookups = new InFlight<LookupResult<Player>>();
+  private readonly playerNameLookups = new InFlight<LookupResult<Player>>();
   private readonly allianceLookups = new InFlight<LookupResult<Alliance>>();
 
   constructor(options: GameApiClientOptions) {
@@ -104,6 +117,7 @@ export class GameApiClient {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.players = new LookupCache<Player>({ ttlMs: options.cacheTtlMs });
+    this.playerNames = new LookupCache<NameAnswer<Player>>({ ttlMs: options.cacheTtlMs });
     this.alliances = new LookupCache<Alliance>({ ttlMs: options.cacheTtlMs });
   }
 
@@ -124,7 +138,33 @@ export class GameApiClient {
     return this.playerLookups.share(key, async () => {
       const result = await this.fetchPlayer(uid, purpose);
       if (result.kind === "found") this.players.store(key, result.value, result.fetchedAt);
-      return orStale(result, this.players.getStale(key));
+      return orStale(result, foundBy(this.players.getStale(key)));
+    });
+  }
+
+  /**
+   * A fresh cached answer, else one shared request; a found Player and a match list are cached, a failure is not.
+   * The name is compared in lower case, and the Kingdom (or all Kingdoms) is part of the key. The purpose decides
+   * whether the request may use the Quota Reserve.
+   */
+  async findPlayer(
+    name: PlayerName,
+    kingdom: KingdomNumber | undefined,
+    purpose: RequestPurpose,
+  ): Promise<LookupResult<Player>> {
+    const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
+    const fresh = this.playerNames.get(key, this.now());
+    if (fresh !== undefined) return answerOf(fresh);
+
+    return this.playerNameLookups.share(key, async () => {
+      const result = await this.fetchPlayerByName(name, kingdom, purpose);
+      if (result.kind === "found") {
+        this.playerNames.store(key, { kind: "found", value: result.value }, result.fetchedAt);
+      } else if (result.kind === "ambiguous") {
+        this.playerNames.store(key, { kind: "ambiguous", matches: result.matches }, this.now());
+      }
+      const stale = this.playerNames.getStale(key);
+      return orStale(result, stale === undefined ? undefined : answerOf(stale));
     });
   }
 
@@ -140,7 +180,7 @@ export class GameApiClient {
     return this.allianceLookups.share(cacheKey, async () => {
       const result = await this.fetchAlliance(kingdom, key, purpose);
       if (result.kind === "found") this.alliances.store(cacheKey, result.value, result.fetchedAt);
-      return orStale(result, this.alliances.getStale(cacheKey));
+      return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
     });
   }
 
@@ -154,14 +194,51 @@ export class GameApiClient {
     if (!read.ok) return read.failure;
     const fetchedAt = this.now();
 
-    const body = read.body;
-    if (body.uid !== uid) return this.unexpected(endpoint, "status 200, answer is for another uid");
+    if (read.body.uid !== uid) return this.unexpected(endpoint, "status 200, answer is for another uid");
+    return this.playerFrom(endpoint, read.body, fetchedAt);
+  }
+
+  /**
+   * GET /players/name/{name}, or /players/{kingdom}/{name} with a Kingdom. A 409 is the matches; a 200 is a Player.
+   * The name is percent-encoded into the path.
+   */
+  private async fetchPlayerByName(
+    name: PlayerName,
+    kingdom: KingdomNumber | undefined,
+    purpose: RequestPurpose,
+  ): Promise<LookupResult<Player>> {
+    const endpoint = kingdom === undefined ? "/players/name/{name}" : "/players/{kingdom}/{name}";
+    const segments = kingdom === undefined ? "name" : kingdom.toString();
+
+    const reply = await this.request({
+      endpoint,
+      path: `/players/${segments}/${encodeURIComponent(name)}`,
+      purpose,
+      conflictIsAnswer: true,
+    });
+    if (reply.kind !== "reply") return reply;
+
+    if (reply.response.status === 409) {
+      const read = await this.readBody(endpoint, reply, ambiguousBodySchema);
+      if (!read.ok) return read.failure;
+      return { kind: "ambiguous", matches: read.body.matches.map(toMatch) };
+    }
+
+    const read = await this.readBody(endpoint, reply, playerBodySchema);
+    if (!read.ok) return read.failure;
+    return this.playerFrom(endpoint, read.body, this.now());
+  }
+
+  /** The Player a 200 body describes, or the unexpected failure when the body does not describe one. */
+  private playerFrom(endpoint: string, body: PlayerBody, fetchedAt: Date): LookupResult<Player> {
+    const uid = parseUid(body.uid);
+    if (!uid.ok) return this.unexpected(endpoint, "status 200, uid is not a uid");
 
     const kingdom = parseKingdom(body.kid);
     if (!kingdom.ok) return this.unexpected(endpoint, "status 200, kid is not a Kingdom number");
 
     const profile = {
-      uid,
+      uid: uid.value,
       name: body.nick,
       kingdom: kingdom.value,
       power: body.power,
@@ -182,7 +259,7 @@ export class GameApiClient {
       value: {
         ...profile,
         alliance: { tag: body.alliance_abbr, name: body.alliance_name },
-        allianceRank: rankFromRoster(uid, roster),
+        allianceRank: rankFromRoster(uid.value, roster),
       },
       fetchedAt,
     };
@@ -368,10 +445,24 @@ export class GameApiClient {
   }
 }
 
-/** A spent Daily Quota, or one kept back by the Quota Reserve, answers with the cached entry, however old, when there is one. */
-function orStale<T>(result: LookupResult<T>, stale: CacheEntry<T> | undefined): LookupResult<T> {
+/**
+ * A spent Daily Quota, or one kept back by the Quota Reserve, answers with the cached answer, however old, when
+ * there is one.
+ */
+function orStale<T>(result: LookupResult<T>, stale: LookupResult<T> | undefined): LookupResult<T> {
   if ((result.kind !== "quota-spent" && result.kind !== "reserve-kept") || stale === undefined) return result;
-  return { kind: "found", value: stale.value, fetchedAt: stale.fetchedAt };
+  return stale;
+}
+
+/** A cached Player as a found answer. */
+function foundBy<T>(entry: CacheEntry<T> | undefined): LookupResult<T> | undefined {
+  return entry === undefined ? undefined : { kind: "found", value: entry.value, fetchedAt: entry.fetchedAt };
+}
+
+/** A cached Player Name answer as the lookup result it stood for. */
+function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
+  const { value, fetchedAt } = entry;
+  return value.kind === "found" ? { kind: "found", value: value.value, fetchedAt } : value;
 }
 
 /** Maps one candidate of a 409, leaving out the fields the Game did not give (exactOptionalPropertyTypes). */

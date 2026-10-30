@@ -69,6 +69,18 @@ export function pickableAllianceMatch(match: Match): match is PickableAllianceMa
 /** How many matches a pick list shows at most. */
 const PICK_LIST_LIMIT = 25;
 
+/**
+ * The Player matches a pick list offers, in the order it shows them: only pickable ones, by Kingdom then name,
+ * the first 25. The pick handler derives the same list from the same matches, so picks index into it.
+ */
+export function listedPlayerMatches(matches: readonly Match[]): {
+  readonly listed: PickablePlayerMatch[];
+  readonly leftOut: number;
+} {
+  const pickable = matches.filter(pickablePlayerMatch);
+  return orderMatches(pickable);
+}
+
 /** Orders matches by Kingdom, then name, keeps the first 25 and counts the rest. */
 export function orderMatches<T extends Match>(
   matches: readonly T[],
