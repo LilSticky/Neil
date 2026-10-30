@@ -76,6 +76,19 @@ export const allowedMentions: MessageMentionOptions = { parse: [] };
 /** Every result that gives no card. */
 export type Failure<T> = Exclude<LookupResult<T>, { readonly kind: "found" }>;
 
+/** A lookup the Daily Quota or the Quota Reserve kept from the Game API, with when lookups work again. */
+interface QuotaFailure {
+  readonly kind: "quota-spent" | "reserve-kept";
+  readonly resetsAt: Date;
+}
+
+/** The private text for a lookup that the Daily Quota or the Quota Reserve kept from the Game API. */
+function quotaFailureText(failure: QuotaFailure, now: Date): string {
+  return failure.kind === "quota-spent"
+    ? lookupMessages.quotaSpent(failure.resetsAt, now)
+    : lookupMessages.reserveKept(failure.resetsAt, now);
+}
+
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
 function sharedPlayerFailureText(
   failure: Exclude<Failure<Player>, { readonly kind: "not-found" | "not-prepared" }>,
@@ -84,7 +97,7 @@ function sharedPlayerFailureText(
   switch (failure.kind) {
     case "quota-spent":
     case "reserve-kept":
-      return lookupMessages.quotaSpent(failure.resetsAt, now);
+      return quotaFailureText(failure, now);
     case "try-again":
       return lookupMessages.tryAgain;
     case "unavailable":
@@ -175,7 +188,7 @@ export function allianceFailureMessage(
       return alliancePickList(key, failure.matches, ownerId, pickSessions, now);
     case "quota-spent":
     case "reserve-kept":
-      return { content: lookupMessages.quotaSpent(failure.resetsAt, now) };
+      return { content: quotaFailureText(failure, now) };
     case "not-prepared":
     case "try-again":
       return { content: lookupMessages.tryAgain };

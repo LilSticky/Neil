@@ -87,6 +87,8 @@ export interface ConnectOptions {
   readonly buildInfo: BuildInfo;
   readonly startRecord: StartRecord;
   readonly gameApi: GameApi;
+  /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
+  readonly quotaReserve: number;
   /** The Moderator and King role IDs from config; holders of either are Officers. */
   readonly officerRoleIds: readonly string[];
 }
@@ -122,6 +124,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           },
           {
             quotaToday: () => options.gameApi.quotaToday(),
+            quotaReserve: options.quotaReserve,
             officerRoleIds: options.officerRoleIds,
             now: () => new Date(),
             logError,

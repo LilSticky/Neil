@@ -134,10 +134,10 @@ sessions, roster in the domain) is shared by all three.
 
 **Independent test**: 101 remaining → fetch; 100 → refusal text or stale card; `/quota` shows the reserve.
 
-- [ ] T022 [P] [US3] Test `src/discord/lookup-cards.test.ts` and `src/discord/lookup.test.ts`: `reserve-kept` gives
+- [x] T022 [P] [US3] Test `src/discord/lookup-cards.test.ts` and `src/discord/lookup.test.ts`: `reserve-kept` gives
   `Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 3 h 12 min).`
   privately, for `/player`, `/alliance` and picks. Implement in `src/discord/lookup-cards.ts`, `lookup.ts`, `pick.ts`.
-- [ ] T023 [US3] Test `src/discord/quota.test.ts`: the Officer reply gains
+- [x] T023 [US3] Test `src/discord/quota.test.ts`: the Officer reply gains
   `Quota Reserve: 100 (for Onboarding Interviews) · Left for lookups: 25` after the used line; no request. Implement in
   `src/discord/quota.ts` (context gains `quotaReserve`) and pass it from `src/discord/client.ts`.
 
@@ -146,7 +146,7 @@ sessions, roster in the domain) is shared by all three.
 ## Phase 6: Polish
 
 - [ ] T024 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/domain/`; fixes via `implementer`
-- [ ] T028 Test then implement the startup warning when the Quota Reserve is at or above the stored limit (spec edge
+- [x] T028 Test then implement the startup warning when the Quota Reserve is at or above the stored limit (spec edge
   case; split from T007, as `StartupDeps` has no warning seam yet) in `src/startup.test.ts` / `src/startup.ts`
 - [ ] T025 Update GAME-API.md if an alliance-name 409 or a name 502 behaves other than assumed (research R3)
 - [ ] T026 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)) after

@@ -241,6 +241,8 @@ export const lookupMessages = {
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
   quotaSpent: (resetsAt: Date, now: Date): string =>
     `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
+  reserveKept: (resetsAt: Date, now: Date): string =>
+    `Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",
   showing: (label: string): string => `Showing ${escapeText(label)}.`,

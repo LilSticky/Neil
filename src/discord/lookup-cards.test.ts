@@ -280,6 +280,16 @@ describe("lookupMessages.quotaSpent", () => {
   });
 });
 
+describe("lookupMessages.reserveKept", () => {
+  test("says the lookups are paused for today, the rest of the Daily Quota is kept for interviews, and gives the reset time with the time left", () => {
+    expect(
+      lookupMessages.reserveKept(new Date("2026-10-31T00:00:00Z"), new Date("2026-10-30T20:48:00Z")),
+    ).toBe(
+      "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 3 h 12 min).",
+    );
+  });
+});
+
 describe("card footers say when the data was fetched", () => {
   test.each([
     {

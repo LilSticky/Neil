@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
-import { utcDayOf } from "./domain/daily-quota.js";
+import { utcDayOf, type DailyQuota } from "./domain/daily-quota.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
@@ -107,6 +107,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     },
     onStopSignal: (handler) => (stop = handler),
     writeError: (text) => calls.push(`stderr ${text}`),
+    writeWarning: (text) => calls.push(`warning ${text}`),
     exit: (code) => calls.push(`exit ${code.toString()}`),
     ...overrides,
   };
@@ -268,5 +269,38 @@ describe("start", () => {
       "disconnect",
       "closeStore",
     ]);
+  });
+});
+
+describe("start with a Quota Reserve at or above the stored Daily Quota limit", () => {
+  const STORED_LIMIT = 500;
+  const storedQuota: DailyQuota = {
+    day: utcDayOf(new Date("2026-10-29T12:00:00Z")),
+    used: 0,
+    limit: STORED_LIMIT,
+    limitReached: false,
+    confirmedAt: undefined,
+  };
+
+  test.each([
+    { label: "equal to", reserve: "500" },
+    { label: "above", reserve: "600" },
+  ])("warns with the reserve and the limit, and still connects, when the reserve is $label the limit", async ({ reserve }) => {
+    const { deps, calls } = fakeDeps({
+      env: { ...VALID_ENV, GAME_API_QUOTA_RESERVE: reserve },
+      openStore: () => ({
+        load: () => ({ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: startCount(2) }),
+        save: () => undefined,
+        close: () => undefined,
+        dailyQuota: { load: () => storedQuota, save: () => undefined },
+      }),
+    });
+
+    await start(deps);
+
+    expect(calls).toContain(
+      `warning Warning: GAME_API_QUOTA_RESERVE (${reserve}) is at or above the Daily Quota limit (${STORED_LIMIT.toString()}); lookups will never ask the Game API.`,
+    );
+    expect(calls).toContain("connect token #3");
   });
 });

@@ -54,11 +54,13 @@ export interface StartupDeps {
       readonly buildInfo: BuildInfo;
       readonly startRecord: StartRecord;
       readonly gameApi: GameApi;
+      readonly quotaReserve: number;
       readonly officerRoleIds: readonly string[];
     },
   ) => Promise<Connection>;
   readonly onStopSignal: (handler: () => Promise<void>) => void;
   readonly writeError: (text: string) => void;
+  readonly writeWarning: (text: string) => void;
   readonly exit: (code: number) => void;
 }
 
@@ -82,7 +84,12 @@ export async function start(deps: StartupDeps): Promise<void> {
     store.save(startRecord);
     const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now, reserve: config.quotaReserve });
     // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
-    quota.today();
+    const today = quota.today();
+    if (config.quotaReserve >= today.limit) {
+      deps.writeWarning(
+        `Warning: GAME_API_QUOTA_RESERVE (${config.quotaReserve.toString()}) is at or above the Daily Quota limit (${today.limit.toString()}); lookups will never ask the Game API.`,
+      );
+    }
     const gameApi = deps.createGameApi(
       config.gameApiKey,
       buildInfo === "dev" ? "dev" : buildInfo.version,
@@ -93,6 +100,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       buildInfo,
       startRecord,
       gameApi,
+      quotaReserve: config.quotaReserve,
       officerRoleIds: config.officerRoleIds,
     });
   } catch (error) {

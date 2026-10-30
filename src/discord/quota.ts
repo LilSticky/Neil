@@ -1,12 +1,12 @@
 import { MessageFlags, type InteractionReplyOptions } from "discord.js";
 import { isOfficer } from "../domain/officer.js";
-import { nextReset, remaining, utcDayOf, type DailyQuota } from "../domain/daily-quota.js";
+import { leftForLookups, nextReset, remaining, utcDayOf, type DailyQuota } from "../domain/daily-quota.js";
 import { timeLeft, utcTime } from "./lookup-cards.js";
 
 const NOT_OFFICER_TEXT = "/quota is for Officers (Moderator or King).";
 
-/** The four lines of the Daily Quota reply, or three-line variants when the limit is spent or unconfirmed. */
-function renderQuotaReply(quota: DailyQuota, now: Date): string {
+/** The lines of the Daily Quota reply, or variants when the limit is spent or unconfirmed. */
+function renderQuotaReply(quota: DailyQuota, quotaReserve: number, now: Date): string {
   const spent = quota.limitReached ? " · Spent: the Game API reported the limit reached" : "";
   const reset = nextReset(now);
   const confirmed =
@@ -16,6 +16,7 @@ function renderQuotaReply(quota: DailyQuota, now: Date): string {
   return [
     `Daily Quota for ${utcDayOf(now)} (UTC)`,
     `Used: ${quota.used.toLocaleString("en-US")} · Remaining: ${remaining(quota).toLocaleString("en-US")} · Limit: ${quota.limit.toLocaleString("en-US")}${spent}`,
+    `Quota Reserve: ${quotaReserve.toLocaleString("en-US")} (for Onboarding Interviews) · Left for lookups: ${leftForLookups(quota, quotaReserve).toLocaleString("en-US")}`,
     `Resets at 00:00 UTC (${timeLeft(reset, now)}).`,
     confirmed,
   ].join("\n");
@@ -29,6 +30,8 @@ export interface QuotaInteraction {
 
 export interface QuotaContext {
   readonly quotaToday: () => DailyQuota;
+  /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE. */
+  readonly quotaReserve: number;
   readonly officerRoleIds: readonly string[];
   readonly now: () => Date;
   readonly logError: (message: string) => void;
@@ -38,7 +41,7 @@ export interface QuotaContext {
 export async function handleQuota(interaction: QuotaInteraction, context: QuotaContext): Promise<void> {
   try {
     const content = isOfficer(interaction.memberRoleIds(), context.officerRoleIds)
-      ? renderQuotaReply(context.quotaToday(), context.now())
+      ? renderQuotaReply(context.quotaToday(), context.quotaReserve, context.now())
       : NOT_OFFICER_TEXT;
     await interaction.reply({
       content,

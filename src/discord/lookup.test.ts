@@ -1063,6 +1063,62 @@ describe("handlers when the Daily Quota is spent", () => {
   });
 });
 
+describe("handlers when the Quota Reserve is kept for Onboarding Interviews", () => {
+  const LATER = new Date("2026-10-30T20:48:00Z");
+  const reserveText =
+    "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 3 h 12 min).";
+
+  test.each([
+    {
+      label: "/player by uid",
+      run: (now: Date) => {
+        const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+        const { context } = contextReturning({ kind: "reserve-kept", resetsAt: RESETS_AT });
+        return handlePlayer(interaction, { ...context, now: () => now }).then(() => interaction);
+      },
+    },
+    {
+      label: "/player by name",
+      run: (now: Date) => {
+        const interaction = new FakeLookupInteraction({ strings: { name: "Vex" } });
+        const { context } = contextReturning({ kind: "reserve-kept", resetsAt: RESETS_AT });
+        return handlePlayer(interaction, { ...context, now: () => now }).then(() => interaction);
+      },
+    },
+    {
+      label: "/alliance by tag",
+      run: (now: Date) => {
+        const interaction = new FakeLookupInteraction({
+          strings: { alliance: "NML" },
+          integers: { kingdom: 1 },
+        });
+        const { context } = allianceContextReturning({ kind: "reserve-kept", resetsAt: RESETS_AT });
+        return handleAlliance(interaction, { ...context, now: () => now }).then(() => interaction);
+      },
+    },
+    {
+      label: "/alliance by full name",
+      run: (now: Date) => {
+        const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+        const { context } = allianceContextReturning({ kind: "reserve-kept", resetsAt: RESETS_AT });
+        return handleAlliance(interaction, { ...context, now: () => now }).then(() => interaction);
+      },
+    },
+  ])("$label tells the caller privately with the reserve text, not the quota-spent text", async ({ run }) => {
+    const interaction = await run(LATER);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: reserveText,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(interaction.calls.map((call) => call.method)).not.toContain("editReply");
+  });
+});
+
 describe("handleAlliance when the card cannot be sent", () => {
   test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({

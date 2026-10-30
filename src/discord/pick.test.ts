@@ -21,6 +21,7 @@ const OTHER_MEMBER_ID = "310000000000000002";
 const OPENED_AT = new Date("2026-10-30T16:00:00Z");
 const NOW = new Date("2026-10-30T16:05:00Z");
 const FIFTEEN_MINUTES_LATER = new Date("2026-10-30T16:15:00Z");
+const RESETS_AT = new Date("2026-10-31T00:00:00Z");
 
 const NOT_OWNER_TEXT =
   "Only the Member who ran this command can use this menu. Run /player or /alliance yourself.";
@@ -496,5 +497,61 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     await handlePick(interaction, context);
 
     expect(open).toHaveBeenCalledWith(OWNER_ID, { kind: "roster", entries: sortRoster(ROSTER) }, NOW);
+  });
+});
+
+describe("handlePick when the Quota Reserve is kept for Onboarding Interviews", () => {
+  const RESERVE_TEXT =
+    "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 7 h 55 min).";
+
+  test("tells the owner privately, with the reserve text, when a Player match is kept by the reserve", async () => {
+    const sessions = new PickSessions();
+    const pickId = openPickList(sessions);
+    const interaction = new FakePickInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+    const { context } = contextWith(sessions, { kind: "reserve-kept", resetsAt: RESETS_AT });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: RESERVE_TEXT,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    const publicPosts = interaction.calls.filter(
+      (call) => call.method === "followUp" && call.options.flags !== MessageFlags.Ephemeral,
+    );
+    expect(publicPosts).toEqual([]);
+  });
+
+  test("tells the owner privately, with the reserve text, when an Alliance match is kept by the reserve", async () => {
+    const sessions = new PickSessions();
+    const pickId = openAlliances(sessions);
+    const interaction = new FakePickInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+    const { context } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "reserve-kept",
+      resetsAt: RESETS_AT,
+    });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: RESERVE_TEXT,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
   });
 });
