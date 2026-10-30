@@ -80,7 +80,7 @@ export async function start(deps: StartupDeps): Promise<void> {
     store = deps.openStore(config.dataDir);
     const startRecord = recordStart(store.load(), deps.now());
     store.save(startRecord);
-    const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now });
+    const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now, reserve: config.quotaReserve });
     // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
     quota.today();
     const gameApi = deps.createGameApi(

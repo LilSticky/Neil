@@ -15,7 +15,7 @@ function clientAnswering(body: unknown): GameApiClient {
     apiKey: "fake-key",
     version: "test",
     now,
-    quota: new QuotaKeeper({ store: { load: () => undefined, save: () => undefined }, now }),
+    quota: new QuotaKeeper({ store: { load: () => undefined, save: () => undefined }, now, reserve: 100 }),
     cacheTtlMs: 600_000,
     sleep: () => Promise.resolve(),
     random: () => 0.5,
@@ -32,7 +32,7 @@ describe("cards from recorded Game API answers", () => {
     const uid = parseUid("145563254785");
     if (!uid.ok) throw new Error("uid must parse");
 
-    const result = await clientAnswering(playerBody).getPlayer(uid.value);
+    const result = await clientAnswering(playerBody).getPlayer(uid.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
     expect(renderPlayerCard(result.value, result.fetchedAt, NOW)).toEqual({
@@ -54,7 +54,7 @@ describe("cards from recorded Game API answers", () => {
     const key = parseAllianceKey("NML");
     if (!kingdom.ok || !key.ok) throw new Error("input must parse");
 
-    const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value);
+    const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
     expect(renderAllianceCard(result.value, result.fetchedAt, NOW)).toMatchObject({

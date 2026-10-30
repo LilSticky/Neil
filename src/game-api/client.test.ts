@@ -1,5 +1,5 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { todaysQuota, type DailyQuota } from "../domain/daily-quota.js";
+import { afterEach, beforeEach, describe, expect, expectTypeOf, test, vi } from "vitest";
+import { todaysQuota, type DailyQuota, type RequestPurpose } from "../domain/daily-quota.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -24,6 +24,7 @@ const PLAYER_PATH = `https://api.lastasylumtracker.com/v1/players/${PLAYER_UID_T
 const FIXED_NOW = new Date("2026-10-30T15:20:00Z");
 const NEXT_MIDNIGHT_UTC = new Date("2026-10-31T00:00:00Z");
 const CACHE_TTL_MS = 600_000;
+const QUOTA_RESERVE = 100;
 
 interface SentRequest {
   readonly url: string;
@@ -86,7 +87,7 @@ class FakeQuotaStore implements DailyQuotaStorage {
 }
 
 function quotaOn(store: FakeQuotaStore, now: () => Date): QuotaKeeper {
-  return new QuotaKeeper({ store, now });
+  return new QuotaKeeper({ store, now, reserve: QUOTA_RESERVE });
 }
 
 function jsonResponseWithHeaders(status: number, body: unknown, headers: Record<string, string>): Response {
@@ -156,7 +157,7 @@ describe("GameApiClient.getPlayer request", () => {
   test("sends GET to the player's path on the Game API", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
 
-    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(firstRequest(sent).url).toBe(PLAYER_PATH);
     expect(firstRequest(sent).init?.method ?? "GET").toBe("GET");
@@ -165,7 +166,7 @@ describe("GameApiClient.getPlayer request", () => {
   test("authenticates with the API key and identifies Neil in the User-Agent", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
 
-    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     const headers = new Headers(firstRequest(sent).init?.headers);
     expect(headers.get("Authorization")).toBe(`Bearer ${FAKE_API_KEY}`);
@@ -176,7 +177,7 @@ describe("GameApiClient.getPlayer request", () => {
   test("passes an abort signal so a slow Game API cannot hang the lookup", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
 
-    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(firstRequest(sent).init?.signal).toBeInstanceOf(AbortSignal);
   });
@@ -186,7 +187,7 @@ describe("GameApiClient.getPlayer result", () => {
   test("a 200 for the requested player is found, mapped to a Player with its Alliance Rank", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, playerInAlliance));
 
-    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({
       kind: "found",
@@ -210,7 +211,7 @@ describe("GameApiClient.getPlayer result", () => {
     const body = { ...playerInAlliance, aid, alliance_members: [] };
     const { fetch } = fakeFetch(() => jsonResponse(200, body));
 
-    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({
       kind: "found",
@@ -234,7 +235,7 @@ describe("GameApiClient.getPlayer result", () => {
     };
     const { fetch } = fakeFetch(() => jsonResponse(200, body));
 
-    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toMatchObject({
       kind: "found",
@@ -245,7 +246,7 @@ describe("GameApiClient.getPlayer result", () => {
   test("a 404 is not-found", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(404, { detail: "player_not_found" }));
 
-    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "not-found" });
   });
@@ -254,7 +255,7 @@ describe("GameApiClient.getPlayer result", () => {
     const body = { ...playerInAlliance, uid: 1 };
     const { fetch } = fakeFetch(() => jsonResponse(200, body));
 
-    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
   });
@@ -373,7 +374,7 @@ describe("GameApiClient.getPlayer failure mapping", () => {
   test.each(failureScenarios)("$label gives $expected.kind", async (scenario) => {
     const { client } = loggingClientWith(scenario.fetch);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual(scenario.expected);
   });
@@ -381,7 +382,7 @@ describe("GameApiClient.getPlayer failure mapping", () => {
   test.each(failureScenarios)("$label logs one line with the path and the cause, never the key", async (scenario) => {
     const { client, logged } = loggingClientWith(scenario.fetch);
 
-    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(logged).toHaveLength(1);
     expect(logged[0]).toMatch(PLAYER_PATH_IN_LOG);
@@ -392,7 +393,7 @@ describe("GameApiClient.getPlayer failure mapping", () => {
   test("a 404 is not logged", async () => {
     const { client, logged } = loggingClientWith(failingFetch(() => jsonResponse(404, { detail: "player_not_found" })));
 
-    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(logged).toEqual([]);
   });
@@ -401,7 +402,7 @@ describe("GameApiClient.getPlayer failure mapping", () => {
     const body = { ...playerInAlliance, nick: undefined };
     const { client, logged } = loggingClientWith(failingFetch(() => jsonResponse(200, body)));
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
     expect(logged).toHaveLength(1);
@@ -421,7 +422,7 @@ describe("GameApiClient default timeout", () => {
     const timeout = vi.spyOn(AbortSignal, "timeout");
     const { fetch } = fakeFetch(() => jsonResponse(200, playerInAlliance));
 
-    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(timeout).toHaveBeenCalledWith(15000);
   });
@@ -431,7 +432,7 @@ describe("GameApiClient.getAlliance request", () => {
   test("sends GET to the alliance's path in its Kingdom on the Game API", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
 
-    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(firstRequest(sent).url).toBe(ALLIANCE_PATH);
     expect(firstRequest(sent).init?.method ?? "GET").toBe("GET");
@@ -440,7 +441,7 @@ describe("GameApiClient.getAlliance request", () => {
   test("percent-encodes an alliance key with a space", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
 
-    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man"));
+    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man"), "lookup");
 
     expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/alliances/1/No%20Man");
   });
@@ -448,7 +449,7 @@ describe("GameApiClient.getAlliance request", () => {
   test("authenticates with the API key and identifies Neil in the User-Agent", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
 
-    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     const headers = new Headers(firstRequest(sent).init?.headers);
     expect(headers.get("Authorization")).toBe(`Bearer ${FAKE_API_KEY}`);
@@ -460,7 +461,7 @@ describe("GameApiClient.getAlliance result", () => {
   test("a 502 is not-prepared, and is logged once with the path and the status", async () => {
     const { client, logged } = loggingClientWith(failingFetch(() => textResponse(502, "error code: 502")));
 
-    const result = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(result).toEqual({ kind: "not-prepared" });
     expect(logged).toHaveLength(1);
@@ -471,7 +472,7 @@ describe("GameApiClient.getAlliance result", () => {
   test("a 200 for the requested Kingdom is found, mapped to an Alliance", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, alliance));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     const expected: Alliance = {
       tag: "NML",
@@ -489,7 +490,7 @@ describe("GameApiClient.getAlliance result", () => {
   test("a null leader_name gives an Alliance without a leader name", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, { ...alliance, leader_name: null }));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(result).toMatchObject({
       kind: "found",
@@ -500,7 +501,7 @@ describe("GameApiClient.getAlliance result", () => {
   test("a 404 is not-found", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(404, allianceNotFound));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("ZZZQX"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("ZZZQX"), "lookup");
 
     expect(result).toEqual({ kind: "not-found" });
   });
@@ -515,7 +516,7 @@ describe("GameApiClient.getAlliance result", () => {
     };
     const { fetch } = fakeFetch(() => jsonResponse(409, body));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man's Land"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man's Land"), "lookup");
 
     expect(result).toEqual({
       kind: "ambiguous",
@@ -532,7 +533,7 @@ describe("GameApiClient.getAlliance result", () => {
   ])("a 409 with %s is unavailable, reason unexpected", async (_label, respond) => {
     const { fetch } = fakeFetch(respond);
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
   });
@@ -540,7 +541,7 @@ describe("GameApiClient.getAlliance result", () => {
   test("a 200 for another Kingdom is unavailable, reason unexpected", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, { ...alliance, sid: 2 }));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
   });
@@ -548,7 +549,7 @@ describe("GameApiClient.getAlliance result", () => {
   test("a 429 is quota-spent, as for a player", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(429, { detail: "rate_limited" }));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(result).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
   });
@@ -558,7 +559,7 @@ describe("GameApiClient.getPlayer with an empty nick", () => {
   test("a 200 with an empty nick is unavailable, reason unexpected", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, { ...playerInAlliance, nick: "" }));
 
-    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "unavailable", reason: "unexpected" });
   });
@@ -568,7 +569,7 @@ describe("GameApiClient.getAlliance with an empty leader name", () => {
   test("an empty leader_name gives an Alliance without a leader name", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, { ...alliance, leader_name: "" }));
 
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(result).toMatchObject({
       kind: "found",
@@ -596,7 +597,7 @@ describe("GameApiClient non-200 answers", () => {
       const { response, cancel } = streamedResponse(status);
       const { client } = loggingClientWith(failingFetch(() => response));
 
-      await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+      await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
       expect(cancel).toHaveBeenCalledTimes(1);
     },
@@ -611,7 +612,7 @@ describe("GameApiClient clock", () => {
       return Promise.resolve(jsonResponse(200, playerInAlliance));
     };
 
-    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:05Z") });
   });
@@ -632,7 +633,7 @@ describe("GameApiClient clock", () => {
         }),
       );
 
-    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:01Z") });
   });
@@ -642,6 +643,7 @@ describe("GameApiClient clock", () => {
 
     const result = await clientWith(fetch, () => new Date("2026-10-29T08:00:00Z")).getPlayer(
       parsedUid(PLAYER_UID_TEXT),
+      "lookup",
     );
 
     expect(result).toEqual({ kind: "quota-spent", resetsAt: new Date("2026-10-30T00:00:00Z") });
@@ -655,9 +657,9 @@ describe("GameApiClient cache", () => {
     const client = clientWith(fetch, () => clock);
     const uid = parsedUid(PLAYER_UID_TEXT);
 
-    const first = await client.getPlayer(uid);
+    const first = await client.getPlayer(uid, "lookup");
     clock = new Date(FIXED_NOW.getTime() + 60_000);
-    const second = await client.getPlayer(uid);
+    const second = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(1);
     expect(second).toEqual(first);
@@ -670,9 +672,9 @@ describe("GameApiClient cache", () => {
     const client = clientWith(fetch, () => clock);
     const uid = parsedUid(PLAYER_UID_TEXT);
 
-    await client.getPlayer(uid);
+    await client.getPlayer(uid, "lookup");
     clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
-    const later = await client.getPlayer(uid);
+    const later = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
     expect(later).toMatchObject({ kind: "found", fetchedAt: clock });
@@ -692,8 +694,8 @@ describe("GameApiClient cache", () => {
     const client = clientWith(gatedFetch);
     const uid = parsedUid(PLAYER_UID_TEXT);
 
-    const first = client.getPlayer(uid);
-    const second = client.getPlayer(uid);
+    const first = client.getPlayer(uid, "lookup");
+    const second = client.getPlayer(uid, "lookup");
     release();
     const [a, b] = await Promise.all([first, second]);
 
@@ -706,8 +708,8 @@ describe("GameApiClient cache", () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
     const client = clientWith(fetch);
 
-    const upper = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
-    const lower = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("nml"));
+    const upper = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+    const lower = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("nml"), "lookup");
 
     expect(sent).toHaveLength(1);
     expect(upper).toMatchObject({ kind: "found" });
@@ -722,8 +724,8 @@ describe("GameApiClient cache", () => {
     const client = clientWith(fetch);
     const uid = parsedUid(PLAYER_UID_TEXT);
 
-    const first = await client.getPlayer(uid);
-    const second = await client.getPlayer(uid);
+    const first = await client.getPlayer(uid, "lookup");
+    const second = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
     expect(first).toEqual(expected);
@@ -747,7 +749,7 @@ describe("GameApiClient Daily Quota gate", () => {
       return Promise.resolve(jsonResponse(200, playerInAlliance));
     };
 
-    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(usedWhenSent).toBe(1);
   });
@@ -759,13 +761,14 @@ describe("GameApiClient Daily Quota gate", () => {
     const { fetch, sent } = fakeFetch(() => answer());
     const client = clientWith(fetch, now, quotaOn(store, now));
 
-    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
     expect(store.current).toMatchObject({ used: 1999, limit: 2000, confirmedAt: FIXED_NOW });
 
-    // The last allowed request; the tracker reports it as the one that used the Daily Quota up.
+    // The last allowed request; the tracker reports it as the one that used the Daily Quota up. Only an Onboarding
+    // Interview may reach into the Quota Reserve, so only it can use the Daily Quota up.
     answer = () => jsonResponse(200, { ...alliance, quota: { limit: 2000, used: 2000, remaining: 0 } });
-    await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
-    const refused = await client.getPlayer(parsedUid(SECOND_UID_TEXT));
+    await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "onboarding-interview");
+    const refused = await client.getPlayer(parsedUid(SECOND_UID_TEXT), "onboarding-interview");
 
     expect(sent).toHaveLength(2);
     expect(refused).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
@@ -781,7 +784,7 @@ describe("GameApiClient Daily Quota gate", () => {
       const headers = { "x-ratelimit-limit": "2000", "x-ratelimit-remaining": "5" };
       const { fetch } = fakeFetch(() => jsonResponseWithHeaders(status, body, headers));
 
-      await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
+      await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
       expect(store.current).toMatchObject({ used: 1995, limit: 2000, confirmedAt: FIXED_NOW });
     },
@@ -794,15 +797,15 @@ describe("GameApiClient Daily Quota gate", () => {
     const client = clientWith(fetch, now, quotaOn(store, now));
     const uid = parsedUid(PLAYER_UID_TEXT);
 
-    await client.getPlayer(uid);
+    await client.getPlayer(uid, "lookup");
     clock = new Date("2026-10-30T23:59:59Z");
-    const beforeMidnight = await client.getPlayer(uid);
+    const beforeMidnight = await client.getPlayer(uid, "lookup");
     expect(beforeMidnight).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
     expect(sent).toHaveLength(1);
 
     clock = NEXT_MIDNIGHT_UTC;
     answer = () => jsonResponse(200, playerInAlliance);
-    const afterMidnight = await client.getPlayer(uid);
+    const afterMidnight = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
     expect(afterMidnight).toMatchObject({ kind: "found", fetchedAt: NEXT_MIDNIGHT_UTC });
@@ -815,11 +818,11 @@ describe("GameApiClient Daily Quota gate", () => {
     const client = clientWith(fetch, now, quotaOn(store, now));
     const uid = parsedUid(PLAYER_UID_TEXT);
 
-    const first = await client.getPlayer(uid);
+    const first = await client.getPlayer(uid, "lookup");
     clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
     answer = () => jsonResponse(429, { detail: "rate_limited" });
-    await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
-    const stale = await client.getPlayer(uid);
+    await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+    const stale = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);
@@ -832,11 +835,11 @@ describe("GameApiClient Daily Quota gate", () => {
     const { fetch, sent } = fakeFetch(() => answer());
     const client = clientWith(fetch, now, quotaOn(store, now));
 
-    const first = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const first = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
     clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
     answer = () => jsonResponse(429, { detail: "rate_limited" });
-    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
-    const stale = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+    const stale = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);
@@ -847,10 +850,10 @@ describe("GameApiClient Daily Quota gate", () => {
     const store = new FakeQuotaStore();
     const { fetch, sent } = fakeFetch(() => jsonResponse(429, { detail: "rate_limited" }));
     const uid = parsedUid(PLAYER_UID_TEXT);
-    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(uid);
+    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(uid, "lookup");
 
     const restarted = clientWith(fetch, now, quotaOn(store, now));
-    const result = await restarted.getPlayer(uid);
+    const result = await restarted.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(1);
     expect(result).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
@@ -861,7 +864,7 @@ describe("GameApiClient Daily Quota gate", () => {
     const body = { ...playerInAlliance, quota: { limit: 0, used: 5, remaining: 0 } };
     const { client, logged } = loggingClientWith(failingFetch(() => jsonResponse(200, body)), now, quotaOn(store, now));
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toMatchObject({ kind: "found" });
     expect(logged).toHaveLength(1);
@@ -877,9 +880,88 @@ describe("GameApiClient Daily Quota gate", () => {
     const store = new FakeQuotaStore();
     const { fetch } = fakeFetch(respond);
 
-    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(store.current).toMatchObject({ used: 1 });
+  });
+});
+
+describe("GameApiClient purpose", () => {
+  test("getPlayer and getAlliance take a required purpose as their last parameter", () => {
+    const client = clientWith(fakeFetch(() => jsonResponse(200, playerInAlliance)).fetch);
+
+    expectTypeOf<GameApiClient["getPlayer"]>().parameters.toEqualTypeOf<[Uid, RequestPurpose]>();
+    expectTypeOf<GameApiClient["getAlliance"]>().parameters.toEqualTypeOf<[KingdomNumber, AllianceKey, RequestPurpose]>();
+    expect(client.getPlayer.length).toBe(2);
+    expect(client.getAlliance.length).toBe(3);
+  });
+});
+
+describe("GameApiClient Quota Reserve", () => {
+  let clock: Date;
+  const now = (): Date => clock;
+
+  beforeEach(() => {
+    clock = FIXED_NOW;
+  });
+
+  test("a lookup with only the Quota Reserve left makes no fetch and answers reserve-kept with the next 00:00 UTC", async () => {
+    const store = new FakeQuotaStore();
+    store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 900 });
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const client = clientWith(fetch, now, quotaOn(store, now));
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result).toEqual({ kind: "reserve-kept", resetsAt: NEXT_MIDNIGHT_UTC });
+    expect(sent).toEqual([]);
+    expect(store.current).toMatchObject({ used: 900 });
+  });
+
+  test("an Alliance lookup with only the Quota Reserve left makes no fetch and answers reserve-kept", async () => {
+    const store = new FakeQuotaStore();
+    store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 900 });
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, alliance));
+    const client = clientWith(fetch, now, quotaOn(store, now));
+
+    const result = await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toEqual({ kind: "reserve-kept", resetsAt: NEXT_MIDNIGHT_UTC });
+    expect(sent).toEqual([]);
+  });
+
+  test("when only the Quota Reserve is left, a cached player past its TTL is answered as found with its old fetchedAt, and no fetch", async () => {
+    const store = new FakeQuotaStore();
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const client = clientWith(fetch, now, quotaOn(store, now));
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    const first = await client.getPlayer(uid, "lookup");
+    store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 900 });
+    clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
+    const stale = await client.getPlayer(uid, "lookup");
+
+    expect(sent).toHaveLength(1);
+    expect(stale).toEqual(first);
+    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+  });
+
+  test("a 503 is not retried for a lookup once its own request has left only the Quota Reserve", async () => {
+    const fake = new FakeClock(FIXED_NOW);
+    const store = new FakeQuotaStore();
+    store.save({ ...todaysQuota(undefined, FIXED_NOW), used: 899 });
+    let attempt = 0;
+    const { fetch, sent } = fakeFetch(() => {
+      attempt += 1;
+      return attempt === 1 ? textResponse(503, "error code: 503") : jsonResponse(200, playerInAlliance);
+    });
+    const { client } = loggingClientWith(fetch, fake.now, quotaOn(store, fake.now), fake.sleep);
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result).toEqual({ kind: "try-again" });
+    expect(sent).toHaveLength(1);
+    expect(fake.pauses).toEqual([]);
   });
 });
 
@@ -909,7 +991,7 @@ describe("GameApiClient retries", () => {
     });
     const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toMatchObject({ kind: "found", fetchedAt: new Date(FIXED_NOW.getTime() + retryDelay(1, JITTER)) });
     expect(sent).toHaveLength(2);
@@ -921,7 +1003,7 @@ describe("GameApiClient retries", () => {
     const { fetch, sent } = fakeFetch(() => textResponse(504, "error code: 504"));
     const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "try-again" });
     expect(sent).toHaveLength(MAX_ATTEMPTS);
@@ -938,7 +1020,7 @@ describe("GameApiClient retries", () => {
     const { fetch, sent } = fakeFetch(respond);
     const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual(expected);
     expect(sent).toHaveLength(1);
@@ -952,7 +1034,8 @@ describe("GameApiClient retries", () => {
     const { fetch, sent } = fakeFetch(() => textResponse(503, "error code: 503"));
     const { client } = loggingClientWith(fetch, clock.now, quotaOn(store, clock.now), clock.sleep);
 
-    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    // Only an Onboarding Interview may send the last request of the Daily Quota.
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "onboarding-interview");
 
     expect(sent).toHaveLength(1);
     expect(clock.pauses).toEqual([]);
@@ -966,7 +1049,7 @@ describe("GameApiClient retries", () => {
     });
     const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "try-again" });
     expect(sent).toHaveLength(1);
@@ -986,7 +1069,7 @@ describe("GameApiClient retries", () => {
     });
     const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toMatchObject({ kind: "found" });
     expect(sent).toHaveLength(2);
@@ -1006,7 +1089,7 @@ describe("GameApiClient retries", () => {
     });
     const { client } = loggingClientWith(fetch, clock.now, undefined, clock.sleep);
 
-    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     // After 6 s and a 1 s pause, 13 s of the lookup are left.
     expect(timeout.mock.calls).toEqual([[15_000], [13_000]]);
@@ -1022,7 +1105,7 @@ describe("GameApiClient retries", () => {
     };
     const { client } = loggingClientWith(fetch, clock.now, quotaOn(store, clock.now), overrunningPause);
 
-    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(result).toEqual({ kind: "try-again" });
     expect(sent).toHaveLength(1);

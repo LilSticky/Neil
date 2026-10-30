@@ -163,7 +163,7 @@ export async function handlePlayer(interaction: LookupInteraction, context: Look
     await showLookup(
       interaction,
       context,
-      () => context.gameApi.getPlayer(uid),
+      () => context.gameApi.getPlayer(uid, "lookup"),
       renderPlayerCard,
       (failure, now) => playerFailureText(failure, uid, now),
     );
@@ -193,7 +193,7 @@ export async function handleAlliance(
     await showLookup(
       interaction,
       context,
-      () => context.gameApi.getAlliance(kingdomNumber, allianceKey),
+      () => context.gameApi.getAlliance(kingdomNumber, allianceKey, "lookup"),
       renderAllianceCard,
       (failure, now) => allianceFailureText(failure, kingdomNumber, allianceKey, now),
     );

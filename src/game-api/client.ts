@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
-import { canSend, nextReset, type DailyQuota, type UtcDay } from "../domain/daily-quota.js";
+import { nextReset, type DailyQuota, type RequestPurpose, type UtcDay } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
@@ -64,6 +64,14 @@ interface Reply {
   readonly day: UtcDay;
 }
 
+/** One Game API call of a lookup: where it goes, what it is for, and whether a 409 is an answer to read. */
+interface Call {
+  readonly endpoint: string;
+  readonly path: string;
+  readonly purpose: RequestPurpose;
+  readonly conflictIsAnswer: boolean;
+}
+
 /** A body that passed its schema, or the unexpected failure that was already logged. */
 type ReadBody<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly failure: Unexpected };
 
@@ -104,36 +112,42 @@ export class GameApiClient {
     return this.quota.today();
   }
 
-  /** A fresh cached answer, else one shared request; only a found answer is cached. */
-  async getPlayer(uid: Uid): Promise<LookupResult<Player>> {
+  /**
+   * A fresh cached answer, else one shared request; only a found answer is cached. The purpose decides whether the
+   * request may use the Quota Reserve.
+   */
+  async getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     const key = `player:${uid}`;
     const fresh = this.players.get(key, this.now());
     if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
 
     return this.playerLookups.share(key, async () => {
-      const result = await this.fetchPlayer(uid);
+      const result = await this.fetchPlayer(uid, purpose);
       if (result.kind === "found") this.players.store(key, result.value, result.fetchedAt);
       return orStale(result, this.players.getStale(key));
     });
   }
 
-  /** A fresh cached answer, else one shared request; only a found answer is cached. Tags are compared in lower case. */
-  async getAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
+  /**
+   * A fresh cached answer, else one shared request; only a found answer is cached. Tags are compared in lower case.
+   * The purpose decides whether the request may use the Quota Reserve.
+   */
+  async getAlliance(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
     const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
     const fresh = this.alliances.get(cacheKey, this.now());
     if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
 
     return this.allianceLookups.share(cacheKey, async () => {
-      const result = await this.fetchAlliance(kingdom, key);
+      const result = await this.fetchAlliance(kingdom, key, purpose);
       if (result.kind === "found") this.alliances.store(cacheKey, result.value, result.fetchedAt);
       return orStale(result, this.alliances.getStale(cacheKey));
     });
   }
 
-  private async fetchPlayer(uid: Uid): Promise<LookupResult<Player>> {
+  private async fetchPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     const endpoint = "/players/{uid}";
 
-    const reply = await this.request(endpoint, `/players/${uid}`);
+    const reply = await this.request({ endpoint, path: `/players/${uid}`, purpose, conflictIsAnswer: false });
     if (reply.kind !== "reply") return reply;
 
     const read = await this.readBody(endpoint, reply, playerBodySchema);
@@ -174,14 +188,19 @@ export class GameApiClient {
     };
   }
 
-  private async fetchAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<LookupResult<Alliance>> {
+  private async fetchAlliance(
+    kingdom: KingdomNumber,
+    key: AllianceKey,
+    purpose: RequestPurpose,
+  ): Promise<LookupResult<Alliance>> {
     const endpoint = "/alliances/{kingdom}/{key}";
 
-    const reply = await this.request(
+    const reply = await this.request({
       endpoint,
-      `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
-      true,
-    );
+      path: `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
+      purpose,
+      conflictIsAnswer: true,
+    });
     if (reply.kind !== "reply") return reply;
 
     if (reply.response.status === 409) {
@@ -219,37 +238,42 @@ export class GameApiClient {
    * A 503 or 504 is retried with a pause while the Daily Quota, MAX_ATTEMPTS and the lookup deadline allow.
    * Only the outcome of the whole lookup is logged.
    */
-  private async request(endpoint: string, path: string, conflictIsAnswer = false): Promise<Reply | Failure> {
+  private async request(call: Call): Promise<Reply | Failure> {
     const deadline = this.now().getTime() + LOOKUP_DEADLINE_MS;
     for (let attempt = 1; ; attempt += 1) {
-      const outcome = await this.attempt(endpoint, path, deadline, conflictIsAnswer);
+      const outcome = await this.attempt(call, deadline);
       if (outcome.kind !== "transient") return outcome;
 
       const pause = retryDelay(attempt, this.random());
-      if (!this.mayRetry(attempt, pause, deadline)) return this.fail(endpoint, outcome.detail, { kind: "try-again" });
+      if (!this.mayRetry(attempt, pause, deadline, call.purpose)) {
+        return this.fail(call.endpoint, outcome.detail, { kind: "try-again" });
+      }
       await this.sleep(pause);
     }
   }
 
-  /** Whether another attempt may follow the pause: attempts left, Daily Quota left, and enough of the deadline. */
-  private mayRetry(attempt: number, pause: number, deadline: number): boolean {
+  /**
+   * Whether another attempt may follow the pause: attempts left, a request for the purpose may still be sent today,
+   * and enough of the deadline.
+   */
+  private mayRetry(attempt: number, pause: number, deadline: number, purpose: RequestPurpose): boolean {
     const leftAfterPause = deadline - (this.now().getTime() + pause);
-    return attempt < MAX_ATTEMPTS && canSend(this.quota.today()) && leftAfterPause >= MIN_TIME_FOR_RETRY_MS;
+    return attempt < MAX_ATTEMPTS && this.quota.mayCount(purpose) && leftAfterPause >= MIN_TIME_FOR_RETRY_MS;
   }
 
   /** One attempt, counted against the Daily Quota and settled once. A transient failure is returned unlogged. */
-  private async attempt(
-    endpoint: string,
-    path: string,
-    deadline: number,
-    conflictIsAnswer: boolean,
-  ): Promise<Reply | Failure | Transient> {
+  private async attempt(call: Call, deadline: number): Promise<Reply | Failure | Transient> {
+    const { endpoint, path, purpose, conflictIsAnswer } = call;
     // A pause may have used up the deadline; then the lookup ends here, before anything is counted or sent.
     if (this.now().getTime() >= deadline) {
       return this.fail(endpoint, "lookup deadline passed", { kind: "try-again" });
     }
-    const day = this.quota.tryCount();
-    if (day === undefined) return { kind: "quota-spent", resetsAt: nextReset(this.now()) };
+    const counted = this.quota.tryCount(purpose);
+    if (!counted.ok) {
+      const resetsAt = nextReset(this.now());
+      return counted.reason === "spent" ? { kind: "quota-spent", resetsAt } : { kind: "reserve-kept", resetsAt };
+    }
+    const day = counted.day;
 
     // A pause that ran long can leave no time; a timeout of 0 then gives up at once rather than throwing.
     const timeoutMs = Math.max(0, Math.min(this.timeoutMs, deadline - this.now().getTime()));
@@ -344,9 +368,9 @@ export class GameApiClient {
   }
 }
 
-/** A spent Daily Quota answers with the cached entry, however old, when there is one. */
+/** A spent Daily Quota, or one kept back by the Quota Reserve, answers with the cached entry, however old, when there is one. */
 function orStale<T>(result: LookupResult<T>, stale: CacheEntry<T> | undefined): LookupResult<T> {
-  if (result.kind !== "quota-spent" || stale === undefined) return result;
+  if ((result.kind !== "quota-spent" && result.kind !== "reserve-kept") || stale === undefined) return result;
   return { kind: "found", value: stale.value, fetchedAt: stale.fetchedAt };
 }
 

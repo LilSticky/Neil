@@ -45,10 +45,10 @@ sessions, roster in the domain) is shared by all three.
   `pickableAllianceMatch` needs `tag` and `kingdom`; `orderMatches` sorts by Kingdom then name, keeps at most 25 and
   reports how many were left out. Implement in `src/domain/player.ts`, plus `RosterEntry`
   (`uid`, `name`, `allianceRank`), `Alliance.roster`, and the `LookupResult` kind `reserve-kept` (`resetsAt`).
-- [ ] T006 Test `src/game-api/quota-keeper.test.ts`: keeper with `reserve: 100`; `tryCount("lookup")` refuses with
+- [x] T006 Test `src/game-api/quota-keeper.test.ts`: keeper with `reserve: 100`; `tryCount("lookup")` refuses with
   reason `"reserve"` at remaining ≤ 100 and saves nothing; `tryCount("onboarding-interview")` still counts;
   refusal reason `"spent"` when `canSend` is false. Implement in `src/game-api/quota-keeper.ts`.
-- [ ] T007 Test in `src/game-api/client.test.ts`: every public method takes a required `purpose`; a lookup refused
+- [x] T007 Test in `src/game-api/client.test.ts`: every public method takes a required `purpose`; a lookup refused
   for the reserve makes no fetch and returns `reserve-kept` with `resetsAt` = next 00:00 UTC; a stale cache entry is
   served instead when there is one; retries stop when the purpose may no longer send. Implement in
   `src/game-api/client.ts`; `src/discord/lookup.ts` passes `"lookup"`; wire `config.quotaReserve` through
@@ -146,6 +146,8 @@ sessions, roster in the domain) is shared by all three.
 ## Phase 6: Polish
 
 - [ ] T024 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/domain/`; fixes via `implementer`
+- [ ] T028 Test then implement the startup warning when the Quota Reserve is at or above the stored limit (spec edge
+  case; split from T007, as `StartupDeps` has no warning seam yet) in `src/startup.test.ts` / `src/startup.ts`
 - [ ] T025 Update GAME-API.md if an alliance-name 409 or a name 502 behaves other than assumed (research R3)
 - [ ] T026 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)) after
   `npm run commands:register` (user); record the result here

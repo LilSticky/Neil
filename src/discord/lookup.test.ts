@@ -1,5 +1,6 @@
 import { MessageFlags } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
+import type { RequestPurpose } from "../domain/daily-quota.js";
 import { parseKingdom, parseUid, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
@@ -33,7 +34,7 @@ const player: Player = {
 /** A context whose fake Game API answers every lookup with the given result. */
 function contextReturning(result: LookupResult<Player>) {
   const logged: string[] = [];
-  const getPlayer = vi.fn<(uid: Uid) => Promise<LookupResult<Player>>>(() => Promise.resolve(result));
+  const getPlayer = vi.fn<(uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>>(() => Promise.resolve(result));
   const context = {
     gameApi: { getPlayer },
     now: () => NOW,
@@ -74,7 +75,7 @@ describe("handlePlayer", () => {
 
     await handlePlayer(interaction, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(UID);
+    expect(getPlayer).toHaveBeenCalledWith(UID, "lookup");
   });
 
   test("defers publicly, then shows the Player card to everyone", async () => {
@@ -246,7 +247,7 @@ const alliance: Alliance = {
 /** A context whose fake Game API answers every alliance lookup with the given result. */
 function allianceContextReturning(result: LookupResult<Alliance>) {
   const logged: string[] = [];
-  const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey) => Promise<LookupResult<Alliance>>>(() =>
+  const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>>(() =>
     Promise.resolve(result),
   );
   const context = {
@@ -334,7 +335,7 @@ describe("handleAlliance", () => {
 
     await handleAlliance(interaction, context);
 
-    expect(getAlliance).toHaveBeenCalledWith(kingdomOne, "NML");
+    expect(getAlliance).toHaveBeenCalledWith(kingdomOne, "NML", "lookup");
   });
 
   test("defers publicly, then shows the Alliance card to everyone", async () => {
@@ -612,7 +613,7 @@ describe("handlePlayer when the Game API throws", () => {
   test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     const logged: string[] = [];
-    const getPlayer = vi.fn<(uid: Uid) => Promise<LookupResult<Player>>>(() =>
+    const getPlayer = vi.fn<(uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>>(() =>
       Promise.reject(new Error("tracker connection reset")),
     );
     const context = {
@@ -648,7 +649,7 @@ describe("handleAlliance when the Game API throws", () => {
       integers: { kingdom: 1 },
     });
     const logged: string[] = [];
-    const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey) => Promise<LookupResult<Alliance>>>(() =>
+    const getAlliance = vi.fn<(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>>(() =>
       Promise.reject(new Error("tracker connection reset")),
     );
     const context = {
