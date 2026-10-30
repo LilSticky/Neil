@@ -56,11 +56,11 @@ description: "Task list for slice 003, Look up players within the daily quota"
   other in-flight requests added; `limitReached()` marks and saves; a keeper built on a store with today's spent row
   refuses at once (restart, SC-002/SC-003)
 - [x] T008 Implement `src/game-api/quota-keeper.ts` (store port `{ load(): DailyQuota | undefined; save(q): void }`)
-- [ ] T009 [P] Test `src/game-api/schemas.test.ts`: `quotaFiguresFrom(body, headers)` reads body `quota`
+- [x] T009 [P] Test `src/game-api/schemas.test.ts`: `quotaFiguresFrom(body, headers)` reads body `quota`
   (`limit ≥ 1`, `used`, `remaining` whole numbers ≥ 0) first, else headers `x-ratelimit-limit` /
   `x-ratelimit-remaining` (`used = limit − remaining`); returns `undefined` when absent and `"malformed"` when present
   but unreadable
-- [ ] T010 [P] Implement `quotaFiguresFrom` in `src/game-api/schemas.ts`
+- [x] T010 [P] Implement `quotaFiguresFrom` in `src/game-api/schemas.ts`
 
 **Checkpoint**: domain and storage green; the client still behaves as in slice 002 apart from `fetchedAt`.
 
@@ -70,11 +70,11 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 **Independent test**: same uid twice within 10 minutes → one fetch; the card shows `as of`.
 
-- [ ] T011 [P] [US1] Test `src/game-api/lookup-cache.test.ts` with a fake clock: `get(key, now)` gives a fresh entry
+- [x] T011 [P] [US1] Test `src/game-api/lookup-cache.test.ts` with a fake clock: `get(key, now)` gives a fresh entry
   before the TTL and none at/after it; `getStale(key)` gives any entry; `share(key, run)` returns the same promise to
   concurrent callers and runs `run` once, then forgets it when it settles (also on rejection); only `found` results
   are stored; more than 2,000 entries drop the oldest stored
-- [ ] T012 [P] [US1] Implement `src/game-api/lookup-cache.ts`
+- [x] T012 [P] [US1] Implement `src/game-api/lookup-cache.ts`
 - [ ] T013 [US1] Test in `src/game-api/client.test.ts`: `getPlayer` twice within the TTL → one fetch, same
   `fetchedAt`; after the TTL → two fetches; two concurrent calls → one fetch; `getAlliance(1, "NML")` and
   `getAlliance(1, " nml ")` share one cache key (key `alliance:<kingdom>:<tag lower case>`); a `not-found` or
