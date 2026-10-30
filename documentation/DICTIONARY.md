@@ -22,6 +22,10 @@ discovery.
 * A character in Last Asylum: Plague, as the Game API describes it
 * Identified by a player ID from the game
 
+## Player Name
+* A Player's in-game nickname
+* Not unique: several Players, also in different Kingdoms, can share one; matched exactly, ignoring letter case
+
 ## Game API
 * The external source of in-game information about Players
 
@@ -32,6 +36,9 @@ discovery.
 ## Alliance
 * A group of Players in one Kingdom, with a tag and a name
 * Identified within its Kingdom by its tag (or name)
+
+## Alliance Roster
+* The list of an Alliance's Players, each with uid, Player Name and Alliance Rank, as the Game API reports it
 
 ## Alliance Rank
 * R1–R5, a Player's rank in their Alliance; R5 is the Alliance's leader
