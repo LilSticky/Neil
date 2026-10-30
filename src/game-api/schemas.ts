@@ -23,7 +23,19 @@ export const playerBodySchema = z.object({
 
 export type PlayerBody = z.infer<typeof playerBodySchema>;
 
-/** The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. */
+/** One row of an Alliance's `members`; the name and the rank label may be null. */
+const rosterMemberSchema = z.object({
+  uid: idSchema,
+  nick_name: z.string().nullish(),
+  rank_label: z.string().nullish(),
+});
+
+export type RosterMemberBody = z.infer<typeof rosterMemberSchema>;
+
+/**
+ * The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. A member row without a
+ * readable uid is left out; a missing `members` gives an empty roster.
+ */
 export const allianceBodySchema = z.object({
   abbr: z.string(),
   name: z.string(),
@@ -36,6 +48,15 @@ export const allianceBodySchema = z.object({
     .string()
     .nullish()
     .transform((name) => (name === "" ? undefined : name)),
+  members: z
+    .array(z.unknown())
+    .nullish()
+    .transform((rows): RosterMemberBody[] =>
+      (rows ?? []).flatMap((row) => {
+        const member = rosterMemberSchema.safeParse(row);
+        return member.success ? [member.data] : [];
+      }),
+    ),
 });
 
 export type AllianceBody = z.infer<typeof allianceBodySchema>;

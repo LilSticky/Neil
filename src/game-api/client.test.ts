@@ -13,6 +13,8 @@ import {
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
+import allianceByName from "./__fixtures__/alliance-by-name.json" with { type: "json" };
+import alliancesAmbiguous from "./__fixtures__/alliances-ambiguous.json" with { type: "json" };
 import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { type: "json" };
 import playerByName from "./__fixtures__/player-by-name.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
@@ -486,9 +488,38 @@ describe("GameApiClient.getAlliance result", () => {
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",
-      roster: [],
+      roster: [
+        { uid: parsedUid("179060285441"), name: "etranger", allianceRank: "R4" },
+        { uid: parsedUid("93159425"), name: "Benedict", allianceRank: "R3" },
+        { uid: parsedUid("147744374785"), name: "Settong", allianceRank: "R1" },
+      ],
     };
     expect(result).toEqual({ kind: "found", value: expected, fetchedAt: FIXED_NOW });
+  });
+
+  test("maps each roster member to its uid and name, a null nick_name to Unknown, and rank_label to the Alliance Rank", async () => {
+    const body = {
+      ...alliance,
+      members: [
+        { uid: 179060285441, nick_name: "etranger", rank_label: "R4" },
+        { uid: 93159425, nick_name: null, rank_label: "R3" },
+        { uid: 147744374785, nick_name: "Settong", rank_label: null },
+      ],
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: {
+        roster: [
+          { uid: "179060285441", name: "etranger", allianceRank: "R4" },
+          { uid: "93159425", name: "Unknown", allianceRank: "R3" },
+          { uid: "147744374785", name: "Settong", allianceRank: "unknown" },
+        ],
+      },
+    });
   });
 
   test("a null leader_name gives an Alliance without a leader name", async () => {
@@ -1293,5 +1324,89 @@ describe("GameApiClient.findPlayer cache", () => {
     expect(sent).toHaveLength(1);
     expect(a).toMatchObject({ kind: "found" });
     expect(b).toMatchObject({ kind: "found" });
+  });
+});
+
+const ALLIANCE_NAME_PATH = "https://api.lastasylumtracker.com/v1/alliances/name/No%20Man's%20Land";
+
+describe("GameApiClient.findAlliance request", () => {
+  test("takes a name and a required purpose, and no Kingdom", () => {
+    const client = clientWith(fakeFetch(() => jsonResponse(200, allianceByName)).fetch);
+
+    expectTypeOf<GameApiClient["findAlliance"]>().parameters.toEqualTypeOf<[AllianceKey, RequestPurpose]>();
+    expect(client.findAlliance.length).toBe(2);
+  });
+
+  test("sends GET to /alliances/name/{name} on the Game API, with the full name percent-encoded", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, allianceByName));
+
+    await clientWith(fetch).findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+
+    expect(firstRequest(sent).url).toBe(ALLIANCE_NAME_PATH);
+  });
+});
+
+describe("GameApiClient.findAlliance result", () => {
+  test("a 200 for the full name is found, mapped to an Alliance of the Kingdom in the body", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, allianceByName));
+
+    const result = await clientWith(fetch).findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: {
+        tag: "NML",
+        name: "No Man's Land",
+        kingdom: parsedKingdom(1),
+        memberCount: 52,
+        capacity: 100,
+        leaderName: "DrLOL",
+      },
+      fetchedAt: FIXED_NOW,
+    });
+  });
+
+  test("a 409 is ambiguous, each match with its tag, name and server as Kingdom", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(409, alliancesAmbiguous));
+
+    const result = await clientWith(fetch).findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+
+    expect(result).toEqual({
+      kind: "ambiguous",
+      matches: [
+        { tag: "NML", name: "No Man's Land", kingdom: 1 },
+        { tag: "NMX", name: "No Man's Land", kingdom: 180 },
+      ],
+    });
+  });
+
+  test("a 404 is not-found", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(404, { detail: "alliance_not_found" }));
+
+    const result = await clientWith(fetch).findAlliance(parsedAllianceKey("No Such Land"), "lookup");
+
+    expect(result).toEqual({ kind: "not-found" });
+  });
+
+  test("a 502 is not-prepared, as for getAlliance", async () => {
+    const { fetch } = fakeFetch(() => textResponse(502, "error code: 502"));
+
+    const result = await clientWith(fetch).findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+
+    expect(result).toEqual({ kind: "not-prepared" });
+  });
+});
+
+describe("GameApiClient.findAlliance cache", () => {
+  test("names that differ only in case share one fetch", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, allianceByName));
+    const client = clientWith(fetch);
+
+    const first = await client.findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+    const second = await client.findAlliance(parsedAllianceKey("no man's land"), "lookup");
+
+    expect(sent).toHaveLength(1);
+    expect(first).toMatchObject({ kind: "found" });
+    expect(second).toMatchObject({ kind: "found" });
   });
 });

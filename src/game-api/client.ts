@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { rankFromRoster } from "../domain/alliance-rank.js";
+import { rankFromLabel, rankFromRoster } from "../domain/alliance-rank.js";
 import { nextReset, type DailyQuota, type RequestPurpose, type UtcDay } from "../domain/daily-quota.js";
 import {
   parseKingdom,
@@ -9,7 +9,7 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
+import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import type { QuotaKeeper } from "./quota-keeper.js";
 import { InFlight, LookupCache, type CacheEntry } from "./lookup-cache.js";
@@ -18,8 +18,10 @@ import {
   ambiguousBodySchema,
   playerBodySchema,
   quotaFiguresFrom,
+  type AllianceBody,
   type AmbiguousBody,
   type PlayerBody,
+  type RosterMemberBody,
 } from "./schemas.js";
 
 /** The part of the global fetch the client uses; tests pass a fake. */
@@ -80,7 +82,7 @@ interface Call {
   readonly conflictIsAnswer: boolean;
 }
 
-/** A Player Name answer as cached: the Player, or the matches when the name is ambiguous. */
+/** A name answer as cached (Player or Alliance): the found value, or the matches when the name is ambiguous. */
 type NameAnswer<T> = { readonly kind: "found"; readonly value: T } | { readonly kind: "ambiguous"; readonly matches: readonly Match[] };
 
 /** A body that passed its schema, or the unexpected failure that was already logged. */
@@ -101,9 +103,11 @@ export class GameApiClient {
   private readonly players: LookupCache<Player>;
   private readonly alliances: LookupCache<Alliance>;
   private readonly playerNames: LookupCache<NameAnswer<Player>>;
+  private readonly allianceNames: LookupCache<NameAnswer<Alliance>>;
   private readonly playerLookups = new InFlight<LookupResult<Player>>();
   private readonly playerNameLookups = new InFlight<LookupResult<Player>>();
   private readonly allianceLookups = new InFlight<LookupResult<Alliance>>();
+  private readonly allianceNameLookups = new InFlight<LookupResult<Alliance>>();
 
   constructor(options: GameApiClientOptions) {
     this.apiKey = options.apiKey;
@@ -119,6 +123,7 @@ export class GameApiClient {
     this.players = new LookupCache<Player>({ ttlMs: options.cacheTtlMs });
     this.playerNames = new LookupCache<NameAnswer<Player>>({ ttlMs: options.cacheTtlMs });
     this.alliances = new LookupCache<Alliance>({ ttlMs: options.cacheTtlMs });
+    this.allianceNames = new LookupCache<NameAnswer<Alliance>>({ ttlMs: options.cacheTtlMs });
   }
 
   /** Today's Daily Quota as counted so far. Makes no request. */
@@ -153,17 +158,42 @@ export class GameApiClient {
     purpose: RequestPurpose,
   ): Promise<LookupResult<Player>> {
     const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
-    const fresh = this.playerNames.get(key, this.now());
+    return this.byName(this.playerNames, this.playerNameLookups, key, () =>
+      this.fetchPlayerByName(name, kingdom, purpose),
+    );
+  }
+
+  /**
+   * A fresh cached answer, else one shared request; a found Alliance and a match list are cached, a failure is not.
+   * The full name is compared in lower case. The purpose decides whether the request may use the Quota Reserve.
+   */
+  async findAlliance(name: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
+    return this.byName(this.allianceNames, this.allianceNameLookups, `alliance-name:${name.toLowerCase()}`, () =>
+      this.fetchAllianceByName(name, purpose),
+    );
+  }
+
+  /**
+   * The name lookups' cache flow: a fresh answer from the cache, else one request shared by concurrent callers.
+   * A found answer and a match list are cached; a failure is not. A spent or reserved quota answers with a stale entry.
+   */
+  private async byName<T>(
+    cache: LookupCache<NameAnswer<T>>,
+    inFlight: InFlight<LookupResult<T>>,
+    key: string,
+    fetch: () => Promise<LookupResult<T>>,
+  ): Promise<LookupResult<T>> {
+    const fresh = cache.get(key, this.now());
     if (fresh !== undefined) return answerOf(fresh);
 
-    return this.playerNameLookups.share(key, async () => {
-      const result = await this.fetchPlayerByName(name, kingdom, purpose);
+    return inFlight.share(key, async () => {
+      const result = await fetch();
       if (result.kind === "found") {
-        this.playerNames.store(key, { kind: "found", value: result.value }, result.fetchedAt);
+        cache.store(key, { kind: "found", value: result.value }, result.fetchedAt);
       } else if (result.kind === "ambiguous") {
-        this.playerNames.store(key, { kind: "ambiguous", matches: result.matches }, this.now());
+        cache.store(key, { kind: "ambiguous", matches: result.matches }, this.now());
       }
-      const stale = this.playerNames.getStale(key);
+      const stale = cache.getStale(key);
       return orStale(result, stale === undefined ? undefined : answerOf(stale));
     });
   }
@@ -265,19 +295,41 @@ export class GameApiClient {
     };
   }
 
+  /** GET /alliances/{kingdom}/{key}: the Alliance of a Kingdom and tag. */
   private async fetchAlliance(
     kingdom: KingdomNumber,
     key: AllianceKey,
     purpose: RequestPurpose,
   ): Promise<LookupResult<Alliance>> {
-    const endpoint = "/alliances/{kingdom}/{key}";
-
-    const reply = await this.request({
-      endpoint,
-      path: `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
+    return this.requestAlliance(
+      "/alliances/{kingdom}/{key}",
+      `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
       purpose,
-      conflictIsAnswer: true,
-    });
+      kingdom,
+    );
+  }
+
+  /** GET /alliances/name/{name}: the Alliance with a full name, in whichever Kingdom it is. */
+  private async fetchAllianceByName(name: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
+    return this.requestAlliance(
+      "/alliances/name/{name}",
+      `/alliances/name/${encodeURIComponent(name)}`,
+      purpose,
+      undefined,
+    );
+  }
+
+  /**
+   * One Alliance request. A 409 is the matches; a 200 is an Alliance, which must be in the `expected` Kingdom when one
+   * is given (a Kingdom and tag lookup); otherwise the Kingdom is the one the body names.
+   */
+  private async requestAlliance(
+    endpoint: string,
+    path: string,
+    purpose: RequestPurpose,
+    expected: KingdomNumber | undefined,
+  ): Promise<LookupResult<Alliance>> {
+    const reply = await this.request({ endpoint, path, purpose, conflictIsAnswer: true });
     if (reply.kind !== "reply") return reply;
 
     if (reply.response.status === 409) {
@@ -290,23 +342,12 @@ export class GameApiClient {
     if (!read.ok) return read.failure;
     const fetchedAt = this.now();
 
-    const body = read.body;
-    if (body.sid !== kingdom) return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
-
-    return {
-      kind: "found",
-      value: {
-        tag: body.abbr,
-        name: body.name,
-        kingdom,
-        power: body.power,
-        memberCount: body.member_count,
-        capacity: body.capacity,
-        leaderName: body.leader_name ?? undefined,
-        roster: [],
-      },
-      fetchedAt,
-    };
+    const kingdom = parseKingdom(read.body.sid);
+    if (!kingdom.ok) return this.unexpected(endpoint, "status 200, sid is not a Kingdom number");
+    if (expected !== undefined && kingdom.value !== expected) {
+      return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
+    }
+    return { kind: "found", value: allianceFrom(read.body, kingdom.value), fetchedAt };
   }
 
   /**
@@ -463,6 +504,30 @@ function foundBy<T>(entry: CacheEntry<T> | undefined): LookupResult<T> | undefin
 function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
   const { value, fetchedAt } = entry;
   return value.kind === "found" ? { kind: "found", value: value.value, fetchedAt } : value;
+}
+
+/** An Alliance from a 200 body, in the Kingdom the body names. */
+function allianceFrom(body: AllianceBody, kingdom: KingdomNumber): Alliance {
+  return {
+    tag: body.abbr,
+    name: body.name,
+    kingdom,
+    power: body.power,
+    memberCount: body.member_count,
+    capacity: body.capacity,
+    leaderName: body.leader_name ?? undefined,
+    roster: body.members.flatMap(rosterEntryFrom),
+  };
+}
+
+/** One roster row as an entry: a row without a readable uid is left out; a missing name reads Unknown. */
+function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
+  const uid = parseUid(member.uid);
+  if (!uid.ok) return [];
+  const name = member.nick_name ?? "";
+  return [
+    { uid: uid.value, name: name === "" ? "Unknown" : name, allianceRank: rankFromLabel(member.rank_label ?? null) },
+  ];
 }
 
 /** Maps one candidate of a 409, leaving out the fields the Game did not give (exactOptionalPropertyTypes). */

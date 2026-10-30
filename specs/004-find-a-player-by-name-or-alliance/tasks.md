@@ -102,17 +102,17 @@ sessions, roster in the domain) is shared by all three.
 
 **Independent test**: card lists all members by rank with uids; menu pages through them; pick → Player card.
 
-- [ ] T016 [P] [US2] Test `src/game-api/schemas.test.ts`: `allianceBodySchema` reads `members[]` (`uid`, `nick_name`
+- [x] T016 [P] [US2] Test `src/game-api/schemas.test.ts`: `allianceBodySchema` reads `members[]` (`uid`, `nick_name`
   nullish, `rank_label` nullable); a row without a uid is dropped; a missing `members` gives an empty roster. Add a
   recorded `alliance-by-name.json` and a hand-written `alliances-ambiguous.json` (409, `matches` with `server`,
   `tag`, `name`) to the fixtures. Implement in `src/game-api/schemas.ts`.
-- [ ] T017 [US2] Test in `src/game-api/client.test.ts`: `getAlliance` maps the roster (`nick_name` null → "Unknown",
+- [x] T017 [US2] Test in `src/game-api/client.test.ts`: `getAlliance` maps the roster (`nick_name` null → "Unknown",
   ranks via `rankFromLabel`); `findAlliance(name, "lookup")` calls `/alliances/name/{encoded name}`, 200 → `found`,
   409 → `ambiguous`, 404 → `not-found`, 502 → `try-again`; cached by lower-cased name. Implement in
   `src/game-api/client.ts`.
-- [ ] T018 [US2] Test then implement the `/alliance` definition in `src/discord/commands.ts`: options `kingdom`
+- [x] T018 [US2] Test then implement the `/alliance` definition in `src/discord/commands.ts`: options `kingdom`
   (integer 1–9999), `alliance` (tag, string ≤ 40), `name` (full name, string ≤ 40), all optional.
-- [ ] T019 [P] [US2] Test `src/discord/lookup-cards.test.ts` per [contracts/commands.md](contracts/commands.md#alliance-card):
+- [x] T019 [P] [US2] Test `src/discord/lookup-cards.test.ts` per [contracts/commands.md](contracts/commands.md#alliance-card):
   roster fields by rank (`R5`, `R5 (cont.)` past 1,024 characters), rows `{name} · {uid}` escaped; 100 long rows stay
   under 6,000 characters with `… and {n} more, see the menu below`; empty roster → `The tracker lists no members.`;
   roster components (select `Look up a member…` with ≤ 25 options `{rank} · {name}` / `uid {uid}`; page row only past

@@ -57,15 +57,17 @@ describe("cards from recorded Game API answers", () => {
     const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    expect(renderAllianceCard(result.value, result.fetchedAt, NOW)).toMatchObject({
+    const card = renderAllianceCard(result.value, result.fetchedAt, NOW);
+    expect(card).toMatchObject({
       title: "[NML] No Man's Land",
-      fields: [
-        { name: "Kingdom", value: "#1" },
-        { name: "Power", value: "208,815,434" },
-        { name: "Members", value: "52/100" },
-        { name: "Leader", value: "DrLOL" },
-      ],
       footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
+    // The roster fields follow these four; their rows are covered in lookup-cards.test.ts.
+    expect(card.fields?.slice(0, 4)).toMatchObject([
+      { name: "Kingdom", value: "#1" },
+      { name: "Power", value: "208,815,434" },
+      { name: "Members", value: "52/100" },
+      { name: "Leader", value: "DrLOL" },
+    ]);
   });
 });

@@ -40,8 +40,8 @@ export const alliance = new SlashCommandBuilder()
   .addIntegerOption((option) =>
     option
       .setName("kingdom")
-      .setDescription("The kingdom number")
-      .setRequired(true)
+      .setDescription("The kingdom number, with a tag")
+      .setRequired(false)
       .setMinValue(1)
       .setMaxValue(9999),
   )
@@ -49,7 +49,14 @@ export const alliance = new SlashCommandBuilder()
     option
       .setName("alliance")
       .setDescription("The alliance tag, e.g. NML")
-      .setRequired(true)
+      .setRequired(false)
+      .setMaxLength(40),
+  )
+  .addStringOption((option) =>
+    option
+      .setName("name")
+      .setDescription("The alliance's exact full name, alone")
+      .setRequired(false)
       .setMaxLength(40),
   );
 

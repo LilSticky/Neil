@@ -1,4 +1,4 @@
-import { ComponentType } from "discord.js";
+import { ComponentType, type APIEmbed } from "discord.js";
 import { describe, expect, test } from "vitest";
 import {
   parseAllianceKey,
@@ -10,12 +10,14 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import type { Alliance, Match, Player } from "../domain/player.js";
+import type { Alliance, Match, Player, RosterEntry } from "../domain/player.js";
 import {
   lookupMessages,
   renderAllianceCard,
+  renderAlliancePickList,
   renderPlayerCard,
   renderPlayerPickList,
+  renderRosterComponents,
   timeLeft,
 } from "./lookup-cards.js";
 
@@ -167,15 +169,15 @@ describe("renderAllianceCard", () => {
     });
   });
 
-  test("shows Kingdom, Power, Members as count/capacity, and Leader as inline fields", () => {
-    expect(renderAllianceCard(alliance, FETCHED_AT, NOW)).toMatchObject({
-      fields: [
-        { name: "Kingdom", value: "#1", inline: true },
-        { name: "Power", value: "208,815,434", inline: true },
-        { name: "Members", value: "52/100", inline: true },
-        { name: "Leader", value: "DrLOL", inline: true },
-      ],
-    });
+  test("shows Kingdom, Power, Members as count/capacity, and Leader as inline fields, before the roster", () => {
+    const fields = renderAllianceCard(alliance, FETCHED_AT, NOW).fields ?? [];
+
+    expect(fields.slice(0, 4)).toEqual([
+      { name: "Kingdom", value: "#1", inline: true },
+      { name: "Power", value: "208,815,434", inline: true },
+      { name: "Members", value: "52/100", inline: true },
+      { name: "Leader", value: "DrLOL", inline: true },
+    ]);
   });
 
   test("shows Unknown as the Leader when the Game gives no leader name", () => {
@@ -498,5 +500,281 @@ describe("renderPlayerPickList with more than 25 matches", () => {
   test("says that only the first 25 are listed and how to narrow the list", () => {
     const pickList = renderPlayerPickList(playerName("DrLOL"), thirtyMatches, "a1b2c3d4");
     expect(pickList.content).toContain("Only the first 25 are listed; add a kingdom to narrow it.");
+  });
+});
+
+function rosterEntry(uidText: string, name: string, allianceRank: RosterEntry["allianceRank"]): RosterEntry {
+  return { uid: uid(uidText), name, allianceRank };
+}
+
+function fieldValue(embed: APIEmbed, name: string): string | undefined {
+  return embed.fields?.find((field) => field.name === name)?.value;
+}
+
+/** Every character Discord counts toward an embed's 6,000: title, footer and each field's name and value. */
+function embedCharacters(embed: APIEmbed): number {
+  const parts = [
+    embed.title ?? "",
+    embed.footer?.text ?? "",
+    ...(embed.fields ?? []).flatMap((field) => [field.name, field.value]),
+  ];
+  return parts.reduce((total, part) => total + part.length, 0);
+}
+
+describe("renderAllianceCard roster fields", () => {
+  const roster: readonly RosterEntry[] = [
+    rosterEntry("93159425", "Benedict", "R3"),
+    rosterEntry("179060285441", "etranger", "R4"),
+    rosterEntry("147744374785", "Settong", "R1"),
+    rosterEntry("5555", "Ana", "R4"),
+    rosterEntry("42", "Unnamed", "unknown"),
+  ];
+
+  test("groups the roster into one field per Alliance Rank present, from R5 down to Unknown", () => {
+    const card = renderAllianceCard({ ...alliance, roster }, FETCHED_AT, NOW);
+
+    expect(card.fields?.map((field) => field.name)).toEqual([
+      "Kingdom",
+      "Power",
+      "Members",
+      "Leader",
+      "R4",
+      "R3",
+      "R1",
+      "Unknown",
+    ]);
+  });
+
+  test("lists each Player as name · uid, sorted by name ignoring case within the rank", () => {
+    const card = renderAllianceCard({ ...alliance, roster }, FETCHED_AT, NOW);
+
+    expect(fieldValue(card, "R4")).toBe("Ana · 5555\netranger · 179060285441");
+    expect(fieldValue(card, "R3")).toBe("Benedict · 93159425");
+    expect(fieldValue(card, "Unknown")).toBe("Unnamed · 42");
+  });
+
+  test("escapes the Player's name in each row", () => {
+    const card = renderAllianceCard({ ...alliance, roster: [rosterEntry("5555", "_Ana_", "R4")] }, FETCHED_AT, NOW);
+
+    expect(fieldValue(card, "R4")).toBe("\\_Ana\\_ · 5555");
+  });
+
+  test("continues an Alliance Rank whose rows pass 1,024 characters in a field named R5 (cont.)", () => {
+    const longRoster: RosterEntry[] = Array.from({ length: 30 }, (_, index) =>
+      rosterEntry((100_000_000_000 + index).toString(), `${"N".repeat(40)}${index.toString().padStart(2, "0")}`, "R5"),
+    );
+    const fields = renderAllianceCard({ ...alliance, roster: longRoster }, FETCHED_AT, NOW).fields ?? [];
+    const r5 = fields.filter((field) => field.name === "R5" || field.name === "R5 (cont.)");
+
+    expect(r5.map((field) => field.name)).toEqual(["R5", "R5 (cont.)"]);
+    for (const field of r5) {
+      expect(field.value.length).toBeLessThanOrEqual(1024);
+    }
+    expect(r5.flatMap((field) => field.value.split("\n"))).toHaveLength(30);
+  });
+});
+
+describe("renderAllianceCard with 100 long rows", () => {
+  const RANKS: readonly RosterEntry["allianceRank"][] = ["R5", "R4", "R3", "R2", "R1"];
+  const hundred: RosterEntry[] = Array.from({ length: 100 }, (_, index) => ({
+    uid: uid((100_000_000_000_000 + index).toString()),
+    name: `${"_".repeat(30)}${index.toString().padStart(2, "0")}`,
+    allianceRank: RANKS[index % RANKS.length] ?? "unknown",
+  }));
+
+  test("keeps the whole card within Discord's 6,000 characters", () => {
+    const card = renderAllianceCard({ ...alliance, roster: hundred }, FETCHED_AT, NOW);
+
+    expect(embedCharacters(card)).toBeLessThanOrEqual(6000);
+  });
+
+  test("replaces the rows that do not fit with a note counting them, pointing to the menu below", () => {
+    const card = renderAllianceCard({ ...alliance, roster: hundred }, FETCHED_AT, NOW);
+    const text = (card.fields ?? []).map((field) => field.value).join("\n");
+    const shown = text.split("\n").filter((line) => line.includes(" · ")).length;
+    const note = /… and (\d+) more, see the menu below/.exec(text);
+
+    expect(note).not.toBeNull();
+    expect(shown + Number(note?.[1])).toBe(100);
+  });
+});
+
+describe("renderAllianceCard with an empty roster", () => {
+  test("shows one Roster field saying the tracker lists no members", () => {
+    const card = renderAllianceCard({ ...alliance, roster: [] }, FETCHED_AT, NOW);
+
+    expect(card.fields?.find((field) => field.name === "Roster")).toMatchObject({
+      value: "The tracker lists no members.",
+    });
+  });
+});
+
+describe("renderRosterComponents", () => {
+  function members(count: number): RosterEntry[] {
+    return Array.from({ length: count }, (_, index) =>
+      rosterEntry((100_000_000_000 + index).toString(), `M${index.toString().padStart(2, "0")}`, "R4"),
+    );
+  }
+
+  test("offers one select menu of the members, placeholder Look up a member…, valued by index on the page", () => {
+    expect(renderRosterComponents(members(3), 0, "a1b2c3d4")).toMatchObject([
+      {
+        type: ComponentType.ActionRow,
+        components: [
+          {
+            type: ComponentType.StringSelect,
+            custom_id: "pick:a1b2c3d4:select",
+            placeholder: "Look up a member…",
+            options: [
+              { label: "R4 · M00", description: "uid 100000000000", value: "0" },
+              { label: "R4 · M01", description: "uid 100000000001", value: "1" },
+              { label: "R4 · M02", description: "uid 100000000002", value: "2" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+
+  test("labels a member without a known rank as Unknown", () => {
+    expect(renderRosterComponents([rosterEntry("42", "Unnamed", "unknown")], 0, "a1b2c3d4")).toMatchObject([
+      { components: [{ options: [{ label: "Unknown · Unnamed", value: "0" }] }] },
+    ]);
+  });
+
+  test("has only the select menu while the roster fits on one page of 25", () => {
+    expect(renderRosterComponents(members(25), 0, "a1b2c3d4")).toHaveLength(1);
+  });
+
+  test("has no components for an empty roster", () => {
+    expect(renderRosterComponents([], 0, "a1b2c3d4")).toEqual([]);
+  });
+
+  test("adds a row of page buttons past 25 members, with Next and the disabled Page 1/2 on the first page", () => {
+    const rows = renderRosterComponents(members(26), 0, "a1b2c3d4");
+
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toMatchObject({
+      type: ComponentType.ActionRow,
+      components: expect.arrayContaining([
+        expect.objectContaining({ type: ComponentType.Button, label: "Next ▶", custom_id: "pick:a1b2c3d4:page:1" }),
+        expect.objectContaining({ type: ComponentType.Button, label: "Page 1/2", disabled: true }),
+      ]) as unknown,
+    });
+  });
+
+  test("on a middle page, shows Page 2/3 disabled, with Previous and Next pointing to the pages either side", () => {
+    const rows = renderRosterComponents(members(60), 1, "a1b2c3d4");
+
+    expect(rows[1]).toMatchObject({
+      components: expect.arrayContaining([
+        expect.objectContaining({ label: "◀ Previous", custom_id: "pick:a1b2c3d4:page:0" }),
+        expect.objectContaining({ label: "Page 2/3", disabled: true }),
+        expect.objectContaining({ label: "Next ▶", custom_id: "pick:a1b2c3d4:page:2" }),
+      ]) as unknown,
+    });
+  });
+
+  test("gives each page its own options, valued from 0, so the last page holds only the rest", () => {
+    const rows = renderRosterComponents(members(30), 1, "a1b2c3d4");
+
+    expect(rows[0]).toMatchObject({
+      components: [
+        {
+          options: [
+            { label: "R4 · M25", value: "0" },
+            { label: "R4 · M26", value: "1" },
+            { label: "R4 · M27", value: "2" },
+            { label: "R4 · M28", value: "3" },
+            { label: "R4 · M29", value: "4" },
+          ],
+        },
+      ],
+    });
+  });
+});
+
+describe("renderAlliancePickList", () => {
+  const unordered: readonly Match[] = [
+    { tag: "NMX", name: "No Man's Land", kingdom: 180 },
+    { tag: "NML", name: "No Man's Land", kingdom: 1 },
+    { name: "No Tag", kingdom: 5 },
+  ];
+
+  test("asks which alliance is meant, naming the typed name, with no note when every match is listed", () => {
+    expect(renderAlliancePickList(allianceKey("No Man's Land"), unordered, "a1b2c3d4")).toMatchObject({
+      content: "Several alliances are named \"No Man's Land\". Pick one:",
+    });
+  });
+
+  test("offers only matches with a tag and a Kingdom, ordered by Kingdom, valued by index in that order", () => {
+    expect(renderAlliancePickList(allianceKey("No Man's Land"), unordered, "a1b2c3d4")).toMatchObject({
+      components: [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.StringSelect,
+              custom_id: "pick:a1b2c3d4:select",
+              options: [
+                { label: "[NML] No Man's Land · kingdom #1", value: "0" },
+                { label: "[NMX] No Man's Land · kingdom #180", value: "1" },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  test("escapes the typed name in the question", () => {
+    expect(renderAlliancePickList(allianceKey("N_M"), unordered, "a1b2c3d4")).toMatchObject({
+      content: 'Several alliances are named "N\\_M". Pick one:',
+    });
+  });
+
+  test("offers only the first 25 by Kingdom, values 0 to 24, and says how to narrow the list", () => {
+    const thirty: readonly Match[] = Array.from({ length: 30 }, (_, index) => ({
+      tag: `T${index.toString().padStart(2, "0")}`,
+      name: "Clan",
+      kingdom: index + 1,
+    })).reverse();
+
+    const pickList = renderAlliancePickList(allianceKey("Clan"), thirty, "a1b2c3d4");
+
+    expect(pickList.content).toContain("Only the first 25 are listed; use the kingdom and tag.");
+    expect(pickList.components).toMatchObject([
+      {
+        components: [
+          {
+            custom_id: "pick:a1b2c3d4:select",
+            options: Array.from({ length: 25 }, (_, index) => ({
+              label: `[T${index.toString().padStart(2, "0")}] Clan · kingdom #${(index + 1).toString()}`,
+              value: index.toString(),
+            })),
+          },
+        ],
+      },
+    ]);
+  });
+});
+
+describe("lookupMessages for /alliance by name", () => {
+  test("giveKingdomAndTagOrName gives the contract's text", () => {
+    expect(lookupMessages.giveKingdomAndTagOrName).toBe(
+      "Give the kingdom and the alliance tag, or the alliance's exact full name.",
+    );
+  });
+
+  test("allianceNameNotFound names the name and says approximate names are not supported", () => {
+    expect(lookupMessages.allianceNameNotFound(allianceKey("No Such Land"))).toBe(
+      'No alliance is named exactly "No Such Land". Use the full name, or the kingdom and tag; approximate names are not supported.',
+    );
+  });
+
+  test("allianceNameNotFound escapes the name as typed", () => {
+    expect(lookupMessages.allianceNameNotFound(allianceKey("N_M*"))).toBe(
+      'No alliance is named exactly "N\\_M\\*". Use the full name, or the kingdom and tag; approximate names are not supported.',
+    );
   });
 });

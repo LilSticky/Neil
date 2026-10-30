@@ -81,6 +81,18 @@ export function listedPlayerMatches(matches: readonly Match[]): {
   return orderMatches(pickable);
 }
 
+/**
+ * The Alliance matches a pick list offers, in the order it shows them: only pickable ones, by Kingdom then name,
+ * the first 25. Picks index into the same list.
+ */
+export function listedAllianceMatches(matches: readonly Match[]): {
+  readonly listed: PickableAllianceMatch[];
+  readonly leftOut: number;
+} {
+  const pickable = matches.filter(pickableAllianceMatch);
+  return orderMatches(pickable);
+}
+
 /** Orders matches by Kingdom, then name, keeps the first 25 and counts the rest. */
 export function orderMatches<T extends Match>(
   matches: readonly T[],
