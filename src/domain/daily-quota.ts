@@ -38,6 +38,9 @@ export function canSend(q: DailyQuota): boolean {
   return !q.limitReached && q.used < q.limit;
 }
 
+/** What a Game API request is for: a Member's lookup, or an Onboarding Interview that must not be starved. */
+export type RequestPurpose = "lookup" | "onboarding-interview";
+
 /** Counts one request sent today. Call only when canSend is true. */
 export function countRequest(q: DailyQuota): DailyQuota {
   return { ...q, used: q.used + 1 };
@@ -53,6 +56,15 @@ export function adoptReported(
   return { ...q, used: reported.used + inFlight, limit: reported.limit, confirmedAt: now };
 }
 
+/**
+ * Whether a request for the given purpose may be sent today. Lookups stop once the Quota Reserve is all that
+ * remains; an Onboarding Interview may use the reserve.
+ */
+export function canSendFor(q: DailyQuota, purpose: RequestPurpose, reserve: number): boolean {
+  if (!canSend(q)) return false;
+  return purpose === "onboarding-interview" || remaining(q) > reserve;
+}
+
 /** Records that the Game API refused a request because today's limit is spent. */
 export function markLimitReached(q: DailyQuota, now: Date): DailyQuota {
   return { ...q, limitReached: true, confirmedAt: now };
@@ -61,4 +73,9 @@ export function markLimitReached(q: DailyQuota, now: Date): DailyQuota {
 /** Requests left today, never below 0. */
 export function remaining(q: DailyQuota): number {
   return Math.max(0, q.limit - q.used);
+}
+
+/** Requests a Member's lookup may still use today: what remains above the Quota Reserve, never below 0. */
+export function leftForLookups(q: DailyQuota, reserve: number): number {
+  return Math.max(0, remaining(q) - reserve);
 }

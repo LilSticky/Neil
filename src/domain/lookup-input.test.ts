@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseAllianceKey, parseKingdom, parseUid } from "./lookup-input.js";
+import { parseAllianceKey, parseKingdom, parsePlayerName, parseUid } from "./lookup-input.js";
 
 describe("parseUid", () => {
   test("trims surrounding spaces and returns the digits", () => {
@@ -59,6 +59,33 @@ describe("parseAllianceKey", () => {
     ["41 characters", "A".repeat(41)],
   ])("rejects an Alliance key that is %s", (_label, input) => {
     expect(parseAllianceKey(input)).toEqual({ ok: false });
+  });
+});
+
+describe("parsePlayerName", () => {
+  test("trims surrounding spaces and keeps the letter case of the name", () => {
+    expect(parsePlayerName("  DrLol  ")).toEqual({ ok: true, value: "DrLol" });
+  });
+
+  test.each([
+    ["one character", "A"],
+    ["32 characters", "A".repeat(32)],
+    ["spaces inside", "Lord of the Plague"],
+    ["an apostrophe", "O'Brien"],
+    ["an emoji", "🔥Drake"],
+  ])("accepts a Player Name with %s", (_label, input) => {
+    expect(parsePlayerName(input)).toEqual({ ok: true, value: input });
+  });
+
+  test.each([
+    ["empty", ""],
+    ["only spaces", "   "],
+    ["33 characters", "A".repeat(33)],
+    ["one dot", "."],
+    ["only dots", "..."],
+    ["dots between spaces", "  ..  "],
+  ])("rejects a Player Name that is %s", (_label, input) => {
+    expect(parsePlayerName(input)).toEqual({ ok: false });
   });
 });
 

@@ -481,6 +481,7 @@ describe("GameApiClient.getAlliance result", () => {
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",
+      roster: [],
     };
     expect(result).toEqual({ kind: "found", value: expected, fetchedAt: FIXED_NOW });
   });

@@ -23,7 +23,7 @@ sessions, roster in the domain) is shared by all three.
 
 ## Phase 1: Setup (configuration)
 
-- [ ] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `GAME_API_QUOTA_RESERVE` optional,
+- [x] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `GAME_API_QUOTA_RESERVE` optional,
   "whole number ≥ 0", default 100 (`Configuration.quotaReserve: number`); an invalid value is reported without
   echoing it. Add it to `env.example` (commented, with the default).
 
@@ -31,17 +31,17 @@ sessions, roster in the domain) is shared by all three.
 
 ## Phase 2: Foundational (domain and client plumbing)
 
-- [ ] T002 [P] Test `src/domain/daily-quota.test.ts`: `canSendFor(q, "lookup", 100)` true at remaining 101, false at
+- [x] T002 [P] Test `src/domain/daily-quota.test.ts`: `canSendFor(q, "lookup", 100)` true at remaining 101, false at
   100 and 0; `canSendFor(q, "onboarding-interview", 100)` true at remaining 1, false when `canSend` is false;
   `leftForLookups(q, 100)` = max(0, remaining − 100). Implement in `src/domain/daily-quota.ts`
   (`type RequestPurpose = "lookup" | "onboarding-interview"`).
-- [ ] T003 [P] Test `src/domain/lookup-input.test.ts`: `parsePlayerName` trims; accepts 1–32 characters incl. spaces,
+- [x] T003 [P] Test `src/domain/lookup-input.test.ts`: `parsePlayerName` trims; accepts 1–32 characters incl. spaces,
   emoji and `'`; rejects empty, 33 characters, and only dots. Implement the `PlayerName` brand in
   `src/domain/lookup-input.ts`.
-- [ ] T004 [P] Test `src/domain/alliance-rank.test.ts`: `rankFromLabel` maps "R1"–"R5", anything else and null to
+- [x] T004 [P] Test `src/domain/alliance-rank.test.ts`: `rankFromLabel` maps "R1"–"R5", anything else and null to
   unknown; `sortRoster` orders R5, R4, R3, R2, R1, unknown, then name case-insensitively, then uid, without
   changing its input. Implement in `src/domain/alliance-rank.ts`; `rankFromRoster` uses `rankFromLabel`.
-- [ ] T005 [P] Test `src/domain/player.test.ts`: `pickablePlayerMatch` needs `uid` and `kingdom`;
+- [x] T005 [P] Test `src/domain/player.test.ts`: `pickablePlayerMatch` needs `uid` and `kingdom`;
   `pickableAllianceMatch` needs `tag` and `kingdom`; `orderMatches` sorts by Kingdom then name, keeps at most 25 and
   reports how many were left out. Implement in `src/domain/player.ts`, plus `RosterEntry`
   (`uid`, `name`, `allianceRank`), `Alliance.roster`, and the `LookupResult` kind `reserve-kept` (`resetsAt`).
@@ -53,7 +53,7 @@ sessions, roster in the domain) is shared by all three.
   served instead when there is one; retries stop when the purpose may no longer send. Implement in
   `src/game-api/client.ts`; `src/discord/lookup.ts` passes `"lookup"`; wire `config.quotaReserve` through
   `src/startup.ts` / `src/main.ts`, with a startup warning when the reserve is at or above the stored limit.
-- [ ] T008 [P] Test `src/discord/pick-sessions.test.ts` (fake clock): `open` returns an id ≤ 16 characters;
+- [x] T008 [P] Test `src/discord/pick-sessions.test.ts` (fake clock): `open` returns an id ≤ 16 characters;
   `get(id, now)` gives the session before 15 minutes and `"expired"` at or after, and for an unknown id; more than
   500 sessions drop the oldest; `isOwner`; `pageOf(entries, page)` gives 25 per page, clamps the page;
   `pageCount`; custom ids `pick:{id}:select` and `pick:{id}:page:{n}` round-trip through `parseCustomId`, anything

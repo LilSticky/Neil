@@ -207,6 +207,7 @@ export class GameApiClient {
         memberCount: body.member_count,
         capacity: body.capacity,
         leaderName: body.leader_name ?? undefined,
+        roster: [],
       },
       fetchedAt,
     };

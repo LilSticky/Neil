@@ -54,6 +54,7 @@ function playerFailureText(failure: Failure<Player>, uid: Uid, now: Date): strin
       // The tracker's answer for an unknown uid, but also for its own trouble (research R11).
       return lookupMessages.playerNotPrepared(uid);
     case "quota-spent":
+    case "reserve-kept":
       return lookupMessages.quotaSpent(failure.resetsAt, now);
     case "try-again":
       return lookupMessages.tryAgain;
@@ -76,6 +77,7 @@ function allianceFailureText(
     case "ambiguous":
       return lookupMessages.ambiguous(key, failure.matches);
     case "quota-spent":
+    case "reserve-kept":
       return lookupMessages.quotaSpent(failure.resetsAt, now);
     case "not-prepared":
     case "try-again":

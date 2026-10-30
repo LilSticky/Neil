@@ -42,6 +42,7 @@ describe("loadConfig", () => {
       officerRoleIds: [MODERATOR_ROLE_ID, KING_ROLE_ID],
       gameApiKey: FAKE_API_KEY,
       cacheTtlMs: 600_000,
+      quotaReserve: 100,
       dataDir: "/srv/neil",
     });
   });
@@ -210,6 +211,44 @@ describe("loadConfig", () => {
       expect(error.message).not.toContain("3.14159");
       for (const problem of error.problems) {
         expect(problem).not.toContain("3.14159");
+      }
+    });
+  });
+
+  describe("GAME_API_QUOTA_RESERVE", () => {
+    const rule = "must be a whole number of at least 0";
+
+    test("defaults to a Quota Reserve of 100 when it is not set", () => {
+      const config = loadConfig(validEnv());
+
+      expect(config.quotaReserve).toBe(100);
+    });
+
+    test.each([
+      ["0", 0],
+      ["250", 250],
+    ])("reads GAME_API_QUOTA_RESERVE %s as a Quota Reserve of %d", (value, quotaReserve) => {
+      const config = loadConfig(validEnv({ GAME_API_QUOTA_RESERVE: value }));
+
+      expect(config.quotaReserve).toBe(quotaReserve);
+    });
+
+    test.each([
+      ["-1 (negative)", "-1"],
+      ["a fraction", "1.5"],
+      ["words", "one hundred"],
+    ])("rejects %s", (_label, value) => {
+      const error = failureOf(validEnv({ GAME_API_QUOTA_RESERVE: value }));
+
+      expect(error.problems).toEqual([`GAME_API_QUOTA_RESERVE: ${rule}`]);
+    });
+
+    test("never shows the GAME_API_QUOTA_RESERVE value when it is invalid", () => {
+      const error = failureOf(validEnv({ GAME_API_QUOTA_RESERVE: "2.71828" }));
+
+      expect(error.message).not.toContain("2.71828");
+      for (const problem of error.problems) {
+        expect(problem).not.toContain("2.71828");
       }
     });
   });

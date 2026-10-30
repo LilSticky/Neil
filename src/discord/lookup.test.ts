@@ -240,6 +240,7 @@ const alliance: Alliance = {
   memberCount: 52,
   capacity: 100,
   leaderName: "DrLOL",
+  roster: [],
 };
 
 /** A context whose fake Game API answers every alliance lookup with the given result. */
