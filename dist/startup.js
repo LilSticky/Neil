@@ -1,5 +1,6 @@
 import { ConfigError, loadConfig } from "./config.js";
 import { recordStart } from "./domain/start-record.js";
+import { QuotaKeeper } from "./game-api/quota-keeper.js";
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
 export function formatStartupError(error, secrets, heading = "Neil cannot start") {
     const text = error instanceof ConfigError && heading === "Neil cannot start"
@@ -30,8 +31,16 @@ export async function start(deps) {
         store = deps.openStore(config.dataDir);
         const startRecord = recordStart(store.load(), deps.now());
         store.save(startRecord);
-        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version);
-        connection = await deps.connect(config.discordToken, { buildInfo, startRecord, gameApi });
+        const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now });
+        // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
+        quota.today();
+        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota);
+        connection = await deps.connect(config.discordToken, {
+            buildInfo,
+            startRecord,
+            gameApi,
+            officerRoleIds: config.officerRoleIds,
+        });
     }
     catch (error) {
         fail(error);

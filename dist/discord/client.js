@@ -1,6 +1,20 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
+import { z } from "zod";
 import { handlePing } from "./ping.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
+import { handleQuota } from "./quota.js";
+/** A guild member's roles, from the discord.js cache (a GuildMemberRoleManager) or from an API member (a string array). */
+const memberSchema = z.union([
+    z.object({ roles: z.array(z.string()) }).transform((member) => member.roles),
+    z
+        .object({ roles: z.object({ cache: z.map(z.string(), z.unknown()) }) })
+        .transform((member) => [...member.roles.cache.keys()]),
+]);
+/** The role IDs of a Member, or none when the member is not in the shape discord.js gives. */
+export function memberRoleIds(member) {
+    const parsed = memberSchema.safeParse(member);
+    return parsed.success ? parsed.data : [];
+}
 /** A discord.js client with the least intents (Guilds) that routes each slash command to its handler. */
 export function createClient(handlers, logError = console.error) {
     const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -21,6 +35,9 @@ export function createClient(handlers, logError = console.error) {
             case "alliance":
                 void handlers.alliance(interaction);
                 break;
+            case "quota":
+                void handlers.quota(interaction);
+                break;
         }
     });
     return client;
@@ -38,8 +55,17 @@ export async function connect(token, options) {
             startRecord: options.startRecord,
             logError,
         }),
-        player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, logError }),
-        alliance: (interaction) => handleAlliance(interaction, { gameApi: options.gameApi, logError }),
+        player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, now: () => new Date(), logError }),
+        alliance: (interaction) => handleAlliance(interaction, { gameApi: options.gameApi, now: () => new Date(), logError }),
+        quota: (interaction) => handleQuota({
+            memberRoleIds: () => memberRoleIds(interaction.member),
+            reply: (reply) => interaction.reply(reply),
+        }, {
+            quotaToday: () => options.gameApi.quotaToday(),
+            officerRoleIds: options.officerRoleIds,
+            now: () => new Date(),
+            logError,
+        }),
     });
     try {
         await client.login(token);

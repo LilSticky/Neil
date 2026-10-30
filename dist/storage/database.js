@@ -7,6 +7,14 @@ const migrations = [
      first_started_at TEXT NOT NULL,
      start_count INTEGER NOT NULL CHECK (start_count >= 1)
    )`,
+    `CREATE TABLE daily_quota (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     day TEXT NOT NULL,
+     used INTEGER NOT NULL CHECK (used >= 0),
+     quota_limit INTEGER NOT NULL CHECK (quota_limit >= 1),
+     limit_reached INTEGER NOT NULL CHECK (limit_reached IN (0, 1)),
+     confirmed_at TEXT
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

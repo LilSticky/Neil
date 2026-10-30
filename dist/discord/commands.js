@@ -28,6 +28,10 @@ export const alliance = new SlashCommandBuilder()
     .setDescription("The alliance tag, e.g. NML")
     .setRequired(true)
     .setMaxLength(40));
+export const quota = new SlashCommandBuilder()
+    .setName("quota")
+    .setDescription("Show today's Daily Quota of Game API requests (Officers)")
+    .setContexts(InteractionContextType.Guild);
 /** Everything registered for the configured server, as REST payloads. */
-export const commands = [ping.toJSON(), player.toJSON(), alliance.toJSON()];
+export const commands = [ping.toJSON(), player.toJSON(), alliance.toJSON(), quota.toJSON()];
 //# sourceMappingURL=commands.js.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"officer.js","sourceRoot":"","sources":["../../src/domain/officer.ts"],"names":[],"mappings":"AAAA,2GAA2G;AAC3G,MAAM,UAAU,SAAS,CAAC,aAAgC,EAAE,cAAiC;IAC3F,OAAO,aAAa,CAAC,IAAI,CAAC,CAAC,MAAM,EAAE,EAAE,CAAC,cAAc,CAAC,QAAQ,CAAC,MAAM,CAAC,CAAC,CAAC;AACzE,CAAC"}

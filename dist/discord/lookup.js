@@ -3,7 +3,7 @@ import { parseAllianceKey, parseKingdom, parseUid, } from "../domain/lookup-inpu
 import { lookupMessages, renderAllianceCard, renderPlayerCard } from "./lookup-cards.js";
 /** Lookups never mention anyone, whatever the Game API or the Member typed. */
 const allowedMentions = { parse: [] };
-function playerFailureText(failure, uid) {
+function playerFailureText(failure, uid, now) {
     switch (failure.kind) {
         case "not-found":
             return lookupMessages.playerNotFound(uid);
@@ -11,7 +11,7 @@ function playerFailureText(failure, uid) {
             // The tracker's answer for an unknown uid, but also for its own trouble (research R11).
             return lookupMessages.playerNotPrepared(uid);
         case "quota-spent":
-            return lookupMessages.quotaSpent;
+            return lookupMessages.quotaSpent(failure.resetsAt, now);
         case "try-again":
             return lookupMessages.tryAgain;
         case "unavailable":
@@ -20,14 +20,14 @@ function playerFailureText(failure, uid) {
             return lookupMessages.unavailable;
     }
 }
-function allianceFailureText(failure, kingdom, key) {
+function allianceFailureText(failure, kingdom, key, now) {
     switch (failure.kind) {
         case "not-found":
             return lookupMessages.allianceNotFound(key, kingdom);
         case "ambiguous":
             return lookupMessages.ambiguous(key, failure.matches);
         case "quota-spent":
-            return lookupMessages.quotaSpent;
+            return lookupMessages.quotaSpent(failure.resetsAt, now);
         case "not-prepared":
         case "try-again":
             return lookupMessages.tryAgain;
@@ -59,17 +59,27 @@ async function removePlaceholderAndTell(interaction, content) {
 }
 /**
  * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
- * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged.
+ * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
+ * that throws is logged and told as unavailable.
  */
 async function showLookup(interaction, context, ask, render, failureText) {
     await interaction.deferReply();
-    const result = await ask();
+    let result;
+    try {
+        result = await ask();
+    }
+    catch (error) {
+        context.logError(`Looking up failed: ${errorText(error)}`);
+        await removePlaceholderAndTell(interaction, lookupMessages.unavailable);
+        return;
+    }
     if (result.kind !== "found") {
-        await removePlaceholderAndTell(interaction, failureText(result));
+        await removePlaceholderAndTell(interaction, failureText(result, context.now()));
         return;
     }
     try {
-        await interaction.editReply({ embeds: [render(result.value)], allowedMentions });
+        const embed = render(result.value, result.fetchedAt, context.now());
+        await interaction.editReply({ embeds: [embed], allowedMentions });
     }
     catch (error) {
         context.logError(`Showing the card failed: ${errorText(error)}`);
@@ -85,7 +95,7 @@ export async function handlePlayer(interaction, context) {
             return;
         }
         const uid = parsed.value;
-        await showLookup(interaction, context, () => context.gameApi.getPlayer(uid), renderPlayerCard, (failure) => playerFailureText(failure, uid));
+        await showLookup(interaction, context, () => context.gameApi.getPlayer(uid), renderPlayerCard, (failure, now) => playerFailureText(failure, uid, now));
     });
 }
 /** Answers /alliance: invalid input privately at once, otherwise a public card or the reason in private. */
@@ -103,7 +113,7 @@ export async function handleAlliance(interaction, context) {
         }
         const kingdomNumber = kingdom.value;
         const allianceKey = key.value;
-        await showLookup(interaction, context, () => context.gameApi.getAlliance(kingdomNumber, allianceKey), renderAllianceCard, (failure) => allianceFailureText(failure, kingdomNumber, allianceKey));
+        await showLookup(interaction, context, () => context.gameApi.getAlliance(kingdomNumber, allianceKey), renderAllianceCard, (failure, now) => allianceFailureText(failure, kingdomNumber, allianceKey, now));
     });
 }
 //# sourceMappingURL=lookup.js.map

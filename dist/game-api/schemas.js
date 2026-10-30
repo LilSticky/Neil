@@ -44,4 +44,41 @@ const matchSchema = z.object({
 export const ambiguousBodySchema = z.object({
     matches: z.array(matchSchema),
 });
+/** The `quota` object of a lookup body (GAME-API.md): whole numbers, a limit of at least 1. */
+const bodyQuotaSchema = z.object({
+    limit: z.number().int().min(1),
+    used: z.number().int().nonnegative(),
+    remaining: z.number().int().nonnegative(),
+});
+/** A rate-limit header value: a string of digits, read as a whole number of at least `min`. */
+function headerNumberSchema(min) {
+    return z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(min));
+}
+const limitHeaderSchema = headerNumberSchema(1);
+const remainingHeaderSchema = headerNumberSchema(0);
+/**
+ * The Daily Quota figures of one Game API response. The body `quota` is preferred; without it the
+ * `x-ratelimit-limit` and `x-ratelimit-remaining` headers are read and `used` is their difference.
+ * Returns `undefined` when the response carries no figures and `"malformed"` when they cannot be read.
+ */
+export function quotaFiguresFrom(body, headers) {
+    if (typeof body === "object" && body !== null && "quota" in body) {
+        const quota = bodyQuotaSchema.safeParse(body.quota);
+        return quota.success ? { used: quota.data.used, limit: quota.data.limit } : "malformed";
+    }
+    const limitHeader = headers.get("x-ratelimit-limit");
+    const remainingHeader = headers.get("x-ratelimit-remaining");
+    if (limitHeader === null && remainingHeader === null) {
+        return undefined;
+    }
+    if (limitHeader === null || remainingHeader === null) {
+        return "malformed";
+    }
+    const limit = limitHeaderSchema.safeParse(limitHeader);
+    const remaining = remainingHeaderSchema.safeParse(remainingHeader);
+    if (!limit.success || !remaining.success) {
+        return "malformed";
+    }
+    return { used: Math.max(0, limit.data - remaining.data), limit: limit.data };
+}
 //# sourceMappingURL=schemas.js.map
