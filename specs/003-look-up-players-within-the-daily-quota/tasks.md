@@ -104,10 +104,10 @@ description: "Task list for slice 003, Look up players within the daily quota"
 - [ ] T018 [US2] Implement the quota gate in `src/game-api/client.ts` (option `quota: QuotaKeeper`), and build the
   `QuotaKeeper` on the `DailyQuotaStore` in `src/startup.ts` / `src/main.ts` (the store opens with the start
   record's database; a corrupt row stops startup like the start record)
-- [ ] T019 [P] [US2] Test `src/discord/lookup-cards.test.ts` and `src/discord/lookup.test.ts`: the spent message is
+- [x] T019 [P] [US2] Test `src/discord/lookup-cards.test.ts` and `src/discord/lookup.test.ts`: the spent message is
   `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 3 h 12 min).`;
   time left formats as `in {h} h {m} min`, `in {m} min` under an hour, `in under a minute` below 60 s
-- [ ] T020 [US2] Implement `timeLeft` and `quotaSpent(resetsAt, now)` in `src/discord/lookup-cards.ts` and use them
+- [x] T020 [US2] Implement `timeLeft` and `quotaSpent(resetsAt, now)` in `src/discord/lookup-cards.ts` and use them
   in `src/discord/lookup.ts`
 
 ---

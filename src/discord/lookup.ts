@@ -46,7 +46,7 @@ const allowedMentions: MessageMentionOptions = { parse: [] };
 /** Every result that gives no card. */
 type Failure<T> = Exclude<LookupResult<T>, { readonly kind: "found" }>;
 
-function playerFailureText(failure: Failure<Player>, uid: Uid): string {
+function playerFailureText(failure: Failure<Player>, uid: Uid, now: Date): string {
   switch (failure.kind) {
     case "not-found":
       return lookupMessages.playerNotFound(uid);
@@ -54,7 +54,7 @@ function playerFailureText(failure: Failure<Player>, uid: Uid): string {
       // The tracker's answer for an unknown uid, but also for its own trouble (research R11).
       return lookupMessages.playerNotPrepared(uid);
     case "quota-spent":
-      return lookupMessages.quotaSpent;
+      return lookupMessages.quotaSpent(failure.resetsAt, now);
     case "try-again":
       return lookupMessages.tryAgain;
     case "unavailable":
@@ -64,14 +64,19 @@ function playerFailureText(failure: Failure<Player>, uid: Uid): string {
   }
 }
 
-function allianceFailureText(failure: Failure<Alliance>, kingdom: KingdomNumber, key: AllianceKey): string {
+function allianceFailureText(
+  failure: Failure<Alliance>,
+  kingdom: KingdomNumber,
+  key: AllianceKey,
+  now: Date,
+): string {
   switch (failure.kind) {
     case "not-found":
       return lookupMessages.allianceNotFound(key, kingdom);
     case "ambiguous":
       return lookupMessages.ambiguous(key, failure.matches);
     case "quota-spent":
-      return lookupMessages.quotaSpent;
+      return lookupMessages.quotaSpent(failure.resetsAt, now);
     case "not-prepared":
     case "try-again":
       return lookupMessages.tryAgain;
@@ -117,12 +122,12 @@ async function showLookup<T>(
   context: { readonly now: () => Date; readonly logError: (message: string) => void },
   ask: () => Promise<LookupResult<T>>,
   render: (value: T, fetchedAt: Date, now: Date) => APIEmbed,
-  failureText: (failure: Failure<T>) => string,
+  failureText: (failure: Failure<T>, now: Date) => string,
 ): Promise<void> {
   await interaction.deferReply();
   const result = await ask();
   if (result.kind !== "found") {
-    await removePlaceholderAndTell(interaction, failureText(result));
+    await removePlaceholderAndTell(interaction, failureText(result, context.now()));
     return;
   }
 
@@ -150,7 +155,7 @@ export async function handlePlayer(interaction: LookupInteraction, context: Look
       context,
       () => context.gameApi.getPlayer(uid),
       renderPlayerCard,
-      (failure) => playerFailureText(failure, uid),
+      (failure, now) => playerFailureText(failure, uid, now),
     );
   });
 }
@@ -180,7 +185,7 @@ export async function handleAlliance(
       context,
       () => context.gameApi.getAlliance(kingdomNumber, allianceKey),
       renderAllianceCard,
-      (failure) => allianceFailureText(failure, kingdomNumber, allianceKey),
+      (failure, now) => allianceFailureText(failure, kingdomNumber, allianceKey, now),
     );
   });
 }

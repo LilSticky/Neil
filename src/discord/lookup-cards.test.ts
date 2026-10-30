@@ -8,7 +8,7 @@ import {
   type Uid,
 } from "../domain/lookup-input.js";
 import type { Alliance, Match, Player } from "../domain/player.js";
-import { lookupMessages, renderAllianceCard, renderPlayerCard } from "./lookup-cards.js";
+import { lookupMessages, renderAllianceCard, renderPlayerCard, timeLeft } from "./lookup-cards.js";
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -107,7 +107,6 @@ describe("renderPlayerCard", () => {
 describe("lookupMessages", () => {
   test.each([
     ["invalidUid", "That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid."],
-    ["quotaSpent", "Lookups are used up for today. They work again after 00:00 UTC."],
     ["tryAgain", "The game tracker is busy right now. Try again in a moment."],
     ["unavailable", "Lookups are not working right now. Please tell an Officer."],
   ] as const)("%s has the contract's text", (key, text) => {
@@ -282,6 +281,33 @@ describe("renderAllianceCard with an empty leader name", () => {
     const card = renderAllianceCard({ ...alliance, leaderName: "" }, FETCHED_AT, NOW);
 
     expect(card.fields?.find((field) => field.name === "Leader")).toMatchObject({ value: "Unknown" });
+  });
+});
+
+describe("timeLeft", () => {
+  const MINUTE_MS = 60_000;
+  const HOUR_MS = 60 * MINUTE_MS;
+
+  test.each([
+    { label: "3 h 12 min", ms: 3 * HOUR_MS + 12 * MINUTE_MS, text: "in 3 h 12 min" },
+    { label: "exactly 1 h", ms: HOUR_MS, text: "in 1 h 0 min" },
+    { label: "59 min 59 s, minutes rounded down", ms: HOUR_MS - 1000, text: "in 59 min" },
+    { label: "3 h 12 min 45 s, seconds dropped", ms: 3 * HOUR_MS + 12 * MINUTE_MS + 45_000, text: "in 3 h 12 min" },
+    { label: "exactly 1 min", ms: MINUTE_MS, text: "in 1 min" },
+    { label: "59 s, under a minute", ms: MINUTE_MS - 1000, text: "in under a minute" },
+    { label: "no time left", ms: 0, text: "in under a minute" },
+  ])("$label reads as $text", ({ ms, text }) => {
+    expect(timeLeft(new Date(NOW.getTime() + ms), NOW)).toBe(text);
+  });
+});
+
+describe("lookupMessages.quotaSpent", () => {
+  test("says the lookups are paused, names the Daily Quota and gives the reset time with the time left", () => {
+    expect(
+      lookupMessages.quotaSpent(new Date("2026-10-31T00:00:00Z"), new Date("2026-10-30T20:48:00Z")),
+    ).toBe(
+      "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 3 h 12 min).",
+    );
   });
 });
 

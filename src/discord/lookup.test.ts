@@ -162,7 +162,7 @@ const privateFailures: readonly { readonly label: string; readonly result: Looku
     {
       label: "quota-spent",
       result: { kind: "quota-spent", resetsAt: RESETS_AT },
-      text: "Lookups are used up for today. They work again after 00:00 UTC.",
+      text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 8 h 0 min).",
     },
     {
       label: "try-again",
@@ -446,7 +446,7 @@ const allianceFailures: readonly {
   {
     label: "quota-spent",
     result: { kind: "quota-spent", resetsAt: RESETS_AT },
-    text: lookupMessages.quotaSpent,
+    text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 8 h 0 min).",
   },
   {
     label: "try-again",
@@ -521,6 +521,55 @@ describe("handlePlayer when the card cannot be sent", () => {
       },
     ]);
     expect(logged).toEqual([expect.stringContaining("Unknown interaction")]);
+  });
+});
+
+describe("handlers when the Daily Quota is spent", () => {
+  const LATER = new Date("2026-10-30T20:48:00Z");
+  const spentText =
+    "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 3 h 12 min).";
+
+  test("/player tells the caller privately, with the time left counted from the context's now", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context } = contextReturning({ kind: "quota-spent", resetsAt: RESETS_AT });
+
+    await handlePlayer(interaction, { ...context, now: () => LATER });
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: spentText,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("/alliance tells the caller privately, with the time left counted from the context's now", async () => {
+    const interaction = new FakeLookupInteraction({
+      strings: { alliance: "NML" },
+      integers: { kingdom: 1 },
+    });
+    const { context } = allianceContextReturning({ kind: "quota-spent", resetsAt: RESETS_AT });
+
+    await handleAlliance(interaction, { ...context, now: () => LATER });
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: spentText,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
   });
 });
 

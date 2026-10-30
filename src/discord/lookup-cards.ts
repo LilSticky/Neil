@@ -8,8 +8,20 @@ const TITLE_MAX_LENGTH = 256;
 const AMBIGUOUS_LIST_LIMIT = 10;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
+const MINUTE_MS = 60_000;
+const HOUR_MS = 60 * MINUTE_MS;
+
 function twoDigits(value: number): string {
   return value.toString().padStart(2, "0");
+}
+
+/** The time from now until a moment, as "in 3 h 12 min", "in 59 min" or "in under a minute"; seconds are dropped. */
+export function timeLeft(until: Date, now: Date): string {
+  const ms = Math.max(0, until.getTime() - now.getTime());
+  if (ms < MINUTE_MS) return "in under a minute";
+  const hours = Math.floor(ms / HOUR_MS);
+  const minutes = Math.floor((ms % HOUR_MS) / MINUTE_MS);
+  return hours > 0 ? `in ${hours.toString()} h ${minutes.toString()} min` : `in ${minutes.toString()} min`;
 }
 
 /**
@@ -115,7 +127,8 @@ export const lookupMessages = {
     const rest = more > 0 ? ` and ${more.toString()} more` : "";
     return `More than one alliance matches "${escapeText(key)}": ${listed}${rest}. Try the exact tag.`;
   },
-  quotaSpent: "Lookups are used up for today. They work again after 00:00 UTC.",
+  quotaSpent: (resetsAt: Date, now: Date): string =>
+    `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",
 } as const;
