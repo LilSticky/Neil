@@ -29,6 +29,8 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 - Verified `/quota` body:
   `{"ok":true,"cached":true,"cache_seconds":600,"quota":{"limit":1000,"used":1,"remaining":999,"patron":false,"resets":"00:00 UTC"}}`
 - `429` = daily limit reached. Retrying before the reset is pointless.
+- Since slice 003 Neil adopts the body's `quota` (else the headers) after every answer; on the test server
+  (2026-10-30) the adopted `used` matched the tracker's own count, including requests made outside Neil.
 
 ## Freshness
 

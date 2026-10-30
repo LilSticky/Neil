@@ -7,12 +7,12 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 003 "Look up players within the daily quota" is in progress on branch `003-look-up-players-within-the-daily-quota`: [spec](../specs/003-look-up-players-within-the-daily-quota/spec.md) written and clarified with the user (Officer = Moderator or King; no shares or Quota Reserve yet, the reserve comes with slice 004; cards show "as of"). T001–T030 done: cache, persisted Daily Quota with a hard stop (also after a 429 and across restarts), retries on 503/504, `/quota` for Officers; reviewed by `bot-reviewer` and `spec-auditor`. Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server and on Wispbyte ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
+Slice 003 "Look up players within the daily quota" is in review (PR #9, closes #8): cache, persisted Daily Quota with a hard stop (also after a 429 and across restarts), retries on 503/504, `/quota` for Officers; reviewed, audited, and checked on the test server (T031). Slice 002 "Look up a player" is done (PR #6): any Member runs `/player` by uid and `/alliance` by kingdom and tag, checked on the test server and on Wispbyte ([tasks.md](../specs/002-look-up-a-player/tasks.md)). Slice 001 "Greet the test server" is done (PRs #2, #3): Neil runs on Wispbyte from a green
 `main` through the `deploy` branch, answers `/ping` on the test server, and its data folder survives
 restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-the-test-server/tasks.md),
 [HOSTING.md](HOSTING.md). Neil is the only bot application; local runs need Wispbyte stopped.
 
-**Next step:** T031, the manual test-server check ([quickstart](../specs/003-look-up-players-within-the-daily-quota/quickstart.md#on-the-test-server)). Needs the user to put the test server's `DISCORD_MODERATOR_ROLE_ID` and `DISCORD_KING_ROLE_ID` in `.env` (Neil refuses to start without them).
+**Next step:** T033: the user adds `DISCORD_MODERATOR_ROLE_ID` and `DISCORD_KING_ROLE_ID` to the Wispbyte panel; then merge PR #9, restart Neil on Wispbyte and run `/quota` there.
 
 ## Known broken / WIP
 

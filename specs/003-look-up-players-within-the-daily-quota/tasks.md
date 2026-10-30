@@ -152,10 +152,15 @@ description: "Task list for slice 003, Look up players within the daily quota"
 ## Phase 7: Polish
 
 - [x] T030 `bot-reviewer` over `src/game-api/`, `src/discord/`, `src/storage/`; fixes via `implementer`
-- [ ] T031 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)), needs the role IDs
+- [x] T031 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)), needs the role IDs
   in `.env` (user); record the result here
-- [ ] T032 `spec-auditor` against spec.md; update GAME-API.md if figures behaved unexpectedly; STATUS, ROADMAP
+  *Done 2026-10-30 by the user, Neil run locally: `/alliance kingdom:1 alliance:NML` twice gave the same "as of" time
+  and one request (used 3 → 4, adopted from the Game API with limit 2,000); `/quota` with the role showed the figures,
+  without it only the refusal; after a restart `/quota` still showed used 4. A first round was void: an orphaned
+  earlier local run also answered (`Unknown interaction` in the log); it was stopped and the round repeated.*
+- [x] T032 `spec-auditor` against spec.md; update GAME-API.md if figures behaved unexpectedly; STATUS, ROADMAP
   (`done`), remove the "no cache or quota counter" known-broken item; PR (`Closes` the slice issue)
+  *Done 2026-10-30: audit gaps closed with tests (6775d97); figures behaved as documented; PR #9 closes #8.*
 - [ ] T033 Add `DISCORD_MODERATOR_ROLE_ID` and `DISCORD_KING_ROLE_ID` in the Wispbyte panel before the merge deploys
   (manual, user), merge, restart, repeat T031's `/quota` step against Wispbyte
 
