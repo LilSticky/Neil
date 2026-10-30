@@ -24,12 +24,17 @@ export function timeLeft(until: Date, now: Date): string {
   return hours > 0 ? `in ${hours.toString()} h ${minutes.toString()} min` : `in ${minutes.toString()} min`;
 }
 
+/** A moment as "HH:MM UTC". Formatted by hand so no locale changes it. */
+export function utcTime(moment: Date): string {
+  return `${twoDigits(moment.getUTCHours())}:${twoDigits(moment.getUTCMinutes())} UTC`;
+}
+
 /**
  * The card footer: the source and when the data was fetched, in UTC. Today's fetch shows the time only; an earlier
- * day shows the day and English month too. Formatted by hand so no locale changes it.
+ * day shows the day and English month too.
  */
 function footerFor(fetchedAt: Date, now: Date): { readonly text: string } {
-  const time = `${twoDigits(fetchedAt.getUTCHours())}:${twoDigits(fetchedAt.getUTCMinutes())} UTC`;
+  const time = utcTime(fetchedAt);
   const when = utcDayOf(fetchedAt) === utcDayOf(now)
     ? time
     : `${fetchedAt.getUTCDate().toString()} ${MONTHS[fetchedAt.getUTCMonth()] ?? ""} ${time}`;

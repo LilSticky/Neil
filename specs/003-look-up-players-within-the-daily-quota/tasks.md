@@ -119,7 +119,7 @@ description: "Task list for slice 003, Look up players within the daily quota"
 - [x] T021 [P] [US3] Test `src/domain/officer.test.ts`: `isOfficer(memberRoleIds, officerRoleIds)` true with either
   role, false with none or an empty list
 - [x] T022 [P] [US3] Implement `src/domain/officer.ts`
-- [ ] T023 [US3] Test `src/discord/quota.test.ts` (fake interaction with `memberRoleIds()`, fake `quotaToday()`,
+- [x] T023 [US3] Test `src/discord/quota.test.ts` (fake interaction with `memberRoleIds()`, fake `quotaToday()`,
   fixed `now`): replies per [contracts/quota-command.md](contracts/quota-command.md), all ephemeral with
   `allowedMentions: { parse: [] }`: Officer sees the four lines; limit reached adds
   ` · Spent: the Game API reported the limit reached`; unconfirmed day says `Not confirmed by the Game API yet today.`;
