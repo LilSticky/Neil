@@ -78,6 +78,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
         load: () => ({ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: startCount(2) }),
         save: (record) => saved.push(record),
         close: () => calls.push("closeStore"),
+        dailyQuota: { load: () => undefined, save: () => undefined },
       };
     },
     createGameApi: (apiKey, version) => {
@@ -160,6 +161,7 @@ describe("start", () => {
         },
         save: () => undefined,
         close: () => calls.push("closeStore"),
+        dailyQuota: { load: () => undefined, save: () => undefined },
       }),
     });
 

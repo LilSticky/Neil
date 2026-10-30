@@ -95,13 +95,13 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 **Independent test**: spent figures or a 429 → no further fetch, cached keys still answered, restart keeps it.
 
-- [ ] T017 [US2] Test in `src/game-api/client.test.ts` (client with a `QuotaKeeper` on a fake store): each attempt is
+- [x] T017 [US2] Test in `src/game-api/client.test.ts` (client with a `QuotaKeeper` on a fake store): each attempt is
   counted before the fetch; body figures `{ limit: 2000, used: 1999, remaining: 1 }` are adopted, and the next
   uncached lookup makes no fetch and returns `quota-spent` with `resetsAt`; after a 429 no fetch until 00:00 UTC,
   then fetches again; when spent, a stale cached key is returned as `found` with its old `fetchedAt`; a new client
   on the same store after a 429 makes no fetch; malformed figures are logged as `quota figures unreadable` and
   ignored; failed requests (404, 502) are counted
-- [ ] T018 [US2] Implement the quota gate in `src/game-api/client.ts` (option `quota: QuotaKeeper`), and build the
+- [x] T018 [US2] Implement the quota gate in `src/game-api/client.ts` (option `quota: QuotaKeeper`), and build the
   `QuotaKeeper` on the `DailyQuotaStore` in `src/startup.ts` / `src/main.ts` (the store opens with the start
   record's database; a corrupt row stops startup like the start record)
 - [x] T019 [P] [US2] Test `src/discord/lookup-cards.test.ts` and `src/discord/lookup.test.ts`: the spent message is

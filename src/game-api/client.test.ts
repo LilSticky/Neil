@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { DailyQuota } from "../domain/daily-quota.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -12,10 +13,12 @@ import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
 import { type FetchLike, GameApiClient } from "./client.js";
+import { QuotaKeeper, type DailyQuotaStorage } from "./quota-keeper.js";
 
 const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
 const VERSION = "0.1.0";
 const PLAYER_UID_TEXT = "145563254785";
+const SECOND_UID_TEXT = "100000000001";
 const PLAYER_PATH = `https://api.lastasylumtracker.com/v1/players/${PLAYER_UID_TEXT}`;
 const FIXED_NOW = new Date("2026-10-30T15:20:00Z");
 const NEXT_MIDNIGHT_UTC = new Date("2026-10-31T00:00:00Z");
@@ -68,15 +71,34 @@ function firstRequest(sent: readonly SentRequest[]): SentRequest {
   return request;
 }
 
+/** An in-memory Daily Quota row. Clients built on the same store share it, as they share neil.db. */
+class FakeQuotaStore implements DailyQuotaStorage {
+  current: DailyQuota | undefined = undefined;
+
+  load(): DailyQuota | undefined {
+    return this.current;
+  }
+
+  save(q: DailyQuota): void {
+    this.current = q;
+  }
+}
+
+function quotaOn(store: FakeQuotaStore, now: () => Date): QuotaKeeper {
+  return new QuotaKeeper({ store, now });
+}
+
 function clientWith(
   fetch: (input: string | URL | Request, init?: RequestInit) => Promise<Response>,
   now: () => Date = () => FIXED_NOW,
+  quota: QuotaKeeper = quotaOn(new FakeQuotaStore(), now),
 ) {
   return new GameApiClient({
     apiKey: FAKE_API_KEY,
     version: VERSION,
     fetch,
     now,
+    quota,
     cacheTtlMs: CACHE_TTL_MS,
     logError: vi.fn<(line: string) => void>(),
   });
@@ -203,13 +225,18 @@ function rejectingFetch(error: Error): FetchLike {
 }
 
 /** A client whose log lines are collected, so the tests can check exactly what was logged. */
-function loggingClientWith(fetch: FetchLike) {
+function loggingClientWith(
+  fetch: FetchLike,
+  now: () => Date = () => FIXED_NOW,
+  quota: QuotaKeeper = quotaOn(new FakeQuotaStore(), now),
+) {
   const logged: string[] = [];
   const client = new GameApiClient({
     apiKey: FAKE_API_KEY,
     version: VERSION,
     fetch,
-    now: () => FIXED_NOW,
+    now,
+    quota,
     cacheTtlMs: CACHE_TTL_MS,
     logError: (line: string) => {
       logged.push(line);
@@ -628,5 +655,124 @@ describe("GameApiClient cache", () => {
     expect(sent).toHaveLength(2);
     expect(first).toEqual(expected);
     expect(second).toEqual(expected);
+  });
+});
+
+describe("GameApiClient Daily Quota gate", () => {
+  let clock: Date;
+  const now = (): Date => clock;
+
+  beforeEach(() => {
+    clock = FIXED_NOW;
+  });
+
+  test("counts each request in the store before fetch is called", async () => {
+    const store = new FakeQuotaStore();
+    let usedWhenSent: number | undefined;
+    const fetch: FetchLike = () => {
+      usedWhenSent = store.current?.used;
+      return Promise.resolve(jsonResponse(200, playerInAlliance));
+    };
+
+    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(usedWhenSent).toBe(1);
+  });
+
+  test("adopts the body's quota figures, so the lookup after the last allowed request makes no fetch", async () => {
+    const store = new FakeQuotaStore();
+    const reportedBody = { ...playerInAlliance, quota: { limit: 2000, used: 1999, remaining: 1 } };
+    let answer: () => Response = () => jsonResponse(200, reportedBody);
+    const { fetch, sent } = fakeFetch(() => answer());
+    const client = clientWith(fetch, now, quotaOn(store, now));
+
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+    expect(store.current).toMatchObject({ used: 1999, limit: 2000, confirmedAt: FIXED_NOW });
+
+    // The last allowed request; the tracker reports it as the one that used the Daily Quota up.
+    answer = () => jsonResponse(200, { ...alliance, quota: { limit: 2000, used: 2000, remaining: 0 } });
+    await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const refused = await client.getPlayer(parsedUid(SECOND_UID_TEXT));
+
+    expect(sent).toHaveLength(2);
+    expect(refused).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
+  });
+
+  test("after a 429 makes no fetch until 00:00 UTC, then fetches again once the clock passes midnight", async () => {
+    const store = new FakeQuotaStore();
+    let answer: () => Response = () => jsonResponse(429, { detail: "rate_limited" });
+    const { fetch, sent } = fakeFetch(() => answer());
+    const client = clientWith(fetch, now, quotaOn(store, now));
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    await client.getPlayer(uid);
+    clock = new Date("2026-10-30T23:59:59Z");
+    const beforeMidnight = await client.getPlayer(uid);
+    expect(beforeMidnight).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
+    expect(sent).toHaveLength(1);
+
+    clock = NEXT_MIDNIGHT_UTC;
+    answer = () => jsonResponse(200, playerInAlliance);
+    const afterMidnight = await client.getPlayer(uid);
+
+    expect(sent).toHaveLength(2);
+    expect(afterMidnight).toMatchObject({ kind: "found", fetchedAt: NEXT_MIDNIGHT_UTC });
+  });
+
+  test("when spent, a cached player past its TTL is answered as found with its old fetchedAt, and no fetch", async () => {
+    const store = new FakeQuotaStore();
+    let answer: () => Response = () => jsonResponse(200, playerInAlliance);
+    const { fetch, sent } = fakeFetch(() => answer());
+    const client = clientWith(fetch, now, quotaOn(store, now));
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    const first = await client.getPlayer(uid);
+    clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
+    answer = () => jsonResponse(429, { detail: "rate_limited" });
+    await client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"));
+    const stale = await client.getPlayer(uid);
+
+    expect(sent).toHaveLength(2);
+    expect(stale).toEqual(first);
+    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+  });
+
+  test("a new client on the same store after a 429 makes no fetch", async () => {
+    const store = new FakeQuotaStore();
+    const { fetch, sent } = fakeFetch(() => jsonResponse(429, { detail: "rate_limited" }));
+    const uid = parsedUid(PLAYER_UID_TEXT);
+    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(uid);
+
+    const restarted = clientWith(fetch, now, quotaOn(store, now));
+    const result = await restarted.getPlayer(uid);
+
+    expect(sent).toHaveLength(1);
+    expect(result).toEqual({ kind: "quota-spent", resetsAt: NEXT_MIDNIGHT_UTC });
+  });
+
+  test("malformed quota figures are logged as quota figures unreadable and ignored, so the count stays our own", async () => {
+    const store = new FakeQuotaStore();
+    const body = { ...playerInAlliance, quota: { limit: 0, used: 5, remaining: 0 } };
+    const { client, logged } = loggingClientWith(failingFetch(() => jsonResponse(200, body)), now, quotaOn(store, now));
+
+    const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(result).toMatchObject({ kind: "found" });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("quota figures unreadable");
+    expect(logged.join("\n")).not.toContain(FAKE_API_KEY);
+    expect(store.current).toMatchObject({ used: 1, limit: 1000 });
+  });
+
+  test.each([
+    ["404", () => jsonResponse(404, { detail: "player_not_found" })],
+    ["502", () => textResponse(502, "error code: 502")],
+  ])("a %s answer is counted against the Daily Quota", async (_label, respond) => {
+    const store = new FakeQuotaStore();
+    const { fetch } = fakeFetch(respond);
+
+    await clientWith(fetch, now, quotaOn(store, now)).getPlayer(parsedUid(PLAYER_UID_TEXT));
+
+    expect(store.current).toMatchObject({ used: 1 });
   });
 });

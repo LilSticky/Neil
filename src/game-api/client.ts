@@ -3,8 +3,15 @@ import { rankFromRoster } from "../domain/alliance-rank.js";
 import { nextReset } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
-import { InFlight, LookupCache } from "./lookup-cache.js";
-import { allianceBodySchema, ambiguousBodySchema, playerBodySchema, type AmbiguousBody } from "./schemas.js";
+import type { QuotaKeeper } from "./quota-keeper.js";
+import { InFlight, LookupCache, type CacheEntry } from "./lookup-cache.js";
+import {
+  allianceBodySchema,
+  ambiguousBodySchema,
+  playerBodySchema,
+  quotaFiguresFrom,
+  type AmbiguousBody,
+} from "./schemas.js";
 
 /** The part of the global fetch the client uses; tests pass a fake. */
 export type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
@@ -14,6 +21,8 @@ export interface GameApiClientOptions {
   readonly version: string;
   readonly fetch: FetchLike;
   readonly now: () => Date;
+  /** Counts every request against the Daily Quota and answers quota-spent when it is used up. */
+  readonly quota: QuotaKeeper;
   readonly logError: (line: string) => void;
   /** How long a found answer stays fresh; from GAME_API_CACHE_MINUTES. */
   readonly cacheTtlMs: number;
@@ -42,6 +51,7 @@ export class GameApiClient {
   private readonly version: string;
   private readonly fetchFn: FetchLike;
   private readonly now: () => Date;
+  private readonly quota: QuotaKeeper;
   private readonly logError: (line: string) => void;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
@@ -55,6 +65,7 @@ export class GameApiClient {
     this.version = options.version;
     this.fetchFn = options.fetch;
     this.now = options.now;
+    this.quota = options.quota;
     this.logError = options.logError;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
@@ -71,7 +82,7 @@ export class GameApiClient {
     return this.playerLookups.share(key, async () => {
       const result = await this.fetchPlayer(uid);
       if (result.kind === "found") this.players.store(key, result.value, result.fetchedAt);
-      return result;
+      return orStale(result, this.players.getStale(key));
     });
   }
 
@@ -84,7 +95,7 @@ export class GameApiClient {
     return this.allianceLookups.share(cacheKey, async () => {
       const result = await this.fetchAlliance(kingdom, key);
       if (result.kind === "found") this.alliances.store(cacheKey, result.value, result.fetchedAt);
-      return result;
+      return orStale(result, this.alliances.getStale(cacheKey));
     });
   }
 
@@ -175,29 +186,35 @@ export class GameApiClient {
    * A 409 comes back as a response only when the endpoint can answer with one (`conflictIsAnswer`).
    */
   private async request(endpoint: string, path: string, conflictIsAnswer = false): Promise<Response | Failure> {
+    if (!this.quota.tryCount()) return { kind: "quota-spent", resetsAt: nextReset(this.now()) };
+
     let response: Response;
     try {
       response = await this.send(path);
     } catch (error) {
+      this.quota.settle(undefined);
       const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
       return this.fail(endpoint, timedOut ? "timeout" : "network", { kind: "try-again" });
     }
     const status = response.status;
+    // An answer's body may carry the Daily Quota figures, so readBody settles it after reading the body.
     if (status === 200) return response;
     if (status === 409 && conflictIsAnswer) return response;
     await this.discardBody(response);
-    if (status === 404) return { kind: "not-found" };
     const detail = `status ${String(status)}`;
     if (status === 429) {
+      this.quota.limitReached();
       return this.fail(endpoint, detail, { kind: "quota-spent", resetsAt: nextReset(this.now()) });
     }
+    this.settleFigures(endpoint, undefined, response.headers);
+    if (status === 404) return { kind: "not-found" };
     if (status === 502) return this.fail(endpoint, detail, { kind: "not-prepared" });
     if (status === 503 || status === 504) return this.fail(endpoint, detail, { kind: "try-again" });
     if (status === 401 || status === 403) return this.fail(endpoint, detail, { kind: "unavailable", reason: "auth" });
     return this.unexpected(endpoint, detail);
   }
 
-  /** Parses the body as JSON and checks it against the schema; a failure is logged with the reason. */
+  /** Parses the body as JSON and checks it against the schema; a failure is logged with the reason. Settles the request. */
   private async readBody<T>(endpoint: string, response: Response, schema: z.ZodType<T>): Promise<ReadBody<T>> {
     const status = `status ${response.status.toString()}`;
 
@@ -205,8 +222,10 @@ export class GameApiClient {
     try {
       raw = JSON.parse(await response.text());
     } catch {
+      this.settleFigures(endpoint, undefined, response.headers);
       return { ok: false, failure: this.unexpected(endpoint, `${status}, body is not JSON`) };
     }
+    this.settleFigures(endpoint, raw, response.headers);
 
     const parsed = schema.safeParse(raw);
     if (!parsed.success) {
@@ -223,6 +242,17 @@ export class GameApiClient {
     } catch {
       // The connection is released or closed either way; nothing to report.
     }
+  }
+
+  /** Ends the request in flight, adopting the Daily Quota figures from the body or headers when they can be read. */
+  private settleFigures(endpoint: string, body: unknown, headers: Headers): void {
+    const figures = quotaFiguresFrom(body, headers);
+    if (figures === "malformed") {
+      this.logError(`Game API ${endpoint}: quota figures unreadable`);
+      this.quota.settle(undefined);
+      return;
+    }
+    this.quota.settle(figures);
   }
 
   private fail(endpoint: string, detail: string, failure: Failure): Failure {
@@ -246,6 +276,12 @@ export class GameApiClient {
     this.logError(`Game API ${endpoint}: unavailable (unexpected), ${detail}`);
     return { kind: "unavailable", reason: "unexpected" };
   }
+}
+
+/** A spent Daily Quota answers with the cached entry, however old, when there is one. */
+function orStale<T>(result: LookupResult<T>, stale: CacheEntry<T> | undefined): LookupResult<T> {
+  if (result.kind !== "quota-spent" || stale === undefined) return result;
+  return { kind: "found", value: stale.value, fetchedAt: stale.fetchedAt };
 }
 
 /** Maps one candidate of a 409, leaving out the fields the Game did not give (exactOptionalPropertyTypes). */

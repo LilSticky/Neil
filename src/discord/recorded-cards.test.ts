@@ -3,16 +3,19 @@ import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input
 import allianceBody from "../game-api/__fixtures__/alliance.json" with { type: "json" };
 import playerBody from "../game-api/__fixtures__/player-in-alliance.json" with { type: "json" };
 import { GameApiClient } from "../game-api/client.js";
+import { QuotaKeeper } from "../game-api/quota-keeper.js";
 import { renderAllianceCard, renderPlayerCard } from "./lookup-cards.js";
 
 const NOW = new Date("2026-10-30T16:00:00Z");
 
 /** A client whose every request is answered with the given recorded body (SC-002). */
 function clientAnswering(body: unknown): GameApiClient {
+  const now = (): Date => new Date("2026-10-30T15:20:00Z");
   return new GameApiClient({
     apiKey: "fake-key",
     version: "test",
-    now: () => new Date("2026-10-30T15:20:00Z"),
+    now,
+    quota: new QuotaKeeper({ store: { load: () => undefined, save: () => undefined }, now }),
     cacheTtlMs: 600_000,
     fetch: () =>
       Promise.resolve(

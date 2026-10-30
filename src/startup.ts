@@ -2,6 +2,7 @@ import type { BuildInfo } from "./build-info.js";
 import { ConfigError, loadConfig } from "./config.js";
 import type { LookupApi } from "./discord/lookup.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
+import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
 export function formatStartupError(
@@ -30,6 +31,11 @@ export interface StartRecordStorage {
   close(): void;
 }
 
+/** The storage start() opens: the start record and the Daily Quota, both in neil.db. */
+export interface StartupStorage extends StartRecordStorage {
+  readonly dailyQuota: DailyQuotaStorage;
+}
+
 export interface Connection {
   disconnect(): Promise<void>;
 }
@@ -40,8 +46,8 @@ export interface StartupDeps {
   readonly now: () => Date;
   readonly readBuildInfo: () => BuildInfo;
   readonly prepareDataDir: (dataDir: string) => void;
-  readonly openStore: (dataDir: string) => StartRecordStorage;
-  readonly createGameApi: (apiKey: string, version: string, cacheTtlMs: number) => LookupApi;
+  readonly openStore: (dataDir: string) => StartupStorage;
+  readonly createGameApi: (apiKey: string, version: string, cacheTtlMs: number, quota: QuotaKeeper) => LookupApi;
   readonly connect: (
     token: string,
     options: { readonly buildInfo: BuildInfo; readonly startRecord: StartRecord; readonly gameApi: LookupApi },
@@ -54,7 +60,7 @@ export interface StartupDeps {
 /** Config → build info → data folder → start record → Discord; any failure exits 1 before going on. */
 export async function start(deps: StartupDeps): Promise<void> {
   const secrets = [deps.env.DISCORD_TOKEN ?? "", deps.env.LAP_TRACKER_API_KEY ?? ""];
-  let store: StartRecordStorage | undefined;
+  let store: StartupStorage | undefined;
   const fail = (error: unknown): void => {
     store?.close();
     deps.writeError(formatStartupError(error, secrets));
@@ -69,10 +75,14 @@ export async function start(deps: StartupDeps): Promise<void> {
     store = deps.openStore(config.dataDir);
     const startRecord = recordStart(store.load(), deps.now());
     store.save(startRecord);
+    const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now });
+    // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
+    quota.today();
     const gameApi = deps.createGameApi(
       config.gameApiKey,
       buildInfo === "dev" ? "dev" : buildInfo.version,
       config.cacheTtlMs,
+      quota,
     );
     connection = await deps.connect(config.discordToken, { buildInfo, startRecord, gameApi });
   } catch (error) {
