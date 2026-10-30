@@ -1,6 +1,6 @@
 import type { z } from "zod";
 import { rankFromRoster } from "../domain/alliance-rank.js";
-import { nextReset } from "../domain/daily-quota.js";
+import { nextReset, type DailyQuota } from "../domain/daily-quota.js";
 import { parseKingdom, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import type { QuotaKeeper } from "./quota-keeper.js";
@@ -71,6 +71,11 @@ export class GameApiClient {
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
     this.players = new LookupCache<Player>({ ttlMs: options.cacheTtlMs });
     this.alliances = new LookupCache<Alliance>({ ttlMs: options.cacheTtlMs });
+  }
+
+  /** Today's Daily Quota as counted so far. Makes no request. */
+  quotaToday(): DailyQuota {
+    return this.quota.today();
   }
 
   /** A fresh cached answer, else one shared request; only a found answer is cached. */

@@ -125,8 +125,8 @@ description: "Task list for slice 003, Look up players within the daily quota"
   ` · Spent: the Game API reported the limit reached`; unconfirmed day says `Not confirmed by the Game API yet today.`;
   non-Officer gets `/quota is for Officers (Moderator or King).` and `quotaToday` is not read; a failing reply is
   logged, not thrown
-- [ ] T024 [US3] Implement `src/discord/quota.ts`; add `quotaToday()` to `GameApiClient` (no request)
-- [ ] T025 [US3] Test then implement the `/quota` definition in `src/discord/commands.ts` (description
+- [x] T024 [US3] Implement `src/discord/quota.ts`; add `quotaToday()` to `GameApiClient` (no request)
+- [x] T025 [US3] Test then implement the `/quota` definition in `src/discord/commands.ts` (description
   `Show today's Daily Quota of Game API requests (Officers)`, guild context, no options) and its route in
   `src/discord/client.ts`; member role IDs from `interaction.member.roles` (a `GuildMemberRoleManager`'s cache keys
   or a `string[]`), officer IDs from config through `connect`

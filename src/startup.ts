@@ -1,6 +1,6 @@
 import type { BuildInfo } from "./build-info.js";
 import { ConfigError, loadConfig } from "./config.js";
-import type { LookupApi } from "./discord/lookup.js";
+import type { GameApi } from "./discord/client.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
 
@@ -47,10 +47,15 @@ export interface StartupDeps {
   readonly readBuildInfo: () => BuildInfo;
   readonly prepareDataDir: (dataDir: string) => void;
   readonly openStore: (dataDir: string) => StartupStorage;
-  readonly createGameApi: (apiKey: string, version: string, cacheTtlMs: number, quota: QuotaKeeper) => LookupApi;
+  readonly createGameApi: (apiKey: string, version: string, cacheTtlMs: number, quota: QuotaKeeper) => GameApi;
   readonly connect: (
     token: string,
-    options: { readonly buildInfo: BuildInfo; readonly startRecord: StartRecord; readonly gameApi: LookupApi },
+    options: {
+      readonly buildInfo: BuildInfo;
+      readonly startRecord: StartRecord;
+      readonly gameApi: GameApi;
+      readonly officerRoleIds: readonly string[];
+    },
   ) => Promise<Connection>;
   readonly onStopSignal: (handler: () => Promise<void>) => void;
   readonly writeError: (text: string) => void;
@@ -84,7 +89,12 @@ export async function start(deps: StartupDeps): Promise<void> {
       config.cacheTtlMs,
       quota,
     );
-    connection = await deps.connect(config.discordToken, { buildInfo, startRecord, gameApi });
+    connection = await deps.connect(config.discordToken, {
+      buildInfo,
+      startRecord,
+      gameApi,
+      officerRoleIds: config.officerRoleIds,
+    });
   } catch (error) {
     fail(error);
     return;

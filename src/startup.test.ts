@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
+import { utcDayOf } from "./domain/daily-quota.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
@@ -65,6 +66,13 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
   const gameApi = {
     getPlayer: () => Promise.resolve({ kind: "not-found" } as const),
     getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+    quotaToday: () => ({
+      day: utcDayOf(new Date("2026-10-29T12:00:00Z")),
+      used: 0,
+      limit: 1000,
+      limitReached: false,
+      confirmedAt: undefined,
+    }),
   };
   const connected: unknown[] = [];
   const deps: StartupDeps = {
