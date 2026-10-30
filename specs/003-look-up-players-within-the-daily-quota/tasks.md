@@ -116,9 +116,9 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 **Independent test**: `/quota` as Officer shows figures, as anyone else the refusal; no fetch either way.
 
-- [ ] T021 [P] [US3] Test `src/domain/officer.test.ts`: `isOfficer(memberRoleIds, officerRoleIds)` true with either
+- [x] T021 [P] [US3] Test `src/domain/officer.test.ts`: `isOfficer(memberRoleIds, officerRoleIds)` true with either
   role, false with none or an empty list
-- [ ] T022 [P] [US3] Implement `src/domain/officer.ts`
+- [x] T022 [P] [US3] Implement `src/domain/officer.ts`
 - [ ] T023 [US3] Test `src/discord/quota.test.ts` (fake interaction with `memberRoleIds()`, fake `quotaToday()`,
   fixed `now`): replies per [contracts/quota-command.md](contracts/quota-command.md), all ephemeral with
   `allowedMentions: { parse: [] }`: Officer sees the four lines; limit reached adds
@@ -137,9 +137,9 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 **Independent test**: 503 then 200 → card; 504 always → 3 fetches with growing pauses, then try-again.
 
-- [ ] T026 [P] [US4] Test `src/domain/retry.test.ts`: `MAX_ATTEMPTS` is 3; `retryDelay(1, 0)` 500, `retryDelay(1, 0.999…)`
+- [x] T026 [P] [US4] Test `src/domain/retry.test.ts`: `MAX_ATTEMPTS` is 3; `retryDelay(1, 0)` 500, `retryDelay(1, 0.999…)`
   just under 1,500, `retryDelay(2, 0.5)` 2,000
-- [ ] T027 [P] [US4] Implement `src/domain/retry.ts`
+- [x] T027 [P] [US4] Implement `src/domain/retry.ts`
 - [ ] T028 [US4] Test in `src/game-api/client.test.ts` (fake `sleep` records pauses and advances the fake clock):
   503 then 200 → found, 2 fetches; 504 ×3 → `try-again`, 3 fetches, 2 pauses; 502, 404, 401, 429 → 1 fetch;
   no retry when the quota is spent after the first attempt; no retry when fewer than 2 s of the 20 s deadline would
