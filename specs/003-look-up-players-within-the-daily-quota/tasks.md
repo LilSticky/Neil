@@ -33,22 +33,22 @@ description: "Task list for slice 003, Look up players within the daily quota"
 
 ## Phase 2: Foundational (domain, storage, client plumbing)
 
-- [ ] T002 [P] Test `src/domain/daily-quota.test.ts` per [data-model.md](data-model.md#daily-quota-domain-srcdomaindaily-quotats):
+- [x] T002 [P] Test `src/domain/daily-quota.test.ts` per [data-model.md](data-model.md#daily-quota-domain-srcdomaindaily-quotats):
   `utcDayOf` (23:59:59Z and 00:00:00Z fall on different days); `nextReset` is the next 00:00 UTC;
   `todaysQuota(undefined, now)` → `used 0`, `limit 1000`, `limitReached false`, `confirmedAt undefined`;
   `todaysQuota(stored from yesterday, now)` keeps only the limit; `canSend` false at `used ≥ limit` and when
   `limitReached`; `countRequest` adds 1; `adoptReported(q, { used: 10, limit: 2000 }, inFlight 2, now)` →
   `used 12`, `limit 2000`, `confirmedAt now`; `markLimitReached`; `remaining` never below 0
-- [ ] T003 [P] Implement `src/domain/daily-quota.ts` (branded `UtcDay`, readonly `DailyQuota`, pure functions; no I/O)
+- [x] T003 [P] Implement `src/domain/daily-quota.ts` (branded `UtcDay`, readonly `DailyQuota`, pure functions; no I/O)
 - [ ] T004 [P] Change `LookupResult` in `src/domain/player.ts`:
   `found` gains `fetchedAt: Date`, `quota-spent` gains `resetsAt: Date`. Test-first through the existing client
   and handler tests: update `src/game-api/client.test.ts` so `found` carries `fetchedAt` from an injected `now` and
   `429` gives `quota-spent` with `resetsAt` = next 00:00 UTC; update fakes and handler tests in `src/discord/`
   so they compile. Then implement (client options gain `now: () => Date`; `main.ts` passes `() => new Date()`)
-- [ ] T005 [P] Test `src/storage/daily-quota-store.test.ts` (temp folder via `openDatabase`): `load()` is
+- [x] T005 [P] Test `src/storage/daily-quota-store.test.ts` (temp folder via `openDatabase`): `load()` is
   `undefined` on a new database; `save` then `load` round-trips every field (including `confirmedAt` undefined);
   a reopened database keeps it; a corrupt row (inserted by SQL with `day 'x'`) throws "the Daily Quota in neil.db is corrupt"
-- [ ] T006 Implement migration 2 in `src/storage/database.ts` (table exactly as in
+- [x] T006 Implement migration 2 in `src/storage/database.ts` (table exactly as in
   [data-model.md](data-model.md#storage-neildb-migration-2)) and `src/storage/daily-quota-store.ts` (zod row check)
 - [ ] T007 Test `src/game-api/quota-keeper.test.ts` with a fake store and fake clock: `today()` rolls to a new day at
   00:00 UTC; `tryCount()` returns false without saving when `canSend` is false, else counts, saves at once and
