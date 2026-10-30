@@ -69,12 +69,14 @@ const matchSchema = z.object({
 });
 
 /**
- * The 409 body of GET /alliances/{kingdom}/{key} when more than one alliance matches. Hand-written (research R9),
- * so every field of a match is optional and the schema stays lenient.
+ * The 409 body when more than one Player or Alliance matches, read back as `{ matches }`. The alliance 409 is
+ * hand-written (research R9), so every field of a match is optional and the schema stays lenient.
  */
-export const ambiguousBodySchema = z.object({
-  matches: z.array(matchSchema),
-});
+export const ambiguousBodySchema = z.union([
+  z.object({ matches: z.array(matchSchema) }),
+  // The recorded 409 of /players/name/{name} (2026-10-31) nests the list: {"detail":{"error":"ambiguous","matches":[…]}}.
+  z.object({ detail: z.object({ matches: z.array(matchSchema) }) }).transform((body) => ({ matches: body.detail.matches })),
+]);
 
 export type AmbiguousBody = z.infer<typeof ambiguousBodySchema>;
 

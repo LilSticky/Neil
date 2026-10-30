@@ -1,6 +1,9 @@
 {
-  "matches": [
-    { "uid": 145563254785, "server": 1, "name": "DrLOL" },
-    { "uid": 100000000002, "server": 180, "name": "DrLOL" }
-  ]
+  "detail": {
+    "error": "ambiguous",
+    "matches": [
+      { "uid": 145563254785, "server": 1, "name": "DrLOL" },
+      { "uid": 169178267828, "server": 180, "name": "Drlol" }
+    ]
+  }
 }

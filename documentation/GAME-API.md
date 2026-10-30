@@ -95,7 +95,7 @@ Documented:
 |--------|---------|
 | 401 | missing or unknown key |
 | 404 | player or alliance not found |
-| 409 | more than one match; `matches` lists uid, server, tag or name |
+| 409 | more than one match; the body is `{"detail":{"error":"ambiguous","matches":[…]}}` (recorded on `/players/name/drlol`, 2026-10-31; the docs page put `matches` at the top level), each match with uid, server, tag or name. The alliance-name 409 is not yet seen; Neil reads both forms |
 | 429 | daily limit reached |
 | 502 | profile could not be prepared |
 | 503 | API busy; try again shortly |

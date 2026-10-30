@@ -1221,7 +1221,7 @@ describe("GameApiClient.findPlayer result", () => {
       kind: "ambiguous",
       matches: [
         { name: "DrLOL", kingdom: 1, uid: "145563254785" },
-        { name: "DrLOL", kingdom: 180, uid: "100000000002" },
+        { name: "Drlol", kingdom: 180, uid: "169178267828" },
       ],
     });
   });

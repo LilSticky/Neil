@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
+import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
 import { allianceBodySchema, ambiguousBodySchema, playerBodySchema, quotaFiguresFrom } from "./schemas.js";
 
 type PlayerBodyField = "uid" | "nick" | "kid" | "power" | "lv";
@@ -124,6 +125,16 @@ describe("ambiguousBodySchema", () => {
 
   test("accepts a match that gives only some of its fields", () => {
     expect(ambiguousBodySchema.safeParse({ matches: [{ name: "No Man's Land" }] }).success).toBe(true);
+  });
+
+  test("reads the matches of the recorded 409, where the Game nests them under detail", () => {
+    const parsed = ambiguousBodySchema.safeParse(playersAmbiguous);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.matches).toEqual([
+      { uid: "145563254785", server: 1, name: "DrLOL" },
+      { uid: "169178267828", server: 180, name: "Drlol" },
+    ]);
   });
 
   test("rejects a body without a matches list", () => {

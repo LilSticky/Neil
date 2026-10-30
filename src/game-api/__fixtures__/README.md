@@ -11,7 +11,7 @@ hand to keep personal data minimal (constitution V): rosters cut to three rows (
 | `alliance.json` | `GET /alliances/1/NML` | 200 |
 | `alliance-not-found.json` | `GET /alliances/1/ZZZQX` | 404 |
 | `player-by-name.json` | `GET /players/name/DrLOL` (copied from `player-in-alliance.json`, same body) | 200 |
-| `players-ambiguous.json` | `GET /players/name/DrLOL` | 409 **hand-written** from GAME-API.md ("`matches` lists uid, server, name"; `drlol` on kingdoms 1 and 180). The second uid is invented; not recorded. Replace with a recording when one is made. |
+| `players-ambiguous.json` | `GET /players/name/drlol` | 409 **recorded** 2026-10-31: the matches sit under `detail` (`{"detail":{"error":"ambiguous","matches":[…]}}`), each with `uid`, `server`, `name`. |
 | `alliance-by-name.json` | `GET /alliances/name/No%20Man's%20Land` (copied from `alliance.json`, same body) | 200 **copied**; the name endpoint's body was not recorded separately |
 | `alliances-ambiguous.json` | `GET /alliances/name/...` (name shared by two alliances) | 409 **hand-written**: the shape of the alliance 409 is unverified (research R3), so only `matches` with `tag`, `name`, `server` is written. Replace with a recording when one is made. |
 
