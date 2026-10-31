@@ -66,7 +66,7 @@ stores, Discord ports) is shared by all.
   returns `already-linked` (nothing written) when the Member or uid already has a Link; Rank Approval
   `get`/`save`/`pendingFor(memberId)`; approving writes the rank onto the Link (`rank-approval`, approver, time);
   `deleteEndedBefore`. Implement `src/storage/link-store.ts`.
-- [ ] T010 Test `src/discord/onboarding-channels.test.ts` with fakes: port `OnboardingChannels` (`openThread(member)`,
+- [x] T010 Test `src/discord/onboarding-channels.test.ts` with fakes: port `OnboardingChannels` (`openThread(member)`,
   `post(threadId, message)`, `edit`, `addToThread`, `lockAndArchive`, `archive`, `log(message)`) built from a
   discord.js guild; thread `Interview – {username}` cut to 100 characters, private, not invitable; `checkChannels`
   reports a missing channel, a non-text channel and each missing permission (research R2). Implement
