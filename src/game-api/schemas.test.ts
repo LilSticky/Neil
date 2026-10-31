@@ -142,6 +142,32 @@ describe("ambiguousBodySchema", () => {
   });
 });
 
+describe("playerBodySchema alliance leader", () => {
+  test("reads alliance.leader_id of the recorded body as the Leader's uid text", () => {
+    const parsed = playerBodySchema.safeParse(playerInAlliance);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toMatchObject({ alliance: { leader_id: "145563254785" } });
+  });
+
+  test.each<[string, number | string]>([
+    ["a number", 145563254785],
+    ["a digit string", "145563254785"],
+  ])("reads a leader_id given as %s as the same uid text", (_label, leaderId) => {
+    const body = { ...playerInAlliance, alliance: { ...playerInAlliance.alliance, leader_id: leaderId } };
+
+    expect(playerBodySchema.safeParse(body).data).toMatchObject({ alliance: { leader_id: "145563254785" } });
+  });
+
+  test("accepts a leader_id that is neither a number nor a string of digits, and reads no Leader", () => {
+    const body = { ...playerInAlliance, alliance: { ...playerInAlliance.alliance, leader_id: "not-an-id" } };
+    const parsed = playerBodySchema.safeParse(body);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.alliance?.leader_id).toBeUndefined();
+  });
+});
+
 describe("playerBodySchema empty text", () => {
   test("rejects a body whose nick is an empty string", () => {
     expect(playerBodySchema.safeParse({ ...playerInAlliance, nick: "" }).success).toBe(false);

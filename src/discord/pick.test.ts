@@ -256,7 +256,7 @@ const memberOne: Player = {
   kingdom: kingdomNumber(1),
   power: 5000,
   sanctuaryLevel: 10,
-  alliance: { tag: "NML", name: "No Man's Land" },
+  alliance: { tag: "NML", name: "No Man's Land", leaderUid: undefined },
   allianceRank: "R4",
 };
 

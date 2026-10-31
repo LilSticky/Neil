@@ -25,7 +25,7 @@ function playerInAlliance(allianceRank: AllianceRank): Player {
     kingdom: kingdomOf(330),
     power: 1_000_000,
     sanctuaryLevel: 10,
-    alliance: { tag: "ABC", name: "Alpha" },
+    alliance: { tag: "ABC", name: "Alpha", leaderUid: undefined },
     allianceRank,
   };
 }

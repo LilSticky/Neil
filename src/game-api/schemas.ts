@@ -19,6 +19,11 @@ export const playerBodySchema = z.object({
   alliance_abbr: z.string().nullish(),
   alliance_name: z.string().nullish(),
   alliance_members: z.array(rosterRowSchema).nullish(),
+  /** Only `leader_id` is read. An unreadable `alliance` or `leader_id` leaves the Leader unknown; the body is still accepted. */
+  alliance: z
+    .object({ leader_id: idSchema.optional().catch(undefined) })
+    .nullish()
+    .catch(undefined),
 });
 
 export type PlayerBody = z.infer<typeof playerBodySchema>;

@@ -294,7 +294,7 @@ export class GameApiClient {
       kind: "found",
       value: {
         ...profile,
-        alliance: { tag: body.alliance_abbr, name: body.alliance_name },
+        alliance: { tag: body.alliance_abbr, name: body.alliance_name, leaderUid: leaderUidFrom(body.alliance) },
         allianceRank: rankFromRoster(uid.value, roster),
       },
       fetchedAt,
@@ -518,6 +518,14 @@ function foundBy<T>(entry: CacheEntry<T> | undefined): LookupResult<T> | undefin
 function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
   const { value, fetchedAt } = entry;
   return value.kind === "found" ? { kind: "found", value: value.value, fetchedAt } : value;
+}
+
+/** The uid of an Alliance's leader; undefined when the body gives none or it is not a readable uid. */
+function leaderUidFrom(alliance: PlayerBody["alliance"]): Uid | undefined {
+  const leaderId = alliance?.leader_id;
+  if (leaderId === undefined) return undefined;
+  const uid = parseUid(leaderId);
+  return uid.ok ? uid.value : undefined;
 }
 
 /** An Alliance from a 200 body, in the Kingdom the body names. */

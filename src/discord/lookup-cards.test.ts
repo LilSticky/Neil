@@ -42,7 +42,7 @@ const inAlliance: Player = {
   kingdom: kingdom(330),
   power: 15902728,
   sanctuaryLevel: 42,
-  alliance: { tag: "NML", name: "Neil's Men" },
+  alliance: { tag: "NML", name: "Neil's Men", leaderUid: undefined },
   allianceRank: "R5",
 };
 
@@ -105,7 +105,7 @@ describe("renderPlayerCard", () => {
     const card = renderPlayerCard({
       ...inAlliance,
       name: "*Bold_* `x`",
-      alliance: { tag: "NML", name: "_Tilted_ ~Men~" },
+      alliance: { tag: "NML", name: "_Tilted_ ~Men~", leaderUid: undefined },
     }, FETCHED_AT, NOW);
 
     expect(card).toMatchObject({ title: "\\*Bold\\_\\* \\`x\\`" });

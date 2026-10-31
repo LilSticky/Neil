@@ -34,7 +34,7 @@ stores, Discord ports) is shared by all.
 
 - [x] T002 [P] Test `src/domain/lookup-input.test.ts`: `parseInterviewUid` trims spaces and one leading `#`, then
   accepts what `parseUid` accepts; rejects `abc`, `12a`, empty, `##1`. Implement in `src/domain/lookup-input.ts`.
-- [ ] T003 [P] Test `src/game-api/client.test.ts` + `schemas.test.ts`: the player body's `alliance.leader_id`
+- [x] T003 [P] Test `src/game-api/client.test.ts` + `schemas.test.ts`: the player body's `alliance.leader_id`
   (number or digit string, nullish) maps to `PlayerAlliance.leaderUid` (`Uid | undefined`); the recorded
   `player-in-alliance.json` gives `"145563254785"`. Implement in `src/domain/player.ts`, `src/game-api/schemas.ts`,
   `src/game-api/client.ts`.
