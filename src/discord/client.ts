@@ -12,9 +12,9 @@ import type { GameApiClient } from "../game-api/client.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
-import { rankNotAllowedReply } from "./interview-texts.js";
 import { createInterviews, type ButtonInteractionLike, type Interviews, type JoinedMember, type ModalInteractionLike } from "./interview.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
+import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import { answer, handleAlliance, handlePlayer, replyPrivately, type LookupApi, type LookupInteraction } from "./lookup.js";
 import { handlePick, type PickInteraction } from "./pick.js";
@@ -52,7 +52,13 @@ export interface CommandHandlers {
   /** A modal submit whose custom id starts with `interview:`. */
   readonly interviewModal: (modal: ModalSubmitInteraction) => Promise<void>;
   /** A button whose custom id starts with `rank:`, the Rank Approval buttons. */
-  readonly rankButton: (button: ReplyInteraction) => Promise<void>;
+  readonly rankButton: (button: ButtonInteraction) => Promise<void>;
+}
+
+/** The services that exist once the client is ready and the channels are checked. */
+interface Services {
+  readonly interviews: Interviews;
+  readonly rankApprovals: RankApprovals;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -169,6 +175,20 @@ function buttonLike(button: ButtonInteraction): ButtonInteractionLike {
   };
 }
 
+/** The discord.js button press as a Rank Approval reads it; see buttonLike for why each method is passed on. */
+function rankButtonLike(button: ButtonInteraction): RankButtonLike {
+  return {
+    customId: button.customId,
+    user: button.user,
+    reply: async (message) => {
+      await button.reply(message);
+    },
+    update: async (options) => {
+      await button.update(options);
+    },
+  };
+}
+
 /** The discord.js modal submit as the Interview reads it; see buttonLike for why each method is passed on. */
 function modalLike(modal: ModalSubmitInteraction): ModalInteractionLike {
   return {
@@ -215,10 +235,10 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   // One store for every pick list: the lookups open them, the pick handler answers them.
   const pickSessions = new PickSessions();
   const now = (): Date => new Date();
-  // Interview events wait here until ready and the channel check have passed; then they reach the Interviews.
-  let openInterviews: (service: Interviews) => void = () => undefined;
-  const interviews = new Promise<Interviews>((resolve) => {
-    openInterviews = resolve;
+  // Interview and Rank Approval events wait here until ready and the channel check have passed; then they reach the services.
+  let openServices: (services: Services) => void = () => undefined;
+  const services = new Promise<Services>((resolve) => {
+    openServices = resolve;
   });
   const client: Client = createClient(
     {
@@ -249,16 +269,16 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
             logError,
           },
         ),
-      memberJoined: async (member) => (await interviews).onMemberJoined(member),
+      memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
       // T018: the /interview command starts the Onboarding Interview; until then it only says so.
       interview: (interaction) =>
         answer("/interview", { logError }, () => replyPrivately(interaction, "Coming soon.")),
-      interviewButton: async (button) => (await interviews).onButton(buttonLike(button)),
-      interviewModal: async (modal) => (await interviews).onModalSubmit(modalLike(modal)),
-      // T015: Rank Approval buttons are answered as not allowed until approvals are wired.
+      interviewButton: async (button) => (await services).interviews.onButton(buttonLike(button)),
+      interviewModal: async (modal) => (await services).interviews.onModalSubmit(modalLike(modal)),
       rankButton: (button) =>
         answer("rank button", { logError }, async () => {
-          await button.reply(rankNotAllowedReply());
+          const { rankApprovals } = await services;
+          await rankApprovals.onButton(rankButtonLike(button));
         }),
     },
     logError,
@@ -275,13 +295,28 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       );
     }
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
-    openInterviews(
-      createInterviews({
+    const officerRoles = { moderatorRoleId, kingRoleId };
+    const channels = createOnboardingChannels(guild, channelIds);
+    const rankApprovals = createRankApprovals({
+      links: options.links,
+      channels,
+      officerRoles,
+      memberRoleIdsOf: (memberId) =>
+        guild.members.fetch(memberId).then(
+          (member) => memberRoleIds(member),
+          () => [],
+        ),
+      now,
+      logError,
+    });
+    openServices({
+      interviews: createInterviews({
         interviews: options.interviews,
         links: options.links,
-        channels: createOnboardingChannels(guild, channelIds),
+        channels,
         gameApi: options.gameApi,
-        officerRoles: { moderatorRoleId, kingRoleId },
+        officerRoles,
+        rankApprovals,
         isOnServer: (memberId) => guild.members.fetch(memberId).then(
           () => true,
           () => false,
@@ -289,7 +324,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         now,
         logError,
       }),
-    );
+      rankApprovals,
+    });
   } catch (error) {
     await client.destroy();
     throw error;

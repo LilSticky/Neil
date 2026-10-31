@@ -412,13 +412,10 @@ export function rankAskedMessage(
   };
 }
 
-/** The thread message once a rank is approved: it names the approver and the rank. */
-export function rankApprovedMessage(
-  approval: Extract<RankApproval, { state: "approved" }>,
-  player: Player,
-): Message {
+/** The thread message once a rank is approved: it names the approver, the Linked Member and the rank; only the approver is pinged. */
+export function rankApprovedMessage(approval: Extract<RankApproval, { state: "approved" }>): Message {
   return {
-    content: `<@${approval.approvedBy}> set ${escapeText(player.name)}'s rank to ${approval.rank}.`,
+    content: `<@${approval.approvedBy}> set <@${approval.linkedMemberId}>'s rank to ${approval.rank}.`,
     allowedMentions: { users: [approval.approvedBy] },
   };
 }

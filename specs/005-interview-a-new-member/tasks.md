@@ -119,7 +119,7 @@ messages as in the contract.
 **Independent test**: leader Linked and on the server; leader not Linked; Linked Member is the leader; non-approver
 press; Linked Member leaves.
 
-- [ ] T015 [US3] Test `src/discord/rank-approval.test.ts`: on a Link with `unknown` rank the approver is chosen
+- [x] T015 [US3] Test `src/discord/rank-approval.test.ts`: on a Link with `unknown` rank the approver is chosen
   (leader's Member via `memberForUid(leaderUid)` and a guild member fetch, else Officers), added to the thread
   and asked with R1–R5 buttons; the approver's press stores the rank on the Link, edits the message, archives
   the thread, logs 🎖️; anyone else (the Linked Member too, even as Officer) gets the private refusal; a Member

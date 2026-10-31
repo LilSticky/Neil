@@ -60,7 +60,7 @@ otherwise whole minutes (`90 minutes`, `1 minute`).
 |------|---------|------------|
 | asked, member | `{approver}, the tracker shows no rank for {Player Name} in [TAG]. Which rank do they have?` (approver added to the thread) | buttons `R1`–`R5` |
 | asked, officers | `{Moderator role} {King role}: the tracker shows no rank for {Player Name} in [TAG], and their R5 isn't linked here. Which rank do they have?` | buttons `R1`–`R5` |
-| approved | `{approver} set {Player Name}'s rank to {rank}.` | buttons removed, thread archived |
+| approved | `{approver} set <@{Linked Member}>'s rank to {rank}.` (only the approver pinged) | buttons removed, thread archived |
 | not allowed | private: `You can't approve this rank.` | – |
 | cancelled (member left) | `{username} left the server; the rank approval is cancelled.` | buttons removed, thread archived |
 

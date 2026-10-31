@@ -11,13 +11,14 @@ import {
   type OpenInterview,
   type UidCheck,
 } from "../domain/onboarding-interview.js";
-import { rankOnLink, type Link } from "../domain/link.js";
+import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
 import type { Uid } from "../domain/lookup-input.js";
 import type { LookupResult, Player } from "../domain/player.js";
-import type { MemberId } from "../domain/rank-approval.js";
+import { chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { InterviewStore } from "../storage/interview-store.js";
-import type { LinkStore } from "../storage/link-store.js";
+import type { LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { RankApprovals } from "./rank-approval.js";
 import {
   alreadyLinkedMessage,
   askUidMessage,
@@ -77,6 +78,7 @@ export interface InterviewDeps {
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
   readonly channels: OnboardingChannels;
+  readonly rankApprovals: RankApprovals;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -168,17 +170,34 @@ async function confirmPlayer(deps: InterviewDeps, button: ButtonInteractionLike,
   if (interview.step !== "awaiting-confirmation") return;
   await button.update(withoutButtons(foundCardMessage(interview.id, interview.player)));
   const now = deps.now();
+  const leaderMemberId = await leaderPing(deps, interview.player);
   const linked = confirm(interview, { kind: "linked" }, now);
-  const outcome = deps.links.confirm(
-    { link: linkFor(interview, now) },
-    () => {
-      deps.interviews.save(linked.interview);
-    },
-  );
+  const link = linkFor(interview, now);
+  const draft = pendingApprovalFor(link, interview, leaderMemberId, now);
+  const outcome = deps.links.confirm(draft === undefined ? { link } : { link, rankApproval: draft }, () => {
+    deps.interviews.save(linked.interview);
+  });
   if (outcome.kind === "already-linked") {
     return refuseConfirmation(deps, interview, now);
   }
-  await finishLink(deps, interview, await leaderPing(deps, interview.player));
+  await finishLink(deps, interview, leaderMemberId, outcome.rankApproval);
+}
+
+/** A Link with an unknown rank waits for a Rank Approval, asked of the leader's Member when present, else the Officers. */
+function pendingApprovalFor(
+  link: Link,
+  interview: AwaitingConfirmation,
+  leaderMemberId: MemberId | undefined,
+  now: Date,
+): PendingRankApprovalDraft | undefined {
+  if (!needsRankApproval(link.allianceRank)) return undefined;
+  return {
+    state: "pending",
+    linkedMemberId: interview.memberId,
+    threadId: interview.threadId,
+    approver: chooseApprover(leaderMemberId, interview.memberId),
+    askedAt: now,
+  };
 }
 
 /** The Member says the Player shown is not theirs: the attempt counts, the Member is asked for the uid again. */
@@ -200,11 +219,20 @@ async function refuseConfirmation(deps: InterviewDeps, interview: AwaitingConfir
   await announce(deps, refused, interview.player.uid);
 }
 
-/** The Link is stored: the thread says so and closes, and the log notes it with the leader's Member when present. */
-async function finishLink(deps: InterviewDeps, interview: AwaitingConfirmation, leaderMemberId: MemberId | undefined): Promise<void> {
+/**
+ * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The thread
+ * closes, unless a Rank Approval is asked in it: then the thread is archived when the approval ends.
+ */
+async function finishLink(
+  deps: InterviewDeps,
+  interview: AwaitingConfirmation,
+  leaderMemberId: MemberId | undefined,
+  rankApproval: RankApproval | undefined,
+): Promise<void> {
   await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
-  await deps.channels.archive(interview.threadId);
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
+  if (rankApproval?.state === "pending") return deps.rankApprovals.announce(rankApproval, interview.player);
+  await deps.channels.archive(interview.threadId);
 }
 
 function linkFor(interview: AwaitingConfirmation, now: Date): Link {

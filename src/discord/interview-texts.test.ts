@@ -481,9 +481,9 @@ describe("Rank Approval messages", () => {
     );
   });
 
-  test("an approved rank reads as the approver setting it, with the buttons removed and no ping beyond the approver", () => {
-    expect(rankApprovedMessage(approvedApproval, inAlliance)).toEqual({
-      content: `<@${APPROVER}> set Vex's rank to R3.`,
+  test("an approved rank reads as the approver setting the Linked Member's rank, pinging only the approver", () => {
+    expect(rankApprovedMessage(approvedApproval)).toEqual({
+      content: `<@${APPROVER}> set <@${MEMBER}>'s rank to R3.`,
       allowedMentions: { users: [APPROVER] },
     });
   });

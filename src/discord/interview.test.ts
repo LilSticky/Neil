@@ -9,11 +9,12 @@ import { memberLeft } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
 import type { LookupResult, Player } from "../domain/player.js";
-import type { MemberId } from "../domain/rank-approval.js";
+import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
+import type { RankApprovals, RankButtonLike } from "./rank-approval.js";
 import {
   alreadyLinkedMessage,
   askUidMessage,
@@ -83,6 +84,16 @@ const PLAYER_WITH_LEADER: Player = {
   sanctuaryLevel: 42,
   alliance: { tag: "NML", name: "Neil's Men", leaderUid: LEADER_UID },
   allianceRank: "R4",
+};
+
+const PLAYER_WITH_LEADER_UNKNOWN_RANK: Player = {
+  uid: UID,
+  name: "Vex",
+  kingdom: kingdomOf(330),
+  power: 15_902_728,
+  sanctuaryLevel: 42,
+  alliance: { tag: "NML", name: "Neil's Men", leaderUid: LEADER_UID },
+  allianceRank: "unknown",
 };
 
 const PLAYER_WITHOUT_ALLIANCE: Player = {
@@ -232,11 +243,28 @@ class FakeModal implements ModalInteractionLike {
   }
 }
 
+/** The Rank Approvals as the Interview uses them: records every approval it asks about, with the Player shown. */
+class FakeRankApprovals implements RankApprovals {
+  readonly announced: { readonly approval: RankApproval; readonly player: Player }[] = [];
+  readonly presses: RankButtonLike[] = [];
+
+  announce(approval: Extract<RankApproval, { readonly state: "pending" }>, player: Player): Promise<void> {
+    this.announced.push({ approval, player });
+    return Promise.resolve();
+  }
+
+  onButton(button: RankButtonLike): Promise<void> {
+    this.presses.push(button);
+    return Promise.resolve();
+  }
+}
+
 interface Harness {
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
   readonly channels: FakeChannels;
   readonly gameApi: FakeGameApi;
+  readonly rankApprovals: FakeRankApprovals;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
@@ -291,6 +319,7 @@ describe("createInterviews", () => {
     const links = new LinkStore(db);
     const channels = new FakeChannels();
     const gameApi = new FakeGameApi();
+    const rankApprovals = new FakeRankApprovals();
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const service = createInterviews({
@@ -298,6 +327,7 @@ describe("createInterviews", () => {
       links,
       channels,
       gameApi,
+      rankApprovals,
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
@@ -305,7 +335,7 @@ describe("createInterviews", () => {
         errors.push(line);
       },
     });
-    h = { interviews, links, channels, gameApi, onServer, errors, service };
+    h = { interviews, links, channels, gameApi, rankApprovals, onServer, errors, service };
   });
 
   afterEach(() => {
@@ -492,6 +522,46 @@ describe("createInterviews", () => {
 
       expect(linkOfMember(h)?.allianceRank).toEqual({ source: "no-alliance" });
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER_WITHOUT_ALLIANCE, undefined)]);
+    });
+
+    test("a Player with an unknown rank creates a pending Rank Approval for the Member and asks the leader's Member", async () => {
+      h.links.confirm({ link: LEADER_LINK }, () => undefined);
+      h.onServer.add(LEADER);
+      const interviewId = await confirmationShown(h, PLAYER_WITH_LEADER_UNKNOWN_RANK);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(linkOfMember(h)?.allianceRank).toEqual({ source: "unknown" });
+      expect(h.links.pendingFor(MEMBER)).toMatchObject({
+        state: "pending",
+        linkedMemberId: MEMBER,
+        threadId: THREAD,
+        approver: { kind: "member", memberId: LEADER },
+      });
+      expect(h.rankApprovals.announced).toEqual([
+        { approval: h.links.pendingFor(MEMBER), player: PLAYER_WITH_LEADER_UNKNOWN_RANK },
+      ]);
+    });
+
+    test("a Player with an unknown rank asks the Officers when the leader's Member is not on the server", async () => {
+      h.links.confirm({ link: LEADER_LINK }, () => undefined);
+      const interviewId = await confirmationShown(h, PLAYER_WITH_LEADER_UNKNOWN_RANK);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.links.pendingFor(MEMBER)).toMatchObject({ state: "pending", approver: { kind: "officers" } });
+      expect(h.rankApprovals.announced).toEqual([
+        { approval: h.links.pendingFor(MEMBER), player: PLAYER_WITH_LEADER_UNKNOWN_RANK },
+      ]);
+    });
+
+    test("a Player with an unknown rank does not archive the thread until the rank is approved", async () => {
+      h.links.confirm({ link: LEADER_LINK }, () => undefined);
+      const interviewId = await confirmationShown(h, PLAYER_WITH_LEADER_UNKNOWN_RANK);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.channels.archived).toEqual([]);
     });
 
     test("two Members confirming the same uid: the second is refused and asked again", async () => {
