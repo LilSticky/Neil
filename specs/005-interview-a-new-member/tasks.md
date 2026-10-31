@@ -53,7 +53,7 @@ stores, Discord ports) is shared by all.
   (undefined or same as Linked Member → officers); `mayApprove` (pending only; never the Linked Member, even an
   Officer; member approver: only that Member; officers: any Officer); `approve(rank, by, now)` → approved;
   `cancel(now)` → cancelled; ended approvals refuse. Implement `src/domain/rank-approval.ts`.
-- [ ] T007 Test `src/storage/database.test.ts`: migration 3 creates `onboarding_interview`, `link`, `rank_approval`
+- [x] T007 Test `src/storage/database.test.ts`: migration 3 creates `onboarding_interview`, `link`, `rank_approval`
   exactly as in data-model.md (incl. `UNIQUE(uid)` on `link`, `member_id` primary key, the partial unique index
   `one_open_interview`, `failed_attempts BETWEEN 0 AND 5`); an existing version-2 db upgrades. Implement in
   `src/storage/database.ts`.
