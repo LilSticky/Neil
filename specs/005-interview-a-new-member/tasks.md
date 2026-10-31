@@ -92,7 +92,7 @@ messages as in the contract.
   `That's me` links (US1-3), removes the buttons, archives the thread, logs the Link and pings the leader's Member
   when Linked and on the server (US1-4); no Alliance → Linked without Rank Approval (US1-7); buttons of someone
   else → private note (US1-6); ended Interview → private note. Implement `src/discord/interview.ts`.
-- [ ] T013 [US1] Test `src/discord/client.test.ts`: intents `Guilds` + `GuildMembers`; `guildMemberAdd` routes to
+- [x] T013 [US1] Test `src/discord/client.test.ts`: intents `Guilds` + `GuildMembers`; `guildMemberAdd` routes to
   `onMemberJoined`; buttons and modals with `interview:` go to the interview handler, `rank:` to the rank handler,
   `pick:` unchanged. Implement in `src/discord/client.ts`; `connect` receives the stores, channel IDs, timeout and
   officer roles; `src/startup.ts` and `src/main.ts` open the stores on the same db and pass them; at ready

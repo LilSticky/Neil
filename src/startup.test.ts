@@ -1,11 +1,17 @@
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
 import { utcDayOf, type DailyQuota } from "./domain/daily-quota.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
+import { InterviewStore } from "./storage/interview-store.js";
+import { LinkStore } from "./storage/link-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
 const FAKE_TOKEN = "fake-token-never-shown-7f3a9c";
 const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
+const DEFAULT_INTERVIEW_TIMEOUT_MS = 1440 * 60_000;
+
+type ConnectOptions = Parameters<StartupDeps["connect"]>[1];
 
 describe("formatStartupError", () => {
   test("prints a ConfigError as the heading plus one line per problem", () => {
@@ -60,6 +66,14 @@ const VALID_ENV = {
   DATA_DIR: "./data",
 };
 
+/** Stores that are never queried: start() only hands them on to connect, which these tests fake. */
+function stubStores(): { readonly interviews: InterviewStore; readonly links: LinkStore } {
+  return {
+    interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
+    links: new LinkStore(new DatabaseSync(":memory:")),
+  };
+}
+
 function fakeDeps(overrides: Partial<StartupDeps> = {}) {
   const calls: string[] = [];
   const saved: StartRecord[] = [];
@@ -79,6 +93,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     }),
   };
   const connected: unknown[] = [];
+  const stores = stubStores();
   const deps: StartupDeps = {
     env: VALID_ENV,
     now: () => new Date("2026-10-29T12:00:00Z"),
@@ -91,6 +106,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
         save: (record) => saved.push(record),
         close: () => calls.push("closeStore"),
         dailyQuota: { load: () => undefined, save: () => undefined },
+        ...stores,
       };
     },
     createGameApi: (apiKey, version) => {
@@ -113,7 +129,7 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     exit: (code) => calls.push(`exit ${code.toString()}`),
     ...overrides,
   };
-  return { deps, calls, saved, built, connected, gameApi, stop: () => stop?.() };
+  return { deps, calls, saved, built, connected, gameApi, stores, stop: () => stop?.() };
 }
 
 describe("start", () => {
@@ -141,6 +157,27 @@ describe("start", () => {
     await start(fake.deps);
 
     expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "2f7a537" }]);
+  });
+
+  test("passes the channel IDs, the Interview timeout and the Interview and Link stores to connect", async () => {
+    const seen: ConnectOptions[] = [];
+    const fake = fakeDeps({
+      env: { ...VALID_ENV, INTERVIEW_TIMEOUT_MINUTES: "30" },
+      connect: (_token, options) => {
+        seen.push(options);
+        return Promise.resolve({ disconnect: () => Promise.resolve() });
+      },
+    });
+
+    await start(fake.deps);
+
+    expect(seen).toHaveLength(1);
+    const [options] = seen;
+    expect(options?.onboardingChannelId).toBe("423456789012345678");
+    expect(options?.logChannelId).toBe("523456789012345678");
+    expect(options?.interviewTimeoutMs).toBe(30 * 60_000);
+    expect(options?.interviews).toBe(fake.stores.interviews);
+    expect(options?.links).toBe(fake.stores.links);
   });
 
   test("invalid configuration is printed and exits 1 without connecting", async () => {
@@ -175,6 +212,7 @@ describe("start", () => {
         save: () => undefined,
         close: () => calls.push("closeStore"),
         dailyQuota: { load: () => undefined, save: () => undefined },
+        ...stubStores(),
       }),
     });
 
@@ -200,6 +238,7 @@ describe("start", () => {
           },
           save: () => undefined,
         },
+        ...stubStores(),
       }),
     });
 
@@ -295,6 +334,7 @@ describe("start with a Quota Reserve at or above the stored Daily Quota limit", 
         save: () => undefined,
         close: () => undefined,
         dailyQuota: { load: () => storedQuota, save: () => undefined },
+        ...stubStores(),
       }),
     });
 

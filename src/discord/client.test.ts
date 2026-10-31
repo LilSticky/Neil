@@ -6,17 +6,34 @@ function chatInput(commandName: string) {
   return { isChatInputCommand: () => true, commandName };
 }
 
-/** A select menu or button interaction; the pick list custom id decides where it goes. */
+/** A select menu or button interaction; the custom id decides where it goes. */
 function component(kind: "select" | "button", customId: string) {
   return {
     isChatInputCommand: () => false,
     isStringSelectMenu: () => kind === "select",
     isButton: () => kind === "button",
+    isModalSubmit: () => false,
     customId,
   };
 }
 
-/** One handler per slash command and per pick list interaction, each recording its calls. */
+/** A modal submit; the custom id decides where it goes. */
+function modal(customId: string) {
+  return {
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => false,
+    isButton: () => false,
+    isModalSubmit: () => true,
+    customId,
+  };
+}
+
+/** A guild member as discord.js emits it on guildMemberAdd: the id on the member, the rest on its user. */
+function guildMember(id: string, username: string, bot: boolean) {
+  return { id, user: { id, username, bot } };
+}
+
+/** One handler per slash command, pick list interaction, Interview entry point and Rank Approval button. */
 function handlers() {
   return {
     ping: vi.fn(() => Promise.resolve()),
@@ -24,15 +41,20 @@ function handlers() {
     alliance: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
+    memberJoined: vi.fn(() => Promise.resolve()),
+    interview: vi.fn(() => Promise.resolve()),
+    interviewButton: vi.fn(() => Promise.resolve()),
+    interviewModal: vi.fn(() => Promise.resolve()),
+    rankButton: vi.fn(() => Promise.resolve()),
   };
 }
 
 describe("createClient", () => {
-  test("requests the Guilds intent only", () => {
+  test("requests the Guilds and GuildMembers intents only", () => {
     const client = createClient(handlers());
 
-    expect(new IntentsBitField(client.options.intents).toArray()).toEqual(["Guilds"]);
-    expect(client.options.intents.bitfield).toBe(GatewayIntentBits.Guilds);
+    expect(new IntentsBitField(client.options.intents).toArray()).toEqual(["Guilds", "GuildMembers"]);
+    expect(client.options.intents.bitfield).toBe(GatewayIntentBits.Guilds | GatewayIntentBits.GuildMembers);
   });
 
   test("logs client errors instead of crashing", () => {
@@ -98,7 +120,7 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, chatInput("other") as never);
     client.emit(
       Events.InteractionCreate,
-      { isChatInputCommand: () => false, isStringSelectMenu: () => false, isButton: () => false } as never,
+      { isChatInputCommand: () => false, isStringSelectMenu: () => false, isButton: () => false, isModalSubmit: () => false } as never,
     );
 
     expect(routed.ping).not.toHaveBeenCalled();
@@ -139,6 +161,67 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, component("button", "roster:a1b2c3d4") as never);
     client.emit(Events.InteractionCreate, component("select", "picks:a1b2c3d4:select") as never);
 
+    expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands a guild member joining to the memberJoined handler with its id, username and bot flag, and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+
+    client.emit(Events.GuildMemberAdd, guildMember("111", "alice", false) as never);
+
+    expect(routed.memberJoined).toHaveBeenCalledWith({ id: "111", username: "alice", bot: false });
+    expect(routed.interview).not.toHaveBeenCalled();
+    expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands /interview to the interview handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = chatInput("interview");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.interview).toHaveBeenCalledWith(interaction);
+    expect(routed.ping).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.memberJoined).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with interview: to the interview button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = component("button", "interview:uid:42");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.interviewButton).toHaveBeenCalledWith(interaction);
+    expect(routed.interviewModal).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands a modal submit whose custom id starts with interview: to the interview modal handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = modal("interview:modal:42");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.interviewModal).toHaveBeenCalledWith(interaction);
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+    expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with rank: to the rank button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+    const interaction = component("button", "rank:7:R3");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.rankButton).toHaveBeenCalledWith(interaction);
+    expect(routed.interviewButton).not.toHaveBeenCalled();
     expect(routed.pick).not.toHaveBeenCalled();
   });
 });

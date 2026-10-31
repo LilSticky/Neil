@@ -7,6 +7,8 @@ import { GameApiClient } from "./game-api/client.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
+import { InterviewStore } from "./storage/interview-store.js";
+import { LinkStore } from "./storage/link-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
 import { start } from "./startup.js";
 
@@ -18,7 +20,7 @@ await start({
   now: () => new Date(),
   readBuildInfo: () => readBuildInfo(fileURLToPath(new URL("../build-info.json", import.meta.url))),
   prepareDataDir,
-  openStore: (dataDir) => {
+  openStore: (dataDir, interviewTimeoutMs) => {
     const db = openDatabase(dataDir);
     const store = new StartRecordStore(db);
     return {
@@ -26,6 +28,8 @@ await start({
       save: (record) => { store.save(record); },
       close: () => { db.close(); },
       dailyQuota: new DailyQuotaStore(db),
+      interviews: new InterviewStore(db, interviewTimeoutMs),
+      links: new LinkStore(db),
     };
   },
   createGameApi: (apiKey, version, cacheTtlMs, quota) =>
