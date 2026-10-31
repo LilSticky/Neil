@@ -31,6 +31,14 @@ Nicknames and roles are slice 006." Domain discovery and the user's decisions:
 - Q: Dictionary? → A: Onboarding Interview, In-game Proof, Link, Rank Approval and "Player identified by its
   uid" approved (2026-10-31).
 
+### Session 2026-10-31
+
+- Q: What can an Officer do with a handed-off Interview? → A: help the Member in the thread; the Member
+  starts a new Interview with the command. No manual Link in this slice ("Correct a link", Later).
+- Q: How do Officers see private Interview threads? → A: the Moderator and King roles get "Manage Threads"
+  in the onboarding channel (server setup, documented); Neil adds only the Member, and adds the approver or
+  Officers when it mentions them.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A new Member gets Linked (Priority: P1)
@@ -95,7 +103,9 @@ not me", fifth failure).
 4. **Given** two Members give the same uid at the same time, **When** both confirm, **Then** only the first
    confirmation is Linked; the second is refused as already Linked.
 5. **Given** 4 failed attempts, **When** a fifth fails, **Then** the Interview is handed off: Neil mentions
-   the Officers in the thread, tells the Member an Officer will help, stops asking, and logs it.
+   the Officers in the thread, tells the Member an Officer will help and that they can start a new
+   Interview with the command, stops asking, and logs it. Officers cannot Link the Member by hand in this
+   slice.
 6. **Given** the Game API is unavailable (after its retries), **When** the Member gives a uid, **Then** Neil
    asks them to try again shortly and does not count a failed attempt.
 
@@ -217,7 +227,7 @@ will continue at 00:00 UTC, and at the reset mentions them in the thread and ask
 - **FR-007**: A uid already Linked to another Member MUST be refused with an error naming no one.
 - **FR-008**: "Already Linked", "no such Player" and "That's not me" MUST each count as a failed attempt;
   at the 5th failed attempt the Interview MUST be handed off: Officers mentioned in the thread, the Member
-  told, no more questions.
+  told, no more questions. Officers MUST NOT be able to Link a Member by hand in this slice.
 - **FR-009**: When the Game API is unavailable, Neil MUST ask the Member to try again shortly and MUST NOT
   count a failed attempt.
 - **FR-010**: When the Daily Quota is spent, the Interview MUST pause until 00:00 UTC, tell the Member when
@@ -276,8 +286,9 @@ will continue at 00:00 UTC, and at the reset mentions them in the thread and ask
   request.
 - Links outlive leaving the server until "Say goodbye" (Later); a Member who rejoins with a Link gets no
   Interview.
-- The private thread is visible to the Member and to Officers (who can see private threads in the
-  onboarding channel); Neil adds the Member and, when asked, the approver.
+- The private thread is visible to the Member and to Officers because the Moderator and King roles have
+  "Manage Threads" in the onboarding channel (server setup, documented in HOSTING.md or the quickstart);
+  Neil adds the Member, and the approver or Officers when it mentions them.
 - What a Member may see on the server before being Linked is unchanged by this slice (no "unverified"
   role).
 - Guests and Players in no Alliance are interviewed and Linked the same way; names and roles are slice 006.
