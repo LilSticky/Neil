@@ -57,7 +57,7 @@ stores, Discord ports) is shared by all.
   exactly as in data-model.md (incl. `UNIQUE(uid)` on `link`, `member_id` primary key, the partial unique index
   `one_open_interview`, `failed_attempts BETWEEN 0 AND 5`); an existing version-2 db upgrades. Implement in
   `src/storage/database.ts`.
-- [ ] T008 Test `src/storage/interview-store.test.ts` (`:memory:`): `create` fails for a second open Interview of
+- [x] T008 Test `src/storage/interview-store.test.ts` (`:memory:`): `create` fails for a second open Interview of
   the same Member; `save`/`get(id)`/`openFor(memberId)` round-trip every step through zod; `due(now)` lists open
   Interviews with `due_at ≤ now`; a corrupt row is reported, not thrown; `deleteEndedBefore(cutoff)` (90 days).
   Implement `src/storage/interview-store.ts`.
