@@ -151,9 +151,11 @@ sessions, roster in the domain) is shared by all three.
   case; split from T007, as `StartupDeps` has no warning seam yet) in `src/startup.test.ts` / `src/startup.ts`
 - [x] T025 Update GAME-API.md if an alliance-name 409 or a name 502 behaves other than assumed (research R3)
   *Nothing new learned in automated work; revisit after T026 if the test server shows otherwise.*
-- [ ] T026 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)) after
+- [x] T026 **Manual check on the test server** ([quickstart.md](quickstart.md#on-the-test-server)) after
   `npm run commands:register` (user); record the result here
-- [ ] T027 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`); PR (`Closes` the slice issue)
+  *Done 2026-10-31 by the user, Neil run locally: the first `/player name:drlol` failed as unavailable (the real 409
+  nests `matches` under `detail`); fixed in f245de6 with the recorded body, then every quickstart step passed.*
+- [x] T027 `spec-auditor` against spec.md; STATUS, ROADMAP (`done`); PR (`Closes` the slice issue)
 
 ## Dependencies
 
