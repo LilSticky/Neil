@@ -135,7 +135,7 @@ press; Linked Member leaves.
 
 **Independent test**: `/interview` with and without a Link or open Interview; 24 h of silence (fake clock); leave.
 
-- [ ] T017 [P] [US4] Test `src/discord/commands.test.ts`: `/interview` exists, no options, description
+- [x] T017 [P] [US4] Test `src/discord/commands.test.ts`: `/interview` exists, no options, description
   "Start your Onboarding Interview"; included in `commands`. Implement in `src/discord/commands.ts`.
 - [ ] T018 [US4] Test in `src/discord/interview.test.ts`: `/interview` replies privately per contract (opens, points
   to the open thread, or names the Linked Player); after `handed-off` or `abandoned` a new one opens; a rejoin with

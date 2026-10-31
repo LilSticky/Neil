@@ -97,7 +97,18 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance and /quota", () => {
-    expect(commands.map((command) => command.name).sort()).toEqual(["alliance", "ping", "player", "quota"]);
+  test("hold /interview, without options, described as starting your Onboarding Interview", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "interview",
+        description: "Start your Onboarding Interview",
+        type: ApplicationCommandType.ChatInput,
+        options: [],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota and /interview", () => {
+    expect(commands.map((command) => command.name).sort()).toEqual(["alliance", "interview", "ping", "player", "quota"]);
   });
 });

@@ -65,5 +65,10 @@ export const quota = new SlashCommandBuilder()
   .setDescription("Show today's Daily Quota of Game API requests (Officers)")
   .setContexts(InteractionContextType.Guild);
 
+export const interview = new SlashCommandBuilder()
+  .setName("interview")
+  .setDescription("Start your Onboarding Interview")
+  .setContexts(InteractionContextType.Guild);
+
 /** Everything registered for the configured server, as REST payloads. */
-export const commands = [ping.toJSON(), player.toJSON(), alliance.toJSON(), quota.toJSON()];
+export const commands = [ping.toJSON(), player.toJSON(), alliance.toJSON(), quota.toJSON(), interview.toJSON()];
