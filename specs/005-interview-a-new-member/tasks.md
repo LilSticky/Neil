@@ -71,7 +71,7 @@ stores, Discord ports) is shared by all.
   discord.js guild; thread `Interview – {username}` cut to 100 characters, private, not invitable; `checkChannels`
   reports a missing channel, a non-text channel and each missing permission (research R2). Implement
   `src/discord/onboarding-channels.ts`.
-- [ ] T011 [P] Test `src/discord/interview-texts.test.ts`: every text and component of contracts/interview.md
+- [x] T011 [P] Test `src/discord/interview-texts.test.ts`: every text and component of contracts/interview.md
   (custom ids `interview:uid|modal|confirm|reject:{id}`, `rank:{id}:{R1..R5}` ≤ 100 characters and round-trip
   through `parseInterviewCustomId` / `parseRankCustomId`); Player Names and usernames escaped; `allowedMentions`
   exactly as the contract says. Implement `src/discord/interview-texts.ts`.

@@ -44,7 +44,10 @@ Thread name: `Interview – {username}` (cut to 100 characters).
 | button of someone else | private: `This interview belongs to someone else.` | – |
 | button on ended Interview | private: `This interview has ended. Run /interview to start a new one.` | – |
 
-"Attempts left": `{n} tries left.` (shown when 1–4 remain).
+"Attempts left": `{n} tries left.` (shown when 1–4 remain); with one left, `1 try left.`.
+
+"Timeout" in the timed-out message: whole hours when the timeout divides evenly into hours (`24 hours`, `1 hour`),
+otherwise whole minutes (`90 minutes`, `1 minute`).
 
 ## Modal
 
