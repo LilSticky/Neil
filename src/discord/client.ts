@@ -5,6 +5,8 @@ import type { GameApiClient } from "../game-api/client.js";
 import type { StartRecord } from "../domain/start-record.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import { handleAlliance, handlePlayer, type LookupApi, type LookupInteraction } from "./lookup.js";
+import { handlePick, type PickInteraction } from "./pick.js";
+import { PickSessions } from "./pick-sessions.js";
 import { handleQuota } from "./quota.js";
 
 /** The Game API client as connect uses it: the lookups and the Daily Quota figures. */
@@ -22,7 +24,12 @@ export interface CommandHandlers {
   readonly player: (interaction: LookupInteraction) => Promise<void>;
   readonly alliance: (interaction: LookupInteraction) => Promise<void>;
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
+  /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
+  readonly pick: (interaction: PickInteraction) => Promise<void>;
 }
+
+/** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
+const PICK_PREFIX = "pick:";
 
 /** A guild member's roles, from the discord.js cache (a GuildMemberRoleManager) or from an API member (a string array). */
 const memberSchema = z.union([
@@ -49,20 +56,28 @@ export function createClient(
     logError(`Discord client error: ${error.message}`);
   });
   client.on(Events.InteractionCreate, (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    switch (interaction.commandName) {
-      case "ping":
-        void handlers.ping(interaction);
-        break;
-      case "player":
-        void handlers.player(interaction);
-        break;
-      case "alliance":
-        void handlers.alliance(interaction);
-        break;
-      case "quota":
-        void handlers.quota(interaction);
-        break;
+    if (interaction.isChatInputCommand()) {
+      switch (interaction.commandName) {
+        case "ping":
+          void handlers.ping(interaction);
+          break;
+        case "player":
+          void handlers.player(interaction);
+          break;
+        case "alliance":
+          void handlers.alliance(interaction);
+          break;
+        case "quota":
+          void handlers.quota(interaction);
+          break;
+      }
+      return;
+    }
+    if (
+      (interaction.isStringSelectMenu() || interaction.isButton()) &&
+      interaction.customId.startsWith(PICK_PREFIX)
+    ) {
+      void handlers.pick(interaction);
     }
   });
   return client;
@@ -72,6 +87,8 @@ export interface ConnectOptions {
   readonly buildInfo: BuildInfo;
   readonly startRecord: StartRecord;
   readonly gameApi: GameApi;
+  /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
+  readonly quotaReserve: number;
   /** The Moderator and King role IDs from config; holders of either are Officers. */
   readonly officerRoleIds: readonly string[];
 }
@@ -81,6 +98,9 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   const logError = (message: string): void => {
     console.error(message);
   };
+  // One store for every pick list: the lookups open them, the pick handler answers them.
+  const pickSessions = new PickSessions();
+  const now = (): Date => new Date();
   const client: Client = createClient(
     {
       ping: (interaction) =>
@@ -91,9 +111,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           startRecord: options.startRecord,
           logError,
         }),
-      player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, now: () => new Date(), logError }),
+      player: (interaction) =>
+        handlePlayer(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
       alliance: (interaction) =>
-        handleAlliance(interaction, { gameApi: options.gameApi, now: () => new Date(), logError }),
+        handleAlliance(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+      pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
       quota: (interaction) =>
         handleQuota(
           {
@@ -102,6 +124,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           },
           {
             quotaToday: () => options.gameApi.quotaToday(),
+            quotaReserve: options.quotaReserve,
             officerRoleIds: options.officerRoleIds,
             now: () => new Date(),
             logError,

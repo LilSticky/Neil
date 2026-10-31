@@ -15,7 +15,7 @@ function clientAnswering(body: unknown): GameApiClient {
     apiKey: "fake-key",
     version: "test",
     now,
-    quota: new QuotaKeeper({ store: { load: () => undefined, save: () => undefined }, now }),
+    quota: new QuotaKeeper({ store: { load: () => undefined, save: () => undefined }, now, reserve: 100 }),
     cacheTtlMs: 600_000,
     sleep: () => Promise.resolve(),
     random: () => 0.5,
@@ -32,7 +32,7 @@ describe("cards from recorded Game API answers", () => {
     const uid = parseUid("145563254785");
     if (!uid.ok) throw new Error("uid must parse");
 
-    const result = await clientAnswering(playerBody).getPlayer(uid.value);
+    const result = await clientAnswering(playerBody).getPlayer(uid.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
     expect(renderPlayerCard(result.value, result.fetchedAt, NOW)).toEqual({
@@ -54,18 +54,20 @@ describe("cards from recorded Game API answers", () => {
     const key = parseAllianceKey("NML");
     if (!kingdom.ok || !key.ok) throw new Error("input must parse");
 
-    const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value);
+    const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    expect(renderAllianceCard(result.value, result.fetchedAt, NOW)).toMatchObject({
+    const card = renderAllianceCard(result.value, result.fetchedAt, NOW);
+    expect(card).toMatchObject({
       title: "[NML] No Man's Land",
-      fields: [
-        { name: "Kingdom", value: "#1" },
-        { name: "Power", value: "208,815,434" },
-        { name: "Members", value: "52/100" },
-        { name: "Leader", value: "DrLOL" },
-      ],
       footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
+    // The roster fields follow these four; their rows are covered in lookup-cards.test.ts.
+    expect(card.fields?.slice(0, 4)).toMatchObject([
+      { name: "Kingdom", value: "#1" },
+      { name: "Power", value: "208,815,434" },
+      { name: "Members", value: "52/100" },
+      { name: "Leader", value: "DrLOL" },
+    ]);
   });
 });

@@ -12,11 +12,11 @@ const CONFIRMED_AT = new Date("2026-10-30T18:40:00Z");
 
 const NOT_OFFICER_TEXT = "/quota is for Officers (Moderator or King).";
 
-/** A Daily Quota of 123 used out of 2,000 for today, confirmed by the Game API at 18:40 UTC. */
+/** A Daily Quota of 1,875 used out of 2,000 for today (125 remaining), confirmed by the Game API at 18:40 UTC. */
 function quota(overrides: Partial<DailyQuota> = {}): DailyQuota {
   return {
     day: utcDayOf(NOW),
-    used: 123,
+    used: 1875,
     limit: 2000,
     limitReached: false,
     confirmedAt: CONFIRMED_AT,
@@ -44,11 +44,15 @@ class FakeQuotaInteraction implements QuotaInteraction {
   }
 }
 
-/** A context whose quota is the given one; quotaToday is a spy so tests can see whether it was read. */
-function contextWith(today: DailyQuota, logged: string[] = []) {
+/**
+ * A context whose quota is the given one, with the Quota Reserve given (100 unless the test says otherwise);
+ * quotaToday is a spy so tests can see whether it was read.
+ */
+function contextWith(today: DailyQuota, logged: string[] = [], quotaReserve = 100) {
   const quotaToday = vi.fn<() => DailyQuota>(() => today);
   const context: QuotaContext = {
     quotaToday,
+    quotaReserve,
     officerRoleIds: [MODERATOR_ROLE_ID, KING_ROLE_ID],
     now: () => NOW,
     logError: (message: string) => {
@@ -62,7 +66,7 @@ describe("handleQuota for an Officer", () => {
   test.each([
     { label: "Moderator", roleIds: [MODERATOR_ROLE_ID] },
     { label: "King", roleIds: [KING_ROLE_ID] },
-  ])("replies once, privately, with the four lines for a $label", async ({ roleIds }) => {
+  ])("replies once, privately, with the five lines for a $label", async ({ roleIds }) => {
     const interaction = new FakeQuotaInteraction([MEMBER_ROLE_ID, ...roleIds]);
     const { context } = contextWith(quota());
 
@@ -72,7 +76,29 @@ describe("handleQuota for an Officer", () => {
       {
         content: [
           "Daily Quota for 2026-10-30 (UTC)",
-          "Used: 123 · Remaining: 1,877 · Limit: 2,000",
+          "Used: 1,875 · Remaining: 125 · Limit: 2,000",
+          "Quota Reserve: 100 (for Onboarding Interviews) · Left for lookups: 25",
+          "Resets at 00:00 UTC (in 5 h 12 min).",
+          "Last confirmed by the Game API at 18:40 UTC.",
+        ].join("\n"),
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    ]);
+  });
+
+  test("shows the Quota Reserve the context gives, not a fixed one, with what is left above it", async () => {
+    const interaction = new FakeQuotaInteraction([MODERATOR_ROLE_ID]);
+    const { context } = contextWith(quota(), [], 50);
+
+    await handleQuota(interaction, context);
+
+    expect(interaction.replies).toEqual([
+      {
+        content: [
+          "Daily Quota for 2026-10-30 (UTC)",
+          "Used: 1,875 · Remaining: 125 · Limit: 2,000",
+          "Quota Reserve: 50 (for Onboarding Interviews) · Left for lookups: 75",
           "Resets at 00:00 UTC (in 5 h 12 min).",
           "Last confirmed by the Game API at 18:40 UTC.",
         ].join("\n"),
@@ -92,7 +118,8 @@ describe("handleQuota for an Officer", () => {
       {
         content: [
           "Daily Quota for 2026-10-30 (UTC)",
-          "Used: 123 · Remaining: 1,877 · Limit: 2,000 · Spent: the Game API reported the limit reached",
+          "Used: 1,875 · Remaining: 125 · Limit: 2,000 · Spent: the Game API reported the limit reached",
+          "Quota Reserve: 100 (for Onboarding Interviews) · Left for lookups: 25",
           "Resets at 00:00 UTC (in 5 h 12 min).",
           "Last confirmed by the Game API at 18:40 UTC.",
         ].join("\n"),
@@ -112,7 +139,8 @@ describe("handleQuota for an Officer", () => {
       {
         content: [
           "Daily Quota for 2026-10-30 (UTC)",
-          "Used: 123 · Remaining: 1,877 · Limit: 2,000",
+          "Used: 1,875 · Remaining: 125 · Limit: 2,000",
+          "Quota Reserve: 100 (for Onboarding Interviews) · Left for lookups: 25",
           "Resets at 00:00 UTC (in 5 h 12 min).",
           "Not confirmed by the Game API yet today.",
         ].join("\n"),

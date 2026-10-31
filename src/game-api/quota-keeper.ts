@@ -1,10 +1,12 @@
 import {
   adoptReported,
   canSend,
+  canSendFor,
   countRequest,
   markLimitReached,
   todaysQuota,
   type DailyQuota,
+  type RequestPurpose,
   type UtcDay,
 } from "../domain/daily-quota.js";
 
@@ -17,7 +19,15 @@ export interface DailyQuotaStorage {
 export interface QuotaKeeperOptions {
   readonly store: DailyQuotaStorage;
   readonly now: () => Date;
+  /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE. */
+  readonly reserve: number;
 }
+
+/** Why a request was not counted: today's Daily Quota is spent, or only the Quota Reserve is left for its purpose. */
+export type RefusalReason = "spent" | "reserve";
+
+/** The outcome of counting a request: the UTC day it is counted on, or the reason it was refused. */
+export type CountAttempt = { readonly ok: true; readonly day: UtcDay } | { readonly ok: false; readonly reason: RefusalReason };
 
 /**
  * Counts the Game API requests Neil sends against the Daily Quota. The stored row is the truth across restarts;
@@ -26,11 +36,13 @@ export interface QuotaKeeperOptions {
 export class QuotaKeeper {
   private readonly store: DailyQuotaStorage;
   private readonly now: () => Date;
+  private readonly reserve: number;
   private inFlight = 0;
 
   constructor(options: QuotaKeeperOptions) {
     this.store = options.store;
     this.now = options.now;
+    this.reserve = options.reserve;
   }
 
   /** Today's Daily Quota. Rolls over to a fresh day at 00:00 UTC and saves the roll. */
@@ -42,15 +54,21 @@ export class QuotaKeeper {
   }
 
   /**
-   * Counts one request before it is sent and returns the UTC day it is counted on. Undefined, with nothing saved,
-   * when the Daily Quota is spent.
+   * Counts one request for the purpose before it is sent. Refused with nothing saved when the Daily Quota is spent,
+   * or when a lookup would have to use the Quota Reserve.
    */
-  tryCount(): UtcDay | undefined {
+  tryCount(purpose: RequestPurpose): CountAttempt {
     const quota = this.today();
-    if (!canSend(quota)) return undefined;
+    if (!canSend(quota)) return { ok: false, reason: "spent" };
+    if (!canSendFor(quota, purpose, this.reserve)) return { ok: false, reason: "reserve" };
     this.store.save(countRequest(quota));
     this.inFlight += 1;
-    return quota.day;
+    return { ok: true, day: quota.day };
+  }
+
+  /** Whether a request for the purpose may be sent today. Counts nothing. */
+  mayCount(purpose: RequestPurpose): boolean {
+    return canSendFor(this.today(), purpose, this.reserve);
   }
 
   /**

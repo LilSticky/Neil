@@ -1,0 +1,6 @@
+{
+  "matches": [
+    { "tag": "NML", "name": "No Man's Land", "server": 1 },
+    { "tag": "NMX", "name": "No Man's Land", "server": 180 }
+  ]
+}

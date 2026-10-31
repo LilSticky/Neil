@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
+import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
 import { allianceBodySchema, ambiguousBodySchema, playerBodySchema, quotaFiguresFrom } from "./schemas.js";
 
 type PlayerBodyField = "uid" | "nick" | "kid" | "power" | "lv";
@@ -62,6 +63,50 @@ describe("allianceBodySchema", () => {
   });
 });
 
+describe("allianceBodySchema roster", () => {
+  test("reads each member of the recorded roster as uid, nick_name and rank_label, with the uid as a string", () => {
+    const parsed = allianceBodySchema.parse(alliance);
+
+    expect(parsed.members).toEqual([
+      { uid: "179060285441", nick_name: "etranger", rank_label: "R4" },
+      { uid: "93159425", nick_name: "Benedict", rank_label: "R3" },
+      { uid: "147744374785", nick_name: "Settong", rank_label: "R1" },
+    ]);
+  });
+
+  test("accepts a member whose nick_name is null and whose rank_label is null", () => {
+    const body = {
+      ...alliance,
+      members: [
+        { uid: 93159425, nick_name: null, rank_label: null },
+        { uid: 147744374785, nick_name: "Settong", rank_label: null },
+      ],
+    };
+
+    expect(allianceBodySchema.safeParse(body).success).toBe(true);
+  });
+
+  test("drops a member without a uid and keeps the others", () => {
+    const body = {
+      ...alliance,
+      members: [
+        { nick_name: "Ghost", rank_label: "R1" },
+        { uid: 93159425, nick_name: "Benedict", rank_label: "R3" },
+      ],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toEqual([{ uid: "93159425", nick_name: "Benedict", rank_label: "R3" }]);
+  });
+
+  test("gives an empty roster when the body has no members", () => {
+    const parsed = allianceBodySchema.parse(withoutField(alliance, "members"));
+
+    expect(parsed.members).toEqual([]);
+  });
+});
+
 /**
  * Hand-written, not recorded (research R9): the 409 body the alliance endpoint may answer when a name
  * is shared by more than one alliance. Its exact shape is unverified, so the schema stays lenient.
@@ -80,6 +125,16 @@ describe("ambiguousBodySchema", () => {
 
   test("accepts a match that gives only some of its fields", () => {
     expect(ambiguousBodySchema.safeParse({ matches: [{ name: "No Man's Land" }] }).success).toBe(true);
+  });
+
+  test("reads the matches of the recorded 409, where the Game nests them under detail", () => {
+    const parsed = ambiguousBodySchema.safeParse(playersAmbiguous);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.matches).toEqual([
+      { uid: "145563254785", server: 1, name: "DrLOL" },
+      { uid: "169178267828", server: 180, name: "Drlol" },
+    ]);
   });
 
   test("rejects a body without a matches list", () => {
