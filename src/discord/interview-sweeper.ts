@@ -1,8 +1,8 @@
-import { recoverAfterRestart, timeOut } from "../domain/onboarding-interview.js";
+import { quotaReset, recoverAfterRestart, timeOut, type OpenInterview } from "../domain/onboarding-interview.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
-import { abandonedLogLine, askUidMessage, timedOutMessage } from "./interview-texts.js";
+import { abandonedLogLine, askUidMessage, quotaResetMessage, timedOutMessage } from "./interview-texts.js";
 
 const SWEEP_EVERY_MS = 60_000;
 const ENDED_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -68,14 +68,9 @@ export function createSweeper(deps: SweeperDeps): Sweeper {
       }
       reportCorrupt(deps, due.corrupt, "sweeping");
       for (const interview of due.interviews) {
-        await guarded(deps, `Sweeping Onboarding Interview ${interview.id.toString()}`, async () => {
-          const transition = timeOut(interview, now);
-          if (transition.event.kind !== "abandoned") return;
-          deps.interviews.save(transition.interview);
-          await deps.channels.post(interview.threadId, timedOutMessage(deps.timeoutMs));
-          await deps.channels.lockAndArchive(interview.threadId);
-          await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
-        });
+        await guarded(deps, `Sweeping Onboarding Interview ${interview.id.toString()}`, () =>
+          interview.step === "paused-for-quota" ? resume(deps, interview, now) : abandonSilent(deps, interview, now),
+        );
       }
     },
   };
@@ -92,6 +87,24 @@ export function startSweeper(sweeper: Sweeper, schedule: Schedule): () => void {
   return schedule(() => {
     enqueue(() => sweeper.sweep());
   }, SWEEP_EVERY_MS);
+}
+
+/** The Daily Quota has reset: the paused Interview asks for the uid again, and its timeout starts now. */
+async function resume(deps: SweeperDeps, interview: OpenInterview, now: Date): Promise<void> {
+  const transition = quotaReset(interview, now);
+  if (transition.event.kind !== "resumed") return;
+  deps.interviews.save(transition.interview);
+  await deps.channels.post(interview.threadId, quotaResetMessage(interview.id, interview.memberId));
+}
+
+/** No answer within the timeout: the Interview is abandoned, its thread locked and the log told. */
+async function abandonSilent(deps: SweeperDeps, interview: OpenInterview, now: Date): Promise<void> {
+  const transition = timeOut(interview, now);
+  if (transition.event.kind !== "abandoned") return;
+  deps.interviews.save(transition.interview);
+  await deps.channels.post(interview.threadId, timedOutMessage(deps.timeoutMs));
+  await deps.channels.lockAndArchive(interview.threadId);
+  await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
 }
 
 async function guarded(deps: SweeperDeps, label: string, work: () => Promise<void>): Promise<void> {

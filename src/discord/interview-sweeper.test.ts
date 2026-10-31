@@ -11,13 +11,14 @@ import {
   memberLeft,
   uidChecked,
   type AwaitingUid,
+  type OnboardingInterview,
 } from "../domain/onboarding-interview.js";
 import { approve, cancel, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
-import { abandonedLogLine, askUidMessage, timedOutMessage } from "./interview-texts.js";
+import { abandonedLogLine, askUidMessage, quotaResetMessage, timedOutMessage } from "./interview-texts.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 
 function uidOf(digits: string): Uid {
@@ -111,6 +112,22 @@ function openAwaitingUid(interviews: InterviewStore, memberId: MemberId, threadI
   const outcome = interviews.create({ memberId, threadId }, startedAt);
   if (outcome.kind !== "created") throw new Error(`the test Member ${memberId} already has an open Interview`);
   return outcome.interview;
+}
+
+/** Opens an Interview for the Member and pauses it for the Daily Quota until resumesAt. Returns the paused Interview. */
+function pausedForQuota(
+  interviews: InterviewStore,
+  memberId: MemberId,
+  threadId: string,
+  startedAt: Date,
+  resumesAt: Date,
+): OnboardingInterview {
+  const asked = openAwaitingUid(interviews, memberId, threadId, startedAt);
+  const checking = giveUid(asked, UID_DIGITS, startedAt).interview;
+  const paused = uidChecked(checking, { kind: "quota-spent", resetsAt: resumesAt }, startedAt).interview;
+  if (paused.step !== "paused-for-quota") throw new Error(`the test Member ${memberId} is not paused for the Daily Quota`);
+  interviews.save(paused);
+  return paused;
 }
 
 /** Opens a Link for the Member with a pending Rank Approval, and returns that pending Rank Approval. */
@@ -282,6 +299,68 @@ describe("createSweeper", () => {
 
       expect(interviews.get(healthy.id)).toMatchObject({ step: "abandoned", reason: "timed-out" });
       expect(channels.logs).toContainEqual(abandonedLogLine(OTHER, "timed-out"));
+    });
+  });
+
+  describe("an Interview paused for the Daily Quota", () => {
+    const RESUMES_AT = new Date("2026-11-01T00:00:00Z");
+
+    test("is resumed at or after its resume time: the Member is pinged and asked for the uid again, no attempt counted", async () => {
+      const paused = pausedForQuota(interviews, MEMBER, THREAD, NOW, RESUMES_AT);
+      clock = RESUMES_AT;
+
+      await sweeper.sweep();
+
+      expect(channels.posts).toEqual([{ threadId: THREAD, message: quotaResetMessage(paused.id, MEMBER) }]);
+      expect(interviews.get(paused.id)).toMatchObject({
+        step: "awaiting-uid",
+        failedAttempts: 0,
+        lastAskedAt: RESUMES_AT,
+      });
+    });
+
+    test("is left paused before its resume time", async () => {
+      const paused = pausedForQuota(interviews, MEMBER, THREAD, NOW, RESUMES_AT);
+      clock = new Date(RESUMES_AT.getTime() - MINUTE_MS);
+
+      await sweeper.sweep();
+
+      expect(interviews.get(paused.id)).toEqual(paused);
+      expect(channels.posts).toEqual([]);
+      expect(channels.lockedAndArchived).toEqual([]);
+      expect(channels.logs).toEqual([]);
+    });
+
+    test("is not abandoned as timed out when the pause is longer than the timeout", async () => {
+      const longResumesAt = new Date(NOW.getTime() + 2 * DAY_MS);
+      const paused = pausedForQuota(interviews, MEMBER, THREAD, OVERDUE_START, longResumesAt);
+
+      await sweeper.sweep();
+
+      expect(interviews.get(paused.id)).toMatchObject({ step: "paused-for-quota", resumesAt: longResumesAt });
+      expect(channels.posts).toEqual([]);
+      expect(channels.lockedAndArchived).toEqual([]);
+      expect(channels.logs).toEqual([]);
+    });
+
+    test("runs the timeout from the resume time, not from the start of the pause", async () => {
+      const paused = pausedForQuota(interviews, MEMBER, THREAD, NOW, RESUMES_AT);
+      clock = RESUMES_AT;
+      await sweeper.sweep();
+      expect(interviews.get(paused.id)).toMatchObject({ step: "awaiting-uid", lastAskedAt: RESUMES_AT });
+
+      clock = new Date(RESUMES_AT.getTime() + TIMEOUT_MS - MINUTE_MS);
+      await sweeper.sweep();
+
+      expect(interviews.get(paused.id)).toMatchObject({ step: "awaiting-uid" });
+      expect(channels.lockedAndArchived).toEqual([]);
+
+      const abandonedAt = new Date(RESUMES_AT.getTime() + TIMEOUT_MS);
+      clock = abandonedAt;
+      await sweeper.sweep();
+
+      expect(interviews.get(paused.id)).toMatchObject({ step: "abandoned", reason: "timed-out", endedAt: abandonedAt });
+      expect(channels.logs).toEqual([abandonedLogLine(MEMBER, "timed-out")]);
     });
   });
 });
