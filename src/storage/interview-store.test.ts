@@ -122,11 +122,13 @@ describe("InterviewStore", () => {
 
     const outcome = store.create(DRAFT, NOW);
 
+    const created = createdOf(outcome);
+    expect(Number.isInteger(created.id)).toBe(true);
     expect(outcome).toEqual({
       kind: "created",
       interview: {
         step: "awaiting-uid",
-        id: expect.any(Number),
+        id: created.id,
         memberId: MEMBER,
         threadId: THREAD,
         failedAttempts: 0,
@@ -134,7 +136,6 @@ describe("InterviewStore", () => {
         lastAskedAt: NOW,
       },
     });
-    const created = createdOf(outcome);
     expect(store.get(created.id)).toEqual(created);
   });
 
