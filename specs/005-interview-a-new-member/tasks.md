@@ -49,7 +49,7 @@ stores, Discord ports) is shared by all.
 - [ ] T005 [P] Test `src/domain/link.test.ts`: `rankOnLink(player)` → `game-api` with R1–R5, `unknown` when in an
   Alliance with rank unknown, `no-alliance` when no Alliance; `needsRankApproval` only for `unknown`. Implement
   `src/domain/link.ts`.
-- [ ] T006 [P] Test `src/domain/rank-approval.test.ts`: `chooseApprover(leaderMemberId | undefined, linkedMemberId)`
+- [x] T006 [P] Test `src/domain/rank-approval.test.ts`: `chooseApprover(leaderMemberId | undefined, linkedMemberId)`
   (undefined or same as Linked Member → officers); `mayApprove` (pending only; never the Linked Member, even an
   Officer; member approver: only that Member; officers: any Officer); `approve(rank, by, now)` → approved;
   `cancel(now)` → cancelled; ended approvals refuse. Implement `src/domain/rank-approval.ts`.
