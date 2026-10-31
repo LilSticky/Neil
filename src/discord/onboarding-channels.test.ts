@@ -142,6 +142,18 @@ describe("lockAndArchive and archive", () => {
   });
 });
 
+describe("deleteThread", () => {
+  test("deletes the thread from the guild", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    const threadId = await channels.openThread(MEMBER);
+
+    await channels.deleteThread(threadId);
+
+    expect(await guild.channels.fetch(threadId)).toBeNull();
+  });
+});
+
 describe("log", () => {
   test("sends the line to the log channel and nothing to the onboarding channel", async () => {
     const guild = healthyGuild();

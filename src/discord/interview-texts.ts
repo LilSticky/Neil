@@ -375,6 +375,15 @@ export function buttonOfSomeoneElseReply(): PrivateReply {
   };
 }
 
+/** The private reply when a press or submit failed before it was acknowledged: the Member may try again. */
+export function somethingWentWrongReply(): PrivateReply {
+  return {
+    content: "Something went wrong. Please try again, or ask an Officer.",
+    flags: MessageFlags.Ephemeral,
+    allowedMentions: noMentions(),
+  };
+}
+
 /** The private reply to a button press on an Interview that has ended. */
 export function interviewEndedReply(): PrivateReply {
   return {

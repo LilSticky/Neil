@@ -183,6 +183,9 @@ function buttonLike(button: ButtonInteraction): ButtonInteractionLike {
     update: async (options) => {
       await button.update(options);
     },
+    followUp: async (message) => {
+      await button.followUp(message);
+    },
   };
 }
 

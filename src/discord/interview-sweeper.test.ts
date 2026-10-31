@@ -92,6 +92,10 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
+  deleteThread(): Promise<void> {
+    return Promise.resolve();
+  }
+
   lockAndArchive(threadId: string): Promise<void> {
     this.lockedAndArchived.push(threadId);
     return Promise.resolve();

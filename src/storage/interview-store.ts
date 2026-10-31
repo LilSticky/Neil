@@ -58,6 +58,9 @@ const INSERT_ROW = `INSERT INTO onboarding_interview (${ROW_COLUMNS.join(", ")})
 const UPSERT_ROW =
   `INSERT INTO onboarding_interview (id, ${ROW_COLUMNS.join(", ")}) VALUES (:id, ${ROW_PLACEHOLDERS}) ` +
   `ON CONFLICT(id) DO UPDATE SET ${ROW_COLUMNS.map((column) => `${column} = excluded.${column}`).join(", ")}`;
+const UPDATE_ROW_IF_STEP =
+  `UPDATE onboarding_interview SET ${ROW_COLUMNS.map((column) => `${column} = :${column}`).join(", ")} ` +
+  "WHERE id = :id AND step = :expected_step";
 
 const memberIdColumn = z.string().regex(/^\d+$/);
 const isoDateColumn = z.iso.datetime().transform((value) => new Date(value));
@@ -187,6 +190,17 @@ export class InterviewStore {
   /** Writes the Interview, inserting it or replacing the stored one with the same id. Runs in the caller's transaction. */
   save(interview: OnboardingInterview): void {
     this.db.prepare(UPSERT_ROW).run({ id: interview.id, ...rowOf(interview, this.timeoutMs) });
+  }
+
+  /**
+   * Writes the Interview only when the stored row is still on expectedStep: a writer that read the row before an await
+   * cannot overwrite what happened meanwhile. Returns false, and writes nothing, when the row has moved on.
+   */
+  saveIfStep(interview: OnboardingInterview, expectedStep: OnboardingInterview["step"]): boolean {
+    const result = this.db
+      .prepare(UPDATE_ROW_IF_STEP)
+      .run({ id: interview.id, expected_step: expectedStep, ...rowOf(interview, this.timeoutMs) });
+    return Number(result.changes) > 0;
   }
 
   get(id: number): OnboardingInterview | undefined {

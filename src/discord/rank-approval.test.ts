@@ -42,6 +42,7 @@ const OFFICERS: OfficerRoles = { moderatorRoleId: "333333333333333333", kingRole
 const MEMBER: MemberId = "111111111111111111";
 const OTHER: MemberId = "222222222222222222";
 const OFFICER: MemberId = "555555555555555555";
+const OTHER_OFFICER: MemberId = "888888888888888888";
 const LEADER: MemberId = "777777777777777777";
 const THREAD = "666666666666666666";
 const UID = uidOf("145563254785");
@@ -91,6 +92,10 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
+  deleteThread(): Promise<void> {
+    return Promise.resolve();
+  }
+
   lockAndArchive(): Promise<void> {
     return Promise.resolve();
   }
@@ -127,12 +132,28 @@ class FakeRankButton implements RankButtonLike {
   }
 }
 
+/** A promise whose resolve function the test calls later. */
+function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value: T) => void } {
+  let settle: ((value: T) => void) | undefined;
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve;
+  });
+  return {
+    promise,
+    resolve: (value: T) => {
+      settle?.(value);
+    },
+  };
+}
+
 interface Harness {
   readonly links: LinkStore;
   readonly channels: FakeChannels;
   readonly roles: Map<MemberId, readonly string[]>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createRankApprovals>;
+  /** Holds the role lookup of the Member's next press until the returned function is called. */
+  readonly holdRolesOf: (memberId: MemberId) => () => void;
 }
 
 /** The Link of the Member is stored with an unknown rank, and a pending Rank Approval for it is stored with the approver. */
@@ -172,17 +193,28 @@ describe("createRankApprovals", () => {
     const channels = new FakeChannels();
     const roles = new Map<MemberId, readonly string[]>([[OFFICER, [OFFICERS.moderatorRoleId]]]);
     const errors: string[] = [];
+    const roleGates = new Map<MemberId, Promise<void>>();
     const service = createRankApprovals({
       links,
       channels,
       officerRoles: OFFICERS,
-      memberRoleIdsOf: (memberId: MemberId) => Promise.resolve(roles.get(memberId) ?? []),
+      memberRoleIdsOf: async (memberId: MemberId) => {
+        await roleGates.get(memberId);
+        return roles.get(memberId) ?? [];
+      },
       now: () => NOW,
       logError: (line: string) => {
         errors.push(line);
       },
     });
-    h = { links, channels, roles, errors, service };
+    const holdRolesOf = (memberId: MemberId): (() => void) => {
+      const gate = deferred<undefined>();
+      roleGates.set(memberId, gate.promise);
+      return () => {
+        gate.resolve(undefined);
+      };
+    };
+    h = { links, channels, roles, errors, service, holdRolesOf };
   });
 
   afterEach(() => {
@@ -314,6 +346,32 @@ describe("createRankApprovals", () => {
       expect(h.links.get(approval.id)).toMatchObject({ state: "pending" });
       expect(h.links.linkFor(MEMBER)?.allianceRank).toEqual({ source: "unknown" });
       expect(h.channels.logs).toEqual([]);
+    });
+
+    test("two Officers pressing at once: one rank is stored, one approved post and one log line, and the late press is refused", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.roles.set(OTHER_OFFICER, [OFFICERS.kingRoleId]);
+      const releaseFirst = h.holdRolesOf(OFFICER);
+      const late = rankPress(approval.id, "R3", OFFICER);
+      const latePress = h.service.onButton(late);
+      await h.service.onButton(rankPress(approval.id, "R4", OTHER_OFFICER));
+      releaseFirst();
+      await latePress;
+
+      expect(storedApproved(h, approval.id)).toMatchObject({ rank: "R4", approvedBy: OTHER_OFFICER });
+      expect(h.links.linkFor(MEMBER)?.allianceRank).toEqual({
+        source: "rank-approval",
+        rank: "R4",
+        approvedBy: OTHER_OFFICER,
+        approvedAt: NOW,
+      });
+      expect(h.channels.posts.slice(1)).toEqual([
+        { threadId: THREAD, message: rankApprovedMessage(storedApproved(h, approval.id)) },
+      ]);
+      expect(h.channels.logs).toEqual([rankSetLogLine(OTHER_OFFICER, MEMBER, "R4")]);
+      expect(late.replies).toEqual([rankNotAllowedReply()]);
+      expect(late.updates).toEqual([]);
     });
 
     test("refuses a press on a Rank Approval that is already approved, and keeps the first rank", async () => {

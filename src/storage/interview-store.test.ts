@@ -170,6 +170,30 @@ describe("InterviewStore", () => {
     expect(store.get(interview.id)).toEqual(interview);
   });
 
+  test("saveIfStep writes the Interview and returns true when the stored row still has the expected step", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    const created = createdOf(store.create(DRAFT, NOW));
+    const checking = checkingFrom(created);
+
+    const saved = store.saveIfStep(checking, "awaiting-uid");
+
+    expect(saved).toBe(true);
+    expect(store.get(created.id)).toEqual(checking);
+  });
+
+  test("saveIfStep writes nothing and returns false when a stale writer finds the row has moved on", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    const created = createdOf(store.create(DRAFT, NOW));
+    const checking = checkingFrom(created);
+    expect(store.saveIfStep(checking, "awaiting-uid")).toBe(true);
+    const stale = timeOut(created, LATER).interview;
+
+    const saved = store.saveIfStep(stale, "awaiting-uid");
+
+    expect(saved).toBe(false);
+    expect(store.get(created.id)).toEqual(checking);
+  });
+
   test("get finds nothing for an unknown id", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
 

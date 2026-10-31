@@ -180,6 +180,43 @@ describe("LinkStore", () => {
     expect(store.pendingFor(ALICE)).toBeUndefined();
   });
 
+  test("saveIfPending approves a pending Rank Approval and returns true", () => {
+    const store = new LinkStore(db);
+    const outcome = store.confirm(
+      { link: linkOf(ALICE, ALICE_UID, { source: "unknown" }), rankApproval: pendingDraft(ALICE) },
+      () => undefined,
+    );
+    if (outcome.kind !== "linked" || outcome.rankApproval === undefined) {
+      throw new Error("the Link with a Rank Approval was not confirmed");
+    }
+
+    const saved = store.saveIfPending(approved(outcome.rankApproval, "R4", LEADER, new Date("2026-10-30T13:00:00Z")));
+
+    expect(saved).toBe(true);
+    expect(store.linkFor(ALICE)?.allianceRank).toMatchObject({ source: "rank-approval", rank: "R4" });
+  });
+
+  test("saveIfPending refuses a second approval of the same Rank Approval, writes nothing and keeps the first rank", () => {
+    const store = new LinkStore(db);
+    const outcome = store.confirm(
+      { link: linkOf(ALICE, ALICE_UID, { source: "unknown" }), rankApproval: pendingDraft(ALICE) },
+      () => undefined,
+    );
+    if (outcome.kind !== "linked" || outcome.rankApproval === undefined) {
+      throw new Error("the Link with a Rank Approval was not confirmed");
+    }
+    const pending = outcome.rankApproval;
+    const firstApproval = approved(pending, "R4", LEADER, new Date("2026-10-30T13:00:00Z"));
+    expect(store.saveIfPending(firstApproval)).toBe(true);
+    const secondApproval = approved(pending, "R2", CAROL, new Date("2026-10-30T13:05:00Z"));
+
+    const saved = store.saveIfPending(secondApproval);
+
+    expect(saved).toBe(false);
+    expect(store.get(pending.id)).toMatchObject({ state: "approved", rank: "R4", approvedBy: LEADER });
+    expect(store.linkFor(ALICE)?.allianceRank).toMatchObject({ source: "rank-approval", rank: "R4", approvedBy: LEADER });
+  });
+
   test("deleteEndedBefore removes Rank Approvals ended before the cutoff and keeps the rest", () => {
     const store = new LinkStore(db);
     const oldOutcome = store.confirm(

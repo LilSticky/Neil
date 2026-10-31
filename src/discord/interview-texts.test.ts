@@ -19,6 +19,7 @@ import {
   interviewOpenedReply,
   interviewThreadName,
   leftMessage,
+  somethingWentWrongReply,
   linkLogLine,
   linkedMessage,
   malformedUidMessage,
@@ -199,6 +200,14 @@ describe("rank custom ids", () => {
 });
 
 describe("/interview replies", () => {
+  test("a failure the Member can see is replied privately, asking to try again or ask an Officer", () => {
+    expect(somethingWentWrongReply()).toEqual({
+      content: "Something went wrong. Please try again, or ask an Officer.",
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    });
+  });
+
   test("opening an Interview replies privately that it waits in the thread", () => {
     expect(interviewOpenedReply(THREAD)).toEqual({
       content: `Your interview is waiting in <#${THREAD}>.`,

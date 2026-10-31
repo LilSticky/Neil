@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { APIModalInteractionResponseCallbackData, BaseMessageOptions } from "discord.js";
+import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
 import { memberLeft, timeOut } from "../domain/onboarding-interview.js";
@@ -46,6 +46,7 @@ import {
 import {
   createInterviews,
   type ButtonInteractionLike,
+  type InterviewDeps,
   type ModalInteractionLike,
 } from "./interview.js";
 
@@ -69,6 +70,7 @@ const MEMBER: MemberId = "111111111111111111";
 const OTHER: MemberId = "222222222222222222";
 const LEADER: MemberId = "777777777777777777";
 const THREAD = "666666666666666666";
+const RACING_THREAD = "888888888888888888";
 const UID_DIGITS = "145563254785";
 const UID = uidOf(UID_DIGITS);
 const LEADER_UID = uidOf("145563254700");
@@ -138,9 +140,15 @@ function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value
 class FakeGameApi {
   readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
   private answer: Promise<LookupResult<Player>> = Promise.resolve({ kind: "not-found" });
+  private failure: Error | undefined = undefined;
 
   answerWith(result: LookupResult<Player>): void {
     this.answer = Promise.resolve(result);
+  }
+
+  /** Every lookup from now on fails with this error, as a dropped connection would. */
+  failWith(error: Error): void {
+    this.failure = error;
   }
 
   /** The next lookup waits until the returned function is called. */
@@ -152,6 +160,7 @@ class FakeGameApi {
 
   getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     this.lookups.push({ uid, purpose });
+    if (this.failure !== undefined) return Promise.reject(this.failure);
     return this.answer;
   }
 }
@@ -162,12 +171,21 @@ class FakeChannels implements OnboardingChannels {
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
   readonly archived: string[] = [];
   readonly lockedAndArchived: string[] = [];
+  readonly deleted: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
+  /** Runs when a thread is about to open: a test uses it to let a racing Interview land first. */
+  beforeOpen: () => void = () => undefined;
   private posted = 0;
 
   openThread(member: ThreadMember): Promise<string> {
+    this.beforeOpen();
     this.opened.push(member);
     return Promise.resolve(THREAD);
+  }
+
+  deleteThread(threadId: string): Promise<void> {
+    this.deleted.push(threadId);
+    return Promise.resolve();
   }
 
   post(threadId: string, message: BaseMessageOptions): Promise<string> {
@@ -201,10 +219,15 @@ class FakeChannels implements OnboardingChannels {
 }
 
 /** A button press that records its private replies, modals and updates to the pressed message. */
+/**
+ * A button press that, like discord.js, accepts exactly one first answer (reply, showModal or update); afterwards only
+ * followUp works. Private replies and follow-ups both land in `replies`.
+ */
 class FakeButton implements ButtonInteractionLike {
   readonly replies: PrivateReply[] = [];
   readonly modals: APIModalInteractionResponseCallbackData[] = [];
   readonly updates: BaseMessageOptions[] = [];
+  protected answered = false;
 
   constructor(
     readonly customId: string,
@@ -212,18 +235,54 @@ class FakeButton implements ButtonInteractionLike {
   ) {}
 
   reply(message: PrivateReply): Promise<void> {
+    this.answerFirst();
+    this.replies.push(message);
+    return Promise.resolve();
+  }
+
+  followUp(message: PrivateReply): Promise<void> {
+    if (!this.answered) throw new Error("followUp before the interaction was answered");
     this.replies.push(message);
     return Promise.resolve();
   }
 
   showModal(modal: APIModalInteractionResponseCallbackData): Promise<void> {
+    this.answerFirst();
     this.modals.push(modal);
     return Promise.resolve();
   }
 
   update(options: BaseMessageOptions): Promise<void> {
+    this.answerFirst();
     this.updates.push(options);
     return Promise.resolve();
+  }
+
+  protected answerFirst(): void {
+    if (this.answered) throw new Error("The interaction has already been answered");
+    this.answered = true;
+  }
+}
+
+/** A button press whose update waits until the test releases it, so the press can be overtaken while in flight. */
+class HeldButton extends FakeButton {
+  private readonly gate = deferred<undefined>();
+
+  release(): void {
+    this.gate.resolve(undefined);
+  }
+
+  override update(options: BaseMessageOptions): Promise<void> {
+    this.answerFirst();
+    this.updates.push(options);
+    return this.gate.promise;
+  }
+}
+
+/** An Interview store whose reads fail, as an unreadable database would. */
+class UnreadableInterviewStore extends InterviewStore {
+  override get(): never {
+    throw new Error("the database is unreadable");
   }
 }
 
@@ -289,6 +348,7 @@ interface Harness {
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
+  readonly deps: InterviewDeps;
 }
 
 /** The Interview id of a Member's open Interview, read from the real store. */
@@ -354,7 +414,7 @@ describe("createInterviews", () => {
     const rankApprovals = new FakeRankApprovals();
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
-    const service = createInterviews({
+    const deps: InterviewDeps = {
       interviews,
       links,
       channels,
@@ -366,8 +426,9 @@ describe("createInterviews", () => {
       logError: (line: string) => {
         errors.push(line);
       },
-    });
-    h = { interviews, links, channels, gameApi, rankApprovals, onServer, errors, service };
+    };
+    const service = createInterviews(deps);
+    h = { interviews, links, channels, gameApi, rankApprovals, onServer, errors, service, deps };
   });
 
   afterEach(() => {
@@ -408,6 +469,20 @@ describe("createInterviews", () => {
       expect(h.channels.opened).toEqual([{ id: MEMBER, username: "vex_fan" }]);
       expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
       expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+    });
+  });
+
+  describe("when the Member's Interview opens while their thread is being created", () => {
+    test("deletes the thread just created, asks nothing in it, and keeps the Interview that won", async () => {
+      h.channels.beforeOpen = () => {
+        h.interviews.create({ memberId: MEMBER, threadId: RACING_THREAD }, NOW);
+      };
+
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", bot: false });
+
+      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.posts).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(RACING_THREAD);
     });
   });
 
@@ -610,6 +685,111 @@ describe("createInterviews", () => {
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: alreadyLinkedMessage(secondId, 4) });
       expect(h.channels.logs.at(-1)).toEqual(refusedLogLine(OTHER, UID));
     });
+  });
+
+  describe("two presses that race on one Interview", () => {
+    test("That's me pressed twice: the press that finds the Interview already linked is refused privately, and the Link stays", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const late = new HeldButton(interviewCustomId("confirm", interviewId), { id: MEMBER });
+      const latePress = h.service.onButton(late);
+      expect(late.updates).toHaveLength(1);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+      late.release();
+      await latePress;
+
+      expect(linkOfMember(h)).toEqual({
+        memberId: MEMBER,
+        uid: UID,
+        linkedAt: NOW,
+        allianceRank: { source: "game-api", rank: "R4" },
+      });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
+      expect(late.replies).toEqual([interviewEndedReply()]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
+    });
+
+    test("That's me held while That's not me wins: no Link is stored and the late press is refused privately", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const late = new HeldButton(interviewCustomId("confirm", interviewId), { id: MEMBER });
+      const latePress = h.service.onButton(late);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("reject", interviewId), { id: MEMBER }));
+      late.release();
+      await latePress;
+
+      expect(linkOfMember(h)).toBeUndefined();
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
+      expect(late.replies).toEqual([interviewEndedReply()]);
+    });
+
+    test("That's not me held while That's me wins: the Interview stays linked and the late press is refused privately", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const late = new HeldButton(interviewCustomId("reject", interviewId), { id: MEMBER });
+      const latePress = h.service.onButton(late);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+      late.release();
+      await latePress;
+
+      expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
+      expect(late.replies).toEqual([interviewEndedReply()]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+    });
+  });
+
+  describe("a Game API lookup that throws", () => {
+    test("sends the Interview back to asking for the uid and posts the unavailable message", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.failWith(new Error("the connection was reset"));
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: unavailableMessage(interviewId) });
+    });
+  });
+
+  describe("a store that fails before the button is acknowledged", () => {
+    test("gives the Member a private reply, so the interaction does not fail", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const broken = createInterviews({ ...h.deps, interviews: new UnreadableInterviewStore(db, TIMEOUT_MS) });
+      const button = new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER });
+
+      await broken.onButton(button);
+
+      expect(button.replies).toHaveLength(1);
+      expect(button.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+      expect(button.updates).toEqual([]);
+    });
+  });
+
+  describe("a button that finds the Interview not awaiting its answer", () => {
+    test.each([{ action: "confirm" }, { action: "reject" }] as const)(
+      "tells the Member the Interview has ended when $action is pressed while the uid is awaited",
+      async ({ action }) => {
+        const interviewId = await joinedMember(h);
+        const button = new FakeButton(interviewCustomId(action, interviewId), { id: MEMBER });
+
+        await h.service.onButton(button);
+
+        expect(button.replies).toEqual([interviewEndedReply()]);
+        expect(button.updates).toEqual([]);
+      },
+    );
+
+    test.each(["interview:confirm:abc", "interview:dance:1"])(
+      "tells the Member the Interview has ended for the custom id %s, which is not a valid one",
+      async (customId) => {
+        const button = new FakeButton(customId, { id: MEMBER });
+
+        await h.service.onButton(button);
+
+        expect(button.replies).toEqual([interviewEndedReply()]);
+      },
+    );
   });
 
   describe("a uid that fails", () => {

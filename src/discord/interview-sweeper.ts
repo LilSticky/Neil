@@ -43,7 +43,8 @@ export function createSweeper(deps: SweeperDeps): Sweeper {
       for (const interview of checking.interviews) {
         await guarded(deps, `Recovering Onboarding Interview ${interview.id.toString()}`, async () => {
           const transition = recoverAfterRestart(interview, now);
-          deps.interviews.save(transition.interview);
+          // The Member may have left meanwhile: the Interview is then not waiting on a check any more, and is left alone.
+          if (!deps.interviews.saveIfStep(transition.interview, "checking")) return;
           if (transition.event.kind === "asked") {
             await deps.channels.post(interview.threadId, askUidMessage(interview.id, interview.memberId));
           }
@@ -93,7 +94,7 @@ export function startSweeper(sweeper: Sweeper, schedule: Schedule): () => void {
 async function resume(deps: SweeperDeps, interview: OpenInterview, now: Date): Promise<void> {
   const transition = quotaReset(interview, now);
   if (transition.event.kind !== "resumed") return;
-  deps.interviews.save(transition.interview);
+  if (!deps.interviews.saveIfStep(transition.interview, interview.step)) return;
   await deps.channels.post(interview.threadId, quotaResetMessage(interview.id, interview.memberId));
 }
 
@@ -101,7 +102,7 @@ async function resume(deps: SweeperDeps, interview: OpenInterview, now: Date): P
 async function abandonSilent(deps: SweeperDeps, interview: OpenInterview, now: Date): Promise<void> {
   const transition = timeOut(interview, now);
   if (transition.event.kind !== "abandoned") return;
-  deps.interviews.save(transition.interview);
+  if (!deps.interviews.saveIfStep(transition.interview, interview.step)) return;
   await deps.channels.post(interview.threadId, timedOutMessage(deps.timeoutMs));
   await deps.channels.lockAndArchive(interview.threadId);
   await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));

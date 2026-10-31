@@ -7,9 +7,13 @@ import type { Approver, MemberId, RankApproval } from "../domain/rank-approval.j
 /** A Rank Approval not yet stored: the database gives it its id. */
 export type PendingRankApprovalDraft = Omit<Extract<RankApproval, { readonly state: "pending" }>, "id">;
 
-/** The outcome of confirming: the Link was stored, or the Member or the uid already had one and nothing was written. */
+/**
+ * The outcome of confirming: the Link was stored; the Member already holds this very uid, so nothing new is stored; or
+ * the Member or the uid already had a Link to someone else and nothing was written.
+ */
 export type ConfirmOutcome =
   | { readonly kind: "linked"; readonly rankApproval?: RankApproval }
+  | { readonly kind: "held" }
   | { readonly kind: "already-linked" };
 
 const LINK_CONFLICT_PATTERN = /^UNIQUE constraint failed: link\.(member_id|uid)$/;
@@ -76,8 +80,18 @@ const rankApprovalRow = z
   .and(approverColumns)
   .and(stateColumns);
 
-const APPROVAL_COLUMNS =
-  "linked_member_id, thread_id, approver_kind, approver_member_id, state, rank, approved_by, asked_at, ended_at";
+const APPROVAL_COLUMN_NAMES = [
+  "linked_member_id",
+  "thread_id",
+  "approver_kind",
+  "approver_member_id",
+  "state",
+  "rank",
+  "approved_by",
+  "asked_at",
+  "ended_at",
+] as const;
+const APPROVAL_COLUMNS = APPROVAL_COLUMN_NAMES.join(", ");
 const APPROVAL_SELECT = `SELECT id, ${APPROVAL_COLUMNS} FROM rank_approval`;
 const APPROVAL_PLACEHOLDERS = "?, ?, ?, ?, ?, ?, ?, ?, ?";
 
@@ -100,7 +114,9 @@ export class LinkStore {
 
   /**
    * Stores the Link, the optional pending Rank Approval and whatever saveInterview writes, in one transaction.
-   * A Member or uid that already has a Link gives "already-linked" and writes nothing.
+   * A Member who already holds this uid gives "held" and writes nothing. A Member or uid that is linked to someone
+   * else gives "already-linked" and writes nothing. When saveInterview throws, everything is rolled back and the
+   * error is rethrown.
    */
   confirm(
     input: { readonly link: Link; readonly rankApproval?: PendingRankApprovalDraft },
@@ -108,7 +124,9 @@ export class LinkStore {
   ): ConfirmOutcome {
     try {
       return this.inTransaction((): ConfirmOutcome => {
-        if (this.linkFor(input.link.memberId) !== undefined || this.memberForUid(input.link.uid) !== undefined) {
+        const held = this.linkFor(input.link.memberId);
+        if (held !== undefined && held.uid === input.link.uid) return { kind: "held" };
+        if (held !== undefined || this.memberForUid(input.link.uid) !== undefined) {
           return { kind: "already-linked" };
         }
         this.insertLink(input.link);
@@ -133,25 +151,30 @@ export class LinkStore {
     return raw === undefined ? undefined : rankApprovalOf(raw);
   }
 
+  /**
+   * Writes a Rank Approval only while it is still pending, and an approved one also writes its rank, approver and time
+   * onto the Link, in one transaction. Returns false, and writes nothing, when the Rank Approval has already ended.
+   */
+  saveIfPending(approval: RankApproval): boolean {
+    return this.inTransaction(() => {
+      const result = this.db
+        .prepare(
+          `UPDATE rank_approval SET ${APPROVAL_COLUMN_NAMES.map((column) => `${column} = ?`).join(", ")} WHERE id = ? AND state = 'pending'`,
+        )
+        .run(...approvalColumnsOf(approval), approval.id);
+      if (Number(result.changes) === 0) return false;
+      if (approval.state === "approved") this.writeApprovedRank(approval);
+      return true;
+    });
+  }
+
   /** Writes a Rank Approval; an approved one also writes its rank, approver and time onto the Link. */
   save(approval: RankApproval): void {
     this.inTransaction(() => {
       this.db
         .prepare(`INSERT OR REPLACE INTO rank_approval (id, ${APPROVAL_COLUMNS}) VALUES (?, ${APPROVAL_PLACEHOLDERS})`)
         .run(approval.id, ...approvalColumnsOf(approval));
-      if (approval.state === "approved") {
-        this.db
-          .prepare("UPDATE link SET rank_source = ?, alliance_rank = ?, approved_by = ?, approved_at = ? WHERE member_id = ?")
-          .run(
-            ...rankColumnsOf({
-              source: "rank-approval",
-              rank: approval.rank,
-              approvedBy: approval.approvedBy,
-              approvedAt: approval.approvedAt,
-            }),
-            approval.linkedMemberId,
-          );
-      }
+      if (approval.state === "approved") this.writeApprovedRank(approval);
     });
   }
 
@@ -160,6 +183,20 @@ export class LinkStore {
     this.db
       .prepare("DELETE FROM rank_approval WHERE state <> 'pending' AND ended_at < ?")
       .run(cutoff.toISOString());
+  }
+
+  private writeApprovedRank(approval: Extract<RankApproval, { readonly state: "approved" }>): void {
+    this.db
+      .prepare("UPDATE link SET rank_source = ?, alliance_rank = ?, approved_by = ?, approved_at = ? WHERE member_id = ?")
+      .run(
+        ...rankColumnsOf({
+          source: "rank-approval",
+          rank: approval.rank,
+          approvedBy: approval.approvedBy,
+          approvedAt: approval.approvedAt,
+        }),
+        approval.linkedMemberId,
+      );
   }
 
   private insertLink(link: Link): void {

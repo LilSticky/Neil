@@ -28,6 +28,8 @@ export interface OnboardingChannels {
   addToThread(threadId: string, memberId: string): Promise<void>;
   lockAndArchive(threadId: string): Promise<void>;
   archive(threadId: string): Promise<void>;
+  /** Deletes the thread; a thread that is already gone is not an error. */
+  deleteThread(threadId: string): Promise<void>;
   log(message: BaseMessageOptions): Promise<void>;
 }
 
@@ -65,6 +67,7 @@ interface ThreadLike extends PostableLike {
   readonly members: { add(memberId: string): Promise<unknown> };
   setLocked(locked: boolean): Promise<unknown>;
   setArchived(archived: boolean): Promise<unknown>;
+  delete(): Promise<unknown>;
 }
 
 interface ThreadOptions {
@@ -167,6 +170,13 @@ export function createOnboardingChannels(guild: GuildLike, ids: OnboardingChanne
     async archive(threadId) {
       const thread = await fetchThread(guild, threadId);
       await thread.setArchived(true);
+    },
+
+    async deleteThread(threadId) {
+      const found = await guild.channels.fetch(threadId);
+      if (found === null) return;
+      if (!isThread(found)) throw new Error("The Interview thread is not a thread.");
+      await found.delete();
     },
 
     async log(message) {

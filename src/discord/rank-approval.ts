@@ -70,7 +70,8 @@ async function pressRankButton(deps: RankApprovalDeps, button: RankButtonLike): 
   const change = approve(approval, parsed.rank, pressedBy, deps.now());
   if (!change.ok || change.approval.state !== "approved") return button.reply(rankNotAllowedReply());
   const approved = change.approval;
-  deps.links.save(approved);
+  // Another Officer may have approved in the meantime: then this press changes nothing and is refused privately.
+  if (!deps.links.saveIfPending(approved)) return button.reply(rankNotAllowedReply());
   await button.update({ components: [] });
   await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
   await deps.channels.post(approved.threadId, rankApprovedMessage(approved));

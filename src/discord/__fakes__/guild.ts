@@ -95,6 +95,12 @@ export class FakeChannel {
     this.archived = archived;
     return Promise.resolve(this);
   }
+
+  /** Deletes the channel or thread from the guild: fetching its id afterwards gives null. */
+  delete(): Promise<FakeChannel> {
+    this.guild.remove(this.id);
+    return Promise.resolve(this);
+  }
 }
 
 /** A guild of the fakes: channels by id, the bot's member, and the threads created so far. */
@@ -122,6 +128,11 @@ export class FakeGuild {
     const thread = new FakeChannel(this, id, options.type, [], options, parentId);
     this.byId.set(id, thread);
     return thread;
+  }
+
+  /** Removes the channel or thread with this id, as a deletion does on Discord. */
+  remove(id: string): void {
+    this.byId.delete(id);
   }
 
   /** The channel or thread with this id; throws when the fake does not have it. */

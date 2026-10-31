@@ -16,8 +16,8 @@ import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
 import type { Uid } from "../domain/lookup-input.js";
 import type { LookupResult, Player } from "../domain/player.js";
 import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
-import type { InterviewStore } from "../storage/interview-store.js";
-import type { LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
+import type { CreateOutcome, InterviewStore } from "../storage/interview-store.js";
+import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
 import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
 import type { RankApprovals } from "./rank-approval.js";
 import {
@@ -44,6 +44,7 @@ import {
   rankCancelledLogLine,
   refusedLogLine,
   rejectedMessage,
+  somethingWentWrongReply,
   unavailableMessage,
   uidModal,
   type ButtonMessage,
@@ -77,6 +78,8 @@ export interface ButtonInteractionLike {
   reply(message: PrivateReply): Promise<void>;
   showModal(modal: APIModalInteractionResponseCallbackData): Promise<void>;
   update(options: BaseMessageOptions): Promise<void>;
+  /** A further private message, once the press was answered (by update); reply would fail then. */
+  followUp(message: PrivateReply): Promise<void>;
 }
 
 /** The part of a discord.js modal submit that the uid modal uses. */
@@ -125,8 +128,14 @@ export function createInterviews(deps: InterviewDeps): Interviews {
     onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
     onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
     onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, command)),
-    onButton: (button) => guarded(deps, "Interview button", () => pressButton(deps, button)),
-    onModalSubmit: (modal) => guarded(deps, "Interview modal", () => submitModal(deps, modal)),
+    onButton: (button) => {
+      const ack: Acknowledgement = { acknowledged: false };
+      return guardedPress(deps, "Interview button", button, ack, () => pressButton(deps, trackedButton(button, ack)));
+    },
+    onModalSubmit: (modal) => {
+      const ack: Acknowledgement = { acknowledged: false };
+      return guardedPress(deps, "Interview modal", modal, ack, () => submitModal(deps, trackedModal(modal, ack)));
+    },
   };
 }
 
@@ -138,6 +147,73 @@ async function guarded(deps: InterviewDeps, label: string, work: () => Promise<v
     deps.logError(`${label} failed: ${errorText(error)}`);
   }
 }
+
+/** Whether Discord has been answered for a press or submit: a reply, an update, a modal or a deferred update. */
+interface Acknowledgement {
+  acknowledged: boolean;
+}
+
+/** Runs one button press or modal submit; a failure is logged and, when Discord was not answered yet, told privately. */
+async function guardedPress(
+  deps: InterviewDeps,
+  label: string,
+  interaction: { reply(message: PrivateReply): Promise<void> },
+  ack: Acknowledgement,
+  work: () => Promise<void>,
+): Promise<void> {
+  try {
+    await work();
+  } catch (error) {
+    deps.logError(`${label} failed: ${errorText(error)}`);
+    if (ack.acknowledged) return;
+    try {
+      await interaction.reply(somethingWentWrongReply());
+    } catch (replyError) {
+      deps.logError(`${label} could not reply: ${errorText(replyError)}`);
+    }
+  }
+}
+
+/** The button, recording in ack every answer given to Discord. */
+function trackedButton(button: ButtonInteractionLike, ack: Acknowledgement): ButtonInteractionLike {
+  return {
+    customId: button.customId,
+    user: button.user,
+    reply: (message) => {
+      ack.acknowledged = true;
+      return button.reply(message);
+    },
+    showModal: (modal) => {
+      ack.acknowledged = true;
+      return button.showModal(modal);
+    },
+    update: (options) => {
+      ack.acknowledged = true;
+      return button.update(options);
+    },
+    followUp: (message) => button.followUp(message),
+  };
+}
+
+/** The modal submit, recording in ack every answer given to Discord. */
+function trackedModal(modal: ModalInteractionLike, ack: Acknowledgement): ModalInteractionLike {
+  return {
+    customId: modal.customId,
+    user: modal.user,
+    fields: modal.fields,
+    reply: (message) => {
+      ack.acknowledged = true;
+      return modal.reply(message);
+    },
+    deferUpdate: () => {
+      ack.acknowledged = true;
+      return modal.deferUpdate();
+    },
+  };
+}
+
+/** Raised inside the Link transaction when the Interview is no longer awaiting its confirmation: nothing is stored. */
+class InterviewMovedOn extends Error {}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "unknown error";
@@ -170,10 +246,23 @@ async function startOnCommand(deps: InterviewDeps, command: CommandLike): Promis
  */
 async function openInterview(deps: InterviewDeps, member: ThreadMember): Promise<string | undefined> {
   const threadId = await deps.channels.openThread(member);
-  const created = deps.interviews.create({ memberId: member.id, threadId }, deps.now());
+  const created = await createOrDiscard(deps, member.id, threadId);
   if (created.kind === "already-open") return undefined;
   await deps.channels.post(threadId, askUidMessage(created.interview.id, member.id));
   return threadId;
+}
+
+/** Saves the new Interview; when that fails or another Interview won the race, the thread just opened is deleted. */
+async function createOrDiscard(deps: InterviewDeps, memberId: MemberId, threadId: string): Promise<CreateOutcome> {
+  let created: CreateOutcome;
+  try {
+    created = deps.interviews.create({ memberId, threadId }, deps.now());
+  } catch (error) {
+    await deps.channels.deleteThread(threadId);
+    throw error;
+  }
+  if (created.kind === "already-open") await deps.channels.deleteThread(threadId);
+  return created;
 }
 
 /** A Member who left: the open Interview is abandoned as left, and the pending Rank Approval of their Link is cancelled. */
@@ -205,10 +294,17 @@ async function cancelRankApproval(deps: InterviewDeps, approval: RankApproval, u
 
 async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): Promise<void> {
   const parsed = parseInterviewCustomId(button.customId);
-  if (parsed === undefined) return;
-  if (parsed.action === "uid") return openUidModal(deps, button, parsed.interviewId);
-  if (parsed.action === "confirm") return confirmPlayer(deps, button, parsed.interviewId);
-  if (parsed.action === "reject") return rejectPlayer(deps, button, parsed.interviewId);
+  if (parsed === undefined) return button.reply(interviewEndedReply());
+  switch (parsed.action) {
+    case "uid":
+      return openUidModal(deps, button, parsed.interviewId);
+    case "confirm":
+      return confirmPlayer(deps, button, parsed.interviewId);
+    case "reject":
+      return rejectPlayer(deps, button, parsed.interviewId);
+    case "modal":
+      return button.reply(interviewEndedReply());
+  }
 }
 
 async function openUidModal(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
@@ -219,16 +315,17 @@ async function openUidModal(deps: InterviewDeps, button: ButtonInteractionLike, 
 
 async function submitModal(deps: InterviewDeps, modal: ModalInteractionLike): Promise<void> {
   const parsed = parseInterviewCustomId(modal.customId);
-  if (parsed === undefined || parsed.action !== "modal") return;
+  if (parsed === undefined || parsed.action !== "modal") return modal.reply(interviewEndedReply());
   const ownership = ownershipOf(deps, parsed.interviewId, modal.user.id);
   if (ownership.kind === "refused") return modal.reply(ownership.reply);
   // The Interview is busy with a check: the Member is told privately, nothing is counted.
   if (ownership.interview.step === "checking") return modal.reply(checkingReply());
+  if (ownership.interview.step !== "awaiting-uid") return modal.reply(interviewEndedReply());
   const transition = giveUid(ownership.interview, modal.fields.getTextInputValue("uid"), deps.now());
   if (transition.event.kind === "checking") {
+    // Read and saved without an await in between, so no conditional save is needed here.
     deps.interviews.save(transition.interview);
-    await modal.deferUpdate();
-    return checkUid(deps, transition.interview, transition.event.uid);
+    return checkUid(deps, modal, transition.interview, transition.event.uid);
   }
   // Every other submit is acknowledged once; a malformed uid is asked again in the thread.
   await modal.deferUpdate();
@@ -241,20 +338,41 @@ async function confirmPlayer(deps: InterviewDeps, button: ButtonInteractionLike,
   const ownership = ownershipOf(deps, interviewId, button.user.id);
   if (ownership.kind === "refused") return button.reply(ownership.reply);
   const { interview } = ownership;
-  if (interview.step !== "awaiting-confirmation") return;
+  if (interview.step !== "awaiting-confirmation") return button.reply(interviewEndedReply());
   await button.update(withoutButtons(foundCardMessage(interview.id, interview.player)));
   const now = deps.now();
   const leaderMemberId = await leaderPing(deps, interview.player);
   const linked = confirm(interview, { kind: "linked" }, now);
   const link = linkFor(interview, now);
   const draft = pendingApprovalFor(link, interview, leaderMemberId, now);
-  const outcome = deps.links.confirm(draft === undefined ? { link } : { link, rankApproval: draft }, () => {
-    deps.interviews.save(linked.interview);
-  });
-  if (outcome.kind === "already-linked") {
-    return refuseConfirmation(deps, interview, now);
+  const outcome = storeLink(deps, linked.interview, draft === undefined ? { link } : { link, rankApproval: draft });
+  if (outcome === undefined) return button.followUp(interviewEndedReply());
+  if (outcome.kind === "already-linked") return refuseConfirmation(deps, button, interview, now);
+  // The Member already holds this uid: the Interview is done, so it is saved as linked when it still waits, and the press ends.
+  if (outcome.kind === "held") {
+    deps.interviews.saveIfStep(linked.interview, "awaiting-confirmation");
+    return button.followUp(interviewEndedReply());
   }
   await finishLink(deps, interview, leaderMemberId, outcome.rankApproval);
+}
+
+/**
+ * Stores the Link and the Interview as linked, in one transaction. Undefined when the Interview is no longer awaiting
+ * its confirmation: then nothing is stored.
+ */
+function storeLink(
+  deps: InterviewDeps,
+  linked: OnboardingInterview,
+  input: { readonly link: Link; readonly rankApproval?: PendingRankApprovalDraft },
+): ConfirmOutcome | undefined {
+  try {
+    return deps.links.confirm(input, () => {
+      if (!deps.interviews.saveIfStep(linked, "awaiting-confirmation")) throw new InterviewMovedOn();
+    });
+  } catch (error) {
+    if (error instanceof InterviewMovedOn) return undefined;
+    throw error;
+  }
 }
 
 /** A Link with an unknown rank waits for a Rank Approval, asked of the leader's Member when present, else the Officers. */
@@ -279,17 +397,24 @@ async function rejectPlayer(deps: InterviewDeps, button: ButtonInteractionLike, 
   const ownership = ownershipOf(deps, interviewId, button.user.id);
   if (ownership.kind === "refused") return button.reply(ownership.reply);
   const { interview } = ownership;
-  if (interview.step !== "awaiting-confirmation") return;
+  if (interview.step !== "awaiting-confirmation") return button.reply(interviewEndedReply());
   await button.update(withoutButtons(foundCardMessage(interview.id, interview.player)));
   const transition = reject(interview, deps.now());
-  deps.interviews.save(transition.interview);
+  if (!deps.interviews.saveIfStep(transition.interview, "awaiting-confirmation")) {
+    return button.followUp(interviewEndedReply());
+  }
   await announce(deps, transition, interview.player.uid);
 }
 
 /** The Player was linked to someone else meanwhile: the attempt fails, the Member is asked again. */
-async function refuseConfirmation(deps: InterviewDeps, interview: AwaitingConfirmation, now: Date): Promise<void> {
+async function refuseConfirmation(
+  deps: InterviewDeps,
+  button: ButtonInteractionLike,
+  interview: AwaitingConfirmation,
+  now: Date,
+): Promise<void> {
   const refused = confirm(interview, { kind: "already-linked" }, now);
-  deps.interviews.save(refused.interview);
+  if (!deps.interviews.saveIfStep(refused.interview, "awaiting-confirmation")) return button.followUp(interviewEndedReply());
   await announce(deps, refused, interview.player.uid);
 }
 
@@ -327,12 +452,31 @@ async function leaderPing(deps: InterviewDeps, player: Player): Promise<MemberId
   return (await deps.isOnServer(leader)) ? leader : undefined;
 }
 
-/** Looks the uid up once, applies the check to the Interview and says what happened. */
-async function checkUid(deps: InterviewDeps, interview: OnboardingInterview, uid: Uid): Promise<void> {
-  const check = await uidCheckOf(deps, interview.memberId, uid);
+/**
+ * Acknowledges the modal, looks the uid up once, applies the check to the Interview and says what happened. A failure
+ * on the way counts as an unavailable check: the Member is asked for the uid again.
+ */
+async function checkUid(deps: InterviewDeps, modal: ModalInteractionLike, interview: OnboardingInterview, uid: Uid): Promise<void> {
+  const check = await checkOrUnavailable(deps, modal, interview.memberId, uid);
   const transition = uidChecked(interview, check, deps.now());
-  deps.interviews.save(transition.interview);
+  // The Member may have left or the Interview may have been abandoned during the lookup: then nothing is said.
+  if (!deps.interviews.saveIfStep(transition.interview, "checking")) return;
   await announce(deps, transition, uid);
+}
+
+async function checkOrUnavailable(
+  deps: InterviewDeps,
+  modal: ModalInteractionLike,
+  memberId: MemberId,
+  uid: Uid,
+): Promise<UidCheck> {
+  try {
+    await modal.deferUpdate();
+    return await uidCheckOf(deps, memberId, uid);
+  } catch (error) {
+    deps.logError(`Checking an Interview uid failed: ${errorText(error)}`);
+    return { kind: "unavailable" };
+  }
 }
 
 /** A uid another Member holds is refused without asking the Game API. */
