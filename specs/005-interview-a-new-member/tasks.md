@@ -161,10 +161,10 @@ press; Linked Member leaves.
 
 ## Phase 8: Polish
 
-- [ ] T021 `bot-reviewer` on the whole slice diff; record findings in `review.md` and fix must/should items.
+- [x] T021 `bot-reviewer` on the whole slice diff; record findings in `review.md` and fix must/should items.
 - [x] T022 [P] Docs: `documentation/HOSTING.md` (new variables, Server Members Intent, channel permissions),
   `documentation/GAME-API.md` (leader_id used), STATUS and ROADMAP.
-- [ ] T023 `spec-auditor` against spec.md; close gaps.
+- [x] T023 `spec-auditor` against spec.md; close gaps.
 - [ ] T024 Manual: the user switches on Server Members Intent, creates the channels, sets the variables, runs
   `npm run commands:register` and walks [quickstart.md](quickstart.md) on the test server; record the result here.
 
