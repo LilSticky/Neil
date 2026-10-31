@@ -1,8 +1,17 @@
-import { escapeMarkdown } from "discord.js";
+import { ButtonStyle, ComponentType, escapeMarkdown, } from "discord.js";
+import { sortRoster } from "../domain/alliance-rank.js";
 import { utcDayOf } from "../domain/daily-quota.js";
+import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
+import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
-const AMBIGUOUS_LIST_LIMIT = 10;
+/** Discord's limits: a field's value, and everything in one embed (title, footers, field names and values). */
+const FIELD_VALUE_MAX_LENGTH = 1024;
+const EMBED_MAX_LENGTH = 6000;
+const ROSTER_FIELD = "Roster";
+const EMPTY_ROSTER_TEXT = "The tracker lists no members.";
+/** Discord's limit on a select menu option's label. */
+const OPTION_LABEL_MAX_LENGTH = 100;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -50,6 +59,12 @@ function fitTitle(escaped) {
         kept = kept.slice(0, -1);
     return `${kept}…`;
 }
+/** A select menu option's label, cut to 100 characters when longer, ending with an ellipsis. */
+function optionLabel(text) {
+    if (text.length <= OPTION_LABEL_MAX_LENGTH)
+        return text;
+    return `${text.slice(0, OPTION_LABEL_MAX_LENGTH - 1)}…`;
+}
 /** A Game API text for a field: the escaped text, or Unknown when the Game left it out or sent it empty. */
 function valueOrUnknown(text) {
     return text === undefined || text === "" ? "Unknown" : escapeText(text);
@@ -76,6 +91,74 @@ export function renderPlayerCard(player, fetchedAt, now) {
         footer: footerFor(fetchedAt, now),
     };
 }
+/** The characters Discord counts toward an embed's limit: the title, the footer and every field's name and value. */
+function embedCharacters(embed) {
+    const texts = [
+        embed.title ?? "",
+        embed.footer?.text ?? "",
+        ...(embed.fields ?? []).flatMap((field) => [field.name, field.value]),
+    ];
+    return texts.reduce((total, text) => total + text.length, 0);
+}
+/** One roster row as the card shows it: the escaped name and the uid. */
+function rosterRow(entry) {
+    return `${escapeText(entry.name)} · ${escapeText(entry.uid)}`;
+}
+/** An Alliance Rank as a field or menu label: R1–R5, or Unknown. */
+function rankLabel(rank) {
+    return rank === "unknown" ? "Unknown" : rank;
+}
+/**
+ * The roster rows that fit in `budget` characters, as fields in order: one field per rank, continued past 1,024
+ * characters. Stops at the first row that does not fit; `shown` counts the rows taken.
+ */
+function rosterFields(entries, budget) {
+    const fields = [];
+    let used = 0;
+    let shown = 0;
+    for (const entry of entries) {
+        const row = rosterRow(entry);
+        const current = fields.at(-1);
+        const sameRank = current !== undefined && current.rank === entry.allianceRank;
+        if (current !== undefined && sameRank && current.value.length + 1 + row.length <= FIELD_VALUE_MAX_LENGTH) {
+            if (used + 1 + row.length > budget)
+                break;
+            current.value = `${current.value}\n${row}`;
+            used += 1 + row.length;
+        }
+        else {
+            const label = rankLabel(entry.allianceRank);
+            const name = sameRank ? `${label} (cont.)` : label;
+            if (used + name.length + row.length > budget)
+                break;
+            fields.push({ rank: entry.allianceRank, name, value: row });
+            used += name.length + row.length;
+        }
+        shown += 1;
+    }
+    return { fields: fields.map(({ name, value }) => ({ name, value })), shown };
+}
+/** The note that replaces the rows left out of a card; the menu below still covers all of them. */
+function rosterNote(hidden) {
+    return `… and ${hidden.toString()} more, see the menu below`;
+}
+/**
+ * The roster fields of a card: an empty roster reads so; otherwise the rows that fit under Discord's embed limit,
+ * with a note counting the rest when some do not. `fixed` is what the rest of the embed already takes.
+ */
+function rosterSection(roster, fixed) {
+    if (roster.length === 0)
+        return [{ name: ROSTER_FIELD, value: EMPTY_ROSTER_TEXT }];
+    const ordered = sortRoster(roster);
+    const everything = rosterFields(ordered, EMBED_MAX_LENGTH - fixed);
+    if (everything.shown === ordered.length)
+        return everything.fields;
+    // The reserve is for the note at its longest, when every row is left out.
+    const reserve = ROSTER_FIELD.length + rosterNote(ordered.length).length;
+    const fitted = rosterFields(ordered, EMBED_MAX_LENGTH - fixed - reserve);
+    const hidden = ordered.length - fitted.shown;
+    return [...fitted.fields, { name: ROSTER_FIELD, value: rosterNote(hidden) }];
+}
 /** The public card for an Alliance. Every Game API text is escaped; a missing Leader reads Unknown. */
 export function renderAllianceCard(alliance, fetchedAt, now) {
     const fields = [
@@ -92,32 +175,147 @@ export function renderAllianceCard(alliance, fetchedAt, now) {
             inline: true,
         },
     ];
-    return {
+    const embed = {
         title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`),
         fields,
         footer: footerFor(fetchedAt, now),
     };
+    return { ...embed, fields: [...fields, ...rosterSection(alliance.roster, embedCharacters(embed))] };
 }
-/** One candidate of an ambiguous lookup, as `[tag] name`; a field the Game left out reads Unknown. */
-function matchLabel(match) {
-    return `[${escapeText(match.tag ?? "Unknown")}] ${escapeText(match.name ?? "Unknown")}`;
-}
+/** The Player pick list's note when matches were left out. */
+const PLAYER_PICK_LIMIT_NOTE = "Only the first 25 are listed; add a kingdom to narrow it.";
 /** Texts Neil sends privately when a lookup does not give a card. Interpolated input is escaped. */
 export const lookupMessages = {
+    giveUidOrName: "Give a uid, or a name (and optionally a kingdom).",
     invalidUid: "That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid.",
+    invalidPlayerName: "Give the player's complete in-game name (up to 32 characters).",
     invalidKingdom: "The kingdom must be a number from 1 to 9999.",
     invalidAlliance: "Give the alliance's tag (up to 40 characters).",
     playerNotFound: (uid) => `No player has the uid ${escapeText(uid)}.`,
     playerNotPrepared: (uid) => `Couldn't find a player with the uid ${escapeText(uid)}. Check the uid; if it's right, the tracker may be busy, so try again later.`,
-    allianceNotFound: (key, kingdom) => `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
-    ambiguous: (key, matches) => {
-        const listed = matches.slice(0, AMBIGUOUS_LIST_LIMIT).map(matchLabel).join(", ");
-        const more = matches.length - AMBIGUOUS_LIST_LIMIT;
-        const rest = more > 0 ? ` and ${more.toString()} more` : "";
-        return `More than one alliance matches "${escapeText(key)}": ${listed}${rest}. Try the exact tag.`;
+    playerNameNotFound: (name, kingdom) => {
+        const inKingdom = kingdom === undefined ? "" : ` in kingdom #${kingdom.toString()}`;
+        return `No player is named "${escapeText(name)}"${inKingdom}. The name must be complete; a uid always works.`;
     },
+    playerNameNotPrepared: (name) => `Couldn't find a player named "${escapeText(name)}". Check the name; if it's right, the tracker may be busy, so try again later.`,
+    allianceNotFound: (key, kingdom) => `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
     quotaSpent: (resetsAt, now) => `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
+    reserveKept: (resetsAt, now) => `Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
     tryAgain: "The game tracker is busy right now. Try again in a moment.",
     unavailable: "Lookups are not working right now. Please tell an Officer.",
+    showing: (label) => `Showing ${escapeText(label)}.`,
+    giveKingdomAndTagOrName: "Give the kingdom and the alliance tag, or the alliance's exact full name.",
+    allianceNameNotFound: (key) => `No alliance is named exactly "${escapeText(key)}". Use the full name, or the kingdom and tag; approximate names are not supported.`,
 };
+/** A Player match as the pick list labels it: its name and Kingdom. */
+export function playerPickLabel(match) {
+    return `${match.name ?? "Unknown"} · kingdom #${match.kingdom.toString()}`;
+}
+/**
+ * The private pick list for an ambiguous Player name: a select menu of the pickable matches, valued by their index
+ * in the list, under the session id the pick handler looks up.
+ */
+export function renderPlayerPickList(name, matches, sessionId) {
+    const { listed, leftOut } = listedPlayerMatches(matches);
+    const note = leftOut > 0 ? `\n${PLAYER_PICK_LIMIT_NOTE}` : "";
+    const options = listed.map((match, index) => ({
+        label: optionLabel(playerPickLabel(match)),
+        value: index.toString(),
+    }));
+    return {
+        content: `Several players are named "${escapeText(name)}". Pick one:${note}`,
+        components: [
+            {
+                type: ComponentType.ActionRow,
+                components: [{ type: ComponentType.StringSelect, custom_id: `pick:${sessionId}:select`, options }],
+            },
+        ],
+    };
+}
+/** The Alliance pick list's note when matches were left out. */
+const ALLIANCE_PICK_LIMIT_NOTE = "Only the first 25 are listed; use the kingdom and tag.";
+/** An Alliance match as the pick list labels it: its tag, name and Kingdom. */
+export function alliancePickLabel(match) {
+    return `[${match.tag}] ${match.name ?? "Unknown"} · kingdom #${match.kingdom.toString()}`;
+}
+/**
+ * The private pick list for an ambiguous Alliance name: a select menu of the pickable matches, valued by their index
+ * in the list, under the session id the pick handler looks up.
+ */
+export function renderAlliancePickList(key, matches, sessionId) {
+    const { listed, leftOut } = listedAllianceMatches(matches);
+    const note = leftOut > 0 ? `\n${ALLIANCE_PICK_LIMIT_NOTE}` : "";
+    const options = listed.map((match, index) => ({
+        label: optionLabel(alliancePickLabel(match)),
+        value: index.toString(),
+    }));
+    return {
+        content: `Several alliances are named "${escapeText(key)}". Pick one:${note}`,
+        components: [
+            {
+                type: ComponentType.ActionRow,
+                components: [{ type: ComponentType.StringSelect, custom_id: `pick:${sessionId}:select`, options }],
+            },
+        ],
+    };
+}
+/**
+ * The roster menu under an Alliance card: a select menu of the page's members (by rank and name, valued by index on
+ * the page), and past one page a row of Previous, the page and Next. The roster is ordered as the card orders it.
+ * An empty roster has no menu.
+ */
+export function renderRosterComponents(entries, page, sessionId) {
+    if (entries.length === 0)
+        return [];
+    const ordered = sortRoster(entries);
+    const pages = pageCount(ordered);
+    const current = clampPage(page, ordered);
+    const options = pageOf(ordered, current).map((entry, index) => ({
+        label: optionLabel(`${rankLabel(entry.allianceRank)} · ${entry.name}`),
+        description: `uid ${entry.uid}`,
+        value: index.toString(),
+    }));
+    const rows = [
+        {
+            type: ComponentType.ActionRow,
+            components: [
+                {
+                    type: ComponentType.StringSelect,
+                    custom_id: `pick:${sessionId}:select:${current.toString()}`,
+                    placeholder: "Look up a member…",
+                    options,
+                },
+            ],
+        },
+    ];
+    if (pages > 1) {
+        rows.push({
+            type: ComponentType.ActionRow,
+            components: [
+                {
+                    type: ComponentType.Button,
+                    style: ButtonStyle.Secondary,
+                    label: "◀ Previous",
+                    custom_id: `pick:${sessionId}:page:${Math.max(0, current - 1).toString()}`,
+                    disabled: current === 0,
+                },
+                {
+                    type: ComponentType.Button,
+                    style: ButtonStyle.Secondary,
+                    label: `Page ${(current + 1).toString()}/${pages.toString()}`,
+                    custom_id: `pick:${sessionId}:info`,
+                    disabled: true,
+                },
+                {
+                    type: ComponentType.Button,
+                    style: ButtonStyle.Secondary,
+                    label: "Next ▶",
+                    custom_id: `pick:${sessionId}:page:${Math.min(pages - 1, current + 1).toString()}`,
+                    disabled: current === pages - 1,
+                },
+            ],
+        });
+    }
+    return rows;
+}
 //# sourceMappingURL=lookup-cards.js.map

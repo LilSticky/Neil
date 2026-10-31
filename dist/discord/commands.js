@@ -6,27 +6,43 @@ export const ping = new SlashCommandBuilder()
     .setContexts(InteractionContextType.Guild);
 export const player = new SlashCommandBuilder()
     .setName("player")
-    .setDescription("Look up a player by uid")
+    .setDescription("Look up a player by uid or name")
     .setContexts(InteractionContextType.Guild)
     .addStringOption((option) => option
     .setName("uid")
     .setDescription("The player's uid (the number under the profile picture)")
-    .setRequired(true)
-    .setMaxLength(32));
+    .setRequired(false)
+    .setMaxLength(32))
+    .addStringOption((option) => option
+    .setName("name")
+    .setDescription("The player's complete in-game name")
+    .setRequired(false)
+    .setMaxLength(32))
+    .addIntegerOption((option) => option
+    .setName("kingdom")
+    .setDescription("The player's kingdom number, with a name")
+    .setRequired(false)
+    .setMinValue(1)
+    .setMaxValue(9999));
 export const alliance = new SlashCommandBuilder()
     .setName("alliance")
     .setDescription("Look up an alliance in a kingdom")
     .setContexts(InteractionContextType.Guild)
     .addIntegerOption((option) => option
     .setName("kingdom")
-    .setDescription("The kingdom number")
-    .setRequired(true)
+    .setDescription("The kingdom number, with a tag")
+    .setRequired(false)
     .setMinValue(1)
     .setMaxValue(9999))
     .addStringOption((option) => option
     .setName("alliance")
     .setDescription("The alliance tag, e.g. NML")
-    .setRequired(true)
+    .setRequired(false)
+    .setMaxLength(40))
+    .addStringOption((option) => option
+    .setName("name")
+    .setDescription("The alliance's exact full name, alone")
+    .setRequired(false)
     .setMaxLength(40));
 export const quota = new SlashCommandBuilder()
     .setName("quota")

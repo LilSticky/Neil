@@ -14,6 +14,8 @@ const snowflake = z
     .regex(/^\d{17,20}$/, "must be a Discord ID (17–20 digits)");
 const DEFAULT_CACHE_MINUTES = 10;
 const cacheMinutesRule = `must be a whole number of at least ${DEFAULT_CACHE_MINUTES.toString()}`;
+const DEFAULT_QUOTA_RESERVE = 100;
+const quotaReserveRule = "must be a whole number of at least 0";
 const schema = z.object({
     DISCORD_TOKEN: z.string(required).min(1, required),
     DISCORD_APPLICATION_ID: snowflake,
@@ -25,6 +27,12 @@ const schema = z.object({
         .string()
         .regex(/^\d+$/, cacheMinutesRule)
         .refine((value) => Number(value) >= DEFAULT_CACHE_MINUTES, cacheMinutesRule)
+        .transform(Number)
+        .optional(),
+    GAME_API_QUOTA_RESERVE: z
+        .string()
+        .regex(/^\d+$/, quotaReserveRule)
+        .refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER, quotaReserveRule)
         .transform(Number)
         .optional(),
     DATA_DIR: z.string().min(1).default("./data"),
@@ -49,6 +57,7 @@ export function loadConfig(env) {
         officerRoleIds: [result.data.DISCORD_MODERATOR_ROLE_ID, result.data.DISCORD_KING_ROLE_ID],
         gameApiKey: result.data.LAP_TRACKER_API_KEY,
         cacheTtlMs: (result.data.GAME_API_CACHE_MINUTES ?? DEFAULT_CACHE_MINUTES) * 60_000,
+        quotaReserve: result.data.GAME_API_QUOTA_RESERVE ?? DEFAULT_QUOTA_RESERVE,
         dataDir: result.data.DATA_DIR,
     };
 }

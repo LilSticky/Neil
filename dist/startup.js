@@ -31,14 +31,18 @@ export async function start(deps) {
         store = deps.openStore(config.dataDir);
         const startRecord = recordStart(store.load(), deps.now());
         store.save(startRecord);
-        const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now });
+        const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now, reserve: config.quotaReserve });
         // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
-        quota.today();
+        const today = quota.today();
+        if (config.quotaReserve >= today.limit) {
+            deps.writeWarning(`Warning: GAME_API_QUOTA_RESERVE (${config.quotaReserve.toString()}) is at or above the Daily Quota limit (${today.limit.toString()}); lookups will never ask the Game API.`);
+        }
         const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota);
         connection = await deps.connect(config.discordToken, {
             buildInfo,
             startRecord,
             gameApi,
+            quotaReserve: config.quotaReserve,
             officerRoleIds: config.officerRoleIds,
         });
     }

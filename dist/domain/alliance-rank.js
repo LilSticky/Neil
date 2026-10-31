@@ -1,7 +1,11 @@
 /** The Alliance Rank of the given Player, read from their own row; unknown unless the label is R1–R5. */
 export function rankFromRoster(playerUid, roster) {
     const row = roster.find((entry) => entry.uid === playerUid);
-    switch (row?.rankLabel) {
+    return row === undefined ? "unknown" : rankFromLabel(row.rankLabel);
+}
+/** The Alliance Rank for a roster label: R1–R5, otherwise unknown. */
+export function rankFromLabel(label) {
+    switch (label) {
         case "R1":
             return "R1";
         case "R2":
@@ -15,5 +19,19 @@ export function rankFromRoster(playerUid, roster) {
         default:
             return "unknown";
     }
+}
+/** Highest rank first: R5 before R1, unknown last. */
+const RANK_ORDER = { R5: 0, R4: 1, R3: 2, R2: 3, R1: 4, unknown: 5 };
+/** Orders a roster by Alliance Rank, then Player Name ignoring case, then uid. Returns a new array. */
+export function sortRoster(entries) {
+    return [...entries].sort((a, b) => {
+        const rankOrder = RANK_ORDER[a.allianceRank] - RANK_ORDER[b.allianceRank];
+        if (rankOrder !== 0)
+            return rankOrder;
+        const nameOrder = a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+        if (nameOrder !== 0)
+            return nameOrder;
+        return a.uid.localeCompare(b.uid, "en");
+    });
 }
 //# sourceMappingURL=alliance-rank.js.map

@@ -17,7 +17,16 @@ export const playerBodySchema = z.object({
     alliance_name: z.string().nullish(),
     alliance_members: z.array(rosterRowSchema).nullish(),
 });
-/** The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. */
+/** One row of an Alliance's `members`; the name and the rank label may be null. */
+const rosterMemberSchema = z.object({
+    uid: idSchema,
+    nick_name: z.string().nullish(),
+    rank_label: z.string().nullish(),
+});
+/**
+ * The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. A member row without a
+ * readable uid is left out; a missing `members` gives an empty roster.
+ */
 export const allianceBodySchema = z.object({
     abbr: z.string(),
     name: z.string(),
@@ -30,6 +39,13 @@ export const allianceBodySchema = z.object({
         .string()
         .nullish()
         .transform((name) => (name === "" ? undefined : name)),
+    members: z
+        .array(z.unknown())
+        .nullish()
+        .transform((rows) => (rows ?? []).flatMap((row) => {
+        const member = rosterMemberSchema.safeParse(row);
+        return member.success ? [member.data] : [];
+    })),
 });
 const matchSchema = z.object({
     tag: z.string().optional(),
@@ -38,12 +54,14 @@ const matchSchema = z.object({
     uid: idSchema.optional(),
 });
 /**
- * The 409 body of GET /alliances/{kingdom}/{key} when more than one alliance matches. Hand-written (research R9),
- * so every field of a match is optional and the schema stays lenient.
+ * The 409 body when more than one Player or Alliance matches, read back as `{ matches }`. The alliance 409 is
+ * hand-written (research R9), so every field of a match is optional and the schema stays lenient.
  */
-export const ambiguousBodySchema = z.object({
-    matches: z.array(matchSchema),
-});
+export const ambiguousBodySchema = z.union([
+    z.object({ matches: z.array(matchSchema) }),
+    // The recorded 409 of /players/name/{name} (2026-10-31) nests the list: {"detail":{"error":"ambiguous","matches":[…]}}.
+    z.object({ detail: z.object({ matches: z.array(matchSchema) }) }).transform((body) => ({ matches: body.detail.matches })),
+]);
 /** The `quota` object of a lookup body (GAME-API.md): whole numbers, a limit of at least 1. */
 const bodyQuotaSchema = z.object({
     limit: z.number().int().min(1),

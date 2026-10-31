@@ -48,6 +48,9 @@ await start({
     writeError: (text) => {
         console.error(text);
     },
+    writeWarning: (text) => {
+        console.warn(text);
+    },
     // Let open handles (the websocket) finish closing; process.exit() mid-close crashes libuv on Windows.
     exit: (code) => {
         process.exitCode = code;

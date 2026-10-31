@@ -1,0 +1,142 @@
+import { MessageFlags } from "discord.js";
+import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
+import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
+import { alliancePickLabel, lookupMessages, playerPickLabel, renderRosterComponents } from "./lookup-cards.js";
+import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, } from "./lookup.js";
+import { isOwner, pageOf, parseCustomId } from "./pick-sessions.js";
+const pickMessages = {
+    notOwner: "Only the Member who ran this command can use this menu. Run /player or /alliance yourself.",
+    expired: "This menu has expired. Run the command again.",
+};
+/** The entry a select menu value picked, by its index in the list shown; undefined when no entry has that index. */
+function pickedAt(entries, value) {
+    return value === undefined ? undefined : entries[Number(value)];
+}
+/** The Kingdom and tag an Alliance match is looked up by; undefined when the Game gave values that are not valid. */
+function allianceToLookUp(match) {
+    const key = parseAllianceKey(match.tag);
+    const kingdom = parseKingdom(match.kingdom);
+    return key.ok && kingdom.ok ? { kingdom: kingdom.value, key: key.value } : undefined;
+}
+/** Privately tells the caller a follow-up; the public card is the only message the others see. */
+async function followUpPrivately(interaction, message) {
+    await interaction.followUp({ ...message, flags: MessageFlags.Ephemeral, allowedMentions });
+}
+/** The private menu now says what is shown, without its menu; the Game API is asked after this, so Discord's limit holds. */
+async function showPicked(interaction, label) {
+    await interaction.update({ content: lookupMessages.showing(label), components: [], allowedMentions });
+}
+/**
+ * Answers a pick from a pick list once the menu says what is shown: a card is posted publicly as a follow-up, the
+ * reason privately. A lookup that throws, or a card that cannot be posted, is logged and told as unavailable.
+ */
+async function answerPick(interaction, context, ask, card, failureMessage) {
+    let result;
+    try {
+        result = await ask();
+    }
+    catch (error) {
+        context.logError(`Looking up the picked match failed: ${errorText(error)}`);
+        await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+        return;
+    }
+    if (result.kind !== "found") {
+        await followUpPrivately(interaction, failureMessage(result, context.now()));
+        return;
+    }
+    try {
+        await interaction.followUp({ ...card(result.value, result.fetchedAt, context.now()), allowedMentions });
+    }
+    catch (error) {
+        context.logError(`Showing the picked card failed: ${errorText(error)}`);
+        await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+    }
+}
+/** The owner picked a Player match: the Player's card is posted publicly, looked up by uid for the lookup. */
+async function pickPlayerMatch(interaction, match, context) {
+    const parsedUid = match === undefined ? undefined : parseUid(match.uid);
+    if (match === undefined || parsedUid === undefined || !parsedUid.ok) {
+        await replyPrivately(interaction, lookupMessages.unavailable);
+        return;
+    }
+    await showPicked(interaction, playerPickLabel(match));
+    const uid = parsedUid.value;
+    await answerPick(interaction, context, () => context.gameApi.getPlayer(uid, "lookup"), playerCardMessage, (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
+}
+/**
+ * The owner picked an Alliance match: its card is posted publicly with its roster menu, looked up by tag and Kingdom.
+ * An ambiguous answer opens a pick list for the owner, as the command does.
+ */
+async function pickAllianceMatch(interaction, match, context) {
+    const target = match === undefined ? undefined : allianceToLookUp(match);
+    if (match === undefined || target === undefined) {
+        await replyPrivately(interaction, lookupMessages.unavailable);
+        return;
+    }
+    await showPicked(interaction, alliancePickLabel(match));
+    const { kingdom, key } = target;
+    const ownerId = interaction.user.id;
+    await answerPick(interaction, context, () => context.gameApi.getAlliance(kingdom, key, "lookup"), (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions), (failure, now) => allianceFailureMessage(failure, key, lookupMessages.allianceNotFound(key, kingdom), ownerId, context.pickSessions, now));
+}
+/**
+ * The owner picked a member of the roster menu's page: the member's Player card is posted publicly as a reply under
+ * the thinking placeholder, and the Alliance card stays as it is. `shownEntries` is the page the menu shows.
+ */
+async function pickRosterMember(interaction, shownEntries, value, context) {
+    const entry = pickedAt(shownEntries, value);
+    if (entry === undefined) {
+        await replyPrivately(interaction, lookupMessages.unavailable);
+        return;
+    }
+    await showLookup(interaction, context, () => context.gameApi.getPlayer(entry.uid, "lookup"), playerCardMessage, (failure, now) => ({ content: playerFailureText(failure, entry.uid, now) }));
+}
+/**
+ * Answers a select menu of a pick list: the match or roster member the value names, by the kind of pick list. A roster
+ * menu names its page in its custom id; an id without one (sent before pages were named) takes the page last turned to.
+ */
+async function pickFrom(interaction, session, menuPage, context) {
+    const value = interaction.values?.[0];
+    const { choice } = session;
+    switch (choice.kind) {
+        case "players":
+            await pickPlayerMatch(interaction, pickedAt(listedPlayerMatches(choice.matches).listed, value), context);
+            return;
+        case "alliances":
+            await pickAllianceMatch(interaction, pickedAt(listedAllianceMatches(choice.matches).listed, value), context);
+            return;
+        case "roster":
+            await pickRosterMember(interaction, pageOf(choice.entries, menuPage ?? session.page), value, context);
+            return;
+    }
+}
+/** Turns a roster menu to a page: the menu of that page replaces the old one; the Game API is not asked. */
+async function turnRosterPage(interaction, session, page, context) {
+    const { choice } = session;
+    if (choice.kind !== "roster") {
+        await replyPrivately(interaction, lookupMessages.unavailable);
+        return;
+    }
+    context.pickSessions.turnPage(session.id, page);
+    await interaction.update({ components: renderRosterComponents(choice.entries, page, session.id) });
+}
+/** Answers a button or select menu of a pick list: only its owner, only while it is open, the rest privately. */
+export async function handlePick(interaction, context) {
+    await answer("a pick list", context, async () => {
+        const parsed = parseCustomId(interaction.customId);
+        const session = parsed === undefined ? "expired" : context.pickSessions.get(parsed.sessionId, context.now());
+        if (parsed === undefined || session === "expired") {
+            await replyPrivately(interaction, pickMessages.expired);
+            return;
+        }
+        if (!isOwner(session, interaction.user.id)) {
+            await replyPrivately(interaction, pickMessages.notOwner);
+            return;
+        }
+        if (parsed.action === "page") {
+            await turnRosterPage(interaction, session, parsed.page, context);
+            return;
+        }
+        await pickFrom(interaction, session, parsed.page, context);
+    });
+}
+//# sourceMappingURL=pick.js.map

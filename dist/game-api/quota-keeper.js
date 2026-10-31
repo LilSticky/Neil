@@ -1,4 +1,4 @@
-import { adoptReported, canSend, countRequest, markLimitReached, todaysQuota, } from "../domain/daily-quota.js";
+import { adoptReported, canSend, canSendFor, countRequest, markLimitReached, todaysQuota, } from "../domain/daily-quota.js";
 /**
  * Counts the Game API requests Neil sends against the Daily Quota. The stored row is the truth across restarts;
  * the requests still in flight are kept in memory only.
@@ -6,10 +6,12 @@ import { adoptReported, canSend, countRequest, markLimitReached, todaysQuota, } 
 export class QuotaKeeper {
     store;
     now;
+    reserve;
     inFlight = 0;
     constructor(options) {
         this.store = options.store;
         this.now = options.now;
+        this.reserve = options.reserve;
     }
     /** Today's Daily Quota. Rolls over to a fresh day at 00:00 UTC and saves the roll. */
     today() {
@@ -20,16 +22,22 @@ export class QuotaKeeper {
         return quota;
     }
     /**
-     * Counts one request before it is sent and returns the UTC day it is counted on. Undefined, with nothing saved,
-     * when the Daily Quota is spent.
+     * Counts one request for the purpose before it is sent. Refused with nothing saved when the Daily Quota is spent,
+     * or when a lookup would have to use the Quota Reserve.
      */
-    tryCount() {
+    tryCount(purpose) {
         const quota = this.today();
         if (!canSend(quota))
-            return undefined;
+            return { ok: false, reason: "spent" };
+        if (!canSendFor(quota, purpose, this.reserve))
+            return { ok: false, reason: "reserve" };
         this.store.save(countRequest(quota));
         this.inFlight += 1;
-        return quota.day;
+        return { ok: true, day: quota.day };
+    }
+    /** Whether a request for the purpose may be sent today. Counts nothing. */
+    mayCount(purpose) {
+        return canSendFor(this.today(), purpose, this.reserve);
     }
     /**
      * Ends one request in flight, counted on `day`. With the Game API's figures, adopts them plus the requests still

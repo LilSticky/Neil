@@ -29,6 +29,15 @@ export function countRequest(q) {
 export function adoptReported(q, reported, inFlight, now) {
     return { ...q, used: reported.used + inFlight, limit: reported.limit, confirmedAt: now };
 }
+/**
+ * Whether a request for the given purpose may be sent today. Lookups stop once the Quota Reserve is all that
+ * remains; an Onboarding Interview may use the reserve.
+ */
+export function canSendFor(q, purpose, reserve) {
+    if (!canSend(q))
+        return false;
+    return purpose === "onboarding-interview" || remaining(q) > reserve;
+}
 /** Records that the Game API refused a request because today's limit is spent. */
 export function markLimitReached(q, now) {
     return { ...q, limitReached: true, confirmedAt: now };
@@ -36,5 +45,9 @@ export function markLimitReached(q, now) {
 /** Requests left today, never below 0. */
 export function remaining(q) {
     return Math.max(0, q.limit - q.used);
+}
+/** Requests a Member's lookup may still use today: what remains above the Quota Reserve, never below 0. */
+export function leftForLookups(q, reserve) {
+    return Math.max(0, remaining(q) - reserve);
 }
 //# sourceMappingURL=daily-quota.js.map
