@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { parseAllianceKey, parseKingdom, parsePlayerName, parseUid } from "./lookup-input.js";
+import { parseAllianceKey, parseInterviewUid, parseKingdom, parsePlayerName, parseUid } from "./lookup-input.js";
 
 describe("parseUid", () => {
   test("trims surrounding spaces and returns the digits", () => {
@@ -86,6 +86,26 @@ describe("parsePlayerName", () => {
     ["dots between spaces", "  ..  "],
   ])("rejects a Player Name that is %s", (_label, input) => {
     expect(parsePlayerName(input)).toEqual({ ok: false });
+  });
+});
+
+describe("parseInterviewUid", () => {
+  test("drops one leading # and the surrounding spaces, then accepts the uid", () => {
+    expect(parseInterviewUid("  #145563254785  ")).toEqual({ ok: true, value: "145563254785" });
+  });
+
+  test("accepts a uid without a leading #, like parseUid does", () => {
+    expect(parseInterviewUid(" 145563254785 ")).toEqual({ ok: true, value: "145563254785" });
+  });
+
+  test.each([
+    ["letters", "abc"],
+    ["letters after digits", "12a"],
+    ["empty", ""],
+    ["two leading #", "##1"],
+    ["a uid of 21 digits", "123456789012345678901"],
+  ])("rejects an Interview uid that is %s", (_label, input) => {
+    expect(parseInterviewUid(input)).toEqual({ ok: false });
   });
 });
 
