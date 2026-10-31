@@ -13,7 +13,8 @@ There is no separate test bot.
 1. **New Application**, give it a name.
 2. **General Information**: copy the **Application ID** → `DISCORD_APPLICATION_ID`.
 3. **Bot**: **Reset Token**, copy it → `DISCORD_TOKEN` (shown once; keep it only in the `.env` files and the Wispbyte panel).
-   Leave all privileged gateway intents off for now (Server Members arrives with slice 005).
+   Leave privileged gateway intents off until slice 005. Then switch on **Server Members Intent** (required
+   before deploying slice 005: without it Neil cannot log in).
    Turn **Public Bot** off so only you can invite it.
 4. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`, no bot permissions. Open the
    URL and add the bot to the **test server**.
@@ -42,6 +43,19 @@ Neil's values; names exactly as written):
 | `DISCORD_APPLICATION_ID` | Neil's Application ID |
 | `DISCORD_GUILD_ID` | the test server's ID (during slice 001) |
 | `DATA_DIR` | `./data` |
+| `DISCORD_ONBOARDING_CHANNEL_ID` | ID of `#onboarding` (from slice 005; required) |
+| `DISCORD_LOG_CHANNEL_ID` | ID of `#neil-log` (from slice 005; required) |
+| `INTERVIEW_TIMEOUT_MINUTES` | optional; minutes an Onboarding Interview may stay silent (whole number, at least 1, default 1440) |
+
+Until the two channel IDs are set and Server Members Intent is on, a deploy of `main` with slice 005 will
+not start: Neil refuses the configuration or cannot log in. Set these before the first Restart after the
+deploy.
+
+**Channels for slice 005** (test server; the IDs are copied with Developer Mode, as for the guild):
+
+- `#onboarding`: Neil needs View Channel, Send Messages in Threads, Create Private Threads and Manage
+  Threads. Give the Moderator and King roles Manage Threads.
+- `#neil-log`: Neil needs View Channel and Send Messages.
 
 Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
 startup. Don't delete `.env` in the file manager.

@@ -59,7 +59,9 @@ no approximate (fuzzy) name search in the API.
 - Game: `power`, `lv` (= `level`, sanctuary level), `kills`, `vip`, `likes`, `language`, `gender`,
   `skin_name`, `x`, `y`, `first_seen_at`, `last_seen_at` (Unix seconds, fractional)
 - Alliance: `aid` (= `union_id`), `alliance_name`, `alliance_abbr`, and an `alliance` object with
-  `name`, `abbr`, `power`, `member_count`, `capacity`, `language`, **`leader_id`**, `leader_name`
+  `name`, `abbr`, `power`, `member_count`, `capacity`, `language`, **`leader_id`**, `leader_name`.
+  `leader_id` is read since slice 005 as the Alliance leader's uid, leniently (a number or a digit string;
+  nullish means no leader).
 - **`alliance_members[]`**: the player's whole alliance roster, same fields as below, including
   `rank_label`. The player's own rank is their row in it.
 - `ranks`: `{}` in the sample; **not the alliance rank**. Ignore it.
