@@ -6,6 +6,10 @@ export interface Configuration {
   readonly guildId: string;
   /** Moderator role ID first, King role ID second. */
   readonly officerRoleIds: readonly [string, string];
+  readonly onboardingChannelId: string;
+  readonly logChannelId: string;
+  /** How long an Onboarding Interview may stay silent before it is abandoned. */
+  readonly interviewTimeoutMs: number;
   readonly gameApiKey: string;
   readonly cacheTtlMs: number;
   /** Requests kept back for Onboarding Interviews; lookups stop when this many or fewer remain. */
@@ -35,12 +39,23 @@ const cacheMinutesRule = `must be a whole number of at least ${DEFAULT_CACHE_MIN
 const DEFAULT_QUOTA_RESERVE = 100;
 const quotaReserveRule = "must be a whole number of at least 0";
 
+const DEFAULT_INTERVIEW_TIMEOUT_MINUTES = 1440;
+const interviewTimeoutRule = "must be a whole number of at least 1";
+
 const schema = z.object({
   DISCORD_TOKEN: z.string(required).min(1, required),
   DISCORD_APPLICATION_ID: snowflake,
   DISCORD_GUILD_ID: snowflake,
   DISCORD_MODERATOR_ROLE_ID: snowflake,
   DISCORD_KING_ROLE_ID: snowflake,
+  DISCORD_ONBOARDING_CHANNEL_ID: snowflake,
+  DISCORD_LOG_CHANNEL_ID: snowflake,
+  INTERVIEW_TIMEOUT_MINUTES: z
+    .string()
+    .regex(/^\d+$/, interviewTimeoutRule)
+    .refine((value) => Number(value) >= 1, interviewTimeoutRule)
+    .transform(Number)
+    .optional(),
   LAP_TRACKER_API_KEY: z.string(required).min(1, required),
   GAME_API_CACHE_MINUTES: z
     .string()
@@ -74,6 +89,9 @@ export function loadConfig(env: Record<string, string | undefined>): Configurati
     applicationId: result.data.DISCORD_APPLICATION_ID,
     guildId: result.data.DISCORD_GUILD_ID,
     officerRoleIds: [result.data.DISCORD_MODERATOR_ROLE_ID, result.data.DISCORD_KING_ROLE_ID],
+    onboardingChannelId: result.data.DISCORD_ONBOARDING_CHANNEL_ID,
+    logChannelId: result.data.DISCORD_LOG_CHANNEL_ID,
+    interviewTimeoutMs: (result.data.INTERVIEW_TIMEOUT_MINUTES ?? DEFAULT_INTERVIEW_TIMEOUT_MINUTES) * 60_000,
     gameApiKey: result.data.LAP_TRACKER_API_KEY,
     cacheTtlMs: (result.data.GAME_API_CACHE_MINUTES ?? DEFAULT_CACHE_MINUTES) * 60_000,
     quotaReserve: result.data.GAME_API_QUOTA_RESERVE ?? DEFAULT_QUOTA_RESERVE,

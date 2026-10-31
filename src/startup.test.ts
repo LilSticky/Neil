@@ -54,6 +54,8 @@ const VALID_ENV = {
   DISCORD_GUILD_ID: "123456789012345678",
   DISCORD_MODERATOR_ROLE_ID: "223456789012345678",
   DISCORD_KING_ROLE_ID: "323456789012345678",
+  DISCORD_ONBOARDING_CHANNEL_ID: "423456789012345678",
+  DISCORD_LOG_CHANNEL_ID: "523456789012345678",
   LAP_TRACKER_API_KEY: FAKE_API_KEY,
   DATA_DIR: "./data",
 };
@@ -147,7 +149,7 @@ describe("start", () => {
     await start(deps);
 
     expect(calls).toEqual([
-      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- DISCORD_MODERATOR_ROLE_ID: required\n- DISCORD_KING_ROLE_ID: required\n- LAP_TRACKER_API_KEY: required",
+      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- DISCORD_MODERATOR_ROLE_ID: required\n- DISCORD_KING_ROLE_ID: required\n- DISCORD_ONBOARDING_CHANNEL_ID: required\n- DISCORD_LOG_CHANNEL_ID: required\n- LAP_TRACKER_API_KEY: required",
       "exit 1",
     ]);
   });

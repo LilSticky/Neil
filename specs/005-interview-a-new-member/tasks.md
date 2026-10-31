@@ -23,7 +23,7 @@ stores, Discord ports) is shared by all.
 
 ## Phase 1: Setup (configuration)
 
-- [ ] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `DISCORD_ONBOARDING_CHANNEL_ID` and
+- [x] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `DISCORD_ONBOARDING_CHANNEL_ID` and
   `DISCORD_LOG_CHANNEL_ID` required Discord IDs ("must be a Discord ID (17–20 digits)"); `INTERVIEW_TIMEOUT_MINUTES`
   optional, "whole number ≥ 1", default 1440 (`Configuration.onboardingChannelId`, `logChannelId`,
   `interviewTimeoutMs`). Values are never echoed. Add all three to `env.example`.
