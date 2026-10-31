@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { APIModalInteractionResponseCallbackData, BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
-import { memberLeft } from "../domain/onboarding-interview.js";
+import { memberLeft, timeOut } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
 import type { LookupResult, Player } from "../domain/player.js";
@@ -16,6 +16,7 @@ import { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
 import type { RankApprovals, RankButtonLike } from "./rank-approval.js";
 import {
+  abandonedLogLine,
   alreadyLinkedMessage,
   askUidMessage,
   buttonOfSomeoneElseReply,
@@ -23,12 +24,18 @@ import {
   foundCardMessage,
   handedOffLogLine,
   handedOffMessage,
+  interviewAlreadyOpenReply,
   interviewCustomId,
   interviewEndedReply,
+  interviewOpenedReply,
+  leftMessage,
   linkedMessage,
   linkLogLine,
   malformedUidMessage,
   notFoundMessage,
+  quotaSpentMessage,
+  rankCancelledLeftMessage,
+  rankCancelledLogLine,
   refusedLogLine,
   rejectedMessage,
   uidModal,
@@ -154,6 +161,7 @@ class FakeChannels implements OnboardingChannels {
   readonly opened: ThreadMember[] = [];
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
   readonly archived: string[] = [];
+  readonly lockedAndArchived: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
   private posted = 0;
 
@@ -176,7 +184,8 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
-  lockAndArchive(): Promise<void> {
+  lockAndArchive(threadId: string): Promise<void> {
+    this.lockedAndArchived.push(threadId);
     return Promise.resolve();
   }
 
@@ -243,6 +252,18 @@ class FakeModal implements ModalInteractionLike {
   }
 }
 
+/** A /interview command as the Interview needs it: the Member who ran it, and the private replies given to them. */
+class FakeCommand {
+  readonly replies: PrivateReply[] = [];
+
+  constructor(readonly user: { readonly id: string; readonly username: string }) {}
+
+  reply(message: PrivateReply): Promise<void> {
+    this.replies.push(message);
+    return Promise.resolve();
+  }
+}
+
 /** The Rank Approvals as the Interview uses them: records every approval it asks about, with the Player shown. */
 class FakeRankApprovals implements RankApprovals {
   readonly announced: { readonly approval: RankApproval; readonly player: Player }[] = [];
@@ -305,6 +326,17 @@ async function confirmationShown(h: Harness, player: Player): Promise<number> {
 
 function linkOfMember(h: Harness): Link | undefined {
   return h.links.linkFor(MEMBER);
+}
+
+/** The Member is Linked to a Player with an unknown rank and the Rank Approval for it is pending. Returns that approval. */
+async function pendingRankApprovalOfMember(h: Harness): Promise<RankApproval> {
+  h.links.confirm({ link: LEADER_LINK }, () => undefined);
+  h.onServer.add(LEADER);
+  const interviewId = await confirmationShown(h, PLAYER_WITH_LEADER_UNKNOWN_RANK);
+  await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+  const approval = h.links.pendingFor(MEMBER);
+  if (approval === undefined) throw new Error("the test Member has no pending Rank Approval");
+  return approval;
 }
 
 describe("createInterviews", () => {
@@ -690,6 +722,23 @@ describe("createInterviews", () => {
     });
   });
 
+  describe("a uid check that finds the Daily Quota spent", () => {
+    test("pauses the Interview with no failed attempt and posts the quota message with the reset time", async () => {
+      const interviewId = await joinedMember(h);
+      const resetsAt = new Date("2026-11-01T00:00:00Z");
+      h.gameApi.answerWith({ kind: "quota-spent", resetsAt });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.interviews.get(interviewId)).toMatchObject({
+        step: "paused-for-quota",
+        failedAttempts: 0,
+        resumesAt: resetsAt,
+      });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: quotaSpentMessage(resetsAt, NOW) });
+    });
+  });
+
   describe("a modal submit in a step that takes no uid", () => {
     test("is acknowledged once while the found Player awaits confirmation", async () => {
       const interviewId = await confirmationShown(h, PLAYER);
@@ -722,6 +771,153 @@ describe("createInterviews", () => {
 
       expect(modal.replies).toEqual([interviewEndedReply()]);
       expect(modal.deferUpdates).toBe(0);
+    });
+  });
+
+  describe("/interview", () => {
+    test("opens an Interview for a Member with no Link and no open Interview, and replies privately with its thread", async () => {
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+
+      await h.service.onCommand(command);
+
+      const interviewId = openInterviewIdOf(h, MEMBER);
+      expect(h.channels.opened).toEqual([{ id: MEMBER, username: "vex_fan" }]);
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+      expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
+    });
+
+    test("points to the open thread and opens nothing new when the Member has an open Interview", async () => {
+      const interviewId = await joinedMember(h);
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+
+      await h.service.onCommand(command);
+
+      expect(h.interviews.openFor(MEMBER)?.id).toBe(interviewId);
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+      expect(command.replies).toEqual([interviewAlreadyOpenReply(THREAD)]);
+    });
+
+    test("tells the Member privately that they are Linked and opens nothing when the Member has a Link", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+
+      await h.service.onCommand(command);
+
+      expect(command.replies).toHaveLength(1);
+      expect(command.replies[0]?.content).toContain(UID_DIGITS);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.channels.posts).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
+    test("does not look the Player up in the Game API when the Member is Linked", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+
+      await h.service.onCommand(new FakeCommand({ id: MEMBER, username: "vex_fan" }));
+
+      expect(h.gameApi.lookups).toEqual([]);
+    });
+
+    test("opens a new Interview after the last one was handed off", async () => {
+      const handedOffId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+      await failUidTimes(h, handedOffId, 5);
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+
+      await h.service.onCommand(command);
+
+      const newId = openInterviewIdOf(h, MEMBER);
+      expect(newId).not.toBe(handedOffId);
+      expect(h.interviews.get(handedOffId)).toMatchObject({ step: "handed-off" });
+      expect(h.channels.opened).toHaveLength(2);
+      expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
+    });
+
+    test("opens a new Interview after the last one was abandoned by the timeout", async () => {
+      const abandonedId = await joinedMember(h);
+      const open = h.interviews.get(abandonedId);
+      if (open === undefined) throw new Error("the test Interview is missing");
+      h.interviews.save(timeOut(open, NOW).interview);
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+
+      await h.service.onCommand(command);
+
+      const newId = openInterviewIdOf(h, MEMBER);
+      expect(newId).not.toBe(abandonedId);
+      expect(h.interviews.get(abandonedId)).toMatchObject({ step: "abandoned", reason: "timed-out" });
+      expect(h.channels.opened).toHaveLength(2);
+      expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
+    });
+  });
+
+  describe("when a Member leaves the server", () => {
+    test("abandons the open Interview as left", async () => {
+      const interviewId = await joinedMember(h);
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "abandoned", reason: "left" });
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
+    test("says so in the thread, then locks and archives the thread", async () => {
+      await joinedMember(h);
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: leftMessage("vex_fan") });
+      expect(h.channels.lockedAndArchived).toEqual([THREAD]);
+    });
+
+    test("logs the abandoned Interview as left", async () => {
+      await joinedMember(h);
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.channels.logs).toEqual([abandonedLogLine(MEMBER, "left")]);
+    });
+
+    test("cancels the pending Rank Approval of the Member's Link", async () => {
+      const approval = await pendingRankApprovalOfMember(h);
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.links.pendingFor(MEMBER)).toBeUndefined();
+      expect(h.links.get(approval.id)).toMatchObject({ state: "cancelled" });
+    });
+
+    test("says the Rank Approval is cancelled in its thread, archives the thread and logs it", async () => {
+      await pendingRankApprovalOfMember(h);
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: rankCancelledLeftMessage("vex_fan") });
+      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.logs.at(-1)).toEqual(rankCancelledLogLine(MEMBER));
+    });
+
+    test("does nothing when the Member has no open Interview and no pending Rank Approval", async () => {
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.channels.posts).toEqual([]);
+      expect(h.channels.logs).toEqual([]);
+      expect(h.channels.archived).toEqual([]);
+      expect(h.channels.lockedAndArchived).toEqual([]);
+      expect(h.errors).toEqual([]);
+    });
+
+    test("does not log an Interview that already ended as handed off", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+      await failUidTimes(h, interviewId, 5);
+      const logsBefore = h.channels.logs.length;
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off" });
+      expect(h.channels.logs).toHaveLength(logsBefore);
+      expect(h.channels.lockedAndArchived).toEqual([]);
     });
   });
 });

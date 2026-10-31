@@ -215,18 +215,12 @@ describe("/interview replies", () => {
     });
   });
 
-  test("a Linked Member is told the Player they are linked to, with the uid", () => {
-    expect(interviewLinkedReply(inAlliance)).toEqual({
-      content: "You're already linked to Vex (uid 145563254785).",
+  test("a Linked Member is told the uid of the Player they are linked to, privately", () => {
+    expect(interviewLinkedReply(uid("145563254785"))).toEqual({
+      content: "You're already linked to the player with uid 145563254785.",
       flags: MessageFlags.Ephemeral,
       allowedMentions: { parse: [] },
     });
-  });
-
-  test("the Linked reply escapes the Player Name", () => {
-    expect(interviewLinkedReply({ ...inAlliance, name: "_Vex_" }).content).toBe(
-      "You're already linked to \\_Vex\\_ (uid 145563254785).",
-    );
   });
 });
 

@@ -125,7 +125,7 @@ press; Linked Member leaves.
   the thread, logs 🎖️; anyone else (the Linked Member too, even as Officer) gets the private refusal; a Member
   approver who left meanwhile → refusal stays, Officers not asked automatically (documented). Implement
   `src/discord/rank-approval.ts` and call it from the confirm path in `src/discord/interview.ts`.
-- [ ] T016 [US3] Test in `src/discord/interview.test.ts`: `onMemberLeft` cancels a pending Rank Approval for their
+- [x] T016 [US3] Test in `src/discord/interview.test.ts`: `onMemberLeft` cancels a pending Rank Approval for their
   Link (message, buttons removed, archived, log). Implement in `src/discord/interview.ts`; route
   `guildMemberRemove` in `src/discord/client.ts`.
 
@@ -137,7 +137,7 @@ press; Linked Member leaves.
 
 - [x] T017 [P] [US4] Test `src/discord/commands.test.ts`: `/interview` exists, no options, description
   "Start your Onboarding Interview"; included in `commands`. Implement in `src/discord/commands.ts`.
-- [ ] T018 [US4] Test in `src/discord/interview.test.ts`: `/interview` replies privately per contract (opens, points
+- [x] T018 [US4] Test in `src/discord/interview.test.ts`: `/interview` replies privately per contract (opens, points
   to the open thread, or names the Linked Player); after `handed-off` or `abandoned` a new one opens; a rejoin with
   an open Interview or a Link opens none; `onMemberLeft` abandons an open Interview (message, lock, archive, 💤 log).
   Implement in `src/discord/interview.ts`; route the command in `src/discord/client.ts`.
@@ -152,7 +152,7 @@ press; Linked Member leaves.
 
 **Independent test**: spent quota on a modal submit; sweep after 00:00 UTC; long pause not abandoned.
 
-- [ ] T020 [US5] Test in `src/discord/interview.test.ts` and `interview-sweeper.test.ts`: `quota-spent` → paused,
+- [x] T020 [US5] Test in `src/discord/interview.test.ts` and `interview-sweeper.test.ts`: `quota-spent` → paused,
   message with 00:00 UTC and the time left, no attempt; the sweeper at or after `resumesAt` mentions the Member and
   asks again with `lastAskedAt = now`; a pause longer than the timeout is not abandoned. Implement in
   `src/discord/interview.ts` and `src/discord/interview-sweeper.ts`.

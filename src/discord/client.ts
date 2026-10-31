@@ -3,6 +3,7 @@ import {
   Events,
   GatewayIntentBits,
   type ButtonInteraction,
+  type ChatInputCommandInteraction,
   type InteractionReplyOptions,
   type ModalSubmitInteraction,
 } from "discord.js";
@@ -12,11 +13,20 @@ import type { GameApiClient } from "../game-api/client.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
-import { createInterviews, type ButtonInteractionLike, type Interviews, type JoinedMember, type ModalInteractionLike } from "./interview.js";
+import {
+  createInterviews,
+  type ButtonInteractionLike,
+  type CommandLike,
+  type Interviews,
+  type JoinedMember,
+  type LeftMember,
+  type ModalInteractionLike,
+} from "./interview.js";
+import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { handlePing, type PingInteraction } from "./ping.js";
-import { answer, handleAlliance, handlePlayer, replyPrivately, type LookupApi, type LookupInteraction } from "./lookup.js";
+import { answer, handleAlliance, handlePlayer, type LookupApi, type LookupInteraction } from "./lookup.js";
 import { handlePick, type PickInteraction } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 import { handleQuota } from "./quota.js";
@@ -30,11 +40,6 @@ export interface QuotaCommandInteraction {
   reply(options: InteractionReplyOptions): Promise<unknown>;
 }
 
-/** The part of a discord.js interaction that only replies to the one who acted. */
-export interface ReplyInteraction {
-  reply(options: InteractionReplyOptions): Promise<unknown>;
-}
-
 /** One handler per slash command, component and event this client answers. */
 export interface CommandHandlers {
   readonly ping: (interaction: PingInteraction) => Promise<void>;
@@ -45,8 +50,10 @@ export interface CommandHandlers {
   readonly pick: (interaction: PickInteraction) => Promise<void>;
   /** A guild member joined the server; the Interview may start for them. */
   readonly memberJoined: (member: JoinedMember) => Promise<void>;
+  /** A guild member left the server; their open Interview and pending Rank Approval end. */
+  readonly memberLeft: (member: LeftMember) => Promise<void>;
   /** The /interview command, which starts an Onboarding Interview on demand. */
-  readonly interview: (interaction: ReplyInteraction) => Promise<void>;
+  readonly interview: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button whose custom id starts with `interview:`. */
   readonly interviewButton: (button: ButtonInteraction) => Promise<void>;
   /** A modal submit whose custom id starts with `interview:`. */
@@ -94,6 +101,10 @@ export function createClient(
   });
   client.on(Events.GuildMemberAdd, (member) => {
     void handlers.memberJoined({ id: member.id, username: member.user.username, bot: member.user.bot });
+  });
+  // The member may be partial when they left; their user is still there.
+  client.on(Events.GuildMemberRemove, (member) => {
+    void handlers.memberLeft({ id: member.id, username: member.user.username });
   });
   client.on(Events.InteractionCreate, (interaction) => {
     if (interaction.isChatInputCommand()) {
@@ -189,6 +200,16 @@ function rankButtonLike(button: ButtonInteraction): RankButtonLike {
   };
 }
 
+/** The discord.js chat-input command as the Interview reads it; see buttonLike for why reply is passed on. */
+function commandLike(command: ChatInputCommandInteraction): CommandLike {
+  return {
+    user: command.user,
+    reply: async (message) => {
+      await command.reply(message);
+    },
+  };
+}
+
 /** The discord.js modal submit as the Interview reads it; see buttonLike for why each method is passed on. */
 function modalLike(modal: ModalSubmitInteraction): ModalInteractionLike {
   return {
@@ -270,9 +291,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           },
         ),
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
-      // T018: the /interview command starts the Onboarding Interview; until then it only says so.
-      interview: (interaction) =>
-        answer("/interview", { logError }, () => replyPrivately(interaction, "Coming soon.")),
+      memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
+      interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
       interviewButton: async (button) => (await services).interviews.onButton(buttonLike(button)),
       interviewModal: async (modal) => (await services).interviews.onModalSubmit(modalLike(modal)),
       rankButton: (button) =>
@@ -283,6 +303,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     },
     logError,
   );
+  // The sweeper runs from the moment the channels are checked; stopped again on disconnect.
+  let stopSweeper: () => void = () => undefined;
   try {
     await client.login(token);
     await whenReady(client);
@@ -326,9 +348,29 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       }),
       rankApprovals,
     });
+    const sweeper = createSweeper({
+      interviews: options.interviews,
+      links: options.links,
+      channels,
+      timeoutMs: options.interviewTimeoutMs,
+      now,
+      logError,
+    });
+    stopSweeper = startSweeper(sweeper, (run, everyMs) => {
+      const timer = setInterval(run, everyMs);
+      return () => {
+        clearInterval(timer);
+      };
+    });
   } catch (error) {
+    stopSweeper();
     await client.destroy();
     throw error;
   }
-  return { disconnect: () => client.destroy() };
+  return {
+    disconnect: async () => {
+      stopSweeper();
+      await client.destroy();
+    },
+  };
 }

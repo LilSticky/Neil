@@ -3,6 +3,7 @@ import type { RequestPurpose } from "../domain/daily-quota.js";
 import {
   confirm,
   giveUid,
+  memberLeft,
   reject,
   uidChecked,
   type InterviewTransition,
@@ -14,12 +15,13 @@ import {
 import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
 import type { Uid } from "../domain/lookup-input.js";
 import type { LookupResult, Player } from "../domain/player.js";
-import { chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
+import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
-import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
 import type { RankApprovals } from "./rank-approval.js";
 import {
+  abandonedLogLine,
   alreadyLinkedMessage,
   askUidMessage,
   buttonOfSomeoneElseReply,
@@ -27,13 +29,19 @@ import {
   foundCardMessage,
   handedOffLogLine,
   handedOffMessage,
+  interviewAlreadyOpenReply,
   interviewEndedReply,
+  interviewLinkedReply,
+  interviewOpenedReply,
+  leftMessage,
   linkedMessage,
   linkLogLine,
   malformedUidMessage,
   notFoundMessage,
   parseInterviewCustomId,
   quotaSpentMessage,
+  rankCancelledLeftMessage,
+  rankCancelledLogLine,
   refusedLogLine,
   rejectedMessage,
   unavailableMessage,
@@ -48,6 +56,18 @@ export interface JoinedMember {
   readonly id: MemberId;
   readonly username: string;
   readonly bot: boolean;
+}
+
+/** A Member who left the server, as the Interview needs them. */
+export interface LeftMember {
+  readonly id: MemberId;
+  readonly username: string;
+}
+
+/** The part of a discord.js chat-input command that /interview uses: who ran it, and the private reply to them. */
+export interface CommandLike {
+  readonly user: { readonly id: string; readonly username: string };
+  reply(message: PrivateReply): Promise<void>;
 }
 
 /** The part of a discord.js button press that an Interview button uses. */
@@ -89,6 +109,8 @@ export interface InterviewDeps {
 /** The Interview entry points the Discord client routes to. Each one reports its own failures and never throws. */
 export interface Interviews {
   onMemberJoined(member: JoinedMember): Promise<void>;
+  onMemberLeft(member: LeftMember): Promise<void>;
+  onCommand(command: CommandLike): Promise<void>;
   onButton(button: ButtonInteractionLike): Promise<void>;
   onModalSubmit(modal: ModalInteractionLike): Promise<void>;
 }
@@ -101,6 +123,8 @@ type Ownership =
 export function createInterviews(deps: InterviewDeps): Interviews {
   return {
     onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
+    onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
+    onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, command)),
     onButton: (button) => guarded(deps, "Interview button", () => pressButton(deps, button)),
     onModalSubmit: (modal) => guarded(deps, "Interview modal", () => submitModal(deps, modal)),
   };
@@ -123,10 +147,60 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
   if (member.bot) return;
   if (deps.links.linkFor(member.id) !== undefined) return;
   if (deps.interviews.openFor(member.id) !== undefined) return;
-  const threadId = await deps.channels.openThread({ id: member.id, username: member.username });
+  await openInterview(deps, { id: member.id, username: member.username });
+}
+
+/** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
+async function startOnCommand(deps: InterviewDeps, command: CommandLike): Promise<void> {
+  const memberId = command.user.id;
+  const link = deps.links.linkFor(memberId);
+  if (link !== undefined) return command.reply(interviewLinkedReply(link.uid));
+  const open = deps.interviews.openFor(memberId);
+  if (open !== undefined) return command.reply(interviewAlreadyOpenReply(open.threadId));
+  const threadId = await openInterview(deps, { id: memberId, username: command.user.username });
+  if (threadId !== undefined) return command.reply(interviewOpenedReply(threadId));
+  // An Interview was opened for the Member meanwhile: the Member is pointed to it.
+  const raced = deps.interviews.openFor(memberId);
+  if (raced !== undefined) return command.reply(interviewAlreadyOpenReply(raced.threadId));
+}
+
+/**
+ * Opens a thread for the Member, saves the new Interview and asks for the uid in the thread. Returns the thread,
+ * or undefined when the Member already had an open Interview: nothing is asked then.
+ */
+async function openInterview(deps: InterviewDeps, member: ThreadMember): Promise<string | undefined> {
+  const threadId = await deps.channels.openThread(member);
   const created = deps.interviews.create({ memberId: member.id, threadId }, deps.now());
-  if (created.kind === "already-open") return;
+  if (created.kind === "already-open") return undefined;
   await deps.channels.post(threadId, askUidMessage(created.interview.id, member.id));
+  return threadId;
+}
+
+/** A Member who left: the open Interview is abandoned as left, and the pending Rank Approval of their Link is cancelled. */
+async function leaveServer(deps: InterviewDeps, member: LeftMember): Promise<void> {
+  const now = deps.now();
+  const interview = deps.interviews.openFor(member.id);
+  if (interview !== undefined) await abandonOnLeave(deps, interview, member.username, now);
+  const approval = deps.links.pendingFor(member.id);
+  if (approval !== undefined) await cancelRankApproval(deps, approval, member.username, now);
+}
+
+async function abandonOnLeave(deps: InterviewDeps, interview: OpenInterview, username: string, now: Date): Promise<void> {
+  const transition = memberLeft(interview, now);
+  if (transition.event.kind !== "abandoned") return;
+  deps.interviews.save(transition.interview);
+  await deps.channels.post(interview.threadId, leftMessage(username));
+  await deps.channels.lockAndArchive(interview.threadId);
+  await deps.channels.log(abandonedLogLine(interview.memberId, "left"));
+}
+
+async function cancelRankApproval(deps: InterviewDeps, approval: RankApproval, username: string, now: Date): Promise<void> {
+  const change = cancel(approval, now);
+  if (!change.ok) return;
+  deps.links.save(change.approval);
+  await deps.channels.post(approval.threadId, rankCancelledLeftMessage(username));
+  await deps.channels.archive(approval.threadId);
+  await deps.channels.log(rankCancelledLogLine(approval.linkedMemberId));
 }
 
 async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): Promise<void> {

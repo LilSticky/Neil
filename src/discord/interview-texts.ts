@@ -185,10 +185,10 @@ export function interviewAlreadyOpenReply(threadId: string): PrivateReply {
   };
 }
 
-/** The private reply to /interview for a Member who is already Linked. */
-export function interviewLinkedReply(player: Player): PrivateReply {
+/** The private reply to /interview for a Member who is already Linked: the uid of the Player they are linked to. */
+export function interviewLinkedReply(uid: Uid): PrivateReply {
   return {
-    content: `You're already linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).`,
+    content: `You're already linked to the player with uid ${uid}.`,
     flags: MessageFlags.Ephemeral,
     allowedMentions: noMentions(),
   };

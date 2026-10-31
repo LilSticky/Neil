@@ -42,6 +42,7 @@ function handlers() {
     quota: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
+    memberLeft: vi.fn(() => Promise.resolve()),
     interview: vi.fn(() => Promise.resolve()),
     interviewButton: vi.fn(() => Promise.resolve()),
     interviewModal: vi.fn(() => Promise.resolve()),
@@ -173,6 +174,17 @@ describe("createClient", () => {
     expect(routed.memberJoined).toHaveBeenCalledWith({ id: "111", username: "alice", bot: false });
     expect(routed.interview).not.toHaveBeenCalled();
     expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands a guild member leaving to the memberLeft handler with its id and username, and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed);
+
+    client.emit(Events.GuildMemberRemove, guildMember("111", "alice", false) as never);
+
+    expect(routed.memberLeft).toHaveBeenCalledWith({ id: "111", username: "alice" });
+    expect(routed.memberJoined).not.toHaveBeenCalled();
+    expect(routed.interview).not.toHaveBeenCalled();
   });
 
   test("hands /interview to the interview handler and nothing else", () => {

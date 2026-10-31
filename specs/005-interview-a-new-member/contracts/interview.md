@@ -11,7 +11,7 @@ No options. Always answered privately.
 |-----------|--------|
 | no Link, no open Interview | opens one; `Your interview is waiting in {thread}.` |
 | open Interview | `Your interview is already open: {thread}.` |
-| Linked | `You're already linked to {Player Name} (uid {uid}).` |
+| Linked | `You're already linked to the player with uid {uid}.` (the Link stores only the uid; no Game API request) |
 | bot account | ignored (cannot happen for a slash command) |
 
 ## Join and leave (`guildMemberAdd`, `guildMemberRemove`)
