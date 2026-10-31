@@ -103,7 +103,7 @@ describe("loadConfig", () => {
   });
 
   describe("INTERVIEW_TIMEOUT_MINUTES", () => {
-    const rule = "must be a whole number of at least 1";
+    const rule = "must be a whole number from 1 to 525600 (one year)";
 
     test("defaults to 1440 minutes (24 hours) when it is not set", () => {
       const config = loadConfig(validEnv());
@@ -114,6 +114,7 @@ describe("loadConfig", () => {
     test.each([
       ["1", 60_000],
       ["60", 3_600_000],
+      ["525600", 31_536_000_000],
     ])("converts INTERVIEW_TIMEOUT_MINUTES %s into interviewTimeoutMs %d", (minutes, interviewTimeoutMs) => {
       const config = loadConfig(validEnv({ INTERVIEW_TIMEOUT_MINUTES: minutes }));
 
@@ -125,6 +126,8 @@ describe("loadConfig", () => {
       ["-5 (negative)", "-5"],
       ["a fraction", "1.5"],
       ["words", "one day"],
+      ["more than a year", "525601"],
+      ["a number too big for a date", "99999999999999999"],
     ])("rejects %s", (_label, value) => {
       const error = failureOf(validEnv({ INTERVIEW_TIMEOUT_MINUTES: value }));
 

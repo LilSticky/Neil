@@ -377,7 +377,8 @@ describe("thread messages for the Daily Quota", () => {
     const message = quotaResetMessage(7, MEMBER);
 
     expect(message.content).toContain(`<@${MEMBER}>, I can look players up again.`);
-    expect(message.content).toContain(`Welcome, <@${MEMBER}>!`);
+    expect(message.content).toContain("Tell me who you are in the game: press the button and enter your uid.");
+    expect(message.content.split(`<@${MEMBER}>`)).toHaveLength(2);
     expect(message).toMatchObject({ components: [GIVE_UID_BUTTON], allowedMentions: { users: [MEMBER] } });
   });
 });

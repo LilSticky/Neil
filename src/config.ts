@@ -40,7 +40,9 @@ const DEFAULT_QUOTA_RESERVE = 100;
 const quotaReserveRule = "must be a whole number of at least 0";
 
 const DEFAULT_INTERVIEW_TIMEOUT_MINUTES = 1440;
-const interviewTimeoutRule = "must be a whole number of at least 1";
+/** One year: longer would mean no timeout at all, and far larger values break date arithmetic. */
+const MAX_INTERVIEW_TIMEOUT_MINUTES = 525_600;
+const interviewTimeoutRule = "must be a whole number from 1 to 525600 (one year)";
 
 const schema = z.object({
   DISCORD_TOKEN: z.string(required).min(1, required),
@@ -53,7 +55,7 @@ const schema = z.object({
   INTERVIEW_TIMEOUT_MINUTES: z
     .string()
     .regex(/^\d+$/, interviewTimeoutRule)
-    .refine((value) => Number(value) >= 1, interviewTimeoutRule)
+    .refine((value) => Number(value) >= 1 && Number(value) <= MAX_INTERVIEW_TIMEOUT_MINUTES, interviewTimeoutRule)
     .transform(Number)
     .optional(),
   LAP_TRACKER_API_KEY: z.string(required).min(1, required),

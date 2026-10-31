@@ -116,8 +116,13 @@ function giveUidMessage(content: string, interviewId: number, allowedMentions: A
   return { content, components: [giveUidRow(interviewId)], allowedMentions };
 }
 
+/** The question for the uid with its help, without a greeting. */
+function askUid(): string {
+  return `Tell me who you are in the game: press the button and enter your uid.\n${UID_HELP}`;
+}
+
 function askBody(member: MemberId): string {
-  return `Welcome, <@${member}>! Tell me who you are in the game: press the button and enter your uid.\n${UID_HELP}`;
+  return `Welcome, <@${member}>! ${askUid()}`;
 }
 
 /** The thread's name for an Interview: "Interview – {username}", cut to 100 characters. */
@@ -320,7 +325,7 @@ export function quotaSpentMessage(resetsAt: Date, now: Date): Message {
 /** The thread message when the Daily Quota resets: it pings the Member and asks for the uid again. */
 export function quotaResetMessage(interviewId: number, member: MemberId): ButtonMessage {
   return giveUidMessage(
-    `<@${member}>, I can look players up again.\n${askBody(member)}`,
+    `<@${member}>, I can look players up again.\n${askUid()}`,
     interviewId,
     { users: [member] },
   );
