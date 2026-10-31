@@ -38,7 +38,7 @@ stores, Discord ports) is shared by all.
   (number or digit string, nullish) maps to `PlayerAlliance.leaderUid` (`Uid | undefined`); the recorded
   `player-in-alliance.json` gives `"145563254785"`. Implement in `src/domain/player.ts`, `src/game-api/schemas.ts`,
   `src/game-api/client.ts`.
-- [ ] T004 Test `src/domain/onboarding-interview.test.ts` (data-model.md table, every row): `startInterview` →
+- [x] T004 Test `src/domain/onboarding-interview.test.ts` (data-model.md table, every row): `startInterview` →
   `awaiting-uid` with `failedAttempts` 0 and `lastAskedAt = now`; `giveUid` (valid → `checking`, malformed → same
   Interview + event `malformed`, no attempt); `uidChecked` with `found | not-found | already-linked | unavailable |
   quota-spent(resetsAt)`; `confirm` (`linked` or `already-linked`); `reject`; the 5th failure gives `handed-off`
@@ -61,7 +61,7 @@ stores, Discord ports) is shared by all.
   the same Member; `save`/`get(id)`/`openFor(memberId)` round-trip every step through zod; `due(now)` lists open
   Interviews with `due_at ≤ now`; a corrupt row is reported, not thrown; `deleteEndedBefore(cutoff)` (90 days).
   Implement `src/storage/interview-store.ts`.
-- [ ] T009 Test `src/storage/link-store.test.ts` (`:memory:`): `linkFor(memberId)`, `memberForUid(uid)`; `confirm`
+- [x] T009 Test `src/storage/link-store.test.ts` (`:memory:`): `linkFor(memberId)`, `memberForUid(uid)`; `confirm`
   inserts the Link, saves the `linked` Interview and an optional pending Rank Approval in one transaction, and
   returns `already-linked` (nothing written) when the Member or uid already has a Link; Rank Approval
   `get`/`save`/`pendingFor(memberId)`; approving writes the rank onto the Link (`rank-approval`, approver, time);
