@@ -85,7 +85,7 @@ stores, Discord ports) is shared by all.
 **Independent test**: fake join → thread, button, modal uid → card → "That's me" → Link stored, thread and log
 messages as in the contract.
 
-- [ ] T012 [US1] Test `src/discord/interview.test.ts`: `onMemberJoined` ignores bots, Members with a Link or an
+- [x] T012 [US1] Test `src/discord/interview.test.ts`: `onMemberJoined` ignores bots, Members with a Link or an
   open Interview, otherwise opens the thread and posts the ask; the uid button opens the modal; the modal submit
   calls `getPlayer(uid, "onboarding-interview")` once and posts the card with `That's me` / `That's not me`;
   malformed input asks again without a request; a second submit while `checking` gets the private "one moment";
