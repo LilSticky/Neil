@@ -3,6 +3,7 @@ import type { RequestPurpose } from "../domain/daily-quota.js";
 import {
   confirm,
   giveUid,
+  reject,
   uidChecked,
   type InterviewTransition,
   type AwaitingConfirmation,
@@ -131,6 +132,7 @@ async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): 
   if (parsed === undefined) return;
   if (parsed.action === "uid") return openUidModal(deps, button, parsed.interviewId);
   if (parsed.action === "confirm") return confirmPlayer(deps, button, parsed.interviewId);
+  if (parsed.action === "reject") return rejectPlayer(deps, button, parsed.interviewId);
 }
 
 async function openUidModal(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
@@ -144,18 +146,19 @@ async function submitModal(deps: InterviewDeps, modal: ModalInteractionLike): Pr
   if (parsed === undefined || parsed.action !== "modal") return;
   const ownership = ownershipOf(deps, parsed.interviewId, modal.user.id);
   if (ownership.kind === "refused") return modal.reply(ownership.reply);
+  // The Interview is busy with a check: the Member is told privately, nothing is counted.
+  if (ownership.interview.step === "checking") return modal.reply(checkingReply());
   const transition = giveUid(ownership.interview, modal.fields.getTextInputValue("uid"), deps.now());
   if (transition.event.kind === "checking") {
     deps.interviews.save(transition.interview);
     await modal.deferUpdate();
     return checkUid(deps, transition.interview, transition.event.uid);
   }
+  // Every other submit is acknowledged once; a malformed uid is asked again in the thread.
+  await modal.deferUpdate();
   if (transition.event.kind === "malformed") {
-    await modal.deferUpdate();
     await deps.channels.post(ownership.interview.threadId, malformedUidMessage(parsed.interviewId));
   }
-  // The Interview is busy with a check (or has moved on): the Member is told, nothing is counted.
-  if (ownership.interview.step === "checking") await modal.reply(checkingReply());
 }
 
 async function confirmPlayer(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
@@ -176,6 +179,18 @@ async function confirmPlayer(deps: InterviewDeps, button: ButtonInteractionLike,
     return refuseConfirmation(deps, interview, now);
   }
   await finishLink(deps, interview, await leaderPing(deps, interview.player));
+}
+
+/** The Member says the Player shown is not theirs: the attempt counts, the Member is asked for the uid again. */
+async function rejectPlayer(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
+  const ownership = ownershipOf(deps, interviewId, button.user.id);
+  if (ownership.kind === "refused") return button.reply(ownership.reply);
+  const { interview } = ownership;
+  if (interview.step !== "awaiting-confirmation") return;
+  await button.update(withoutButtons(foundCardMessage(interview.id, interview.player)));
+  const transition = reject(interview, deps.now());
+  deps.interviews.save(transition.interview);
+  await announce(deps, transition, interview.player.uid);
 }
 
 /** The Player was linked to someone else meanwhile: the attempt fails, the Member is asked again. */

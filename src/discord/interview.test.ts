@@ -15,16 +15,23 @@ import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
 import {
+  alreadyLinkedMessage,
   askUidMessage,
   buttonOfSomeoneElseReply,
   checkingReply,
   foundCardMessage,
+  handedOffLogLine,
+  handedOffMessage,
   interviewCustomId,
   interviewEndedReply,
   linkedMessage,
   linkLogLine,
   malformedUidMessage,
+  notFoundMessage,
+  refusedLogLine,
+  rejectedMessage,
   uidModal,
+  unavailableMessage,
   type OfficerRoles,
   type PrivateReply,
 } from "./interview-texts.js";
@@ -253,6 +260,13 @@ async function submitUid(h: Harness, interviewId: number, typedUid: string, memb
   await h.service.onModalSubmit(new FakeModal(interviewCustomId("modal", interviewId), { id: memberId }, typedUid));
 }
 
+/** The Member submits the uid UID_DIGITS the given number of times, each time refused by the Game API. */
+async function failUidTimes(h: Harness, interviewId: number, times: number): Promise<void> {
+  for (let attempt = 0; attempt < times; attempt += 1) {
+    await submitUid(h, interviewId, UID_DIGITS);
+  }
+}
+
 /** The Member's Interview is waiting for them to confirm the Player shown. Returns the Interview id. */
 async function confirmationShown(h: Harness, player: Player): Promise<number> {
   const interviewId = await joinedMember(h);
@@ -478,6 +492,166 @@ describe("createInterviews", () => {
 
       expect(linkOfMember(h)?.allianceRank).toEqual({ source: "no-alliance" });
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER_WITHOUT_ALLIANCE, undefined)]);
+    });
+
+    test("two Members confirming the same uid: the second is refused and asked again", async () => {
+      const first = await confirmationShown(h, PLAYER);
+      const secondId = await joinedMember(h, OTHER);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      await submitUid(h, secondId, UID_DIGITS, OTHER);
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", first), { id: MEMBER }));
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", secondId), { id: OTHER }));
+
+      expect(h.links.linkFor(OTHER)).toBeUndefined();
+      expect(h.interviews.get(secondId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: alreadyLinkedMessage(secondId, 4) });
+      expect(h.channels.logs.at(-1)).toEqual(refusedLogLine(OTHER, UID));
+    });
+  });
+
+  describe("a uid that fails", () => {
+    test("refuses a uid Linked to another Member, counts the attempt, logs it and tells nobody else", async () => {
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      const interviewId = await joinedMember(h);
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: alreadyLinkedMessage(interviewId, 4) });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
+      expect(h.channels.logs).toEqual([refusedLogLine(MEMBER, UID)]);
+      expect(JSON.stringify([h.channels.posts, h.channels.logs])).not.toContain(OTHER);
+    });
+
+    test.each([
+      { label: "not-found", result: { kind: "not-found" } },
+      { label: "not-prepared", result: { kind: "not-prepared" } },
+    ] satisfies readonly { readonly label: string; readonly result: LookupResult<Player> }[])(
+      "counts an attempt and asks again with help when the Game API answers $label",
+      async ({ result }) => {
+        const interviewId = await joinedMember(h);
+        h.gameApi.answerWith(result);
+
+        await submitUid(h, interviewId, UID_DIGITS);
+
+        expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: notFoundMessage(interviewId, UID, 4) });
+        expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
+      },
+    );
+
+    test.each([
+      { label: "try-again", result: { kind: "try-again" } },
+      { label: "unavailable", result: { kind: "unavailable", reason: "unexpected" } },
+    ] satisfies readonly { readonly label: string; readonly result: LookupResult<Player> }[])(
+      "asks the Member to try again later, without counting an attempt, when the Game API answers $label",
+      async ({ result }) => {
+        const interviewId = await joinedMember(h);
+        h.gameApi.answerWith(result);
+
+        await submitUid(h, interviewId, UID_DIGITS);
+
+        expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: unavailableMessage(interviewId) });
+        expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+      },
+    );
+
+    test("tells the Member how many tries are left, down to one", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+
+      await failUidTimes(h, interviewId, 4);
+
+      expect(h.channels.posts.at(-1)?.message.content).toContain("1 try left.");
+    });
+
+    test("hands the Interview off on the fifth failed attempt: Officers are mentioned, the log notes it, the thread stays open", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+
+      await failUidTimes(h, interviewId, 5);
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off", failedAttempts: 5 });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: handedOffMessage(MEMBER, OFFICERS) });
+      expect(h.channels.logs).toEqual([handedOffLogLine(MEMBER, THREAD)]);
+      expect(h.channels.archived).toEqual([]);
+    });
+  });
+
+  describe("That's not me", () => {
+    test("counts a failed attempt and asks the Member for the uid again", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("reject", interviewId), { id: MEMBER }));
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
+    });
+
+    test("removes the buttons from the card", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const button = new FakeButton(interviewCustomId("reject", interviewId), { id: MEMBER });
+
+      await h.service.onButton(button);
+
+      expect(button.updates).toHaveLength(1);
+      expect(button.updates[0]?.components).toEqual([]);
+    });
+
+    test("posts the rejected message with the attempts left and the uid help", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("reject", interviewId), { id: MEMBER }));
+
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: rejectedMessage(interviewId, 4) });
+    });
+
+    test("hands the Interview off when the fifth attempt is rejected, and removes the buttons from the card", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+      await failUidTimes(h, interviewId, 4);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      await submitUid(h, interviewId, UID_DIGITS);
+      const button = new FakeButton(interviewCustomId("reject", interviewId), { id: MEMBER });
+
+      await h.service.onButton(button);
+
+      expect(button.updates[0]?.components).toEqual([]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off", failedAttempts: 5 });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: handedOffMessage(MEMBER, OFFICERS) });
+    });
+  });
+
+  describe("a modal submit in a step that takes no uid", () => {
+    test("is acknowledged once while the found Player awaits confirmation", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const modal = new FakeModal(interviewCustomId("modal", interviewId), { id: MEMBER }, UID_DIGITS);
+
+      await h.service.onModalSubmit(modal);
+
+      expect(modal.replies.length + modal.deferUpdates).toBe(1);
+    });
+
+    test("is acknowledged once while the Interview is paused for the Daily Quota", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "quota-spent", resetsAt: new Date("2026-11-01T00:00:00Z") });
+      await submitUid(h, interviewId, UID_DIGITS);
+      const modal = new FakeModal(interviewCustomId("modal", interviewId), { id: MEMBER }, UID_DIGITS);
+
+      await h.service.onModalSubmit(modal);
+
+      expect(modal.replies.length + modal.deferUpdates).toBe(1);
+    });
+
+    test("tells the Member that the Interview has ended", async () => {
+      const interviewId = await joinedMember(h);
+      const open = h.interviews.get(interviewId);
+      if (open === undefined) throw new Error("the test Interview is missing");
+      h.interviews.save(memberLeft(open, NOW).interview);
+      const modal = new FakeModal(interviewCustomId("modal", interviewId), { id: MEMBER }, UID_DIGITS);
+
+      await h.service.onModalSubmit(modal);
+
+      expect(modal.replies).toEqual([interviewEndedReply()]);
+      expect(modal.deferUpdates).toBe(0);
     });
   });
 });

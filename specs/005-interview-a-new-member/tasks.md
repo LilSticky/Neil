@@ -106,7 +106,7 @@ messages as in the contract.
 
 **Independent test**: 404, 502 "maybe unknown", a Linked uid, "That's not me", the 5th failure, an outage.
 
-- [ ] T014 [US2] Test in `src/discord/interview.test.ts`: already Linked uid → refusal naming no one, attempt
+- [x] T014 [US2] Test in `src/discord/interview.test.ts`: already Linked uid → refusal naming no one, attempt
   counted, ⛔ log line, the holder not told; `not-found` / `not-prepared` → attempt + help; `That's not me` →
   attempt; `try-again` / `unavailable` → "try again", no attempt; tries-left text; 5th failure → handed off
   (Officer roles mentioned, Member told, buttons removed, 🙋 log, thread left open); two Members confirm the same
