@@ -244,10 +244,23 @@ describe("InterviewStore", () => {
     const inFlight = checkingFrom(createdOf(store.create({ memberId: OTHER, threadId: THREAD }, NOW)));
     store.save(inFlight);
 
-    const checking: Checking[] = store.checking();
+    const checking = store.checking();
 
-    expect(checking).toEqual([inFlight]);
+    expect(checking).toEqual({ interviews: [inFlight], corrupt: 0 });
     expect(store.get(asking.id)).toEqual(asking);
+  });
+
+  test("checking reports a corrupt checking row as corrupt and skips it, without throwing", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    db.prepare(
+      "INSERT INTO onboarding_interview (id, member_id, thread_id, step, failed_attempts, started_at, due_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    ).run(900, OTHER, THREAD, "checking", 0, NOW.toISOString(), OLD.toISOString());
+    const inFlight = checkingFrom(createdOf(store.create({ memberId: THIRD, threadId: THREAD }, NOW)));
+    store.save(inFlight);
+
+    const checking: { readonly interviews: Checking[]; readonly corrupt: number } = store.checking();
+
+    expect(checking).toEqual({ interviews: [inFlight], corrupt: 1 });
   });
 
   test("deleteEndedBefore removes the Interviews ended before the cutoff and keeps open and recent ones", () => {

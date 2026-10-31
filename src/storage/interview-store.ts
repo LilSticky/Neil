@@ -28,6 +28,12 @@ export interface DueInterviews {
   readonly corrupt: number;
 }
 
+/** The Interviews waiting on a Game API check, and how many checking rows could not be read. */
+export interface CheckingInterviews {
+  readonly interviews: Checking[];
+  readonly corrupt: number;
+}
+
 const OPEN_CONFLICT_PATTERN = /^UNIQUE constraint failed: onboarding_interview\.member_id$/;
 const OPEN_STEPS = "('awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota')";
 const ENDED_STEPS = "('linked', 'handed-off', 'abandoned')";
@@ -217,16 +223,17 @@ export class InterviewStore {
     return { interviews, corrupt };
   }
 
-  /** The Interviews waiting on a Game API check, for recovery after a restart. */
-  checking(): Checking[] {
-    return this.db
-      .prepare(`${ROW_SELECT} WHERE step = 'checking' ORDER BY id`)
-      .all()
-      .map((raw): Checking => {
-        const interview = interviewOrThrow(raw);
-        if (interview.step !== "checking") throw corruptInterviewError();
-        return interview;
-      });
+  /** The Interviews waiting on a Game API check, for recovery after a restart; a checking row that cannot be read is counted and skipped. */
+  checking(): CheckingInterviews {
+    const interviews: Checking[] = [];
+    let corrupt = 0;
+    const rows = this.db.prepare(`${ROW_SELECT} WHERE step = 'checking' ORDER BY id`).all();
+    for (const raw of rows) {
+      const interview = interviewOf(raw);
+      if (interview !== undefined && interview.step === "checking") interviews.push(interview);
+      else corrupt += 1;
+    }
+    return { interviews, corrupt };
   }
 
   /** Deletes the Interviews ended before the cutoff; open ones are never deleted. */

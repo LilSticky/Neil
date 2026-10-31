@@ -141,7 +141,7 @@ press; Linked Member leaves.
   to the open thread, or names the Linked Player); after `handed-off` or `abandoned` a new one opens; a rejoin with
   an open Interview or a Link opens none; `onMemberLeft` abandons an open Interview (message, lock, archive, 💤 log).
   Implement in `src/discord/interview.ts`; route the command in `src/discord/client.ts`.
-- [ ] T019 [US4] Test `src/discord/interview-sweeper.test.ts` (fake clock): `sweep(now)` abandons Interviews past
+- [x] T019 [US4] Test `src/discord/interview-sweeper.test.ts` (fake clock): `sweep(now)` abandons Interviews past
   `dueAt` (timed out: message, lock, archive, log), recovers `checking` Interviews once at start, deletes rows
   ended more than 90 days ago, and skips (logs) a corrupt row; `startSweeper` runs at ready and every 60 s via an
   injected scheduler. Implement `src/discord/interview-sweeper.ts`; start it from `connect`.
