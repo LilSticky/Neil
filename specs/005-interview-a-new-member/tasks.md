@@ -46,7 +46,7 @@ stores, Discord ports) is shared by all.
   `lastAskedAt = now`; `recoverAfterRestart` turns `checking` into `awaiting-uid` without an attempt; ended steps
   refuse every event (`ended`); `dueAt(interview, timeoutMs)` per data-model.md. Implement
   `src/domain/onboarding-interview.ts` as a discriminated union over `step`.
-- [ ] T005 [P] Test `src/domain/link.test.ts`: `rankOnLink(player)` → `game-api` with R1–R5, `unknown` when in an
+- [x] T005 [P] Test `src/domain/link.test.ts`: `rankOnLink(player)` → `game-api` with R1–R5, `unknown` when in an
   Alliance with rank unknown, `no-alliance` when no Alliance; `needsRankApproval` only for `unknown`. Implement
   `src/domain/link.ts`.
 - [x] T006 [P] Test `src/domain/rank-approval.test.ts`: `chooseApprover(leaderMemberId | undefined, linkedMemberId)`
