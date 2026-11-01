@@ -16,6 +16,10 @@ discovery.
 * A Member with the Moderator or King Discord role (both role IDs in configuration)
 * Manages other Members: approves, corrects roles, sees the Daily Quota
 
+## Managed Role
+* A Discord role Neil may give and remove: the Alliance, Alliance Rank, Kingdom and Troop Bracket roles
+* Neil creates a missing Managed Role on first use; it never touches any other role
+
 # Game
 
 ## Player
@@ -32,6 +36,16 @@ discovery.
 ## Kingdom
 * A game server, identified by its number
 * A Player belongs to exactly one Kingdom
+
+## Home Kingdom
+* The one Kingdom this Discord server is for (330, in configuration)
+
+## Guest
+* A Member whose Linked Player is not in the Home Kingdom
+
+## Troop Bracket
+* The highest troop tier (T1–T10) a Player's sanctuary level unlocks; one role per tier
+* The level table is configuration, so new tiers need no code change
 
 ## Alliance
 * A group of Players in one Kingdom, with a tag and a name
