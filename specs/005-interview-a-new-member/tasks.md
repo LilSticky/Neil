@@ -175,7 +175,7 @@ press; Linked Member leaves.
 **Independent test**: display name `[NML] drlol | #331` → one Player → "That's me" → that uid → Linked with one
 name request and no uid request. Design: [data-model.md](data-model.md#addendum-2026-11-01-recommended-player-us6-and-lookups-without-uids-us7).
 
-- [ ] T025 [P] [US6] Test `src/domain/recommended-player.test.ts`: `cleanDisplayName` per data-model.md (all examples,
+- [x] T025 [P] [US6] Test `src/domain/recommended-player.test.ts`: `cleanDisplayName` per data-model.md (all examples,
   empty, > 32 characters, letters with accents and non-Latin letters kept). Implement `src/domain/recommended-player.ts`.
 - [ ] T026 [US6] Test `src/domain/onboarding-interview.test.ts`: the addendum table, every row (`startInterview` →
   `recommending`; `recommendationFound(none | one | several)`; `acceptRecommendation`; `pickMatch(index)` incl. an index
