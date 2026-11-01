@@ -39,6 +39,18 @@ Nicknames and roles are slice 006." Domain discovery and the user's decisions:
   in the onboarding channel (server setup, documented); Neil adds only the Member, and adds the approver or
   Officers when it mentions them.
 
+### Session 2026-11-01 (feedback from the test run)
+
+- Q: How should lookups search? → A: primarily by Player Name or Alliance name/tag; the uid stays as a
+  secondary `/player` option. Lookups (`/player`, `/alliance`, their pick lists and menus) no longer show uids;
+  uids are reserved for the Onboarding Interview (its thread) and the log channel.
+- Q: How should an Interview start? → A: with a Recommended Player: Neil looks up the Member's server display
+  name (tags, prefixes and unsupported characters removed, exact match only, one name) and asks "Is this you?".
+- Q: Does "that's me" on the Recommended Player Link the Member? → A: no; the Member still gives the uid, which
+  must be that Player's (In-game Proof). Dictionary: Recommended Player added, In-game Proof updated (approved).
+- Q: Several Players share that name? → A: the Member picks one from a list (Player Name and Kingdom, no uid).
+- Q: Where? → A: in slice 005, before its pull request is merged.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A new Member gets Linked (Priority: P1)
@@ -187,13 +199,71 @@ will continue at 00:00 UTC, and at the reset mentions them in the thread and ask
 3. **Given** a paused Interview, **When** the pause lasts more than 24 hours of silence in total, **Then**
    it is not abandoned; the 24 hours start again when Neil asks again.
 
+### User Story 6 - The Interview starts with a Recommended Player (Priority: P1)
+
+When the Interview opens, Neil takes the Member's server display name, removes tags, prefixes and characters a
+Player Name cannot hold, and looks it up as a Player Name (one Game API request, Onboarding Interview purpose).
+If one Player has that name, Neil shows them without their uid and asks "Is this you?". If several do, the
+Member picks one from a list (Player Name and Kingdom). Either way the Member still gives the uid; if it is the
+chosen Player's, they are Linked without a second "Is this you?". If no Player has that name, or the Member
+says it is not them, the Interview asks for the uid as before.
+
+**Why this priority**: most joiners use their in-game name on Discord; recognising them makes the Interview
+shorter, and asking for the uid afterwards keeps the uid as In-game Proof.
+
+**Independent Test**: automated, with a fake Discord and Game API: display name `[NML] drlol | #331` → lookup
+`drlol` → one Player → "That's me" → uid of that Player → Linked, with one name request and no uid request.
+
+**Acceptance Scenarios**:
+
+1. **Given** a new Interview, **When** the cleaned display name matches exactly one Player who is not Linked,
+   **Then** the thread greets the Member and shows that Player (Player Name, Kingdom, Alliance, Alliance Rank,
+   no uid) with "That's me" and "That's not me".
+2. **Given** the cleaned name matches several Players, **When** the thread opens, **Then** the Member gets a
+   list of them (Player Name and Kingdom, no uid) and a "None of these" button.
+3. **Given** the Member pressed "That's me" or picked a Player, **When** Neil asks for the uid and the Member
+   gives that Player's uid, **Then** the Member is Linked (FR-006 checks apply) without a second "Is this
+   you?"; for a single match no further Game API request is made, for a picked one at most one.
+4. **Given** the Member chose a Player, **When** they give a different uid, **Then** the Interview goes on as
+   for any uid given (lookup, "Is this you?").
+5. **Given** the cleaned name is empty, matches no Player, the only match is already Linked, the Game API is
+   unavailable or the Daily Quota is spent, **When** the thread opens, **Then** Neil asks for the uid as in
+   User Story 1, without saying why there is no recommendation.
+6. **Given** a recommendation or list is shown, **When** the Member presses "That's not me" or "None of
+   these", **Then** Neil asks for the uid; it is not a failed attempt.
+7. **Given** Neil restarts while the name lookup is in flight, **When** it is back, **Then** the Interview
+   asks for the uid (no recommendation, no failed attempt).
+
+---
+
+### User Story 7 - Lookups by name and tag, without uids (Priority: P2)
+
+Members look up Players by Player Name and Alliances by name or tag first; the uid stays a secondary `/player`
+option. No lookup answer shows a uid: not the Player card, not the Alliance Roster, not the pick lists or the
+roster menu.
+
+**Why this priority**: uids are bulky, and hiding them from lookups makes the uid a stronger In-game Proof.
+
+**Independent Test**: automated: the Player card, roster card, Player pick list and roster menu contain no
+uid; the commands list the name options first.
+
+**Acceptance Scenarios**:
+
+1. **Given** `/player` and `/alliance`, **When** a Member types them, **Then** the name (and for `/alliance`
+   the tag) options come first; `/player` still accepts a uid.
+2. **Given** any lookup answer, **When** it is shown, **Then** it contains no uid.
+3. **Given** the onboarding thread and the log channel, **When** a uid was given or a Link is made, **Then**
+   they still show the uid (unchanged).
+
+---
+
 ### Edge Cases
 
 - A uid with spaces or a leading `#`: trimmed before checking that it is a whole number.
 - The Member answers with several messages quickly: only the first answer to the current question counts;
   later ones get "one moment" while a request is in flight.
-- The Player found has no Player Name or no Kingdom in the answer: the card shows what is known; the uid is
-  always shown.
+- The Player found has no Player Name or no Kingdom in the answer: the card shows what is known; in the
+  Interview the uid is always shown.
 - The onboarding channel or log channel is missing or Neil lacks permission: Neil refuses to start with a
   clear message (configuration check), or, if lost at runtime, logs an error and the joiner is not left in
   a half-open Interview.
@@ -206,6 +276,11 @@ will continue at 00:00 UTC, and at the reset mentions them in the thread and ask
 - The uid is cached from a lookup less than 10 minutes ago: the cached Player is used; no request is made.
 - Someone writes in the thread who is not the Member: ignored.
 - A Member deletes or leaves the thread: treated as silence (timeout applies), not as leaving the server.
+- Display names with tags and decorations, e.g. `[NML|R5] drlol | #331`, `(R4) drlol`, `drlol` with emoji: the
+  cleaned name is `drlol`; bracketed parts, a ` | ...` tail and characters other than letters, digits, space,
+  `_`, `-` and `.` are removed, spaces collapsed. A cleaned name longer than 32 characters is not looked up.
+- The Recommended Player is Linked by someone else before the Member gives the uid: the Link is refused as
+  for any already Linked uid.
 
 ## Requirements *(mandatory)*
 
@@ -252,6 +327,21 @@ will continue at 00:00 UTC, and at the reset mentions them in the thread and ask
 - **FR-019**: What is stored about a Link (Member id, uid, Alliance Rank and its source, approver, times)
   and for how long MUST be recorded in an ADR (constitution V).
 - **FR-020**: This slice MUST NOT change any nickname or role (slice 006).
+- **FR-021**: At the start of an Interview, Neil MUST look up the Member's cleaned server display name as a
+  Player Name (one Game API request, Onboarding Interview purpose, cache used when fresh) and offer the
+  Recommended Player: one match is shown with "That's me" / "That's not me", several are a pick list with
+  "None of these"; no match, an empty cleaned name, an already Linked only match, an unavailable Game API or
+  a spent Daily Quota go straight to the uid question.
+- **FR-022**: The Recommended Player and the pick list MUST NOT show uids.
+- **FR-023**: After "That's me" or a pick, Neil MUST still ask for the uid; the chosen Player's uid Links the
+  Member without a second confirmation (FR-006 checks apply), any other uid is handled as in FR-004/FR-005.
+- **FR-024**: "That's not me" and "None of these" on a recommendation MUST NOT count as failed attempts.
+- **FR-025**: The recommendation step MUST survive a restart like the other steps; a name lookup in flight
+  at a restart becomes the uid question.
+- **FR-026**: `/player` MUST offer the name first and the uid second; `/alliance` MUST offer the name and the
+  tag first, the Kingdom after.
+- **FR-027**: Lookup answers (Player card, Alliance Roster card, Player pick list, roster menu) MUST NOT show
+  uids; the onboarding thread and the log channel still do.
 
 ### Key Entities
 

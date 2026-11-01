@@ -122,3 +122,52 @@ CREATE TABLE rank_approval (
   sweeper, and answered with "something went wrong, ask an Officer" on a button.
 - Confirming (insert `link`, update `onboarding_interview`, maybe insert `rank_approval`) is one transaction.
 - Ended Interviews and Rank Approvals are deleted 90 days after `ended_at` (ADR 7).
+
+## Addendum 2026-11-01: Recommended Player (US6) and lookups without uids (US7)
+
+### Cleaning the display name (`src/domain/recommended-player.ts`)
+
+`cleanDisplayName(displayName: string): PlayerName | undefined`, in this order:
+
+1. Remove bracketed parts with their brackets: `[...]`, `(...)`, `{...}`, `<...>`, `【...】`.
+2. Cut at the first `|` and keep the part before it; if that part is empty, keep the part after the first
+   `|` up to the next one (e.g. `| drlol | #331` gives `drlol`).
+3. Remove every character that is not a letter (`\p{L}`), a digit (`\p{N}`), a space, `_`, `-` or `.`.
+4. Collapse runs of spaces, trim; strip leading and trailing `-`, `.`, `_`.
+5. Empty or longer than 32 characters → `undefined` (no lookup); else the Player Name.
+
+Examples: `[NML|R5] drlol | #331` → `drlol`; `(R4) Dr Lol` → `Dr Lol`; `🔥drlol🔥` → `drlol`; `|||` → undefined.
+
+### New Interview steps
+
+```text
+  | { step: "recommending",            ..., lastAskedAt }                       // name lookup in flight
+  | { step: "awaiting-recommendation", ..., lastAskedAt, recommended: Player }  // one match, shown without uid
+  | { step: "awaiting-pick",           ..., lastAskedAt, matches: PlayerMatch[] } // 2+ matches: uid, name, kingdom
+  | { step: "awaiting-uid",            ..., lastAskedAt, chosen?: Chosen }      // chosen: after "That's me" or a pick
+Chosen = { uid: Uid, player: Player | undefined }  // player known for a single match, undefined for a pick
+```
+
+| From | Event | To | Failed attempt |
+|------|-------|----|----------------|
+| (none) | started | recommending | – |
+| recommending | none (no match, empty name, only match Linked, unavailable, quota spent) | awaiting-uid | no |
+| recommending | one Player | awaiting-recommendation | – |
+| recommending | several matches | awaiting-pick | – |
+| awaiting-recommendation | accepted ("That's me") | awaiting-uid with chosen {uid, player} | – |
+| awaiting-pick | picked match i | awaiting-uid with chosen {uid, undefined} | – |
+| awaiting-recommendation, awaiting-pick | declined ("That's not me", "None of these") | awaiting-uid | no |
+| awaiting-uid with chosen.player, uid = chosen.uid | uid given | awaiting-confirmation with chosen.player, `confirmedByChoice: true`; the adapter confirms at once (no Game API request) | – |
+| awaiting-uid with chosen, uid = chosen.uid, no player | uid given → checking → found | awaiting-confirmation with `confirmedByChoice: true`; the adapter confirms at once | – |
+| awaiting-uid with chosen, other uid | uid given | as without chosen (chosen dropped) | – |
+| recommending (at startup) | restarted | awaiting-uid | no |
+| awaiting-recommendation, awaiting-pick | timed out / member left | abandoned | – |
+
+- `dueAt`: `lastAskedAt + timeout` also for `awaiting-recommendation` and `awaiting-pick`; none for `recommending`.
+- A pick list holds at most 25 matches (one select menu); more are cut.
+
+### Storage (migration 4)
+
+- `onboarding_interview` gains `chosen_uid TEXT`, `chosen_player_json TEXT`, `matches_json TEXT`;
+  `player_json` also holds the Recommended Player in `awaiting-recommendation`.
+- `one_open_interview` is recreated to include `recommending`, `awaiting-recommendation`, `awaiting-pick`.

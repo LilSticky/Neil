@@ -168,12 +168,55 @@ press; Linked Member leaves.
 - [ ] T024 Manual: the user switches on Server Members Intent, creates the channels, sets the variables, runs
   `npm run commands:register` and walks [quickstart.md](quickstart.md) on the test server; record the result here.
 
+---
+
+## Phase 9: User Story 6 - The Interview starts with a Recommended Player (P1, added 2026-11-01)
+
+**Independent test**: display name `[NML] drlol | #331` → one Player → "That's me" → that uid → Linked with one
+name request and no uid request. Design: [data-model.md](data-model.md#addendum-2026-11-01-recommended-player-us6-and-lookups-without-uids-us7).
+
+- [ ] T025 [P] [US6] Test `src/domain/recommended-player.test.ts`: `cleanDisplayName` per data-model.md (all examples,
+  empty, > 32 characters, letters with accents and non-Latin letters kept). Implement `src/domain/recommended-player.ts`.
+- [ ] T026 [US6] Test `src/domain/onboarding-interview.test.ts`: the addendum table, every row (`startInterview` →
+  `recommending`; `recommendationFound(none | one | several)`; `acceptRecommendation`; `pickMatch(index)` incl. an index
+  out of range → `ignored`; `declineRecommendation` without an attempt; `giveUid` with `chosen` (same uid with player →
+  `awaiting-confirmation` + `confirmedByChoice`; same uid without player → `checking` keeping `chosen`, then `uidChecked`
+  found → `confirmedByChoice`; other uid → chosen dropped); `recoverAfterRestart` for `recommending`; `dueAt`; `timeOut`
+  and `memberLeft` from the new steps). Implement `src/domain/onboarding-interview.ts`.
+- [ ] T027 [US6] Test `src/storage/database.test.ts` + `interview-store.test.ts`: migration 4 (columns, recreated
+  `one_open_interview` incl. new steps, a version-3 db upgrades with its rows kept); every new step and `chosen`
+  round-trips; corrupt `matches_json` is skipped like other corrupt rows. Implement in `src/storage/`.
+- [ ] T028 [P] [US6] Test `src/discord/interview-texts.test.ts`: recommendation message (greeting, Player Name, Kingdom,
+  Alliance, rank, **no uid**, "That's me" / "That's not me"); pick list (select menu, labels `Name · Kingdom #N`, no uid,
+  at most 25, "None of these" button); the uid question after a choice ("give the uid of <name>" + help); custom ids for
+  the new actions parse back. Implement `src/discord/interview-texts.ts` (texts also in contracts/interview.md).
+- [ ] T029 [US6] Test `src/discord/interview.test.ts`: opening an Interview cleans `member.displayName` and calls
+  `findPlayer(name, undefined, "interview")`; one free match → recommendation; one Linked match, not found, unavailable,
+  quota spent, empty name → plain uid question (no attempt, no reason shown); ambiguous → pick list; accept / pick /
+  decline buttons (only the interviewed Member); uid modal with `chosen` → Link at once (no `getPlayer` for a single
+  match, one for a pick), FR-006 re-check and Rank Approval as usual; another uid → usual flow. Sweeper: `recommending`
+  after restart → uid question. Implement in `src/discord/interview.ts`, `interview-sweeper.ts`.
+
+## Phase 10: User Story 7 - Lookups by name and tag, without uids (P2, added 2026-11-01)
+
+- [ ] T030 [P] [US7] Test `src/discord/commands.test.ts` + `lookup.test.ts`: `/player` options `name`, `uid`, `kingdom` in
+  that order (description "by name or uid"); `/alliance` options `name`, `tag`, `kingdom` (option `alliance` renamed to
+  `tag`); lookups read `tag`. Implement `src/discord/commands.ts`, `src/discord/lookup.ts`.
+- [ ] T031 [P] [US7] Test `src/discord/lookup-cards.test.ts` (+ `recorded-cards.test.ts`): no uid on the Player card,
+  in Alliance Roster rows, in the Player pick list (description `Kingdom #N`) or the roster menu (description: rank).
+  Implement `src/discord/lookup-cards.ts`.
+- [ ] T032 Docs: contracts (interview, 004 lookups), quickstart, TEST-RUN.md (new section for US6/US7), GAME-API.md
+  (name lookup used by the Interview), STATUS.
+- [ ] T033 `bot-reviewer` on the Phase 9–10 diff; findings into `review.md`; fix must/should items.
+- [ ] T034 `spec-auditor` against FR-021–FR-027; close gaps.
+
 ## Dependencies
 
 - T001 before T010, T013. T002, T003 before T012. T004 before T008, T012. T005, T006 before T009, T015.
 - T007 before T008, T009. T008, T009, T010, T011 before T012.
 - US1 (T012 → T013) before US2–US5. US2 T014 after T012. US3 T015 → T016. US4 T017 ∥, T018, T019. US5 T020 after T019.
-- Polish after all stories; T024 needs the user.
+- Polish after all stories; T024 needs the user (and comes after Phases 9–10).
+- T025 ∥ T028 ∥ T030 ∥ T031; T026 → T027 → T029; T032–T034 last.
 
 ## Parallel examples
 
