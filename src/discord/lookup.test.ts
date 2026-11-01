@@ -811,7 +811,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
 
     await handleAlliance(interaction, context);
 
-    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers }, NOW);
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, fetchedAt: FETCHED_AT }, NOW);
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
       {
@@ -867,7 +867,7 @@ describe("handleAlliance by the Alliance's full name", () => {
 
     await handleAlliance(interaction, context);
 
-    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers }, NOW);
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, fetchedAt: FETCHED_AT }, NOW);
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
       {

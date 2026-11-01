@@ -279,7 +279,7 @@ const ALLIANCE_MATCHES: readonly Match[] = [
 ];
 
 function openRoster(sessions: PickSessions): string {
-  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER }, OPENED_AT);
+  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, fetchedAt: OPENED_AT }, OPENED_AT);
 }
 
 function openAlliances(sessions: PickSessions): string {
@@ -322,6 +322,25 @@ describe("handlePick page buttons of a roster", () => {
     );
 
     expect(getPlayer).toHaveBeenCalledWith(uid("100000000025"), "lookup");
+  });
+
+  test("updates the Alliance card to list the members of the page turned to, not the page before", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID });
+    const { context } = contextWith(sessions, { kind: "not-found" });
+
+    await handlePick(interaction, context);
+
+    const updatedEmbeds = interaction.calls.flatMap((call) =>
+      call.method === "update" ? (call.options.embeds ?? []) : [],
+    );
+    const listed = JSON.stringify(updatedEmbeds);
+    expect(updatedEmbeds).toHaveLength(1);
+    expect(listed).toContain("M25 · 100000000025");
+    expect(listed).toContain("M29 · 100000000029");
+    expect(listed).not.toContain("M00 · 100000000000");
+    expect(listed).not.toContain("M24 · 100000000024");
   });
 });
 
@@ -496,7 +515,11 @@ describe("handlePick for the owner choosing an Alliance match", () => {
 
     await handlePick(interaction, context);
 
-    expect(open).toHaveBeenCalledWith(OWNER_ID, { kind: "roster", entries: sortRoster(ROSTER) }, NOW);
+    expect(open).toHaveBeenCalledWith(
+      OWNER_ID,
+      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, fetchedAt: NOW },
+      NOW,
+    );
   });
 });
 

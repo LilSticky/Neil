@@ -216,7 +216,7 @@ export function allianceCardMessage(
   const embeds = [renderAllianceCard(alliance, fetchedAt, now)];
   if (alliance.roster.length === 0) return { embeds };
   const entries = sortRoster(alliance.roster);
-  const sessionId = pickSessions.open(ownerId, { kind: "roster", entries }, now);
+  const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, fetchedAt }, now);
   return { embeds, components: renderRosterComponents(entries, 0, sessionId) };
 }
 
