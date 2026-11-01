@@ -13,7 +13,11 @@ Neil sets the nickname `[TAG|R4] Name | #331` and the Managed Roles (Alliance fo
 `#<kingdom>`, T1–T10), creating missing roles without permissions ([ADR 8](adr/0008-neil-creates-managed-roles.md)).
 New required variable `HOME_KINGDOM`; Neil needs Manage Roles and Manage Nicknames ([HOSTING.md](HOSTING.md)).
 The user decided (2026-11-02) to test later: manual test cases are **collected** in [TEST-RUN.md](TEST-RUN.md)
-(sections 2b and 6b), not run.
+(sections 2b and 6b), not run. PR [#22](https://github.com/LilSticky/Neil/pull/22) (issue #21) is open against the 005
+branch; bot review (3 must, 4 should) fixed, spec audit done; 1334 tests.
+
+**Next step (2026-11-02):** pick the next slice from ROADMAP "Later" (the user's choice); #16 and #22 stay open until the
+user has run TEST-RUN.md, then merge #16, retarget #22 to `main`, merge it.
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
