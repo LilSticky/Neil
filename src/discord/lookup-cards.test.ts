@@ -527,7 +527,7 @@ describe("renderAllianceCard roster fields", () => {
   });
 
   test("continues an Alliance Rank whose rows pass 1,024 characters in a field named R5 (cont.)", () => {
-    const longRoster: RosterEntry[] = Array.from({ length: 30 }, (_, index) =>
+    const longRoster: RosterEntry[] = Array.from({ length: 25 }, (_, index) =>
       rosterEntry((100_000_000_000 + index).toString(), `${"N".repeat(40)}${index.toString().padStart(2, "0")}`, "R5"),
     );
     const fields = renderAllianceCard({ ...alliance, roster: longRoster }, FETCHED_AT, NOW).fields ?? [];
@@ -537,7 +537,7 @@ describe("renderAllianceCard roster fields", () => {
     for (const field of r5) {
       expect(field.value.length).toBeLessThanOrEqual(1024);
     }
-    expect(r5.flatMap((field) => field.value.split("\n"))).toHaveLength(30);
+    expect(r5.flatMap((field) => field.value.split("\n"))).toHaveLength(25);
   });
 });
 
@@ -555,14 +555,56 @@ describe("renderAllianceCard with 100 long rows", () => {
     expect(embedCharacters(card)).toBeLessThanOrEqual(6000);
   });
 
-  test("replaces the rows that do not fit with a note counting them, pointing to the menu below", () => {
+  test("lists only the 25 rows of the first page", () => {
     const card = renderAllianceCard({ ...alliance, roster: hundred }, FETCHED_AT, NOW);
-    const text = (card.fields ?? []).map((field) => field.value).join("\n");
-    const shown = text.split("\n").filter((line) => line.includes(" · ")).length;
-    const note = /… and (\d+) more, see the menu below/.exec(text);
 
-    expect(note).not.toBeNull();
-    expect(shown + Number(note?.[1])).toBe(100);
+    expect(rosterRowsOf(card)).toHaveLength(25);
+  });
+});
+
+/** The member rows an Alliance card lists, in order: the four Alliance fields come first, then the roster fields. */
+function rosterRowsOf(card: APIEmbed): string[] {
+  return (card.fields ?? []).slice(4).flatMap((field) => field.value.split("\n"));
+}
+
+describe("renderAllianceCard on a page of a roster of 100", () => {
+  const members: RosterEntry[] = Array.from({ length: 100 }, (_value, index) =>
+    rosterEntry((100_000_000_000 + index).toString(), `M${index.toString().padStart(2, "0")}`, "R4"),
+  );
+
+  /** The row the card shows for the member at this index of the menu order. */
+  function rowOf(index: number): string {
+    return `M${index.toString().padStart(2, "0")} · ${(100_000_000_000 + index).toString()}`;
+  }
+
+  /** The 25 rows of a page, starting at the member index the page begins with. */
+  function pageRows(start: number): string[] {
+    return Array.from({ length: 25 }, (_value, offset) => rowOf(start + offset));
+  }
+
+  test("lists exactly the first 25 members, in menu order, on page 0", () => {
+    const card = renderAllianceCard({ ...alliance, roster: [...members].reverse() }, FETCHED_AT, NOW, 0);
+
+    expect(rosterRowsOf(card)).toEqual(pageRows(0));
+  });
+
+  test("lists exactly the last 25 members on page 3", () => {
+    const card = renderAllianceCard({ ...alliance, roster: members }, FETCHED_AT, NOW, 3);
+
+    expect(rosterRowsOf(card)).toEqual(pageRows(75));
+  });
+
+  test("clamps a page past the last one to the last page", () => {
+    const card = renderAllianceCard({ ...alliance, roster: members }, FETCHED_AT, NOW, 9);
+
+    expect(rosterRowsOf(card)).toEqual(pageRows(75));
+  });
+
+  test("keeps the Alliance fields the same on every page", () => {
+    const first = renderAllianceCard({ ...alliance, roster: members }, FETCHED_AT, NOW, 0);
+    const last = renderAllianceCard({ ...alliance, roster: members }, FETCHED_AT, NOW, 3);
+
+    expect(last.fields?.slice(0, 4)).toEqual(first.fields?.slice(0, 4));
   });
 });
 

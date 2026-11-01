@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { parseUid } from "../domain/lookup-input.js";
-import type { RosterEntry } from "../domain/player.js";
-import { isOwner, pageCount, pageOf, parseCustomId, PickSessions, type PickSession } from "./pick-sessions.js";
+import { parseKingdom, parseUid } from "../domain/lookup-input.js";
+import type { Alliance, RosterEntry } from "../domain/player.js";
+import {
+  isOwner,
+  pageCount,
+  pageOf,
+  parseCustomId,
+  PickSessions,
+  type PickChoice,
+  type PickSession,
+} from "./pick-sessions.js";
 
 const OWNER_ID = "123456789012345678";
 const OTHER_MEMBER_ID = "223456789012345678";
@@ -140,6 +148,24 @@ describe("pageCount", () => {
   });
 });
 
+/** A roster pick list of the given size, opened with the Alliance and the time its card was fetched. */
+function rosterChoice(count: number): PickChoice {
+  const kingdom = parseKingdom(1);
+  if (!kingdom.ok) throw new Error("test Kingdom 1 is not valid");
+  const roster = rosterOf(count);
+  const alliance: Alliance = {
+    tag: "NML",
+    name: "No Man's Land",
+    kingdom: kingdom.value,
+    power: 208815434,
+    memberCount: count,
+    capacity: 100,
+    leaderName: "M00",
+    roster,
+  };
+  return { kind: "roster", entries: roster, alliance, fetchedAt: OPENED_AT };
+}
+
 /** A roster of the given size, with uids and names in the order the roster menu shows them. */
 function rosterOf(count: number): RosterEntry[] {
   return Array.from({ length: count }, (_value, index) => {
@@ -152,14 +178,14 @@ function rosterOf(count: number): RosterEntry[] {
 describe("PickSessions.turnPage", () => {
   test("starts a roster pick list on its first page", () => {
     const sessions = new PickSessions();
-    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+    const id = sessions.open(OWNER_ID, rosterChoice(60), OPENED_AT);
 
     expect(sessions.get(id, OPENED_AT)).toMatchObject({ page: 0 });
   });
 
   test("remembers the page the Member turned to", () => {
     const sessions = new PickSessions();
-    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+    const id = sessions.open(OWNER_ID, rosterChoice(60), OPENED_AT);
 
     sessions.turnPage(id, 2);
 
@@ -168,7 +194,7 @@ describe("PickSessions.turnPage", () => {
 
   test("clamps a page past the last one to the last page", () => {
     const sessions = new PickSessions();
-    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+    const id = sessions.open(OWNER_ID, rosterChoice(60), OPENED_AT);
 
     sessions.turnPage(id, 9);
 
@@ -177,7 +203,7 @@ describe("PickSessions.turnPage", () => {
 
   test("clamps a negative page to the first page", () => {
     const sessions = new PickSessions();
-    const id = sessions.open(OWNER_ID, { kind: "roster", entries: rosterOf(60) }, OPENED_AT);
+    const id = sessions.open(OWNER_ID, rosterChoice(60), OPENED_AT);
     sessions.turnPage(id, 2);
 
     sessions.turnPage(id, -1);

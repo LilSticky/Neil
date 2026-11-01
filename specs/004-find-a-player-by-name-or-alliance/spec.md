@@ -83,8 +83,8 @@ Players); on the test server, `/alliance kingdom:1 alliance:NML` and `/alliance 
    they see a pick list naming each match's Kingdom, tag and name, and picking one shows that Alliance's
    card.
 4. **Given** the Alliance Roster has more than 25 Players, **When** the card is shown, **Then** the select
-   menu shows 25 Players at a time and page buttons move between pages; the list on the card shows all
-   Players.
+   menu shows 25 Players at a time and page buttons move between pages; the list on the card shows the
+   same 25 Players as the menu and turns with it (changed 2026-11-01, issue #19; was: all Players).
 5. **Given** the card's select menu, **When** the Member who ran `/alliance` picks a Player, **Then** that
    Player's card is shown (from the cache when fresh, otherwise one Game API request).
 6. **Given** a Member runs `/alliance` with a part of the name, the tag instead of the name, or a Kingdom
@@ -156,7 +156,8 @@ and count lookup requests; on the test server, `/quota` shows the reserve.
   Kingdom; otherwise it MUST explain the options to the caller only and make no Game API request.
 - **FR-005**: When a full Alliance name matches several Alliances, Neil MUST show a pick list of up to 25
   matches, each with Kingdom, tag and name, and show the picked Alliance's card.
-- **FR-006**: The Alliance card MUST list the whole Alliance Roster with each Player's Alliance Rank (or
+- **FR-006**: The Alliance card MUST list the Alliance Roster, one page of 25 at a time in step with the
+  select menu (issue #19), with each Player's Alliance Rank (or
   unknown), Player Name and uid, ordered R5 to R1, then unknown, then by Player Name.
 - **FR-007**: The Alliance card MUST offer a select menu of its roster, 25 Players per page with page
   buttons when the roster is longer, that shows the picked Player's card.
@@ -206,7 +207,7 @@ and count lookup requests; on the test server, `/quota` shows the reserve.
 - Alliance name lookup gives no Kingdom option: the endpoint has none, and the Kingdom-and-tag form covers
   that case.
 - A roster of up to 100 Players fits on one card; if not, the list continues in further fields or messages
-  (plan decides). The select menu pages are the only paged part.
+  (plan decides). Since issue #19 (2026-11-01) the card pages with the select menu, 25 Players per page.
 - Picks reuse slice 003's cache: a Player picked from a roster costs one request unless cached. Roster
   rows are not turned into Player cards (slice 003's assumption stands).
 - The Quota Reserve is measured against the Game API's reported remaining requests, with Neil's own count

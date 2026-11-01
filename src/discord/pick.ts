@@ -8,7 +8,13 @@ import {
   type PickablePlayerMatch,
   type RosterEntry,
 } from "../domain/player.js";
-import { alliancePickLabel, lookupMessages, playerPickLabel, renderRosterComponents } from "./lookup-cards.js";
+import {
+  alliancePickLabel,
+  lookupMessages,
+  playerPickLabel,
+  renderAllianceCard,
+  renderRosterComponents,
+} from "./lookup-cards.js";
 import {
   allianceCardMessage,
   allianceFailureMessage,
@@ -230,7 +236,10 @@ async function turnRosterPage(
     return;
   }
   context.pickSessions.turnPage(session.id, page);
-  await interaction.update({ components: renderRosterComponents(choice.entries, page, session.id) });
+  await interaction.update({
+    embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
+    components: renderRosterComponents(choice.entries, page, session.id),
+  });
 }
 
 /** Answers a button or select menu of a pick list: only its owner, only while it is open, the rest privately. */
