@@ -28,9 +28,12 @@ function modal(customId: string) {
   };
 }
 
-/** A guild member as discord.js emits it on guildMemberAdd: the id on the member, the rest on its user. */
-function guildMember(id: string, username: string, bot: boolean) {
-  return { id, user: { id, username, bot } };
+const GUILD_ID = "123456789012345678";
+const OTHER_GUILD_ID = "223456789012345678";
+
+/** A guild member as discord.js emits it on guildMemberAdd: the id on the member, the guild and the rest on its user. */
+function guildMember(id: string, username: string, bot: boolean, guildId: string = GUILD_ID) {
+  return { id, guild: { id: guildId }, user: { id, username, bot } };
 }
 
 /** One handler per slash command, pick list interaction, Interview entry point and Rank Approval button. */
@@ -52,7 +55,7 @@ function handlers() {
 
 describe("createClient", () => {
   test("requests the Guilds and GuildMembers intents only", () => {
-    const client = createClient(handlers());
+    const client = createClient(handlers(), { guildId: GUILD_ID });
 
     expect(new IntentsBitField(client.options.intents).toArray()).toEqual(["Guilds", "GuildMembers"]);
     expect(client.options.intents.bitfield).toBe(GatewayIntentBits.Guilds | GatewayIntentBits.GuildMembers);
@@ -60,7 +63,12 @@ describe("createClient", () => {
 
   test("logs client errors instead of crashing", () => {
     const logged: string[] = [];
-    const client = createClient(handlers(), (message) => logged.push(message));
+    const client = createClient(handlers(), {
+      guildId: GUILD_ID,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+    });
 
     client.emit(Events.Error, new Error("socket hang up"));
 
@@ -69,7 +77,7 @@ describe("createClient", () => {
 
   test("hands /ping to the ping handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = chatInput("ping");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -80,7 +88,7 @@ describe("createClient", () => {
 
   test("hands /player to the player handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = chatInput("player");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -91,7 +99,7 @@ describe("createClient", () => {
 
   test("hands /alliance to the alliance handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = chatInput("alliance");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -103,7 +111,7 @@ describe("createClient", () => {
 
   test("hands /quota to the quota handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = chatInput("quota");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -116,7 +124,7 @@ describe("createClient", () => {
 
   test("ignores other commands and other interaction kinds", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
 
     client.emit(Events.InteractionCreate, chatInput("other") as never);
     client.emit(
@@ -132,7 +140,7 @@ describe("createClient", () => {
 
   test("hands a string select menu whose custom id starts with pick: to the pick handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = component("select", "pick:a1b2c3d4:select");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -145,7 +153,7 @@ describe("createClient", () => {
 
   test("hands a button whose custom id starts with pick: to the pick handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = component("button", "pick:a1b2c3d4:page:2");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -157,7 +165,7 @@ describe("createClient", () => {
 
   test("ignores a component whose custom id is not a pick list's", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
 
     client.emit(Events.InteractionCreate, component("button", "roster:a1b2c3d4") as never);
     client.emit(Events.InteractionCreate, component("select", "picks:a1b2c3d4:select") as never);
@@ -167,7 +175,7 @@ describe("createClient", () => {
 
   test("hands a guild member joining to the memberJoined handler with its id, username and bot flag, and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
 
     client.emit(Events.GuildMemberAdd, guildMember("111", "alice", false) as never);
 
@@ -178,7 +186,7 @@ describe("createClient", () => {
 
   test("hands a guild member leaving to the memberLeft handler with its id and username, and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
 
     client.emit(Events.GuildMemberRemove, guildMember("111", "alice", false) as never);
 
@@ -187,9 +195,27 @@ describe("createClient", () => {
     expect(routed.interview).not.toHaveBeenCalled();
   });
 
+  test("does not hand a guild member joining another guild to the memberJoined handler", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.GuildMemberAdd, guildMember("111", "alice", false, OTHER_GUILD_ID) as never);
+
+    expect(routed.memberJoined).not.toHaveBeenCalled();
+  });
+
+  test("does not hand a guild member leaving another guild to the memberLeft handler", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.GuildMemberRemove, guildMember("111", "alice", false, OTHER_GUILD_ID) as never);
+
+    expect(routed.memberLeft).not.toHaveBeenCalled();
+  });
+
   test("hands /interview to the interview handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = chatInput("interview");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -202,7 +228,7 @@ describe("createClient", () => {
 
   test("hands a button whose custom id starts with interview: to the interview button handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = component("button", "interview:uid:42");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -215,7 +241,7 @@ describe("createClient", () => {
 
   test("hands a modal submit whose custom id starts with interview: to the interview modal handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = modal("interview:modal:42");
 
     client.emit(Events.InteractionCreate, interaction as never);
@@ -227,7 +253,7 @@ describe("createClient", () => {
 
   test("hands a button whose custom id starts with rank: to the rank button handler and nothing else", () => {
     const routed = handlers();
-    const client = createClient(routed);
+    const client = createClient(routed, { guildId: GUILD_ID });
     const interaction = component("button", "rank:7:R3");
 
     client.emit(Events.InteractionCreate, interaction as never);

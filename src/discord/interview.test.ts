@@ -38,14 +38,17 @@ import {
   rankCancelledLogLine,
   refusedLogLine,
   rejectedMessage,
+  somethingWentWrongReply,
   uidModal,
   unavailableMessage,
   type OfficerRoles,
   type PrivateReply,
 } from "./interview-texts.js";
+import { createSweeper } from "./interview-sweeper.js";
 import {
   createInterviews,
   type ButtonInteractionLike,
+  type CommandLike,
   type InterviewDeps,
   type ModalInteractionLike,
 } from "./interview.js";
@@ -175,10 +178,17 @@ class FakeChannels implements OnboardingChannels {
   readonly logs: BaseMessageOptions[] = [];
   /** Runs when a thread is about to open: a test uses it to let a racing Interview land first. */
   beforeOpen: () => void = () => undefined;
+  /** When set, Discord refuses to open a thread. */
+  refuseOpen = false;
+  /** When set, Discord refuses every message posted to a thread (the thread is gone, say). */
+  refusePosts = false;
+  /** When set, Discord refuses to lock and archive a thread. */
+  refuseLocks = false;
   private posted = 0;
 
   openThread(member: ThreadMember): Promise<string> {
     this.beforeOpen();
+    if (this.refuseOpen) return Promise.reject(new Error("Discord refused to open the thread"));
     this.opened.push(member);
     return Promise.resolve(THREAD);
   }
@@ -189,6 +199,7 @@ class FakeChannels implements OnboardingChannels {
   }
 
   post(threadId: string, message: BaseMessageOptions): Promise<string> {
+    if (this.refusePosts) return Promise.reject(new Error(`Discord refused the post to ${threadId}`));
     this.posts.push({ threadId, message });
     this.posted += 1;
     return Promise.resolve(`message-${this.posted.toString()}`);
@@ -203,6 +214,7 @@ class FakeChannels implements OnboardingChannels {
   }
 
   lockAndArchive(threadId: string): Promise<void> {
+    if (this.refuseLocks) return Promise.reject(new Error(`Discord refused to lock ${threadId}`));
     this.lockedAndArchived.push(threadId);
     return Promise.resolve();
   }
@@ -311,13 +323,25 @@ class FakeModal implements ModalInteractionLike {
   }
 }
 
-/** A /interview command as the Interview needs it: the Member who ran it, and the private replies given to them. */
-class FakeCommand {
+/**
+ * A /interview command as the Interview needs it: the Member who ran it. Like discord.js, it is deferred first, then
+ * answered once with editReply. `calls` keeps the order of those answers; a test may add its own steps to it.
+ */
+class FakeCommand implements CommandLike {
   readonly replies: PrivateReply[] = [];
+  readonly deferrals: { readonly flags: MessageFlags.Ephemeral }[] = [];
+  readonly calls: string[] = [];
 
   constructor(readonly user: { readonly id: string; readonly username: string }) {}
 
-  reply(message: PrivateReply): Promise<void> {
+  deferReply(options: { readonly flags: MessageFlags.Ephemeral }): Promise<void> {
+    this.calls.push("deferReply");
+    this.deferrals.push(options);
+    return Promise.resolve();
+  }
+
+  editReply(message: PrivateReply): Promise<void> {
+    this.calls.push("editReply");
     this.replies.push(message);
     return Promise.resolve();
   }
@@ -1031,6 +1055,108 @@ describe("createInterviews", () => {
     });
   });
 
+  describe("/interview answered in time", () => {
+    test("is deferred privately before the thread is opened, then answered once with the reply", async () => {
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+      h.channels.beforeOpen = () => {
+        command.calls.push("openThread");
+      };
+
+      await h.service.onCommand(command);
+
+      expect(command.deferrals).toEqual([{ flags: MessageFlags.Ephemeral }]);
+      expect(command.calls).toEqual(["deferReply", "openThread", "editReply"]);
+      expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
+    });
+
+    test("tells the Member privately that something went wrong when the thread cannot be opened", async () => {
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+      h.channels.refuseOpen = true;
+
+      await h.service.onCommand(command);
+
+      expect(command.calls).toEqual(["deferReply", "editReply"]);
+      expect(command.replies).toEqual([somethingWentWrongReply()]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+      expect(h.errors).toHaveLength(1);
+    });
+  });
+
+  describe("a press or submit by someone else than the Member of the Interview", () => {
+    test.each([{ action: "confirm" }, { action: "reject" }] as const)(
+      "tells someone else that the Interview belongs to another Member when $action is pressed, and changes nothing",
+      async ({ action }) => {
+        const interviewId = await confirmationShown(h, PLAYER);
+        const before = h.interviews.get(interviewId);
+        const lookupsBefore = h.gameApi.lookups.length;
+        const postsBefore = h.channels.posts.length;
+        const button = new FakeButton(interviewCustomId(action, interviewId), { id: OTHER });
+
+        await h.service.onButton(button);
+
+        expect(button.replies).toEqual([buttonOfSomeoneElseReply()]);
+        expect(button.updates).toEqual([]);
+        expect(h.interviews.get(interviewId)).toEqual(before);
+        expect(linkOfMember(h)).toBeUndefined();
+        expect(h.gameApi.lookups).toHaveLength(lookupsBefore);
+        expect(h.channels.posts).toHaveLength(postsBefore);
+      },
+    );
+
+    test("tells someone else that the Interview belongs to another Member when the uid is submitted, and changes nothing", async () => {
+      const interviewId = await joinedMember(h);
+      const before = h.interviews.get(interviewId);
+      const modal = new FakeModal(interviewCustomId("modal", interviewId), { id: OTHER }, UID_DIGITS);
+
+      await h.service.onModalSubmit(modal);
+
+      expect(modal.replies).toEqual([buttonOfSomeoneElseReply()]);
+      expect(modal.deferUpdates).toBe(0);
+      expect(h.interviews.get(interviewId)).toEqual(before);
+      expect(h.gameApi.lookups).toEqual([]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) });
+    });
+  });
+
+  describe("an Interview kept across a restart, served by a new service on the same stores", () => {
+    test("an Interview awaiting confirmation is still linked when the Member confirms on the new service", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      const restarted = createInterviews(h.deps);
+
+      await restarted.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+    });
+
+    test("a paused Interview is resumed by the sweeper and takes the Member's uid on the new service", async () => {
+      const interviewId = await joinedMember(h);
+      const resetsAt = new Date("2026-11-01T00:00:00Z");
+      const later = new Date(resetsAt.getTime() + 60_000);
+      h.gameApi.answerWith({ kind: "quota-spent", resetsAt });
+      await submitUid(h, interviewId, UID_DIGITS);
+      const restarted = createInterviews({ ...h.deps, now: () => later });
+      const sweeper = createSweeper({
+        interviews: h.interviews,
+        links: h.links,
+        channels: h.channels,
+        timeoutMs: TIMEOUT_MS,
+        now: () => later,
+        logError: (line: string) => {
+          h.errors.push(line);
+        },
+      });
+
+      await sweeper.sweep();
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: later });
+      await restarted.onModalSubmit(new FakeModal(interviewCustomId("modal", interviewId), { id: MEMBER }, UID_DIGITS));
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-confirmation" });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
+    });
+  });
+
   describe("when a Member leaves the server", () => {
     test("abandons the open Interview as left", async () => {
       const interviewId = await joinedMember(h);
@@ -1052,6 +1178,24 @@ describe("createInterviews", () => {
 
     test("logs the abandoned Interview as left", async () => {
       await joinedMember(h);
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.channels.logs).toEqual([abandonedLogLine(MEMBER, "left")]);
+    });
+
+    test("still logs the abandoned Interview as left when the thread cannot be posted to", async () => {
+      await joinedMember(h);
+      h.channels.refusePosts = true;
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.channels.logs).toEqual([abandonedLogLine(MEMBER, "left")]);
+    });
+
+    test("still logs the abandoned Interview as left when the thread cannot be locked", async () => {
+      await joinedMember(h);
+      h.channels.refuseLocks = true;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
 

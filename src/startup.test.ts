@@ -280,6 +280,27 @@ describe("start", () => {
     ]);
   });
 
+  test("channel problems found at ready are printed to stderr and exit 1, with the store closed", async () => {
+    const problems = [
+      "The onboarding or log channel cannot be used:",
+      "- DISCORD_LOG_CHANNEL_ID: no channel of this server has that ID",
+      "- DISCORD_ONBOARDING_CHANNEL_ID: Neil lacks the SendMessagesInThreads permission in the channel",
+    ].join("\n");
+    const { deps, calls } = fakeDeps({
+      connect: () => Promise.reject(new Error(problems)),
+    });
+
+    await start(deps);
+
+    expect(calls).toEqual([
+      "prepareDataDir ./data",
+      "openStore",
+      "closeStore",
+      `stderr Neil cannot start: ${problems}`,
+      "exit 1",
+    ]);
+  });
+
   test("a stop signal disconnects, closes the store and exits 0", async () => {
     const fake = fakeDeps();
     await start(fake.deps);

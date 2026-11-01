@@ -1,4 +1,4 @@
-import type { APIModalInteractionResponseCallbackData, BaseMessageOptions } from "discord.js";
+import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMessageOptions } from "discord.js";
 import type { RequestPurpose } from "../domain/daily-quota.js";
 import {
   confirm,
@@ -68,7 +68,10 @@ export interface LeftMember {
 /** The part of a discord.js chat-input command that /interview uses: who ran it, and the private reply to them. */
 export interface CommandLike {
   readonly user: { readonly id: string; readonly username: string };
-  reply(message: PrivateReply): Promise<void>;
+  /** Defers the answer, privately; Discord allows three seconds without it. */
+  deferReply(options: { readonly flags: MessageFlags.Ephemeral }): Promise<void>;
+  /** The one answer to the deferred command. */
+  editReply(message: PrivateReply): Promise<void>;
 }
 
 /** The part of a discord.js button press that an Interview button uses. */
@@ -228,16 +231,31 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
 
 /** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
 async function startOnCommand(deps: InterviewDeps, command: CommandLike): Promise<void> {
+  // Discord allows three seconds for a first answer; the thread work comes after this deferral, answered with editReply.
+  await command.deferReply({ flags: MessageFlags.Ephemeral });
+  let reply: PrivateReply;
+  try {
+    reply = await commandReply(deps, command);
+  } catch (error) {
+    deps.logError(`/interview failed: ${errorText(error)}`);
+    reply = somethingWentWrongReply();
+  }
+  await command.editReply(reply);
+}
+
+/** The private answer to /interview: the Member's uid when Linked, the open thread when one is open, else the new thread. */
+async function commandReply(deps: InterviewDeps, command: CommandLike): Promise<PrivateReply> {
   const memberId = command.user.id;
   const link = deps.links.linkFor(memberId);
-  if (link !== undefined) return command.reply(interviewLinkedReply(link.uid));
+  if (link !== undefined) return interviewLinkedReply(link.uid);
   const open = deps.interviews.openFor(memberId);
-  if (open !== undefined) return command.reply(interviewAlreadyOpenReply(open.threadId));
+  if (open !== undefined) return interviewAlreadyOpenReply(open.threadId);
   const threadId = await openInterview(deps, { id: memberId, username: command.user.username });
-  if (threadId !== undefined) return command.reply(interviewOpenedReply(threadId));
+  if (threadId !== undefined) return interviewOpenedReply(threadId);
   // An Interview was opened for the Member meanwhile: the Member is pointed to it.
   const raced = deps.interviews.openFor(memberId);
-  if (raced !== undefined) return command.reply(interviewAlreadyOpenReply(raced.threadId));
+  if (raced !== undefined) return interviewAlreadyOpenReply(raced.threadId);
+  return somethingWentWrongReply();
 }
 
 /**
@@ -278,18 +296,20 @@ async function abandonOnLeave(deps: InterviewDeps, interview: OpenInterview, use
   const transition = memberLeft(interview, now);
   if (transition.event.kind !== "abandoned") return;
   deps.interviews.save(transition.interview);
+  // The log comes first: a thread that is gone must not cost the line.
+  await deps.channels.log(abandonedLogLine(interview.memberId, "left"));
   await deps.channels.post(interview.threadId, leftMessage(username));
   await deps.channels.lockAndArchive(interview.threadId);
-  await deps.channels.log(abandonedLogLine(interview.memberId, "left"));
 }
 
 async function cancelRankApproval(deps: InterviewDeps, approval: RankApproval, username: string, now: Date): Promise<void> {
   const change = cancel(approval, now);
   if (!change.ok) return;
   deps.links.save(change.approval);
+  // The log comes first: a thread that is gone must not cost the line.
+  await deps.channels.log(rankCancelledLogLine(approval.linkedMemberId));
   await deps.channels.post(approval.threadId, rankCancelledLeftMessage(username));
   await deps.channels.archive(approval.threadId);
-  await deps.channels.log(rankCancelledLogLine(approval.linkedMemberId));
 }
 
 async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): Promise<void> {
@@ -517,8 +537,9 @@ async function announce(deps: InterviewDeps, transition: InterviewTransition, ui
     case "failed":
       return announceFailure(deps, transition, event.reason, event.attemptsLeft, uid);
     case "handed-off":
-      await deps.channels.post(interview.threadId, handedOffMessage(interview.memberId, deps.officerRoles));
+      // The log comes first: a thread that is gone must not cost the line.
       await deps.channels.log(handedOffLogLine(interview.memberId, interview.threadId));
+      await deps.channels.post(interview.threadId, handedOffMessage(interview.memberId, deps.officerRoles));
       return;
     case "unavailable":
       await deps.channels.post(interview.threadId, unavailableMessage(interview.id));

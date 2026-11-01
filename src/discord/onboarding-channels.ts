@@ -4,9 +4,7 @@ import {
   ThreadAutoArchiveDuration,
   type BaseMessageOptions,
 } from "discord.js";
-
-/** The longest thread name Discord accepts. */
-const THREAD_NAME_LIMIT = 100;
+import { interviewThreadName } from "./interview-texts.js";
 
 /** A Member as the onboarding channels need them: the id to add to a thread, the name for its title. */
 export interface ThreadMember {
@@ -134,7 +132,7 @@ export function createOnboardingChannels(guild: GuildLike, ids: OnboardingChanne
     async openThread(member) {
       const onboarding = await fetchTextChannel(guild, ids.onboardingChannelId, "onboarding");
       const thread = await onboarding.threads.create({
-        name: `Interview – ${member.username}`.slice(0, THREAD_NAME_LIMIT),
+        name: interviewThreadName(member.username),
         type: ChannelType.PrivateThread,
         invitable: false,
         autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,

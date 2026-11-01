@@ -89,21 +89,28 @@ export function memberRoleIds(member: unknown): readonly string[] {
   return parsed.success ? parsed.data : [];
 }
 
+/** What createClient needs: the server Neil serves, and where client errors are logged. */
+export interface ClientOptions {
+  /** The server Neil serves; member events of other servers are not handed on. */
+  readonly guildId: string;
+  readonly logError?: (message: string) => void;
+}
+
 /** A discord.js client with the Guilds and GuildMembers intents that routes each event to its handler. */
-export function createClient(
-  handlers: CommandHandlers,
-  logError: (message: string) => void = console.error,
-): Client {
+export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
+  const logError = options.logError ?? console.error;
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
   // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
   client.on(Events.Error, (error) => {
     logError(`Discord client error: ${error.message}`);
   });
   client.on(Events.GuildMemberAdd, (member) => {
+    if (member.guild.id !== options.guildId) return;
     void handlers.memberJoined({ id: member.id, username: member.user.username, bot: member.user.bot });
   });
   // The member may be partial when they left; their user is still there.
   client.on(Events.GuildMemberRemove, (member) => {
+    if (member.guild.id !== options.guildId) return;
     void handlers.memberLeft({ id: member.id, username: member.user.username });
   });
   client.on(Events.InteractionCreate, (interaction) => {
@@ -203,12 +210,16 @@ function rankButtonLike(button: ButtonInteraction): RankButtonLike {
   };
 }
 
-/** The discord.js chat-input command as the Interview reads it; see buttonLike for why reply is passed on. */
+/** The discord.js chat-input command as the Interview reads it; see buttonLike for why each method is passed on. */
 function commandLike(command: ChatInputCommandInteraction): CommandLike {
   return {
     user: command.user,
-    reply: async (message) => {
-      await command.reply(message);
+    deferReply: async (options) => {
+      await command.deferReply(options);
+    },
+    // The deferral already made the answer ephemeral; editReply takes no flags.
+    editReply: async (message) => {
+      await command.editReply({ content: message.content, allowedMentions: message.allowedMentions });
     },
   };
 }
@@ -304,7 +315,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           await rankApprovals.onButton(rankButtonLike(button));
         }),
     },
-    logError,
+    { guildId: options.guildId, logError },
   );
   // The sweeper runs from the moment the channels are checked; stopped again on disconnect.
   let stopSweeper: () => void = () => undefined;

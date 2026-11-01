@@ -103,9 +103,10 @@ async function abandonSilent(deps: SweeperDeps, interview: OpenInterview, now: D
   const transition = timeOut(interview, now);
   if (transition.event.kind !== "abandoned") return;
   if (!deps.interviews.saveIfStep(transition.interview, interview.step)) return;
+  // The log comes first: a thread that is gone must not cost the line.
+  await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
   await deps.channels.post(interview.threadId, timedOutMessage(deps.timeoutMs));
   await deps.channels.lockAndArchive(interview.threadId);
-  await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
 }
 
 async function guarded(deps: SweeperDeps, label: string, work: () => Promise<void>): Promise<void> {

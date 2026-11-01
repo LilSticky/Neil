@@ -1,6 +1,7 @@
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import { describe, expect, test } from "vitest";
 import { FakeGuild } from "./__fakes__/guild.js";
+import { interviewThreadName } from "./interview-texts.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
 
 const ONBOARDING_CHANNEL_ID = "1000000000000000001";
@@ -67,6 +68,16 @@ describe("openThread", () => {
     const threadId = await channels.openThread({ id: MEMBER.id, username: "a".repeat(120) });
 
     expect(guild.get(threadId).threadOptions?.name).toBe(`Interview – ${"a".repeat(88)}`);
+  });
+
+  test("names the thread as interviewThreadName names it, for a 120-character username too", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    const longName = "a".repeat(120);
+
+    const threadId = await channels.openThread({ id: MEMBER.id, username: longName });
+
+    expect(guild.get(threadId).threadOptions?.name).toBe(interviewThreadName(longName));
   });
 
   test("adds the member to the new thread", async () => {

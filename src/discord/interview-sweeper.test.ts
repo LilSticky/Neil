@@ -69,6 +69,7 @@ class FakeChannels implements OnboardingChannels {
   readonly lockedAndArchived: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
   readonly failingThreads = new Set<string>();
+  readonly failingLocks = new Set<string>();
   private posted = 0;
 
   openThread(): Promise<string> {
@@ -97,6 +98,9 @@ class FakeChannels implements OnboardingChannels {
   }
 
   lockAndArchive(threadId: string): Promise<void> {
+    if (this.failingLocks.has(threadId)) {
+      return Promise.reject(new Error(`Discord refused to lock ${threadId}`));
+    }
     this.lockedAndArchived.push(threadId);
     return Promise.resolve();
   }
@@ -303,6 +307,24 @@ describe("createSweeper", () => {
 
       expect(interviews.get(healthy.id)).toMatchObject({ step: "abandoned", reason: "timed-out" });
       expect(channels.logs).toContainEqual(abandonedLogLine(OTHER, "timed-out"));
+    });
+
+    test("still logs an Interview abandoned as timed out when its thread cannot be posted to", async () => {
+      openAwaitingUid(interviews, MEMBER, THREAD, OVERDUE_START);
+      channels.failingThreads.add(THREAD);
+
+      await sweeper.sweep();
+
+      expect(channels.logs).toEqual([abandonedLogLine(MEMBER, "timed-out")]);
+    });
+
+    test("still logs an Interview abandoned as timed out when its thread cannot be locked", async () => {
+      openAwaitingUid(interviews, MEMBER, THREAD, OVERDUE_START);
+      channels.failingLocks.add(THREAD);
+
+      await sweeper.sweep();
+
+      expect(channels.logs).toEqual([abandonedLogLine(MEMBER, "timed-out")]);
     });
   });
 
