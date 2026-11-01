@@ -234,6 +234,22 @@ describe("createSweeper", () => {
   });
 
   describe("recovery after a restart", () => {
+    test("asks an Interview whose Recommended Player lookup was in flight for its uid, with no recommendation and no failed attempt", async () => {
+      const outcome = interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
+      if (outcome.kind !== "created") throw new Error(`the test Member ${MEMBER} already has an open Interview`);
+      const interviewId = outcome.interview.id;
+      expect(interviews.get(interviewId)).toMatchObject({ step: "recommending" });
+
+      await sweeper.recover();
+
+      expect(interviews.get(interviewId)).toMatchObject({
+        step: "awaiting-uid",
+        failedAttempts: 0,
+        lastAskedAt: NOW,
+      });
+      expect(channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+    });
+
     test("asks a checking Interview for its uid again, counting no failed attempt", async () => {
       const asked = openAwaitingUid(interviews, MEMBER, THREAD, NOW);
       const typed = giveUid(asked, UID_DIGITS, NOW).interview;

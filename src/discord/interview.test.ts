@@ -6,9 +6,9 @@ import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMe
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
 import { memberLeft, timeOut } from "../domain/onboarding-interview.js";
-import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import { parseKingdom, parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { LookupResult, PickablePlayerMatch, Player } from "../domain/player.js";
 import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
@@ -19,6 +19,7 @@ import {
   abandonedLogLine,
   alreadyLinkedMessage,
   askUidMessage,
+  askUidOfPlayerMessage,
   buttonOfSomeoneElseReply,
   checkingReply,
   foundCardMessage,
@@ -33,9 +34,11 @@ import {
   linkLogLine,
   malformedUidMessage,
   notFoundMessage,
+  pickListMessage,
   quotaSpentMessage,
   rankCancelledLeftMessage,
   rankCancelledLogLine,
+  recommendationMessage,
   refusedLogLine,
   rejectedMessage,
   somethingWentWrongReply,
@@ -77,6 +80,10 @@ const RACING_THREAD = "888888888888888888";
 const UID_DIGITS = "145563254785";
 const UID = uidOf(UID_DIGITS);
 const LEADER_UID = uidOf("145563254700");
+const OTHER_UID_DIGITS = "145563254786";
+const OTHER_UID = uidOf(OTHER_UID_DIGITS);
+/** The server display name of the Member in the spec's example: cleaned, it is the Player Name drlol. */
+const DRLOL_DISPLAY_NAME = "[NML] drlol | #331";
 
 const PLAYER: Player = {
   uid: UID,
@@ -118,6 +125,22 @@ const PLAYER_WITHOUT_ALLIANCE: Player = {
   allianceRank: undefined,
 };
 
+/** The Player that OTHER_UID belongs to: a different uid, the same Player Name. */
+const PLAYER_OTHER_UID: Player = {
+  uid: OTHER_UID,
+  name: "Vex",
+  kingdom: kingdomOf(12),
+  power: 1_000,
+  sanctuaryLevel: 3,
+  alliance: undefined,
+  allianceRank: undefined,
+};
+
+/** Two matches of the name Vex and Vexy; the pick list shows them by Kingdom, so Vex (Kingdom 12) comes first. */
+const MATCH_VEX_KINGDOM_12: PickablePlayerMatch = { uid: OTHER_UID_DIGITS, name: "Vex", kingdom: 12 };
+const MATCH_VEXY_KINGDOM_330: PickablePlayerMatch = { uid: UID_DIGITS, name: "Vexy", kingdom: 330 };
+const PICK_LIST: readonly PickablePlayerMatch[] = [MATCH_VEX_KINGDOM_12, MATCH_VEXY_KINGDOM_330];
+
 const LEADER_LINK: Link = {
   memberId: LEADER,
   uid: LEADER_UID,
@@ -141,17 +164,36 @@ function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value
 
 /** The Game API as the Interview uses it: records each lookup and answers with the next prepared result. */
 class FakeGameApi {
+  /** Uid lookups (getPlayer), the Interview's uid checks. */
   readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  /** Player Name lookups (findPlayer), the Interview's Recommended Player. */
+  readonly nameLookups: {
+    readonly name: PlayerName;
+    readonly kingdom: KingdomNumber | undefined;
+    readonly purpose: RequestPurpose;
+  }[] = [];
   private answer: Promise<LookupResult<Player>> = Promise.resolve({ kind: "not-found" });
+  private nameAnswer: LookupResult<Player> = { kind: "not-found" };
   private failure: Error | undefined = undefined;
+  private nameFailure: Error | undefined = undefined;
 
   answerWith(result: LookupResult<Player>): void {
     this.answer = Promise.resolve(result);
   }
 
+  /** Every name lookup from now on answers with this result. */
+  answerNameWith(result: LookupResult<Player>): void {
+    this.nameAnswer = result;
+  }
+
   /** Every lookup from now on fails with this error, as a dropped connection would. */
   failWith(error: Error): void {
     this.failure = error;
+  }
+
+  /** Every name lookup from now on fails with this error. */
+  failNamesWith(error: Error): void {
+    this.nameFailure = error;
   }
 
   /** The next lookup waits until the returned function is called. */
@@ -165,6 +207,16 @@ class FakeGameApi {
     this.lookups.push({ uid, purpose });
     if (this.failure !== undefined) return Promise.reject(this.failure);
     return this.answer;
+  }
+
+  findPlayer(
+    name: PlayerName,
+    kingdom: KingdomNumber | undefined,
+    purpose: RequestPurpose,
+  ): Promise<LookupResult<Player>> {
+    this.nameLookups.push({ name, kingdom, purpose });
+    if (this.nameFailure !== undefined) return Promise.reject(this.nameFailure);
+    return Promise.resolve(this.nameAnswer);
   }
 }
 
@@ -276,6 +328,17 @@ class FakeButton implements ButtonInteractionLike {
   }
 }
 
+/** A string select menu press of the pick list: a button press that also carries the value the Member picked. */
+class FakeSelect extends FakeButton {
+  constructor(
+    customId: string,
+    user: { readonly id: string },
+    readonly values: readonly string[],
+  ) {
+    super(customId, user);
+  }
+}
+
 /** A button press whose update waits until the test releases it, so the press can be overtaken while in flight. */
 class HeldButton extends FakeButton {
   private readonly gate = deferred<undefined>();
@@ -332,7 +395,10 @@ class FakeCommand implements CommandLike {
   readonly deferrals: { readonly flags: MessageFlags.Ephemeral }[] = [];
   readonly calls: string[] = [];
 
-  constructor(readonly user: { readonly id: string; readonly username: string }) {}
+  constructor(
+    readonly user: { readonly id: string; readonly username: string },
+    readonly displayName: string = user.username,
+  ) {}
 
   deferReply(options: { readonly flags: MessageFlags.Ephemeral }): Promise<void> {
     this.calls.push("deferReply");
@@ -383,9 +449,30 @@ function openInterviewIdOf(h: Harness, memberId: MemberId): number {
 }
 
 /** The Member joins: the Interview opens and asks for the uid. Returns the Interview id. */
-async function joinedMember(h: Harness, memberId: MemberId = MEMBER): Promise<number> {
-  await h.service.onMemberJoined({ id: memberId, username: "vex_fan", bot: false });
+async function joinedMember(h: Harness, memberId: MemberId = MEMBER, displayName = "vex_fan"): Promise<number> {
+  await h.service.onMemberJoined({ id: memberId, username: "vex_fan", displayName, bot: false });
   return openInterviewIdOf(h, memberId);
+}
+
+/** The Member joins with a display name that cleans to the Player Name drlol, and the name lookup finds one Player. */
+async function recommendedMemberJoined(h: Harness, player: Player): Promise<number> {
+  h.gameApi.answerNameWith({ kind: "found", value: player, fetchedAt: NOW });
+  return joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+}
+
+/** The Member has pressed "That's me" on the one Recommended Player; the uid is asked for. Returns the Interview id. */
+async function recommendationAccepted(h: Harness, player: Player = PLAYER): Promise<number> {
+  const interviewId = await recommendedMemberJoined(h, player);
+  await h.service.onButton(new FakeButton(interviewCustomId("accept", interviewId), { id: MEMBER }));
+  return interviewId;
+}
+
+/** The Member has picked the match at index 1 (Vexy, Kingdom 330) from the pick list. Returns the Interview id. */
+async function matchPicked(h: Harness, index = "1"): Promise<number> {
+  h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+  const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+  await h.service.onButton(new FakeSelect(interviewCustomId("pick", interviewId), { id: MEMBER }, [index]));
+  return interviewId;
 }
 
 /** The Member submits a uid in the modal of the Interview. */
@@ -462,7 +549,7 @@ describe("createInterviews", () => {
 
   describe("when a Member joins", () => {
     test("ignores a bot account", async () => {
-      await h.service.onMemberJoined({ id: MEMBER, username: "neil_bot", bot: true });
+      await h.service.onMemberJoined({ id: MEMBER, username: "neil_bot", displayName: "neil_bot", bot: true });
 
       expect(h.channels.opened).toEqual([]);
       expect(h.channels.posts).toEqual([]);
@@ -472,7 +559,7 @@ describe("createInterviews", () => {
     test("ignores a Member who is already Linked", async () => {
       h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
 
-      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", bot: false });
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
 
       expect(h.channels.opened).toEqual([]);
       expect(h.interviews.openFor(MEMBER)).toBeUndefined();
@@ -481,7 +568,7 @@ describe("createInterviews", () => {
     test("ignores a Member who has an open Interview", async () => {
       h.interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
 
-      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", bot: false });
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
 
       expect(h.channels.opened).toEqual([]);
       expect(h.channels.posts).toEqual([]);
@@ -502,7 +589,7 @@ describe("createInterviews", () => {
         h.interviews.create({ memberId: MEMBER, threadId: RACING_THREAD }, NOW);
       };
 
-      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", bot: false });
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
 
       expect(h.channels.deleted).toEqual([THREAD]);
       expect(h.channels.posts).toEqual([]);
@@ -1154,6 +1241,249 @@ describe("createInterviews", () => {
 
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-confirmation" });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
+    });
+  });
+
+  describe("when the Interview opens with the Member's display name (US6)", () => {
+    test("looks the cleaned display name up as a Player Name, with no Kingdom, for the onboarding interview, and no uid", async () => {
+      await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+      expect(h.gameApi.nameLookups).toEqual([{ name: "drlol", kingdom: undefined, purpose: "onboarding-interview" }]);
+      expect(h.gameApi.lookups).toEqual([]);
+    });
+
+    test("one free match: the thread greets the Member and shows that Player, with That's me and That's not me", async () => {
+      const interviewId = await recommendedMemberJoined(h, PLAYER);
+
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: recommendationMessage(interviewId, MEMBER, PLAYER) }]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-recommendation", failedAttempts: 0 });
+    });
+
+    test("one match already Linked to someone: asks for the uid as usual, with no failed attempt and no reason given", async () => {
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      const interviewId = await recommendedMemberJoined(h, PLAYER);
+
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test.each([
+      { label: "matches no Player", result: { kind: "not-found" } },
+      { label: "is not prepared", result: { kind: "not-prepared" } },
+      { label: "is unavailable, to try again", result: { kind: "try-again" } },
+      { label: "is unavailable", result: { kind: "unavailable", reason: "unexpected" } },
+      { label: "finds the Daily Quota spent", result: { kind: "quota-spent", resetsAt: new Date("2026-11-01T00:00:00Z") } },
+    ] satisfies readonly { readonly label: string; readonly result: LookupResult<Player> }[])(
+      "asks for the uid as usual, with no failed attempt and no reason given, when the name lookup $label",
+      async ({ result }) => {
+        h.gameApi.answerNameWith(result);
+        const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+        expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+        expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+      },
+    );
+
+    test("a name lookup that throws asks for the uid as usual", async () => {
+      h.gameApi.failNamesWith(new Error("the connection was reset"));
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test("a display name with no usable characters asks for the uid without any name lookup", async () => {
+      const interviewId = await joinedMember(h, MEMBER, "[NML]");
+
+      expect(h.gameApi.nameLookups).toEqual([]);
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test("several matches: the thread lists them in a pick list, with no uid, and waits for a pick", async () => {
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: pickListMessage(interviewId, MEMBER, PICK_LIST) }]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-pick", failedAttempts: 0 });
+    });
+
+    test("/interview looks the display name of the Member who ran it up the same way", async () => {
+      h.gameApi.answerNameWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" }, DRLOL_DISPLAY_NAME);
+
+      await h.service.onCommand(command);
+
+      const interviewId = openInterviewIdOf(h, MEMBER);
+      expect(h.gameApi.nameLookups).toEqual([{ name: "drlol", kingdom: undefined, purpose: "onboarding-interview" }]);
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: recommendationMessage(interviewId, MEMBER, PLAYER) }]);
+      expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
+    });
+  });
+
+  describe("That's me on the Recommended Player (US6)", () => {
+    test("asks for the uid of that Player, and removes the buttons from the recommendation", async () => {
+      const interviewId = await recommendedMemberJoined(h, PLAYER);
+      const button = new FakeButton(interviewCustomId("accept", interviewId), { id: MEMBER });
+
+      await h.service.onButton(button);
+
+      expect(button.updates[0]?.components).toEqual([]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidOfPlayerMessage(interviewId, "Vex") });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test("does not Link the Member: the uid is still asked for", async () => {
+      await recommendationAccepted(h, PLAYER);
+
+      expect(linkOfMember(h)).toBeUndefined();
+      expect(h.gameApi.lookups).toEqual([]);
+    });
+
+    test.each([{ action: "accept" }, { action: "decline" }] as const)(
+      "tells someone else that the Interview belongs to another Member when $action is pressed, and changes nothing",
+      async ({ action }) => {
+        const interviewId = await recommendedMemberJoined(h, PLAYER);
+        const before = h.interviews.get(interviewId);
+        const button = new FakeButton(interviewCustomId(action, interviewId), { id: OTHER });
+
+        await h.service.onButton(button);
+
+        expect(button.replies).toEqual([buttonOfSomeoneElseReply()]);
+        expect(button.updates).toEqual([]);
+        expect(h.interviews.get(interviewId)).toEqual(before);
+      },
+    );
+  });
+
+  describe("That's not me and None of these on a recommendation (US6)", () => {
+    test("That's not me asks for the uid as usual, with no failed attempt", async () => {
+      const interviewId = await recommendedMemberJoined(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("decline", interviewId), { id: MEMBER }));
+
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test("None of these asks for the uid as usual, with no failed attempt", async () => {
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("decline", interviewId), { id: MEMBER }));
+
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+  });
+
+  describe("picking a match from the pick list (US6)", () => {
+    test("asks for the uid of the picked match, and removes the pick list", async () => {
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+      const pick = new FakeSelect(interviewCustomId("pick", interviewId), { id: MEMBER }, ["1"]);
+
+      await h.service.onButton(pick);
+
+      expect(pick.updates[0]?.components).toEqual([]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidOfPlayerMessage(interviewId, "Vexy") });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test("a pick by someone else is refused, and changes nothing", async () => {
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+      const before = h.interviews.get(interviewId);
+      const pick = new FakeSelect(interviewCustomId("pick", interviewId), { id: OTHER }, ["1"]);
+
+      await h.service.onButton(pick);
+
+      expect(pick.replies).toEqual([buttonOfSomeoneElseReply()]);
+      expect(pick.updates).toEqual([]);
+      expect(h.interviews.get(interviewId)).toEqual(before);
+    });
+  });
+
+  describe("the Recommended Player buttons on an Interview that awaits a uid (US6)", () => {
+    test.each(["accept", "decline", "pick"] as const)(
+      "tells the Member that the Interview has ended when $action is pressed while the uid is awaited",
+      async (action) => {
+        const interviewId = await joinedMember(h);
+        const button = new FakeSelect(interviewCustomId(action, interviewId), { id: MEMBER }, ["0"]);
+
+        await h.service.onButton(button);
+
+        expect(button.replies).toEqual([interviewEndedReply()]);
+        expect(button.updates).toEqual([]);
+      },
+    );
+  });
+
+  describe("the uid after That's me or a pick (US6)", () => {
+    test("the uid of the recommended Player Links the Member at once, with no lookup and no second question", async () => {
+      const interviewId = await recommendationAccepted(h, PLAYER);
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.gameApi.lookups).toEqual([]);
+      expect(linkOfMember(h)).toEqual({
+        memberId: MEMBER,
+        uid: UID,
+        linkedAt: NOW,
+        allianceRank: { source: "game-api", rank: "R4" },
+      });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
+      expect(h.channels.archived).toEqual([THREAD]);
+    });
+
+    test("the uid of the recommended Player is acknowledged once", async () => {
+      const interviewId = await recommendationAccepted(h, PLAYER);
+      const modal = new FakeModal(interviewCustomId("modal", interviewId), { id: MEMBER }, UID_DIGITS);
+
+      await h.service.onModalSubmit(modal);
+
+      expect(modal.replies.length + modal.deferUpdates).toBe(1);
+    });
+
+    test("the uid of the recommended Player, Linked to someone else since the choice, is refused as any taken uid", async () => {
+      const interviewId = await recommendationAccepted(h, PLAYER);
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(linkOfMember(h)).toBeUndefined();
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: alreadyLinkedMessage(interviewId, 4) });
+      expect(h.channels.logs).toEqual([refusedLogLine(MEMBER, UID)]);
+    });
+
+    test("the uid of the picked match is looked up once, and links the Member at once", async () => {
+      const interviewId = await matchPicked(h, "1");
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "onboarding-interview" }]);
+      expect(linkOfMember(h)).toEqual({
+        memberId: MEMBER,
+        uid: UID,
+        linkedAt: NOW,
+        allianceRank: { source: "game-api", rank: "R4" },
+      });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+    });
+
+    test("a different uid after That's me goes through the usual lookup and asks Is this you", async () => {
+      const interviewId = await recommendationAccepted(h, PLAYER);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER_OTHER_UID, fetchedAt: NOW });
+
+      await submitUid(h, interviewId, OTHER_UID_DIGITS);
+
+      expect(h.gameApi.lookups).toEqual([{ uid: OTHER_UID, purpose: "onboarding-interview" }]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER_OTHER_UID) });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-confirmation" });
+      expect(linkOfMember(h)).toBeUndefined();
     });
   });
 

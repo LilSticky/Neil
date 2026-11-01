@@ -2,10 +2,12 @@ import {
   Client,
   Events,
   GatewayIntentBits,
+  GuildMember,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type InteractionReplyOptions,
   type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
 } from "discord.js";
 import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
@@ -54,8 +56,8 @@ export interface CommandHandlers {
   readonly memberLeft: (member: LeftMember) => Promise<void>;
   /** The /interview command, which starts an Onboarding Interview on demand. */
   readonly interview: (interaction: ChatInputCommandInteraction) => Promise<void>;
-  /** A button whose custom id starts with `interview:`. */
-  readonly interviewButton: (button: ButtonInteraction) => Promise<void>;
+  /** A button or string select menu whose custom id starts with `interview:`. */
+  readonly interviewButton: (button: ButtonInteraction | StringSelectMenuInteraction) => Promise<void>;
   /** A modal submit whose custom id starts with `interview:`. */
   readonly interviewModal: (modal: ModalSubmitInteraction) => Promise<void>;
   /** A button whose custom id starts with `rank:`, the Rank Approval buttons. */
@@ -106,7 +108,12 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
   });
   client.on(Events.GuildMemberAdd, (member) => {
     if (member.guild.id !== options.guildId) return;
-    void handlers.memberJoined({ id: member.id, username: member.user.username, bot: member.user.bot });
+    void handlers.memberJoined({
+      id: member.id,
+      username: member.user.username,
+      displayName: member.displayName,
+      bot: member.user.bot,
+    });
   });
   // The member may be partial when they left; their user is still there.
   client.on(Events.GuildMemberRemove, (member) => {
@@ -148,8 +155,12 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       }
       return;
     }
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith(PICK_PREFIX)) {
-      void handlers.pick(interaction);
+    if (interaction.isStringSelectMenu()) {
+      if (interaction.customId.startsWith(INTERVIEW_PREFIX)) {
+        void handlers.interviewButton(interaction);
+      } else if (interaction.customId.startsWith(PICK_PREFIX)) {
+        void handlers.pick(interaction);
+      }
     }
   });
   return client;
@@ -174,11 +185,12 @@ export interface ConnectOptions {
 }
 
 /**
- * The discord.js button press as the Interview reads it. discord.js types reply with overloads that the Interview's
- * narrower signatures do not match, so each method is passed on with the one shape Neil uses.
+ * The discord.js button press or string select menu press as the Interview reads it. discord.js types reply with
+ * overloads that the Interview's narrower signatures do not match, so each method is passed on with the one shape Neil
+ * uses. A select menu press also carries the values picked.
  */
-function buttonLike(button: ButtonInteraction): ButtonInteractionLike {
-  return {
+function buttonLike(button: ButtonInteraction | StringSelectMenuInteraction): ButtonInteractionLike {
+  const like: ButtonInteractionLike = {
     customId: button.customId,
     user: button.user,
     reply: async (message) => {
@@ -194,6 +206,7 @@ function buttonLike(button: ButtonInteraction): ButtonInteractionLike {
       await button.followUp(message);
     },
   };
+  return button.isStringSelectMenu() ? { ...like, values: [...button.values] } : like;
 }
 
 /** The discord.js button press as a Rank Approval reads it; see buttonLike for why each method is passed on. */
@@ -214,6 +227,8 @@ function rankButtonLike(button: ButtonInteraction): RankButtonLike {
 function commandLike(command: ChatInputCommandInteraction): CommandLike {
   return {
     user: command.user,
+    // A command from a member of the server carries the guild member, whose display name is the server's; else the username.
+    displayName: command.member instanceof GuildMember ? command.member.displayName : command.user.username,
     deferReply: async (options) => {
       await command.deferReply(options);
     },

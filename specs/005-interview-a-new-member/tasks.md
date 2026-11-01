@@ -190,7 +190,7 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
   Alliance, rank, **no uid**, "That's me" / "That's not me"); pick list (select menu, labels `Name · Kingdom #N`, no uid,
   at most 25, "None of these" button); the uid question after a choice ("give the uid of <name>" + help); custom ids for
   the new actions parse back. Implement `src/discord/interview-texts.ts` (texts also in contracts/interview.md).
-- [ ] T029 [US6] Test `src/discord/interview.test.ts`: opening an Interview cleans `member.displayName` and calls
+- [x] T029 [US6] Test `src/discord/interview.test.ts`: opening an Interview cleans `member.displayName` and calls
   `findPlayer(name, undefined, "interview")`; one free match → recommendation; one Linked match, not found, unavailable,
   quota spent, empty name → plain uid question (no attempt, no reason shown); ambiguous → pick list; accept / pick /
   decline buttons (only the interviewed Member); uid modal with `chosen` → Link at once (no `getPlayer` for a single

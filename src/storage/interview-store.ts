@@ -35,6 +35,12 @@ export interface CheckingInterviews {
   readonly corrupt: number;
 }
 
+/** The Interviews whose Game API lookup or check was in flight, and how many such rows could not be read. */
+export interface InFlightInterviews {
+  readonly interviews: (Recommending | Checking)[];
+  readonly corrupt: number;
+}
+
 const OPEN_CONFLICT_PATTERN = /^UNIQUE constraint failed: onboarding_interview\.member_id$/;
 const OPEN_STEPS =
   "('recommending', 'awaiting-recommendation', 'awaiting-pick', 'awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota')";
@@ -282,6 +288,25 @@ export class InterviewStore {
       const interview = interviewOf(raw);
       if (interview !== undefined && isOpen(interview)) interviews.push(interview);
       else corrupt += 1;
+    }
+    return { interviews, corrupt };
+  }
+
+  /**
+   * The Interviews whose Recommended Player lookup or uid check was in flight, for recovery after a restart; a row
+   * that cannot be read is counted and skipped.
+   */
+  inFlight(): InFlightInterviews {
+    const interviews: (Recommending | Checking)[] = [];
+    let corrupt = 0;
+    const rows = this.db.prepare(`${ROW_SELECT} WHERE step IN ('recommending', 'checking') ORDER BY id`).all();
+    for (const raw of rows) {
+      const interview = interviewOf(raw);
+      if (interview !== undefined && (interview.step === "recommending" || interview.step === "checking")) {
+        interviews.push(interview);
+      } else {
+        corrupt += 1;
+      }
     }
     return { interviews, corrupt };
   }

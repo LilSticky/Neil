@@ -1,30 +1,39 @@
 import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMessageOptions } from "discord.js";
 import type { RequestPurpose } from "../domain/daily-quota.js";
 import {
+  acceptRecommendation,
   confirm,
+  declineRecommendation,
   giveUid,
   memberLeft,
+  pickMatch,
   recommendationFound,
   reject,
   uidChecked,
-  type InterviewTransition,
   type AwaitingConfirmation,
+  type AwaitingPick,
+  type AwaitingRecommendation,
+  type InterviewTransition,
   type OnboardingInterview,
   type OpenInterview,
+  type RecommendationResult,
+  type Recommending,
   type UidCheck,
 } from "../domain/onboarding-interview.js";
 import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
-import type { Uid } from "../domain/lookup-input.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { KingdomNumber, PlayerName, Uid } from "../domain/lookup-input.js";
+import { listedPlayerMatches, type LookupResult, type Player } from "../domain/player.js";
+import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { CreateOutcome, InterviewStore } from "../storage/interview-store.js";
 import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
-import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
+import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { RankApprovals } from "./rank-approval.js";
 import {
   abandonedLogLine,
   alreadyLinkedMessage,
   askUidMessage,
+  askUidOfPlayerMessage,
   buttonOfSomeoneElseReply,
   checkingReply,
   foundCardMessage,
@@ -40,15 +49,18 @@ import {
   malformedUidMessage,
   notFoundMessage,
   parseInterviewCustomId,
+  pickListMessage,
   quotaSpentMessage,
   rankCancelledLeftMessage,
   rankCancelledLogLine,
+  recommendationMessage,
   refusedLogLine,
   rejectedMessage,
   somethingWentWrongReply,
   unavailableMessage,
   uidModal,
   type ButtonMessage,
+  type Message,
   type OfficerRoles,
   type PrivateReply,
 } from "./interview-texts.js";
@@ -57,7 +69,15 @@ import {
 export interface JoinedMember {
   readonly id: MemberId;
   readonly username: string;
+  readonly displayName: string;
   readonly bot: boolean;
+}
+
+/** A Member whose Interview is opened: the thread is named after the username, the Recommended Player is looked up by the display name. */
+interface OpeningMember {
+  readonly id: MemberId;
+  readonly username: string;
+  readonly displayName: string;
 }
 
 /** A Member who left the server, as the Interview needs them. */
@@ -69,6 +89,8 @@ export interface LeftMember {
 /** The part of a discord.js chat-input command that /interview uses: who ran it, and the private reply to them. */
 export interface CommandLike {
   readonly user: { readonly id: string; readonly username: string };
+  /** The Member's server display name, cleaned into the Recommended Player's Player Name. */
+  readonly displayName: string;
   /** Defers the answer, privately; Discord allows three seconds without it. */
   deferReply(options: { readonly flags: MessageFlags.Ephemeral }): Promise<void>;
   /** The one answer to the deferred command. */
@@ -79,6 +101,8 @@ export interface CommandLike {
 export interface ButtonInteractionLike {
   readonly customId: string;
   readonly user: { readonly id: string };
+  /** What a string select menu press picked, as the option values; absent for a button. */
+  readonly values?: readonly string[] | undefined;
   reply(message: PrivateReply): Promise<void>;
   showModal(modal: APIModalInteractionResponseCallbackData): Promise<void>;
   update(options: BaseMessageOptions): Promise<void>;
@@ -95,9 +119,14 @@ export interface ModalInteractionLike {
   deferUpdate(): Promise<void>;
 }
 
-/** The part of the Game API client the Interview uses: one Player lookup per uid. */
+/** The part of the Game API client the Interview uses: one Player lookup per uid, one per Player Name. */
 export interface InterviewGameApi {
   getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>>;
+  findPlayer(
+    name: PlayerName,
+    kingdom: KingdomNumber | undefined,
+    purpose: RequestPurpose,
+  ): Promise<LookupResult<Player>>;
 }
 
 /** Everything the Interview reads and writes, injected so that tests run without Discord or the Game API. */
@@ -183,6 +212,7 @@ function trackedButton(button: ButtonInteractionLike, ack: Acknowledgement): But
   return {
     customId: button.customId,
     user: button.user,
+    values: button.values,
     reply: (message) => {
       ack.acknowledged = true;
       return button.reply(message);
@@ -219,6 +249,9 @@ function trackedModal(modal: ModalInteractionLike, ack: Acknowledgement): ModalI
 /** Raised inside the Link transaction when the Interview is no longer awaiting its confirmation: nothing is stored. */
 class InterviewMovedOn extends Error {}
 
+/** The name a pick is called by when its match has none; the same label the pick list shows. */
+const UNNAMED_MATCH = "Unknown";
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "unknown error";
 }
@@ -227,7 +260,7 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
   if (member.bot) return;
   if (deps.links.linkFor(member.id) !== undefined) return;
   if (deps.interviews.openFor(member.id) !== undefined) return;
-  await openInterview(deps, { id: member.id, username: member.username });
+  await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
 }
 
 /** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
@@ -251,7 +284,11 @@ async function commandReply(deps: InterviewDeps, command: CommandLike): Promise<
   if (link !== undefined) return interviewLinkedReply(link.uid);
   const open = deps.interviews.openFor(memberId);
   if (open !== undefined) return interviewAlreadyOpenReply(open.threadId);
-  const threadId = await openInterview(deps, { id: memberId, username: command.user.username });
+  const threadId = await openInterview(deps, {
+    id: memberId,
+    username: command.user.username,
+    displayName: command.displayName,
+  });
   if (threadId !== undefined) return interviewOpenedReply(threadId);
   // An Interview was opened for the Member meanwhile: the Member is pointed to it.
   const raced = deps.interviews.openFor(memberId);
@@ -263,32 +300,93 @@ async function commandReply(deps: InterviewDeps, command: CommandLike): Promise<
  * Opens a thread for the Member, saves the new Interview and asks for the uid in the thread. Returns the thread,
  * or undefined when the Member already had an open Interview: nothing is asked then.
  */
-async function openInterview(deps: InterviewDeps, member: ThreadMember): Promise<string | undefined> {
-  const threadId = await deps.channels.openThread(member);
+async function openInterview(deps: InterviewDeps, member: OpeningMember): Promise<string | undefined> {
+  const threadId = await deps.channels.openThread({ id: member.id, username: member.username });
   const created = await createOrDiscard(deps, member.id, threadId);
   if (created.kind === "already-open") return undefined;
-  await deps.channels.post(threadId, askUidMessage(created.interview.id, member.id));
+  await recommend(deps, created.interview, member.displayName);
   return threadId;
 }
 
 /**
- * Saves the new Interview; when that fails or another Interview won the race, the thread just opened is deleted.
- * Stopgap until T029: the name lookup is not wired in yet, so the new Interview asks for the uid at once.
+ * Saves the new Interview, recommending a Player; when that fails or another Interview won the race, the thread just
+ * opened is deleted.
  */
 async function createOrDiscard(deps: InterviewDeps, memberId: MemberId, threadId: string): Promise<CreateOutcome> {
   let created: CreateOutcome;
   try {
-    const now = deps.now();
-    created = deps.interviews.create({ memberId, threadId }, now);
-    if (created.kind === "created") {
-      deps.interviews.save(recommendationFound(created.interview, { kind: "none" }, now).interview);
-    }
+    created = deps.interviews.create({ memberId, threadId }, deps.now());
   } catch (error) {
     await deps.channels.deleteThread(threadId);
     throw error;
   }
   if (created.kind === "already-open") await deps.channels.deleteThread(threadId);
   return created;
+}
+
+/**
+ * The name lookup of the display name answered: the answer is saved, then shown in the thread. Nothing is shown when
+ * the Interview moved on meanwhile, the Member having left for one.
+ */
+async function recommend(deps: InterviewDeps, interview: Recommending, displayName: string): Promise<void> {
+  const result = await recommendationOf(deps, interview.memberId, displayName);
+  const transition = recommendationFound(interview, result, deps.now());
+  if (!deps.interviews.saveIfStep(transition.interview, "recommending")) return;
+  const { event } = transition;
+  switch (event.kind) {
+    case "asked":
+      await deps.channels.post(interview.threadId, askUidMessage(interview.id, interview.memberId));
+      return;
+    case "recommended":
+      await deps.channels.post(interview.threadId, recommendationMessage(interview.id, interview.memberId, event.player));
+      return;
+    case "pick-list":
+      await deps.channels.post(interview.threadId, pickListMessage(interview.id, interview.memberId, event.matches));
+      return;
+    default:
+      return;
+  }
+}
+
+/**
+ * The Recommended Player for a display name: the cleaned name looked up once. No usable name, no match, a match Linked
+ * to another Member, a failed or unavailable lookup: none, so the uid is asked for as usual.
+ */
+async function recommendationOf(deps: InterviewDeps, memberId: MemberId, displayName: string): Promise<RecommendationResult> {
+  const name = cleanDisplayName(displayName);
+  if (name === undefined) return { kind: "none" };
+  try {
+    const result = await deps.gameApi.findPlayer(name, undefined, "onboarding-interview");
+    return recommendationFromResult(deps, memberId, result);
+  } catch (error) {
+    deps.logError(`Looking up the Recommended Player failed: ${errorText(error)}`);
+    return { kind: "none" };
+  }
+}
+
+function recommendationFromResult(
+  deps: InterviewDeps,
+  memberId: MemberId,
+  result: LookupResult<Player>,
+): RecommendationResult {
+  switch (result.kind) {
+    case "found": {
+      const holder = deps.links.memberForUid(result.value.uid);
+      if (holder !== undefined && holder !== memberId) return { kind: "none" };
+      return { kind: "one", player: result.value };
+    }
+    case "ambiguous": {
+      const { listed } = listedPlayerMatches(result.matches);
+      return listed.length === 0 ? { kind: "none" } : { kind: "several", matches: listed };
+    }
+    case "not-found":
+    case "not-prepared":
+    case "try-again":
+    case "unavailable":
+    case "quota-spent":
+    case "reserve-kept":
+      return { kind: "none" };
+  }
 }
 
 /** A Member who left: the open Interview is abandoned as left, and the pending Rank Approval of their Link is cancelled. */
@@ -330,13 +428,75 @@ async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): 
       return confirmPlayer(deps, button, parsed.interviewId);
     case "reject":
       return rejectPlayer(deps, button, parsed.interviewId);
-    case "modal":
     case "accept":
+      return acceptPlayer(deps, button, parsed.interviewId);
     case "decline":
+      return declineShown(deps, button, parsed.interviewId);
     case "pick":
-      // Real handling of the Recommended Player buttons comes in T029; until then they are answered like an ended Interview.
+      return pickPlayer(deps, button, parsed.interviewId);
+    case "modal":
       return button.reply(interviewEndedReply());
   }
+}
+
+/** "That's me" on the Recommended Player: the card loses its buttons, and the uid of that Player is asked for. */
+async function acceptPlayer(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
+  const ownership = ownershipOf(deps, interviewId, button.user.id);
+  if (ownership.kind === "refused") return button.reply(ownership.reply);
+  const { interview } = ownership;
+  if (interview.step !== "awaiting-recommendation") return button.reply(interviewEndedReply());
+  await button.update(withoutButtons(recommendationMessage(interview.id, interview.memberId, interview.recommended)));
+  const transition = acceptRecommendation(interview, deps.now());
+  if (!deps.interviews.saveIfStep(transition.interview, "awaiting-recommendation")) {
+    return button.followUp(interviewEndedReply());
+  }
+  await deps.channels.post(interview.threadId, askUidOfPlayerMessage(interview.id, interview.recommended.name));
+}
+
+/** "That's not me" or "None of these": the card loses its buttons, and the uid is asked for; no attempt counts. */
+async function declineShown(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
+  const ownership = ownershipOf(deps, interviewId, button.user.id);
+  if (ownership.kind === "refused") return button.reply(ownership.reply);
+  const { interview } = ownership;
+  if (interview.step !== "awaiting-recommendation" && interview.step !== "awaiting-pick") {
+    return button.reply(interviewEndedReply());
+  }
+  await button.update(withoutButtons(shownCard(interview)));
+  const transition = declineRecommendation(interview, deps.now());
+  if (!deps.interviews.saveIfStep(transition.interview, interview.step)) return button.followUp(interviewEndedReply());
+  await deps.channels.post(interview.threadId, askUidMessage(interview.id, interview.memberId));
+}
+
+/** A pick from the pick list: the card loses its select menu, and the uid of the picked match is asked for. */
+async function pickPlayer(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
+  const ownership = ownershipOf(deps, interviewId, button.user.id);
+  if (ownership.kind === "refused") return button.reply(ownership.reply);
+  const index = pickedIndexOf(button.values);
+  if (index === undefined) return button.reply(somethingWentWrongReply());
+  const { interview } = ownership;
+  if (interview.step !== "awaiting-pick") return button.reply(interviewEndedReply());
+  const picked = interview.matches[index];
+  const transition = pickMatch(interview, index, deps.now());
+  if (picked === undefined || transition.event.kind !== "asked") return button.reply(interviewEndedReply());
+  await button.update(withoutButtons(pickListMessage(interview.id, interview.memberId, interview.matches)));
+  if (!deps.interviews.saveIfStep(transition.interview, "awaiting-pick")) return button.followUp(interviewEndedReply());
+  await deps.channels.post(interview.threadId, askUidOfPlayerMessage(interview.id, picked.name ?? UNNAMED_MATCH));
+}
+
+/** The option value of a pick: the index of the match in the list, as text. Undefined for anything else. */
+function pickedIndexOf(values: readonly string[] | undefined): number | undefined {
+  const first = values?.[0];
+  if (first === undefined || !/^\d+$/.test(first)) return undefined;
+  const index = Number(first);
+  return Number.isSafeInteger(index) ? index : undefined;
+}
+
+/** The card that shows the recommendation or the pick list, as it was posted. */
+function shownCard(interview: AwaitingRecommendation | AwaitingPick): Message {
+  if (interview.step === "awaiting-recommendation") {
+    return recommendationMessage(interview.id, interview.memberId, interview.recommended);
+  }
+  return pickListMessage(interview.id, interview.memberId, interview.matches);
 }
 
 async function openUidModal(deps: InterviewDeps, button: ButtonInteractionLike, interviewId: number): Promise<void> {
@@ -359,6 +519,13 @@ async function submitModal(deps: InterviewDeps, modal: ModalInteractionLike): Pr
     deps.interviews.save(transition.interview);
     return checkUid(deps, modal, transition.interview, transition.event.uid);
   }
+  if (transition.event.kind === "found" && transition.interview.step === "awaiting-confirmation") {
+    // The uid of the chosen Player needs no check: the Member is linked at once.
+    deps.interviews.save(transition.interview);
+    await modal.deferUpdate();
+    await linkConfirmed(deps, transition.interview);
+    return;
+  }
   // Every other submit is acknowledged once; a malformed uid is asked again in the thread.
   await modal.deferUpdate();
   if (transition.event.kind === "malformed") {
@@ -372,20 +539,29 @@ async function confirmPlayer(deps: InterviewDeps, button: ButtonInteractionLike,
   const { interview } = ownership;
   if (interview.step !== "awaiting-confirmation") return button.reply(interviewEndedReply());
   await button.update(withoutButtons(foundCardMessage(interview.id, interview.player)));
+  if ((await linkConfirmed(deps, interview)) === "ended") await button.followUp(interviewEndedReply());
+}
+
+/**
+ * The Member confirmed the Player shown, or chose its uid: the Link is made, or refused when the uid is Linked meanwhile.
+ * "ended" when the Interview moved on or the Member already holds the uid: nothing is said then but the ended note.
+ */
+async function linkConfirmed(deps: InterviewDeps, interview: AwaitingConfirmation): Promise<"done" | "ended"> {
   const now = deps.now();
   const leaderMemberId = await leaderPing(deps, interview.player);
   const linked = confirm(interview, { kind: "linked" }, now);
   const link = linkFor(interview, now);
   const draft = pendingApprovalFor(link, interview, leaderMemberId, now);
   const outcome = storeLink(deps, linked.interview, draft === undefined ? { link } : { link, rankApproval: draft });
-  if (outcome === undefined) return button.followUp(interviewEndedReply());
-  if (outcome.kind === "already-linked") return refuseConfirmation(deps, button, interview, now);
-  // The Member already holds this uid: the Interview is done, so it is saved as linked when it still waits, and the press ends.
+  if (outcome === undefined) return "ended";
+  if (outcome.kind === "already-linked") return refuseConfirmation(deps, interview, now);
+  // The Member already holds this uid: the Interview is done, so it is saved as linked when it still waits.
   if (outcome.kind === "held") {
     deps.interviews.saveIfStep(linked.interview, "awaiting-confirmation");
-    return button.followUp(interviewEndedReply());
+    return "ended";
   }
   await finishLink(deps, interview, leaderMemberId, outcome.rankApproval);
+  return "done";
 }
 
 /**
@@ -441,13 +617,13 @@ async function rejectPlayer(deps: InterviewDeps, button: ButtonInteractionLike, 
 /** The Player was linked to someone else meanwhile: the attempt fails, the Member is asked again. */
 async function refuseConfirmation(
   deps: InterviewDeps,
-  button: ButtonInteractionLike,
   interview: AwaitingConfirmation,
   now: Date,
-): Promise<void> {
+): Promise<"done" | "ended"> {
   const refused = confirm(interview, { kind: "already-linked" }, now);
-  if (!deps.interviews.saveIfStep(refused.interview, "awaiting-confirmation")) return button.followUp(interviewEndedReply());
+  if (!deps.interviews.saveIfStep(refused.interview, "awaiting-confirmation")) return "ended";
   await announce(deps, refused, interview.player.uid);
+  return "done";
 }
 
 /**
@@ -493,6 +669,11 @@ async function checkUid(deps: InterviewDeps, modal: ModalInteractionLike, interv
   const transition = uidChecked(interview, check, deps.now());
   // The Member may have left or the Interview may have been abandoned during the lookup: then nothing is said.
   if (!deps.interviews.saveIfStep(transition.interview, "checking")) return;
+  // The uid of a pick, found, is the Player the Member chose: it is linked at once, like the Recommended Player.
+  if (transition.interview.step === "awaiting-confirmation" && transition.interview.confirmedByChoice === true) {
+    await linkConfirmed(deps, transition.interview);
+    return;
+  }
   await announce(deps, transition, uid);
 }
 
@@ -596,8 +777,8 @@ function failureMessage(
   }
 }
 
-/** The card without its buttons, once the Member has pressed one of them. */
-function withoutButtons(card: ButtonMessage): BaseMessageOptions {
+/** The card without its buttons and select menus, once the Member has pressed one of them. */
+function withoutButtons(card: Message): BaseMessageOptions {
   return { content: card.content, allowedMentions: card.allowedMentions, components: [] };
 }
 
@@ -612,6 +793,9 @@ function ownershipOf(deps: InterviewDeps, interviewId: number, memberId: MemberI
 
 function isOpen(interview: OnboardingInterview): interview is OpenInterview {
   return (
+    interview.step === "recommending" ||
+    interview.step === "awaiting-recommendation" ||
+    interview.step === "awaiting-pick" ||
     interview.step === "awaiting-uid" ||
     interview.step === "checking" ||
     interview.step === "awaiting-confirmation" ||

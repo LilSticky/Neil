@@ -19,7 +19,7 @@ export interface SweeperDeps {
 
 /** The two jobs of the sweeper. Neither rejects: a failing Interview is logged and the rest still run. */
 export interface Sweeper {
-  /** After a restart: asks each Interview that was waiting on a Game API check for its uid again. */
+  /** After a restart: asks each Interview whose Game API lookup or check was in flight for its uid again. */
   recover(): Promise<void>;
   /** Abandons the Interviews past their deadline and deletes the rows ended long ago. */
   sweep(): Promise<void>;
@@ -32,19 +32,19 @@ export function createSweeper(deps: SweeperDeps): Sweeper {
   return {
     async recover(): Promise<void> {
       const now = deps.now();
-      let checking;
+      let inFlight;
       try {
-        checking = deps.interviews.checking();
+        inFlight = deps.interviews.inFlight();
       } catch (error) {
         deps.logError(`Recovering Onboarding Interviews failed: ${errorText(error)}`);
         return;
       }
-      reportCorrupt(deps, checking.corrupt, "recovering");
-      for (const interview of checking.interviews) {
+      reportCorrupt(deps, inFlight.corrupt, "recovering");
+      for (const interview of inFlight.interviews) {
         await guarded(deps, `Recovering Onboarding Interview ${interview.id.toString()}`, async () => {
           const transition = recoverAfterRestart(interview, now);
-          // The Member may have left meanwhile: the Interview is then not waiting on a check any more, and is left alone.
-          if (!deps.interviews.saveIfStep(transition.interview, "checking")) return;
+          // The Member may have left meanwhile: the Interview is then no longer in flight, and is left alone.
+          if (!deps.interviews.saveIfStep(transition.interview, interview.step)) return;
           if (transition.event.kind === "asked") {
             await deps.channels.post(interview.threadId, askUidMessage(interview.id, interview.memberId));
           }
