@@ -88,3 +88,36 @@ T001 to T020 are ticked and each has its test and code. T021 (review.md), T022 (
 4. Edge: deleting or leaving the thread as silence has no test.
 5. FR-004: no Interview-level test using a fresh cached Player.
 6. Process: T021 review.md and T022 docs still open.
+
+## 2026-11-01: US6, US7, FR-021 to FR-027, T025 to T031 (T034)
+
+Abbreviations as above; rp = domain/recommended-player.test.ts, store = storage/interview-store.test.ts, cards = discord/lookup-cards.test.ts. Typecheck, tests and lint (--quiet) run: all clean.
+
+| Criterion | Test(s) | Status |
+|---|---|---|
+| US6-1 / FR-021 one free match shown with That's me / not me | int "one free match: the thread greets..."; "looks the cleaned display name up ... no uid" | covered |
+| US6-2 / FR-021 several matches, pick list, None of these | int "several matches: ... pick list, with no uid"; cards "renderPlayerPickList" | covered |
+| US6-3 / FR-023 uid of chosen Player Links, no second question, 0 / 1 request | int "uid of the recommended Player Links ... no lookup"; "uid of the picked match is looked up once"; dom acceptRecommendation/pickMatch | covered |
+| US6-4 different uid goes the usual way | int "a different uid after That's me ..." | covered |
+| US6-5 empty name, no match, only match Linked, API unavailable, quota spent | int "no usable characters", "already Linked", "lookup that throws", table of try-again/unavailable/quota-spent | covered |
+| US6-6 / FR-024 not me, None of these: no failed attempt | int "That's not me ...", "None of these ..."; dom declineRecommendation | covered |
+| US6-7 / FR-025 restart during lookup | sweep "Recommended Player lookup was in flight"; dom "stored as looking up" | covered |
+| FR-025 restart in awaiting-recommendation / awaiting-pick | store "due lists an awaiting-pick", corrupt matches_json; migration 4 tests | partial (no int-level restart test of a shown recommendation or pick list) |
+| FR-021 one request, Onboarding purpose, cache when fresh | int first test (purpose, no Kingdom) | partial (fresh-cache use not tested) |
+| FR-022 / FR-027 no uid on recommendation and pick list | int several-matches test; cards no-uid tests | covered |
+| FR-017 buttons only for the Member (US6 buttons) | int "a pick by someone else is refused" | partial (That's me / not me / None of these by someone else untested) |
+| Edge: display-name cleaning | rp (10 tests: tags, #331, emoji, accents, 32 limit, empty) | covered |
+| Edge: Recommended Player Linked meanwhile | int "uid of the recommended Player, Linked to someone else since the choice, is refused" | covered |
+| Buttons on an Interview not awaiting (stale) | int "Recommended Player buttons on an Interview that awaits a uid" | covered (extra) |
+| US7-1 / FR-026 option order | commands.test /player and /alliance | covered |
+| US7-2 / FR-027 no uid in Player card, roster rows, pick list, roster menu | cards "shows no uid ..." (4 tests) | covered |
+| US7-3 thread and log still show the uid | existing int / log tests, no US7-specific assertion | partial |
+
+Tasks: T025 to T031 are ticked and each has its test and code. T032 and T033 open; T034 is this audit. No test found that covers nothing in the spec.
+
+### Gaps
+1. FR-017: That's me, That's not me and None of these pressed by another person are not tested.
+2. FR-025: no end-to-end restart test for a shown recommendation or pick list.
+3. FR-021: no test that a fresh cached name lookup makes no request.
+4. US7-3: no assertion that the thread and log still show the uid after the card change.
+5. Process: T032 docs and T033 review.md open.

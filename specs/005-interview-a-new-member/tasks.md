@@ -205,7 +205,7 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
 - [x] T031 [P] [US7] Test `src/discord/lookup-cards.test.ts` (+ `recorded-cards.test.ts`): no uid on the Player card,
   in Alliance Roster rows, in the Player pick list (description `Kingdom #N`) or the roster menu (description: rank).
   Implement `src/discord/lookup-cards.ts`.
-- [ ] T032 Docs: contracts (interview, 004 lookups), quickstart, TEST-RUN.md (new section for US6/US7), GAME-API.md
+- [x] T032 Docs: contracts (interview, 004 lookups), quickstart, TEST-RUN.md (new section for US6/US7), GAME-API.md
   (name lookup used by the Interview), STATUS.
 - [ ] T033 `bot-reviewer` on the Phase 9–10 diff; findings into `review.md`; fix must/should items.
 - [ ] T034 `spec-auditor` against FR-021–FR-027; close gaps.

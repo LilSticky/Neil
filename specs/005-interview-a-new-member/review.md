@@ -32,3 +32,18 @@ validated; pure domain, no `any` or `!`.
 - A failing channel check at ready makes `start` exit 1 (test). Covered.
 - Non-owner presses on "That's me", "That's not me" and the modal (tests). Covered.
 - Restart: a paused or awaiting-confirmation Interview keeps working after a restart (tests). Covered.
+
+## 2026-11-01: Recommended Player and uid-free lookups (T033)
+
+Diff `e0ef8de..HEAD -- src/`. No must; 2 should, 4 could/nit.
+
+| Level | Where | Finding | Fix |
+|-------|-------|---------|-----|
+| should | `src/discord/interview.ts` (chosen-uid path), `src/storage/interview-store.ts` `inFlight` | `awaiting-confirmation` with `confirmedByChoice` is saved before the Link; a restart in between leaves the Member without buttons | recovery also takes it and runs the Link again |
+| should | `src/discord/interview-texts.ts` pick list | labels not truncated to 100; Game API match names have no length limit | truncate (`optionLabel`) |
+| could | `src/domain/onboarding-interview.ts` `recoverAfterRestart` | `checking` loses `chosen` on restart | keep `chosen` |
+| could | `src/discord/interview.ts` pick list | matches Linked to another Member are listed; picking one costs a try | filter them out |
+| could | `src/discord/interview.ts` pick of an invalid uid | answered "ended" | `somethingWentWrongReply` |
+| nit | `src/storage/interview-store.ts` `checking()` | test-only now | remove |
+
+Checked fine: ownership and acknowledge-once on accept/decline/pick, Quota Reserve purpose, no uids in recommendation/pick list/lookups, migration 4 in a transaction, escaping, pure domain.
