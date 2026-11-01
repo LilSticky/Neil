@@ -183,7 +183,7 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
   `awaiting-confirmation` + `confirmedByChoice`; same uid without player → `checking` keeping `chosen`, then `uidChecked`
   found → `confirmedByChoice`; other uid → chosen dropped); `recoverAfterRestart` for `recommending`; `dueAt`; `timeOut`
   and `memberLeft` from the new steps). Implement `src/domain/onboarding-interview.ts`.
-- [ ] T027 [US6] Test `src/storage/database.test.ts` + `interview-store.test.ts`: migration 4 (columns, recreated
+- [x] T027 [US6] Test `src/storage/database.test.ts` + `interview-store.test.ts`: migration 4 (columns, recreated
   `one_open_interview` incl. new steps, a version-3 db upgrades with its rows kept); every new step and `chosen`
   round-trips; corrupt `matches_json` is skipped like other corrupt rows. Implement in `src/storage/`.
 - [ ] T028 [P] [US6] Test `src/discord/interview-texts.test.ts`: recommendation message (greeting, Player Name, Kingdom,

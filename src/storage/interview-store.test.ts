@@ -5,20 +5,26 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Link } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { Player } from "../domain/player.js";
+import type { PickablePlayerMatch, Player } from "../domain/player.js";
 import {
   MAX_FAILED_ATTEMPTS,
+  acceptRecommendation,
   confirm as confirmInterview,
   giveUid,
   memberLeft,
+  pickMatch,
+  recommendationFound,
   timeOut,
   uidChecked,
   type AwaitingUid,
   type Checking,
+  type InterviewTransition,
   type OnboardingInterview,
+  type OpenInterview,
+  type RecommendationResult,
 } from "../domain/onboarding-interview.js";
 import { openDatabase } from "./database.js";
-import { InterviewStore, type CreateOutcome } from "./interview-store.js";
+import { InterviewStore, type CreateOutcome, type InterviewDraft } from "./interview-store.js";
 import { LinkStore } from "./link-store.js";
 
 function uidOf(digits: string): Uid {
@@ -49,6 +55,7 @@ const DRAFT = { memberId: MEMBER, threadId: THREAD };
 
 const UID_DIGITS = "145563254785";
 const UID = uidOf(UID_DIGITS);
+const OTHER_UID_DIGITS = "100000000001";
 const PLAYER: Player = {
   uid: UID,
   name: "Neil",
@@ -58,15 +65,41 @@ const PLAYER: Player = {
   alliance: { tag: "LAS", name: "Last Asylum", leaderUid: undefined },
   allianceRank: "R4",
 };
+const MATCHES: readonly PickablePlayerMatch[] = [
+  { uid: UID_DIGITS, name: "Neil", kingdom: 330, tag: "LAS" },
+  { uid: OTHER_UID_DIGITS, name: "Neil", kingdom: 331 },
+];
+const ONE: RecommendationResult = { kind: "one", player: PLAYER };
+const SEVERAL: RecommendationResult = { kind: "several", matches: MATCHES };
 
 interface StepCase {
   readonly name: string;
   readonly build: (awaiting: AwaitingUid) => OnboardingInterview;
 }
 
-function createdOf(outcome: CreateOutcome): AwaitingUid {
+interface RecommendationCase {
+  readonly name: string;
+  readonly step: OnboardingInterview["step"];
+  readonly build: (recommending: OnboardingInterview) => InterviewTransition;
+}
+
+function createdOf(outcome: CreateOutcome): OpenInterview {
   if (outcome.kind !== "created") throw new Error("the test Interview was not created");
   return outcome.interview;
+}
+
+/** The Interview after the name lookup found nothing: it asks for the uid. */
+function askedForUid(interview: OpenInterview, now: Date): AwaitingUid {
+  const asked = recommendationFound(interview, { kind: "none" }, now).interview;
+  if (asked.step !== "awaiting-uid") throw new Error("the test Interview does not ask for the uid");
+  return asked;
+}
+
+/** A new Interview stored as asking for the uid, as the lookup leaves it when no Player is recommended. */
+function startedAwaitingUid(store: InterviewStore, draft: InterviewDraft, now: Date): AwaitingUid {
+  const asked = askedForUid(createdOf(store.create(draft, now)), now);
+  store.save(asked);
+  return asked;
 }
 
 function checkingFrom(interview: OnboardingInterview): OnboardingInterview {
@@ -103,6 +136,50 @@ const STEP_CASES: readonly StepCase[] = [
   { name: "abandoned (left)", build: (awaiting) => memberLeft(awaiting, LATER).interview },
 ];
 
+/**
+ * The steps of the name lookup and of the choice that follows it, each built from the Interview the lookup opened.
+ * The step is named so that a build which does not reach it fails the round trip instead of passing vacuously.
+ */
+const RECOMMENDATION_CASES: readonly RecommendationCase[] = [
+  {
+    name: "recommending",
+    step: "recommending",
+    build: (recommending) => ({ interview: recommending, event: { kind: "recommending" } }),
+  },
+  {
+    name: "awaiting-recommendation",
+    step: "awaiting-recommendation",
+    build: (recommending) => recommendationFound(recommending, ONE, LATER),
+  },
+  {
+    name: "awaiting-pick",
+    step: "awaiting-pick",
+    build: (recommending) => recommendationFound(recommending, SEVERAL, LATER),
+  },
+  {
+    name: "awaiting-uid with the Recommended Player chosen",
+    step: "awaiting-uid",
+    build: (recommending) => acceptRecommendation(recommendationFound(recommending, ONE, LATER).interview, LATER),
+  },
+  {
+    name: "awaiting-uid with a pick chosen",
+    step: "awaiting-uid",
+    build: (recommending) => pickMatch(recommendationFound(recommending, SEVERAL, LATER).interview, 1, LATER),
+  },
+  {
+    name: "awaiting-confirmation confirmed by the choice",
+    step: "awaiting-confirmation",
+    build: (recommending) =>
+      giveUid(acceptRecommendation(recommendationFound(recommending, ONE, LATER).interview, LATER).interview, UID_DIGITS, LATER),
+  },
+  {
+    name: "checking with a pick chosen",
+    step: "checking",
+    build: (recommending) =>
+      giveUid(pickMatch(recommendationFound(recommending, SEVERAL, LATER).interview, 1, LATER).interview, OTHER_UID_DIGITS, LATER),
+  },
+];
+
 describe("InterviewStore", () => {
   let dataDir: string;
   let db: DatabaseSync;
@@ -117,7 +194,7 @@ describe("InterviewStore", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("create stores a new awaiting-uid Interview with no failed attempt", () => {
+  test("create stores a new recommending Interview with no failed attempt", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
 
     const outcome = store.create(DRAFT, NOW);
@@ -127,7 +204,7 @@ describe("InterviewStore", () => {
     expect(outcome).toEqual({
       kind: "created",
       interview: {
-        step: "awaiting-uid",
+        step: "recommending",
         id: created.id,
         memberId: MEMBER,
         threadId: THREAD,
@@ -162,8 +239,21 @@ describe("InterviewStore", () => {
 
   test.each(STEP_CASES)("round-trips the $name step through save and get", ({ build }) => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const created = createdOf(store.create(DRAFT, NOW));
-    const interview = build(created);
+    const awaiting = askedForUid(createdOf(store.create(DRAFT, NOW)), NOW);
+    const interview = build(awaiting);
+
+    store.save(interview);
+
+    expect(store.get(interview.id)).toEqual(interview);
+  });
+
+  test.each(RECOMMENDATION_CASES)("round-trips the $name step through save and get", ({ step, build }) => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    const recommending = createdOf(store.create(DRAFT, NOW));
+    expect(recommending.step).toBe("recommending");
+    const { interview, event } = build(recommending);
+    expect(event.kind).not.toBe("ignored");
+    expect(interview.step).toBe(step);
 
     store.save(interview);
 
@@ -172,7 +262,7 @@ describe("InterviewStore", () => {
 
   test("saveIfStep writes the Interview and returns true when the stored row still has the expected step", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const created = createdOf(store.create(DRAFT, NOW));
+    const created = startedAwaitingUid(store, DRAFT, NOW);
     const checking = checkingFrom(created);
 
     const saved = store.saveIfStep(checking, "awaiting-uid");
@@ -183,7 +273,7 @@ describe("InterviewStore", () => {
 
   test("saveIfStep writes nothing and returns false when a stale writer finds the row has moved on", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const created = createdOf(store.create(DRAFT, NOW));
+    const created = startedAwaitingUid(store, DRAFT, NOW);
     const checking = checkingFrom(created);
     expect(store.saveIfStep(checking, "awaiting-uid")).toBe(true);
     const stale = timeOut(created, LATER).interview;
@@ -225,7 +315,7 @@ describe("InterviewStore", () => {
 
   test("save writes the due time from dueAt, so a paused Interview is due at its resume time", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const created = createdOf(store.create(DRAFT, NOW));
+    const created = startedAwaitingUid(store, DRAFT, NOW);
     const paused = uidChecked(checkingFrom(created), { kind: "quota-spent", resetsAt: RESETS_AT }, LATER).interview;
     store.save(paused);
 
@@ -235,10 +325,10 @@ describe("InterviewStore", () => {
 
   test("due lists only open Interviews whose due time has come, not checking or ended ones", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const asking = createdOf(store.create(DRAFT, NOW));
-    const checking = checkingFrom(createdOf(store.create({ memberId: THIRD, threadId: THREAD }, NOW)));
+    const asking = startedAwaitingUid(store, DRAFT, NOW);
+    const checking = checkingFrom(startedAwaitingUid(store, { memberId: THIRD, threadId: THREAD }, NOW));
     store.save(checking);
-    const ended = createdOf(store.create({ memberId: "666666666666666666", threadId: THREAD }, NOW));
+    const ended = startedAwaitingUid(store, { memberId: "666666666666666666", threadId: THREAD }, NOW);
     store.save(timeOut(ended, NOW).interview);
 
     const due = store.due(new Date(NOW.getTime() + TIMEOUT_MS));
@@ -247,12 +337,30 @@ describe("InterviewStore", () => {
     expect(due.interviews).toEqual([asking]);
   });
 
+  test("due does not list a recommending Interview, which has no due time", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    createdOf(store.create(DRAFT, NOW));
+
+    const due = store.due(new Date(NOW.getTime() + TIMEOUT_MS));
+
+    expect(due).toEqual({ interviews: [], corrupt: 0 });
+  });
+
+  test("due lists an awaiting-pick Interview once its timeout has come", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    const pick = recommendationFound(createdOf(store.create(DRAFT, NOW)), SEVERAL, LATER).interview;
+    store.save(pick);
+
+    expect(store.due(new Date(LATER.getTime() + TIMEOUT_MS - 1)).interviews).toEqual([]);
+    expect(store.due(new Date(LATER.getTime() + TIMEOUT_MS)).interviews).toEqual([pick]);
+  });
+
   test("due reports a corrupt row as corrupt and skips it, without throwing", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
     db.prepare(
       "INSERT INTO onboarding_interview (id, member_id, thread_id, step, failed_attempts, started_at, due_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     ).run(900, OTHER, THREAD, "mystery", 0, NOW.toISOString(), OLD.toISOString());
-    const created = createdOf(store.create({ memberId: THIRD, threadId: THREAD }, NOW));
+    const created = startedAwaitingUid(store, { memberId: THIRD, threadId: THREAD }, NOW);
     const paused = uidChecked(checkingFrom(created), { kind: "quota-spent", resetsAt: RESETS_AT }, LATER).interview;
     store.save(paused);
 
@@ -262,10 +370,24 @@ describe("InterviewStore", () => {
     expect(due.interviews).toEqual([paused]);
   });
 
+  test("due reports an awaiting-pick row whose matches_json is corrupt as corrupt and skips it, without throwing", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    db.prepare(
+      "INSERT INTO onboarding_interview (id, member_id, thread_id, step, failed_attempts, started_at, last_asked_at, due_at, matches_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(900, OTHER, THREAD, "awaiting-pick", 0, OLD.toISOString(), OLD.toISOString(), OLD.toISOString(), "not json");
+    const pick = recommendationFound(createdOf(store.create({ memberId: THIRD, threadId: THREAD }, NOW)), SEVERAL, LATER)
+      .interview;
+    store.save(pick);
+
+    const due = store.due(new Date(LATER.getTime() + TIMEOUT_MS));
+
+    expect(due).toEqual({ interviews: [pick], corrupt: 1 });
+  });
+
   test("checking lists the Interviews waiting on a Game API check, for recovery after a restart", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const asking = createdOf(store.create(DRAFT, NOW));
-    const inFlight = checkingFrom(createdOf(store.create({ memberId: OTHER, threadId: THREAD }, NOW)));
+    const asking = startedAwaitingUid(store, DRAFT, NOW);
+    const inFlight = checkingFrom(startedAwaitingUid(store, { memberId: OTHER, threadId: THREAD }, NOW));
     store.save(inFlight);
 
     const checking = store.checking();
@@ -279,7 +401,7 @@ describe("InterviewStore", () => {
     db.prepare(
       "INSERT INTO onboarding_interview (id, member_id, thread_id, step, failed_attempts, started_at, due_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
     ).run(900, OTHER, THREAD, "checking", 0, NOW.toISOString(), OLD.toISOString());
-    const inFlight = checkingFrom(createdOf(store.create({ memberId: THIRD, threadId: THREAD }, NOW)));
+    const inFlight = checkingFrom(startedAwaitingUid(store, { memberId: THIRD, threadId: THREAD }, NOW));
     store.save(inFlight);
 
     const checking: { readonly interviews: Checking[]; readonly corrupt: number } = store.checking();
@@ -306,7 +428,7 @@ describe("InterviewStore", () => {
   test("save runs inside the transaction LinkStore.confirm opens, and the Interview is stored with the Link", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
     const links = new LinkStore(db);
-    const created = createdOf(store.create(DRAFT, NOW));
+    const created = startedAwaitingUid(store, DRAFT, NOW);
     store.save(awaitingConfirmationFrom(created));
     const link: Link = {
       memberId: MEMBER,
@@ -328,7 +450,7 @@ describe("InterviewStore", () => {
   test("an Interview saved inside a LinkStore.confirm that rolls back is not stored", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
     const links = new LinkStore(db);
-    const created = createdOf(store.create(DRAFT, NOW));
+    const created = startedAwaitingUid(store, DRAFT, NOW);
     const waiting = awaitingConfirmationFrom(created);
     store.save(waiting);
     const link: Link = {

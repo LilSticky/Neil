@@ -24,6 +24,7 @@ describe("openDatabase", () => {
       { version: 1 },
       { version: 2 },
       { version: 3 },
+      { version: 4 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -39,6 +40,7 @@ describe("openDatabase", () => {
       { version: 1 },
       { version: 2 },
       { version: 3 },
+      { version: 4 },
     ]);
     db.close();
   });
@@ -48,7 +50,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 3");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 4");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -157,11 +159,114 @@ describe("openDatabase", () => {
       { version: 1 },
       { version: 2 },
       { version: 3 },
+      { version: 4 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
       db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'onboarding_interview'").get(),
     ).toEqual({ name: "onboarding_interview" });
+    db.close();
+  });
+
+  test("migration 4 adds chosen_uid, chosen_player_json and matches_json to onboarding_interview", () => {
+    const db = openDatabase(dataDir);
+
+    const columns: { name: string; type: string }[] = db
+      .prepare("SELECT name, type FROM pragma_table_info('onboarding_interview')")
+      .all()
+      .map((row) => ({ name: String(row.name), type: String(row.type) }));
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        { name: "chosen_uid", type: "TEXT" },
+        { name: "chosen_player_json", type: "TEXT" },
+        { name: "matches_json", type: "TEXT" },
+      ]),
+    );
+    db.close();
+  });
+
+  test.each(["recommending", "awaiting-recommendation", "awaiting-pick"])(
+    "one_open_interview counts a %s Interview as open for its Member",
+    (step) => {
+      const db = openDatabase(dataDir);
+      const insert = db.prepare(
+        "INSERT INTO onboarding_interview (member_id, thread_id, step, failed_attempts, started_at) VALUES (?, ?, ?, ?, ?)",
+      );
+
+      insert.run("member-1", "thread-1", step, 0, "2026-10-29T12:00:00.000Z");
+      expect(() => insert.run("member-1", "thread-2", "awaiting-uid", 0, "2026-10-29T12:05:00.000Z")).toThrow(/UNIQUE/);
+      db.close();
+    },
+  );
+
+  test("upgrades a version 3 database and keeps its Interviews", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
+    legacy.exec(`CREATE TABLE onboarding_interview (
+      id INTEGER PRIMARY KEY,
+      member_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL,
+      step TEXT NOT NULL,
+      failed_attempts INTEGER NOT NULL CHECK (failed_attempts BETWEEN 0 AND 5),
+      uid TEXT,
+      player_json TEXT,
+      started_at TEXT NOT NULL,
+      last_asked_at TEXT,
+      resumes_at TEXT,
+      ended_at TEXT,
+      end_reason TEXT,
+      due_at TEXT
+    )`);
+    legacy.exec("CREATE INDEX onboarding_interview_due ON onboarding_interview (due_at)");
+    legacy.exec(`CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
+      WHERE step IN ('awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota')`);
+    const record = legacy.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)");
+    record.run(1, "2026-10-28T12:00:00.000Z");
+    record.run(2, "2026-10-28T12:00:00.000Z");
+    record.run(3, "2026-10-28T12:00:00.000Z");
+    legacy
+      .prepare(
+        "INSERT INTO onboarding_interview (id, member_id, thread_id, step, failed_attempts, started_at, last_asked_at, due_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+      .run(
+        1,
+        "member-1",
+        "thread-1",
+        "awaiting-uid",
+        2,
+        "2026-10-29T12:00:00.000Z",
+        "2026-10-29T12:00:00.000Z",
+        "2026-10-30T12:00:00.000Z",
+      );
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+
+    expect(db.prepare("SELECT version FROM schema_migrations").all()).toEqual([
+      { version: 1 },
+      { version: 2 },
+      { version: 3 },
+      { version: 4 },
+    ]);
+    expect(
+      db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),
+    ).toEqual([
+      {
+        member_id: "member-1",
+        step: "awaiting-uid",
+        failed_attempts: 2,
+        last_asked_at: "2026-10-29T12:00:00.000Z",
+        chosen_uid: null,
+        matches_json: null,
+      },
+    ]);
+    expect(() =>
+      db
+        .prepare(
+          "INSERT INTO onboarding_interview (member_id, thread_id, step, failed_attempts, started_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .run("member-1", "thread-2", "recommending", 0, "2026-10-29T13:00:00.000Z"),
+    ).toThrow(/UNIQUE/);
     db.close();
   });
 });

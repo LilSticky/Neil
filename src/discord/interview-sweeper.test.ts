@@ -9,6 +9,7 @@ import type { Player } from "../domain/player.js";
 import {
   giveUid,
   memberLeft,
+  recommendationFound,
   uidChecked,
   type AwaitingUid,
   type OnboardingInterview,
@@ -119,7 +120,10 @@ class FakeChannels implements OnboardingChannels {
 function openAwaitingUid(interviews: InterviewStore, memberId: MemberId, threadId: string, startedAt: Date): AwaitingUid {
   const outcome = interviews.create({ memberId, threadId }, startedAt);
   if (outcome.kind !== "created") throw new Error(`the test Member ${memberId} already has an open Interview`);
-  return outcome.interview;
+  const asked = recommendationFound(outcome.interview, { kind: "none" }, startedAt).interview;
+  if (asked.step !== "awaiting-uid") throw new Error(`the test Member ${memberId} is not asked for a uid`);
+  interviews.save(asked);
+  return asked;
 }
 
 /** Opens an Interview for the Member and pauses it for the Daily Quota until resumesAt. Returns the paused Interview. */

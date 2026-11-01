@@ -4,6 +4,7 @@ import {
   confirm,
   giveUid,
   memberLeft,
+  recommendationFound,
   reject,
   uidChecked,
   type InterviewTransition,
@@ -270,11 +271,18 @@ async function openInterview(deps: InterviewDeps, member: ThreadMember): Promise
   return threadId;
 }
 
-/** Saves the new Interview; when that fails or another Interview won the race, the thread just opened is deleted. */
+/**
+ * Saves the new Interview; when that fails or another Interview won the race, the thread just opened is deleted.
+ * Stopgap until T029: the name lookup is not wired in yet, so the new Interview asks for the uid at once.
+ */
 async function createOrDiscard(deps: InterviewDeps, memberId: MemberId, threadId: string): Promise<CreateOutcome> {
   let created: CreateOutcome;
   try {
-    created = deps.interviews.create({ memberId, threadId }, deps.now());
+    const now = deps.now();
+    created = deps.interviews.create({ memberId, threadId }, now);
+    if (created.kind === "created") {
+      deps.interviews.save(recommendationFound(created.interview, { kind: "none" }, now).interview);
+    }
   } catch (error) {
     await deps.channels.deleteThread(threadId);
     throw error;

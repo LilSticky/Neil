@@ -56,6 +56,14 @@ const migrations: readonly string[] = [
      asked_at TEXT NOT NULL,
      ended_at TEXT
    )`,
+  // Migration 4: the name lookup, the Recommended Player, the pick list and the chosen uid (slice 005, US6).
+  `ALTER TABLE onboarding_interview ADD COLUMN chosen_uid TEXT;
+   ALTER TABLE onboarding_interview ADD COLUMN chosen_player_json TEXT;
+   ALTER TABLE onboarding_interview ADD COLUMN matches_json TEXT;
+   DROP INDEX one_open_interview;
+   CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
+     WHERE step IN ('recommending', 'awaiting-recommendation', 'awaiting-pick', 'awaiting-uid', 'checking',
+       'awaiting-confirmation', 'paused-for-quota')`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

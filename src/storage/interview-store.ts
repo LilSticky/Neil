@@ -3,16 +3,16 @@ import { z } from "zod";
 import {
   dueAt,
   MAX_FAILED_ATTEMPTS,
-  recommendationFound,
   startInterview,
-  type AwaitingUid,
   type Checking,
+  type Chosen,
   type NewInterview,
   type OnboardingInterview,
   type OpenInterview,
+  type Recommending,
 } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type Uid } from "../domain/lookup-input.js";
-import type { Player } from "../domain/player.js";
+import type { PickablePlayerMatch, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 
 /** An Interview not yet stored: the database gives it its id. */
@@ -20,7 +20,7 @@ export type InterviewDraft = Omit<NewInterview, "id">;
 
 /** The outcome of creating: the Interview was opened, or the Member already has an open one and nothing was written. */
 export type CreateOutcome =
-  | { readonly kind: "created"; readonly interview: AwaitingUid }
+  | { readonly kind: "created"; readonly interview: Recommending }
   | { readonly kind: "already-open" };
 
 /** The open Interviews whose due time has come, and how many due rows could not be read. */
@@ -36,7 +36,8 @@ export interface CheckingInterviews {
 }
 
 const OPEN_CONFLICT_PATTERN = /^UNIQUE constraint failed: onboarding_interview\.member_id$/;
-const OPEN_STEPS = "('awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota')";
+const OPEN_STEPS =
+  "('recommending', 'awaiting-recommendation', 'awaiting-pick', 'awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota')";
 const ENDED_STEPS = "('linked', 'handed-off', 'abandoned')";
 
 const ROW_COLUMNS = [
@@ -52,6 +53,9 @@ const ROW_COLUMNS = [
   "ended_at",
   "end_reason",
   "due_at",
+  "chosen_uid",
+  "chosen_player_json",
+  "matches_json",
 ] as const;
 const ROW_SELECT = `SELECT id, ${ROW_COLUMNS.join(", ")} FROM onboarding_interview`;
 const ROW_PLACEHOLDERS = ROW_COLUMNS.map((column) => `:${column}`).join(", ");
@@ -82,13 +86,40 @@ const interviewRowBase = {
   started_at: isoDateColumn,
 };
 
+/** The chosen uid of an Interview after "That's me" or a pick; NULL when the Member chose none. */
+const chosenColumns = {
+  chosen_uid: uidColumn.nullable(),
+  chosen_player_json: z.string().nullable(),
+};
+
 /** One variant per step: each reads only the columns that step has. */
 const interviewRow = z.discriminatedUnion("step", [
+  z.object({
+    ...interviewRowBase,
+    step: z.literal("recommending"),
+    failed_attempts: openFailedAttemptsColumn,
+    last_asked_at: isoDateColumn,
+  }),
+  z.object({
+    ...interviewRowBase,
+    step: z.literal("awaiting-recommendation"),
+    failed_attempts: openFailedAttemptsColumn,
+    player_json: z.string(),
+    last_asked_at: isoDateColumn,
+  }),
+  z.object({
+    ...interviewRowBase,
+    step: z.literal("awaiting-pick"),
+    failed_attempts: openFailedAttemptsColumn,
+    matches_json: z.string(),
+    last_asked_at: isoDateColumn,
+  }),
   z.object({
     ...interviewRowBase,
     step: z.literal("awaiting-uid"),
     failed_attempts: openFailedAttemptsColumn,
     last_asked_at: isoDateColumn,
+    ...chosenColumns,
   }),
   z.object({
     ...interviewRowBase,
@@ -96,6 +127,7 @@ const interviewRow = z.discriminatedUnion("step", [
     failed_attempts: openFailedAttemptsColumn,
     uid: uidColumn,
     last_asked_at: isoDateColumn,
+    ...chosenColumns,
   }),
   z.object({
     ...interviewRowBase,
@@ -103,6 +135,8 @@ const interviewRow = z.discriminatedUnion("step", [
     failed_attempts: openFailedAttemptsColumn,
     player_json: z.string(),
     last_asked_at: isoDateColumn,
+    // Set only when the Member chose the uid of the Player shown: the Interview is then confirmed by the choice.
+    chosen_uid: uidColumn.nullable(),
   }),
   z.object({
     ...interviewRowBase,
@@ -143,6 +177,14 @@ const playerRecord = z.object({
   allianceRank: z.enum(["R1", "R2", "R3", "R4", "R5", "unknown"]).optional(),
 });
 
+/** The stored shape of one match of a pick list. */
+const matchRecord = z.object({
+  uid: z.string(),
+  kingdom: z.number(),
+  name: z.string().optional(),
+  tag: z.string().optional(),
+});
+
 /** The columns of one Interview row; a step leaves the columns it does not use NULL. */
 type RowValues = {
   readonly member_id: string;
@@ -157,6 +199,9 @@ type RowValues = {
   readonly ended_at: string | null;
   readonly end_reason: string | null;
   readonly due_at: string | null;
+  readonly chosen_uid: string | null;
+  readonly chosen_player_json: string | null;
+  readonly matches_json: string | null;
 };
 
 const NO_STEP_FIELDS = {
@@ -166,6 +211,9 @@ const NO_STEP_FIELDS = {
   resumes_at: null,
   ended_at: null,
   end_reason: null,
+  chosen_uid: null,
+  chosen_player_json: null,
+  matches_json: null,
 } as const;
 
 /** Keeps Onboarding Interviews in neil.db; a corrupt row is reported, never silently repaired. */
@@ -175,13 +223,10 @@ export class InterviewStore {
     private readonly timeoutMs: number,
   ) {}
 
-  /** Opens an Interview for the Member, unless the Member already has an open one; then nothing is written. */
+  /** Opens an Interview looking up the Member's Recommended Player, unless the Member already has an open one; then nothing is written. */
   create(draft: InterviewDraft, now: Date): CreateOutcome {
-    // The database gives the id; startInterview only needs one to build the Interview's shape. Until the name lookup
-    // is wired in (T027/T029), the Interview asks for the uid at once, as it did before Recommended Players.
-    const started = awaitingUidOf(
-      recommendationFound(startInterview({ ...draft, id: 0 }, now).interview, { kind: "none" }, now).interview,
-    );
+    // The database gives the id; startInterview only needs one to build the Interview's shape.
+    const started = recommendingOf(startInterview({ ...draft, id: 0 }, now).interview);
     try {
       const result = this.db.prepare(INSERT_ROW).run(rowOf(started, this.timeoutMs));
       return { kind: "created", interview: { ...started, id: Number(result.lastInsertRowid) } };
@@ -266,8 +311,8 @@ function corruptInterviewError(): Error {
   return new Error("an Onboarding Interview in neil.db is corrupt; fix or remove it by hand");
 }
 
-function awaitingUidOf(interview: OnboardingInterview): AwaitingUid {
-  if (interview.step !== "awaiting-uid") throw new Error("a new Onboarding Interview must ask for the uid");
+function recommendingOf(interview: OnboardingInterview): Recommending {
+  if (interview.step !== "recommending") throw new Error("a new Onboarding Interview must look up the Recommended Player");
   return interview;
 }
 
@@ -301,21 +346,47 @@ function interviewOf(raw: unknown): OnboardingInterview | undefined {
   const row = parsed.data;
   const base = { id: row.id, memberId: row.member_id, threadId: row.thread_id, startedAt: row.started_at };
   switch (row.step) {
-    case "awaiting-uid":
+    case "recommending":
+      return { ...base, step: "recommending", failedAttempts: row.failed_attempts, lastAskedAt: row.last_asked_at };
+    case "awaiting-recommendation": {
+      const recommended = playerOf(row.player_json);
+      if (recommended === undefined) return undefined;
+      return {
+        ...base,
+        step: "awaiting-recommendation",
+        failedAttempts: row.failed_attempts,
+        lastAskedAt: row.last_asked_at,
+        recommended,
+      };
+    }
+    case "awaiting-pick": {
+      const matches = matchesOf(row.matches_json);
+      if (matches === undefined) return undefined;
+      return { ...base, step: "awaiting-pick", failedAttempts: row.failed_attempts, lastAskedAt: row.last_asked_at, matches };
+    }
+    case "awaiting-uid": {
+      const choice = chosenOf(row.chosen_uid, row.chosen_player_json);
+      if (choice === undefined) return undefined;
       return {
         ...base,
         step: "awaiting-uid",
         failedAttempts: row.failed_attempts,
         lastAskedAt: row.last_asked_at,
+        ...choice,
       };
-    case "checking":
+    }
+    case "checking": {
+      const choice = chosenOf(row.chosen_uid, row.chosen_player_json);
+      if (choice === undefined) return undefined;
       return {
         ...base,
         step: "checking",
         failedAttempts: row.failed_attempts,
         lastAskedAt: row.last_asked_at,
         uid: row.uid,
+        ...choice,
       };
+    }
     case "awaiting-confirmation": {
       const player = playerOf(row.player_json);
       if (player === undefined) return undefined;
@@ -325,6 +396,7 @@ function interviewOf(raw: unknown): OnboardingInterview | undefined {
         failedAttempts: row.failed_attempts,
         lastAskedAt: row.last_asked_at,
         player,
+        ...(row.chosen_uid === null ? {} : { confirmedByChoice: true as const }),
       };
     }
     case "paused-for-quota":
@@ -360,15 +432,27 @@ function interviewOf(raw: unknown): OnboardingInterview | undefined {
   }
 }
 
-/** A Player from the JSON the Interview stored; undefined when the JSON is not a valid Player. */
-function playerOf(text: string): Player | undefined {
-  let json: unknown;
+/** The chosen uid and its Player, when the Member chose one; undefined when the columns do not fit together. */
+function chosenOf(uid: Uid | null, playerJson: string | null): { readonly chosen?: Chosen } | undefined {
+  if (uid === null) return playerJson === null ? {} : undefined;
+  if (playerJson === null) return { chosen: { uid, player: undefined } };
+  const player = playerOf(playerJson);
+  return player === undefined ? undefined : { chosen: { uid, player } };
+}
+
+/** The JSON text parsed, or undefined when it is not JSON. */
+function jsonOf(text: string): unknown {
   try {
-    json = JSON.parse(text);
+    return JSON.parse(text);
   } catch {
     return undefined;
   }
-  const parsed = playerRecord.safeParse(json);
+}
+
+/** A Player from the JSON the Interview stored; undefined when the JSON is not a valid Player. */
+function playerOf(text: string | null): Player | undefined {
+  if (text === null) return undefined;
+  const parsed = playerRecord.safeParse(jsonOf(text));
   if (!parsed.success) return undefined;
   const record = parsed.data;
   const uid = parseUid(record.uid);
@@ -399,6 +483,31 @@ function playerOf(text: string): Player | undefined {
   };
 }
 
+/** The matches of a pick list from the JSON the Interview stored; undefined when any of them is not a Player match. */
+function matchesOf(text: string | null): PickablePlayerMatch[] | undefined {
+  if (text === null) return undefined;
+  const parsed = z.array(matchRecord).safeParse(jsonOf(text));
+  if (!parsed.success) return undefined;
+  return parsed.data.map((record): PickablePlayerMatch => {
+    const { name, tag } = record;
+    return {
+      uid: record.uid,
+      kingdom: record.kingdom,
+      ...(name === undefined ? {} : { name }),
+      ...(tag === undefined ? {} : { tag }),
+    };
+  });
+}
+
+/** The columns of the chosen uid: the uid, and the Player when the Member chose a Recommended Player. */
+function chosenColumnsOf(chosen: Chosen | undefined): Pick<RowValues, "chosen_uid" | "chosen_player_json"> {
+  if (chosen === undefined) return { chosen_uid: null, chosen_player_json: null };
+  return {
+    chosen_uid: chosen.uid,
+    chosen_player_json: chosen.player === undefined ? null : JSON.stringify(chosen.player),
+  };
+}
+
 /** The row of an Interview: its step's columns filled, the others NULL. */
 function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
   const common = {
@@ -410,13 +519,35 @@ function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
     due_at: dueAt(interview, timeoutMs)?.toISOString() ?? null,
   };
   switch (interview.step) {
-    case "awaiting-uid":
+    case "recommending":
       return { ...common, ...NO_STEP_FIELDS, last_asked_at: interview.lastAskedAt.toISOString() };
+    case "awaiting-recommendation":
+      return {
+        ...common,
+        ...NO_STEP_FIELDS,
+        player_json: JSON.stringify(interview.recommended),
+        last_asked_at: interview.lastAskedAt.toISOString(),
+      };
+    case "awaiting-pick":
+      return {
+        ...common,
+        ...NO_STEP_FIELDS,
+        matches_json: JSON.stringify(interview.matches),
+        last_asked_at: interview.lastAskedAt.toISOString(),
+      };
+    case "awaiting-uid":
+      return {
+        ...common,
+        ...NO_STEP_FIELDS,
+        ...chosenColumnsOf(interview.chosen),
+        last_asked_at: interview.lastAskedAt.toISOString(),
+      };
     case "checking":
       return {
         ...common,
         ...NO_STEP_FIELDS,
         uid: interview.uid,
+        ...chosenColumnsOf(interview.chosen),
         last_asked_at: interview.lastAskedAt.toISOString(),
       };
     case "awaiting-confirmation":
@@ -425,6 +556,7 @@ function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
         ...NO_STEP_FIELDS,
         uid: interview.player.uid,
         player_json: JSON.stringify(interview.player),
+        chosen_uid: interview.confirmedByChoice === true ? interview.player.uid : null,
         last_asked_at: interview.lastAskedAt.toISOString(),
       };
     case "paused-for-quota":
@@ -440,10 +572,5 @@ function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
         ended_at: interview.endedAt.toISOString(),
         end_reason: interview.reason,
       };
-    case "recommending":
-    case "awaiting-recommendation":
-    case "awaiting-pick":
-      // Not stored yet: the columns and the steps come with migration 4 (T027).
-      throw new Error(`the step ${interview.step} cannot be stored yet`);
   }
 }
