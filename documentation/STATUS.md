@@ -9,14 +9,14 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
-`/interview`, timeouts, leaving and the Daily Quota pause are handled. All automated tasks are green. The user chose automated
+`/interview`, timeouts, leaving and the Daily Quota pause are handled. All automated tasks are green; the bot review's 12 findings and the spec audit's gaps are fixed (1032 tests). The user chose automated
 tests only for now; the manual run is prepared in [TEST-RUN.md](TEST-RUN.md) (T024 deferred). Setup: [HOSTING.md](HOSTING.md) §3.
 
-**Next step:** the slice's pull request stays **open, not merged**, because Wispbyte pulls `deploy` on every start and
+**Next step:** the slice's pull request ([#16](https://github.com/LilSticky/Neil/pull/16)) stays **open, not merged** (user's decision, 2026-11-01: merge only after the setup), because Wispbyte pulls `deploy` on every start and
 Neil would not start there without the setup. The user does the setup (switch on Server Members Intent in the Developer Portal, create `#onboarding` and
 `#neil-log` with the permissions in HOSTING.md, set `DISCORD_ONBOARDING_CHANNEL_ID`, `DISCORD_LOG_CHANNEL_ID` and optionally
 `INTERVIEW_TIMEOUT_MINUTES` in `.env` and on Wispbyte, run `npm run commands:register`) and walks [TEST-RUN.md](TEST-RUN.md).
-Claude then merges the pull request, turns the feedback into issues and asks for a Wispbyte restart. Slice 006 "Give a member their name and roles" follows.
+Claude then merges the pull request, turns the feedback into issues and asks for a Wispbyte restart. Slice 006 "Give a member their name and roles" follows; its domain discovery (which roles exist, which Neil may manage) waits for the user (decided 2026-11-01: stop after 005).
 
 **Known broken / WIP:** once slice 005 is on `main`, Neil on Wispbyte will not start until Server Members Intent is on
 and the two channel IDs are set there (Neil refuses the configuration or cannot log in). That is why the merge waits.
