@@ -527,6 +527,16 @@ describe("recoverAfterRestart", () => {
     expect(result.event).toEqual({ kind: "asked" });
   });
 
+  test("an Interview stored as checking a pick keeps the pick as its choice, so the uid asked again is still the chosen one", () => {
+    const checkingPick = giveUid(chosenPick(), PICKED_TYPED_UID, NOW).interview;
+    expect(checkingPick).toMatchObject({ step: "checking", chosen: { uid: PICKED_UID } });
+
+    const result = recoverAfterRestart(checkingPick, LATER);
+
+    expect(result.interview).toMatchObject({ step: "awaiting-uid", chosen: { uid: PICKED_UID } });
+    expect(result.event).toEqual({ kind: "asked" });
+  });
+
   test("an Interview stored as looking up the Recommended Player goes back to awaiting the uid, no failed attempt", () => {
     expect(recoverAfterRestart(recommending(), LATER)).toEqual({
       interview: {

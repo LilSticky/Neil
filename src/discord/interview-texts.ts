@@ -13,7 +13,7 @@ import {
 import type { Uid } from "../domain/lookup-input.js";
 import type { AllianceRank, PickablePlayerMatch, Player } from "../domain/player.js";
 import type { ApprovableRank, MemberId, RankApproval } from "../domain/rank-approval.js";
-import { timeLeft, utcTime } from "./lookup-cards.js";
+import { optionLabel, timeLeft, utcTime } from "./lookup-cards.js";
 
 /** The Officer roles that are mentioned when a Member needs help or an Officer must approve. */
 export interface OfficerRoles {
@@ -328,7 +328,7 @@ export function pickListMessage(
   matches: readonly PickablePlayerMatch[],
 ): PickListMessage {
   const options = matches.slice(0, PICK_LIST_MAX_OPTIONS).map((match, index) => ({
-    label: `${match.name ?? "Unknown"} · Kingdom #${match.kingdom.toString()}`,
+    label: optionLabel(`${match.name ?? "Unknown"} · Kingdom #${match.kingdom.toString()}`),
     value: index.toString(),
   }));
   return {

@@ -21,8 +21,8 @@ import {
   type UidCheck,
 } from "../domain/onboarding-interview.js";
 import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
-import type { KingdomNumber, PlayerName, Uid } from "../domain/lookup-input.js";
-import { listedPlayerMatches, type LookupResult, type Player } from "../domain/player.js";
+import { parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
+import { listedPlayerMatches, type LookupResult, type PickablePlayerMatch, type Player } from "../domain/player.js";
 import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { CreateOutcome, InterviewStore } from "../storage/interview-store.js";
@@ -149,6 +149,8 @@ export interface Interviews {
   onCommand(command: CommandLike): Promise<void>;
   onButton(button: ButtonInteractionLike): Promise<void>;
   onModalSubmit(modal: ModalInteractionLike): Promise<void>;
+  /** After a restart: makes the Link of a chosen Player, as the Member's confirmation would. Rejects on a failure; the sweeper logs it. */
+  readonly linkChosen: (interview: AwaitingConfirmation) => Promise<"done" | "ended" | "refused">;
 }
 
 /** Who may act on an Interview: its Member, while it is open. A refusal is the private reply to give instead. */
@@ -169,6 +171,7 @@ export function createInterviews(deps: InterviewDeps): Interviews {
       const ack: Acknowledgement = { acknowledged: false };
       return guardedPress(deps, "Interview modal", modal, ack, () => submitModal(deps, trackedModal(modal, ack)));
     },
+    linkChosen: (interview) => linkConfirmed(deps, interview),
   };
 }
 
@@ -377,7 +380,8 @@ function recommendationFromResult(
     }
     case "ambiguous": {
       const { listed } = listedPlayerMatches(result.matches);
-      return listed.length === 0 ? { kind: "none" } : { kind: "several", matches: listed };
+      const offered = listed.filter((match) => notLinkedToOther(deps, memberId, match));
+      return offered.length === 0 ? { kind: "none" } : { kind: "several", matches: offered };
     }
     case "not-found":
     case "not-prepared":
@@ -387,6 +391,17 @@ function recommendationFromResult(
     case "reserve-kept":
       return { kind: "none" };
   }
+}
+
+/**
+ * Whether a match may be offered to the Member: a match with a uid Linked to another Member is not. A match without a
+ * valid uid is kept, so that a pick of it is answered as a failure.
+ */
+function notLinkedToOther(deps: InterviewDeps, memberId: MemberId, match: PickablePlayerMatch): boolean {
+  const uid = parseUid(match.uid);
+  if (!uid.ok) return true;
+  const holder = deps.links.memberForUid(uid.value);
+  return holder === undefined || holder === memberId;
 }
 
 /** A Member who left: the open Interview is abandoned as left, and the pending Rank Approval of their Link is cancelled. */
@@ -476,8 +491,10 @@ async function pickPlayer(deps: InterviewDeps, button: ButtonInteractionLike, in
   const { interview } = ownership;
   if (interview.step !== "awaiting-pick") return button.reply(interviewEndedReply());
   const picked = interview.matches[index];
+  if (picked === undefined) return button.reply(interviewEndedReply());
+  if (!parseUid(picked.uid).ok) return button.reply(somethingWentWrongReply());
   const transition = pickMatch(interview, index, deps.now());
-  if (picked === undefined || transition.event.kind !== "asked") return button.reply(interviewEndedReply());
+  if (transition.event.kind !== "asked") return button.reply(interviewEndedReply());
   await button.update(withoutButtons(pickListMessage(interview.id, interview.memberId, interview.matches)));
   if (!deps.interviews.saveIfStep(transition.interview, "awaiting-pick")) return button.followUp(interviewEndedReply());
   await deps.channels.post(interview.threadId, askUidOfPlayerMessage(interview.id, picked.name ?? UNNAMED_MATCH));
@@ -523,7 +540,7 @@ async function submitModal(deps: InterviewDeps, modal: ModalInteractionLike): Pr
     // The uid of the chosen Player needs no check: the Member is linked at once.
     deps.interviews.save(transition.interview);
     await modal.deferUpdate();
-    await linkConfirmed(deps, transition.interview);
+    await confirmOrRefuse(deps, transition.interview);
     return;
   }
   // Every other submit is acknowledged once; a malformed uid is asked again in the thread.
@@ -539,14 +556,25 @@ async function confirmPlayer(deps: InterviewDeps, button: ButtonInteractionLike,
   const { interview } = ownership;
   if (interview.step !== "awaiting-confirmation") return button.reply(interviewEndedReply());
   await button.update(withoutButtons(foundCardMessage(interview.id, interview.player)));
-  if ((await linkConfirmed(deps, interview)) === "ended") await button.followUp(interviewEndedReply());
+  if ((await confirmOrRefuse(deps, interview)) === "ended") await button.followUp(interviewEndedReply());
 }
 
 /**
- * The Member confirmed the Player shown, or chose its uid: the Link is made, or refused when the uid is Linked meanwhile.
- * "ended" when the Interview moved on or the Member already holds the uid: nothing is said then but the ended note.
+ * The Member confirmed the Player shown, or chose its uid: the Link is made, or the confirmation is refused, counted as a
+ * failed attempt, when the uid is Linked meanwhile. "ended" when the Interview moved on or the Member already holds the
+ * uid: nothing is said then but the ended note.
  */
-async function linkConfirmed(deps: InterviewDeps, interview: AwaitingConfirmation): Promise<"done" | "ended"> {
+async function confirmOrRefuse(deps: InterviewDeps, interview: AwaitingConfirmation): Promise<"done" | "ended"> {
+  const outcome = await linkConfirmed(deps, interview);
+  if (outcome === "refused") return refuseConfirmation(deps, interview, deps.now());
+  return outcome;
+}
+
+/**
+ * Makes the Link of the Player the Member confirmed or chose. "refused" when the uid is Linked to another Member meanwhile:
+ * nothing is stored then, and the caller says so. "ended" when the Interview moved on or the Member already holds the uid.
+ */
+async function linkConfirmed(deps: InterviewDeps, interview: AwaitingConfirmation): Promise<"done" | "ended" | "refused"> {
   const now = deps.now();
   const leaderMemberId = await leaderPing(deps, interview.player);
   const linked = confirm(interview, { kind: "linked" }, now);
@@ -554,7 +582,7 @@ async function linkConfirmed(deps: InterviewDeps, interview: AwaitingConfirmatio
   const draft = pendingApprovalFor(link, interview, leaderMemberId, now);
   const outcome = storeLink(deps, linked.interview, draft === undefined ? { link } : { link, rankApproval: draft });
   if (outcome === undefined) return "ended";
-  if (outcome.kind === "already-linked") return refuseConfirmation(deps, interview, now);
+  if (outcome.kind === "already-linked") return "refused";
   // The Member already holds this uid: the Interview is done, so it is saved as linked when it still waits.
   if (outcome.kind === "held") {
     deps.interviews.saveIfStep(linked.interview, "awaiting-confirmation");
@@ -671,7 +699,7 @@ async function checkUid(deps: InterviewDeps, modal: ModalInteractionLike, interv
   if (!deps.interviews.saveIfStep(transition.interview, "checking")) return;
   // The uid of a pick, found, is the Player the Member chose: it is linked at once, like the Recommended Player.
   if (transition.interview.step === "awaiting-confirmation" && transition.interview.confirmedByChoice === true) {
-    await linkConfirmed(deps, transition.interview);
+    await confirmOrRefuse(deps, transition.interview);
     return;
   }
   await announce(deps, transition, uid);

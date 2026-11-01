@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
-import { memberLeft, timeOut } from "../domain/onboarding-interview.js";
+import { memberLeft, recommendationFound, timeOut } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
 import type { LookupResult, PickablePlayerMatch, Player } from "../domain/player.js";
@@ -1242,6 +1242,47 @@ describe("createInterviews", () => {
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-confirmation" });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
     });
+
+    /** A restart: a new service on the same stores, after the sweeper's recovery as at start-up. */
+    async function restarted(): Promise<ReturnType<typeof createInterviews>> {
+      const service = createInterviews(h.deps);
+      await createSweeper({
+        interviews: h.interviews,
+        links: h.links,
+        channels: h.channels,
+        timeoutMs: TIMEOUT_MS,
+        now: h.deps.now,
+        logError: (line: string) => {
+          h.errors.push(line);
+        },
+      }).recover();
+      return service;
+    }
+
+    test("a shown Recommended Player still takes That's me after a restart, and asks for the uid of that Player", async () => {
+      const interviewId = await recommendedMemberJoined(h, PLAYER);
+      const service = await restarted();
+      const accept = new FakeButton(interviewCustomId("accept", interviewId), { id: MEMBER });
+
+      await service.onButton(accept);
+
+      expect(accept.updates[0]?.components).toEqual([]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidOfPlayerMessage(interviewId, "Vex") });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
+
+    test("a shown pick list still takes a pick after a restart, and asks for the uid of the picked match", async () => {
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+      const service = await restarted();
+      const pick = new FakeSelect(interviewCustomId("pick", interviewId), { id: MEMBER }, ["1"]);
+
+      await service.onButton(pick);
+
+      expect(pick.updates[0]?.components).toEqual([]);
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: askUidOfPlayerMessage(interviewId, "Vexy") });
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
+    });
   });
 
   describe("when the Interview opens with the Member's display name (US6)", () => {
@@ -1306,6 +1347,26 @@ describe("createInterviews", () => {
 
       expect(h.channels.posts).toEqual([{ threadId: THREAD, message: pickListMessage(interviewId, MEMBER, PICK_LIST) }]);
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-pick", failedAttempts: 0 });
+    });
+
+    test("a match Linked to another Member is left out of the pick list, the Member is not offered it", async () => {
+      h.links.confirm({ link: { memberId: OTHER, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+      expect(JSON.stringify(h.channels.posts)).toContain("Vexy");
+      expect(JSON.stringify(h.channels.posts)).not.toContain("Kingdom #12");
+    });
+
+    test("when every match is Linked to another Member, the Member is asked for the uid as usual, with no failed attempt", async () => {
+      const THIRD: MemberId = "999999999999999999";
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: THIRD, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+
+      expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 0 });
     });
 
     test("/interview looks the display name of the Member who ran it up the same way", async () => {
@@ -1401,6 +1462,37 @@ describe("createInterviews", () => {
       expect(pick.replies).toEqual([buttonOfSomeoneElseReply()]);
       expect(pick.updates).toEqual([]);
       expect(h.interviews.get(interviewId)).toEqual(before);
+    });
+
+    test("None of these pressed by someone else is refused, and changes nothing", async () => {
+      h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
+      const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
+      const before = h.interviews.get(interviewId);
+      const decline = new FakeButton(interviewCustomId("decline", interviewId), { id: OTHER });
+
+      await h.service.onButton(decline);
+
+      expect(decline.replies).toEqual([buttonOfSomeoneElseReply()]);
+      expect(decline.updates).toEqual([]);
+      expect(h.interviews.get(interviewId)).toEqual(before);
+    });
+
+    test("a pick whose uid is not a valid uid is answered as something gone wrong, not as ended, and changes nothing", async () => {
+      const outcome = h.interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
+      if (outcome.kind !== "created") throw new Error("the test Member already has an open Interview");
+      const pickList = recommendationFound(
+        outcome.interview,
+        { kind: "several", matches: [{ uid: "not-a-uid", name: "Vex", kingdom: 12 }] },
+        NOW,
+      ).interview;
+      h.interviews.save(pickList);
+      const pick = new FakeSelect(interviewCustomId("pick", pickList.id), { id: MEMBER }, ["0"]);
+
+      await h.service.onButton(pick);
+
+      expect(pick.replies).toEqual([somethingWentWrongReply()]);
+      expect(pick.updates).toEqual([]);
+      expect(h.interviews.get(pickList.id)).toEqual(pickList);
     });
   });
 

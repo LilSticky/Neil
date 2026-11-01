@@ -475,18 +475,23 @@ export function memberLeft(
 
 /**
  * After a restart, a lookup or a check that was in flight is lost: the Member is asked for their uid again, no attempt
- * counted.
+ * counted. A check keeps the choice the Member made, so that the uid asked again is still the chosen one.
  */
 export function recoverAfterRestart(
   interview: OnboardingInterview,
   now: Date,
 ): InterviewTransition {
   if (!isOpen(interview)) return refuse(interview);
-  if (interview.step !== "checking" && interview.step !== "recommending") return ignore(interview);
-  return {
-    interview: awaitingUid(interview, now),
-    event: { kind: "asked" },
-  };
+  if (interview.step === "recommending") {
+    return { interview: awaitingUid(interview, now), event: { kind: "asked" } };
+  }
+  if (interview.step === "checking") {
+    return {
+      interview: { ...awaitingUid(interview, now), ...withChoice(interview.chosen) },
+      event: { kind: "asked" },
+    };
+  }
+  return ignore(interview);
 }
 
 /**

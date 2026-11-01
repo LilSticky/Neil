@@ -1,13 +1,34 @@
-import { quotaReset, recoverAfterRestart, timeOut, type OpenInterview } from "../domain/onboarding-interview.js";
+import {
+  quotaReset,
+  recoverAfterRestart,
+  timeOut,
+  type AwaitingConfirmation,
+  type OpenInterview,
+} from "../domain/onboarding-interview.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
-import { abandonedLogLine, askUidMessage, quotaResetMessage, timedOutMessage } from "./interview-texts.js";
+import {
+  abandonedLogLine,
+  askUidMessage,
+  foundCardMessage,
+  quotaResetMessage,
+  timedOutMessage,
+} from "./interview-texts.js";
 
 const SWEEP_EVERY_MS = 60_000;
 const ENDED_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
-/** What the sweeper needs: the stores, the Discord channels, the timeout, the clock and the error log. */
+/**
+ * Makes the Link of an Interview whose Member chose the Player shown, as the Member's own confirmation would: "done" when
+ * the Link is made, "ended" when the Interview moved on meanwhile, "refused" when the uid is Linked to someone else.
+ */
+export type LinkChosen = (interview: AwaitingConfirmation) => Promise<"done" | "ended" | "refused">;
+
+/**
+ * What the sweeper needs: the stores, the Discord channels, the timeout, the clock and the error log. linkChosen recovers
+ * the Links of chosen Players; without it the card of such a Player is shown again, for the Member to confirm.
+ */
 export interface SweeperDeps {
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
@@ -15,6 +36,7 @@ export interface SweeperDeps {
   readonly timeoutMs: number;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
+  readonly linkChosen?: LinkChosen;
 }
 
 /** The two jobs of the sweeper. Neither rejects: a failing Interview is logged and the rest still run. */
@@ -42,6 +64,7 @@ export function createSweeper(deps: SweeperDeps): Sweeper {
       reportCorrupt(deps, inFlight.corrupt, "recovering");
       for (const interview of inFlight.interviews) {
         await guarded(deps, `Recovering Onboarding Interview ${interview.id.toString()}`, async () => {
+          if (interview.step === "awaiting-confirmation") return recoverChosen(deps, interview);
           const transition = recoverAfterRestart(interview, now);
           // The Member may have left meanwhile: the Interview is then no longer in flight, and is left alone.
           if (!deps.interviews.saveIfStep(transition.interview, interview.step)) return;
@@ -88,6 +111,15 @@ export function startSweeper(sweeper: Sweeper, schedule: Schedule): () => void {
   return schedule(() => {
     enqueue(() => sweeper.sweep());
   }, SWEEP_EVERY_MS);
+}
+
+/**
+ * The Member chose the Player shown and the Link was not made before the restart: it is made now. When the Link is
+ * refused, the card is shown again, so that the Member can answer it.
+ */
+async function recoverChosen(deps: SweeperDeps, interview: AwaitingConfirmation): Promise<void> {
+  const outcome = deps.linkChosen === undefined ? "refused" : await deps.linkChosen(interview);
+  if (outcome === "refused") await deps.channels.post(interview.threadId, foundCardMessage(interview.id, interview.player));
 }
 
 /** The Daily Quota has reset: the paused Interview asks for the uid again, and its timeout starts now. */

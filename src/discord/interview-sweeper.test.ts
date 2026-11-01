@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Player } from "../domain/player.js";
 import {
+  acceptRecommendation,
   giveUid,
   memberLeft,
   recommendationFound,
@@ -19,7 +20,13 @@ import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
-import { abandonedLogLine, askUidMessage, quotaResetMessage, timedOutMessage } from "./interview-texts.js";
+import {
+  abandonedLogLine,
+  askUidMessage,
+  foundCardMessage,
+  quotaResetMessage,
+  timedOutMessage,
+} from "./interview-texts.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 
 function uidOf(digits: string): Uid {
@@ -266,6 +273,25 @@ describe("createSweeper", () => {
         lastAskedAt: NOW,
       });
       expect(channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(asked.id, MEMBER) }]);
+    });
+
+    test("recovers an Interview stored as awaiting the Member's confirmation of the Player they chose: the Link is made, or the card is shown again", async () => {
+      const outcome = interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
+      if (outcome.kind !== "created") throw new Error(`the test Member ${MEMBER} already has an open Interview`);
+      const chosen = recommendationFound(outcome.interview, { kind: "one", player: PLAYER }, NOW).interview;
+      const byChoice = giveUid(acceptRecommendation(chosen, NOW).interview, UID_DIGITS, NOW).interview;
+      if (byChoice.step !== "awaiting-confirmation" || byChoice.confirmedByChoice !== true) {
+        throw new Error("the test Interview is not awaiting a confirmation confirmed by the choice");
+      }
+      interviews.save(byChoice);
+
+      await sweeper.recover();
+
+      const linked = links.linkFor(MEMBER) !== undefined;
+      const cardShown = channels.posts.some(
+        ({ message }) => JSON.stringify(message) === JSON.stringify(foundCardMessage(byChoice.id, PLAYER)),
+      );
+      expect(linked || cardShown, "a restart must not leave the Member with no Link and no card").toBe(true);
     });
   });
 

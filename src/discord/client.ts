@@ -360,23 +360,21 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
-    openServices({
-      interviews: createInterviews({
-        interviews: options.interviews,
-        links: options.links,
-        channels,
-        gameApi: options.gameApi,
-        officerRoles,
-        rankApprovals,
-        isOnServer: (memberId) => guild.members.fetch(memberId).then(
-          () => true,
-          () => false,
-        ),
-        now,
-        logError,
-      }),
+    const interviews = createInterviews({
+      interviews: options.interviews,
+      links: options.links,
+      channels,
+      gameApi: options.gameApi,
+      officerRoles,
       rankApprovals,
+      isOnServer: (memberId) => guild.members.fetch(memberId).then(
+        () => true,
+        () => false,
+      ),
+      now,
+      logError,
     });
+    openServices({ interviews, rankApprovals });
     const sweeper = createSweeper({
       interviews: options.interviews,
       links: options.links,
@@ -384,6 +382,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       timeoutMs: options.interviewTimeoutMs,
       now,
       logError,
+      linkChosen: interviews.linkChosen,
     });
     stopSweeper = startSweeper(sweeper, (run, everyMs) => {
       const timer = setInterval(run, everyMs);

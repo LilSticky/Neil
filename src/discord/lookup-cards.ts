@@ -86,7 +86,7 @@ function fitTitle(escaped: string): string {
 }
 
 /** A select menu option's label, cut to 100 characters when longer, ending with an ellipsis. */
-function optionLabel(text: string): string {
+export function optionLabel(text: string): string {
   if (text.length <= OPTION_LABEL_MAX_LENGTH) return text;
   return `${text.slice(0, OPTION_LABEL_MAX_LENGTH - 1)}…`;
 }

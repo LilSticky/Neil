@@ -4,6 +4,7 @@ import {
   dueAt,
   MAX_FAILED_ATTEMPTS,
   startInterview,
+  type AwaitingConfirmation,
   type Checking,
   type Chosen,
   type NewInterview,
@@ -29,15 +30,12 @@ export interface DueInterviews {
   readonly corrupt: number;
 }
 
-/** The Interviews waiting on a Game API check, and how many checking rows could not be read. */
-export interface CheckingInterviews {
-  readonly interviews: Checking[];
-  readonly corrupt: number;
-}
-
-/** The Interviews whose Game API lookup or check was in flight, and how many such rows could not be read. */
+/**
+ * The Interviews whose Game API lookup or check was in flight, or whose chosen Player still waits for its Link, and how
+ * many such rows could not be read.
+ */
 export interface InFlightInterviews {
-  readonly interviews: (Recommending | Checking)[];
+  readonly interviews: (Recommending | Checking | AwaitingConfirmation)[];
   readonly corrupt: number;
 }
 
@@ -293,32 +291,20 @@ export class InterviewStore {
   }
 
   /**
-   * The Interviews whose Recommended Player lookup or uid check was in flight, for recovery after a restart; a row
-   * that cannot be read is counted and skipped.
+   * The Interviews to recover after a restart: a Recommended Player lookup or uid check was in flight, or the Member chose
+   * the Player shown and its Link was not made yet. A row that cannot be read is counted and skipped.
    */
   inFlight(): InFlightInterviews {
-    const interviews: (Recommending | Checking)[] = [];
+    const interviews: (Recommending | Checking | AwaitingConfirmation)[] = [];
     let corrupt = 0;
-    const rows = this.db.prepare(`${ROW_SELECT} WHERE step IN ('recommending', 'checking') ORDER BY id`).all();
+    const rows = this.db
+      .prepare(
+        `${ROW_SELECT} WHERE step IN ('recommending', 'checking') OR (step = 'awaiting-confirmation' AND chosen_uid IS NOT NULL) ORDER BY id`,
+      )
+      .all();
     for (const raw of rows) {
       const interview = interviewOf(raw);
-      if (interview !== undefined && (interview.step === "recommending" || interview.step === "checking")) {
-        interviews.push(interview);
-      } else {
-        corrupt += 1;
-      }
-    }
-    return { interviews, corrupt };
-  }
-
-  /** The Interviews waiting on a Game API check, for recovery after a restart; a checking row that cannot be read is counted and skipped. */
-  checking(): CheckingInterviews {
-    const interviews: Checking[] = [];
-    let corrupt = 0;
-    const rows = this.db.prepare(`${ROW_SELECT} WHERE step = 'checking' ORDER BY id`).all();
-    for (const raw of rows) {
-      const interview = interviewOf(raw);
-      if (interview !== undefined && interview.step === "checking") interviews.push(interview);
+      if (interview !== undefined && isInFlight(interview)) interviews.push(interview);
       else corrupt += 1;
     }
     return { interviews, corrupt };
@@ -339,6 +325,14 @@ function corruptInterviewError(): Error {
 function recommendingOf(interview: OnboardingInterview): Recommending {
   if (interview.step !== "recommending") throw new Error("a new Onboarding Interview must look up the Recommended Player");
   return interview;
+}
+
+/** The steps `inFlight` lists: a lookup or check, or a confirmation of the Player the Member chose. */
+function isInFlight(
+  interview: OnboardingInterview,
+): interview is Recommending | Checking | (AwaitingConfirmation & { readonly confirmedByChoice: true }) {
+  if (interview.step === "awaiting-confirmation") return interview.confirmedByChoice === true;
+  return interview.step === "recommending" || interview.step === "checking";
 }
 
 function isOpen(interview: OnboardingInterview): interview is OpenInterview {

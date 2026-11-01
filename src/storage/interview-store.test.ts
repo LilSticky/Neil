@@ -17,7 +17,6 @@ import {
   timeOut,
   uidChecked,
   type AwaitingUid,
-  type Checking,
   type InterviewTransition,
   type OnboardingInterview,
   type OpenInterview,
@@ -384,29 +383,25 @@ describe("InterviewStore", () => {
     expect(due).toEqual({ interviews: [pick], corrupt: 1 });
   });
 
-  test("checking lists the Interviews waiting on a Game API check, for recovery after a restart", () => {
+  test("inFlight lists an awaiting-confirmation Interview confirmed by the choice, so that recovery makes its Link", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    const asking = startedAwaitingUid(store, DRAFT, NOW);
-    const inFlight = checkingFrom(startedAwaitingUid(store, { memberId: OTHER, threadId: THREAD }, NOW));
-    store.save(inFlight);
+    const recommending = createdOf(store.create(DRAFT, NOW));
+    const byChoice = giveUid(
+      acceptRecommendation(recommendationFound(recommending, ONE, LATER).interview, LATER).interview,
+      UID_DIGITS,
+      LATER,
+    ).interview;
+    expect(byChoice).toMatchObject({ step: "awaiting-confirmation", confirmedByChoice: true });
+    store.save(byChoice);
 
-    const checking = store.checking();
-
-    expect(checking).toEqual({ interviews: [inFlight], corrupt: 0 });
-    expect(store.get(asking.id)).toEqual(asking);
+    expect(store.inFlight()).toEqual({ interviews: [byChoice], corrupt: 0 });
   });
 
-  test("checking reports a corrupt checking row as corrupt and skips it, without throwing", () => {
+  test("inFlight does not list an awaiting-confirmation Interview that the Member confirms by the card", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
-    db.prepare(
-      "INSERT INTO onboarding_interview (id, member_id, thread_id, step, failed_attempts, started_at, due_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    ).run(900, OTHER, THREAD, "checking", 0, NOW.toISOString(), OLD.toISOString());
-    const inFlight = checkingFrom(startedAwaitingUid(store, { memberId: THIRD, threadId: THREAD }, NOW));
-    store.save(inFlight);
+    store.save(awaitingConfirmationFrom(startedAwaitingUid(store, { memberId: OTHER, threadId: THREAD }, NOW)));
 
-    const checking: { readonly interviews: Checking[]; readonly corrupt: number } = store.checking();
-
-    expect(checking).toEqual({ interviews: [inFlight], corrupt: 1 });
+    expect(store.inFlight()).toEqual({ interviews: [], corrupt: 0 });
   });
 
   test("deleteEndedBefore removes the Interviews ended before the cutoff and keeps open and recent ones", () => {

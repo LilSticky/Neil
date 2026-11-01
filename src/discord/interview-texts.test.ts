@@ -636,6 +636,16 @@ describe("pick list messages", () => {
     ]);
   });
 
+  test("a label longer than 100 characters is cut to 100, as Discord accepts only labels of that length", () => {
+    const longName = "V".repeat(150);
+    const menu = selectMenuOf(
+      pickListMessage(7, MEMBER, [{ uid: "145563254785", name: longName, kingdom: 330 }]).components,
+    );
+
+    expect(menu.options).toHaveLength(1);
+    expect(menu.options[0]?.label.length).toBeLessThanOrEqual(100);
+  });
+
   test("no uid appears anywhere in the pick list: not in the content, the labels, the descriptions or the values", () => {
     const serialized = JSON.stringify(pickListMessage(7, MEMBER, PICK_MATCHES));
 
