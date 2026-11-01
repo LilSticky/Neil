@@ -61,7 +61,12 @@ discovery.
 ## In-game Proof
 * Evidence that a Member controls a Player: the Member gives the Player's uid, read in the game from their own profile
 * A Player Name is not In-game Proof; it only helps a Member find their uid
-* Weak on its own: `/alliance` shows uids to every Member, so every Link is logged for Officers to check
+* Lookups (`/player`, `/alliance`) never show uids; only the Onboarding thread and the log channel do, so a uid is known mainly to its owner. Every Link is still logged for Officers to check
+
+## Recommended Player
+* The Player whose Player Name equals the Member's server display name with tags, prefixes and unsupported characters removed; offered at the start of an Onboarding Interview, without its uid
+* When several Players share that name, the Member picks one of them from a list
+* Not In-game Proof: a Member who says "that's me" still gives the uid, which must be that Player's
 
 ## Link
 * The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me")
