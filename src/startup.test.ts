@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
 import { utcDayOf, type DailyQuota } from "./domain/daily-quota.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
+import { AppliedStore } from "./storage/applied-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
@@ -68,10 +69,11 @@ const VALID_ENV = {
 };
 
 /** Stores that are never queried: start() only hands them on to connect, which these tests fake. */
-function stubStores(): { readonly interviews: InterviewStore; readonly links: LinkStore } {
+function stubStores(): { readonly interviews: InterviewStore; readonly links: LinkStore; readonly applied: AppliedStore } {
   return {
     interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
     links: new LinkStore(new DatabaseSync(":memory:")),
+    applied: new AppliedStore(new DatabaseSync(":memory:")),
   };
 }
 

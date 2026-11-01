@@ -41,11 +41,11 @@ test touches the network or the real Discord; stores use `:memory:`.
   with permissions (skipped with reason); adds missing, removes unwanted Managed Roles, never touches other roles;
   sets the nickname; per-step errors (50013 Missing Permissions, owner, hierarchy) become `skipped` entries.
   Implement `src/discord/member-roles.ts`.
-- [ ] T007 Test `src/discord/name-and-roles.test.ts`: `onLinked` computes wanted name and roles (domain), applies,
+- [x] T007 Test `src/discord/name-and-roles.test.ts`: `onLinked` computes wanted name and roles (domain), applies,
   records the applied state (`complete` only without skips), posts one log line (nickname, roles added/removed,
   created roles, skipped with reasons), never throws; `onRankApproved` re-applies with the approved rank. Log texts
   in `src/discord/name-and-roles-texts.ts` (+ test). Implement.
-- [ ] T008 Test `src/discord/interview.test.ts` + `rank-approval.test.ts`: after a Link (card confirm and chosen-uid
+- [x] T008 Test `src/discord/interview.test.ts` + `rank-approval.test.ts`: after a Link (card confirm and chosen-uid
   path) `onLinked` is called with the Player and the rank on the Link; after a Rank Approval `onRankApproved`; a
   failing apply does not affect the Link or the thread messages. Implement the wiring.
 

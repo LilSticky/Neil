@@ -38,9 +38,9 @@ export interface RolesMember {
   setNickname(nickname: string): Promise<void>;
 }
 
-/** What the Member should look like: the nickname, the Managed Roles wanted, and the Alliance tags Neil manages. */
+/** What the Member should look like: the nickname (undefined when the Player Name is empty), the Managed Roles wanted, and the Alliance tags Neil manages. */
 export interface NameAndRolesWanted {
-  readonly nickname: string;
+  readonly nickname: string | undefined;
   readonly roles: readonly string[];
   readonly managedTags: readonly string[];
 }
@@ -55,7 +55,8 @@ export interface Skipped {
 
 /** The outcome of an apply: what changed, what was created, and every step that was skipped. */
 export interface ApplyReport {
-  readonly nickname: "set" | "skipped";
+  /** "untouched" when there was no nickname to set. */
+  readonly nickname: "set" | "skipped" | "untouched";
   readonly added: string[];
   readonly removed: string[];
   readonly created: string[];
@@ -81,8 +82,12 @@ export async function applyNameAndRoles(
   const created: string[] = [];
   const skipped: Skipped[] = [];
 
-  const nicknameSkip = await setNickname(guild, member, wanted.nickname);
-  if (nicknameSkip !== undefined) skipped.push(nicknameSkip);
+  let nickname: ApplyReport["nickname"] = "untouched";
+  if (wanted.nickname !== undefined) {
+    const nicknameSkip = await setNickname(guild, member, wanted.nickname);
+    nickname = nicknameSkip === undefined ? "set" : "skipped";
+    if (nicknameSkip !== undefined) skipped.push(nicknameSkip);
+  }
 
   const held = member.roles.map((role) => role.name).filter((name) => isManagedRoleName(name, wanted.managedTags));
   const plan = planApply(held, wanted.roles);
@@ -96,7 +101,7 @@ export async function applyNameAndRoles(
     if (skip !== undefined) skipped.push(skip);
   }
 
-  return { nickname: nicknameSkip === undefined ? "set" : "skipped", added, removed, created, skipped };
+  return { nickname, added, removed, created, skipped };
 }
 
 async function setNickname(guild: RolesGuild, member: RolesMember, nickname: string): Promise<Skipped | undefined> {

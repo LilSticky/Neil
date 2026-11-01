@@ -3,6 +3,7 @@ import { ConfigError, loadConfig } from "./config.js";
 import type { ConnectOptions, GameApi } from "./discord/client.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
+import type { AppliedStore } from "./storage/applied-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { LinkStore } from "./storage/link-store.js";
 
@@ -33,11 +34,12 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews and the Links, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links and the Applied States, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
+  readonly applied: AppliedStore;
 }
 
 export interface Connection {
@@ -103,6 +105,9 @@ export async function start(deps: StartupDeps): Promise<void> {
       interviewTimeoutMs: config.interviewTimeoutMs,
       interviews: store.interviews,
       links: store.links,
+      applied: store.applied,
+      homeKingdom: config.homeKingdom,
+      troopBracketLevels: config.troopBracketLevels,
     });
   } catch (error) {
     fail(error);

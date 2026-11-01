@@ -3,6 +3,7 @@ import { isOfficer } from "../domain/officer.js";
 import type { Player } from "../domain/player.js";
 import { approve, mayApprove, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
   parseRankCustomId,
@@ -35,6 +36,7 @@ export interface RankApprovals {
 export interface RankApprovalDeps {
   readonly links: LinkStore;
   readonly channels: OnboardingChannels;
+  readonly nameAndRoles: NameAndRoles;
   readonly officerRoles: OfficerRoles;
   /** The role ids of the Member who pressed a button, as the Discord client reads them. */
   readonly memberRoleIdsOf: (memberId: MemberId) => Promise<readonly string[]>;
@@ -76,4 +78,14 @@ async function pressRankButton(deps: RankApprovalDeps, button: RankButtonLike): 
   await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
   await deps.channels.post(approved.threadId, rankApprovedMessage(approved));
   await deps.channels.archive(approved.threadId);
+  await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
+}
+
+/** Gives the Member their name and roles with the approved rank; a failure is logged, the approval stands. */
+async function nameAndRolesAfterApproval(deps: RankApprovalDeps, memberId: MemberId): Promise<void> {
+  try {
+    await deps.nameAndRoles.onRankApproved(memberId);
+  } catch (error) {
+    deps.logError(`Giving the name and roles after a Rank Approval failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }

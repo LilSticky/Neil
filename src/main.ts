@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { readBuildInfo } from "./build-info.js";
 import { connect } from "./discord/client.js";
 import { GameApiClient } from "./game-api/client.js";
+import { AppliedStore } from "./storage/applied-store.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
@@ -30,6 +31,7 @@ await start({
       dailyQuota: new DailyQuotaStore(db),
       interviews: new InterviewStore(db, interviewTimeoutMs),
       links: new LinkStore(db),
+      applied: new AppliedStore(db),
     };
   },
   createGameApi: (apiKey, version, cacheTtlMs, quota) =>

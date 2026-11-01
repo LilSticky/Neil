@@ -20,6 +20,7 @@ import {
   type PrivateReply,
 } from "./interview-texts.js";
 import { createRankApprovals, type RankButtonLike } from "./rank-approval.js";
+import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 
 type PendingApproval = Extract<RankApproval, { readonly state: "pending" }>;
 type ApprovedApproval = Extract<RankApproval, { readonly state: "approved" }>;
@@ -150,6 +151,7 @@ interface Harness {
   readonly links: LinkStore;
   readonly channels: FakeChannels;
   readonly roles: Map<MemberId, readonly string[]>;
+  readonly nameAndRoles: FakeNameAndRoles;
   readonly errors: string[];
   readonly service: ReturnType<typeof createRankApprovals>;
   /** Holds the role lookup of the Member's next press until the returned function is called. */
@@ -192,11 +194,13 @@ describe("createRankApprovals", () => {
     const links = new LinkStore(db);
     const channels = new FakeChannels();
     const roles = new Map<MemberId, readonly string[]>([[OFFICER, [OFFICERS.moderatorRoleId]]]);
+    const nameAndRoles = new FakeNameAndRoles();
     const errors: string[] = [];
     const roleGates = new Map<MemberId, Promise<void>>();
     const service = createRankApprovals({
       links,
       channels,
+      nameAndRoles,
       officerRoles: OFFICERS,
       memberRoleIdsOf: async (memberId: MemberId) => {
         await roleGates.get(memberId);
@@ -214,7 +218,7 @@ describe("createRankApprovals", () => {
         gate.resolve(undefined);
       };
     };
-    h = { links, channels, roles, errors, service, holdRolesOf };
+    h = { links, channels, roles, errors, nameAndRoles, service, holdRolesOf };
   });
 
   afterEach(() => {
@@ -384,6 +388,45 @@ describe("createRankApprovals", () => {
 
       expect(again.replies).toEqual([rankNotAllowedReply()]);
       expect(h.links.linkFor(MEMBER)?.allianceRank).toMatchObject({ source: "rank-approval", rank: "R3" });
+    });
+
+    test("an approved rank gives the Member's name and roles the new rank", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+
+      await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
+
+      expect(h.nameAndRoles.approved).toEqual([MEMBER]);
+    });
+
+    test("a press that is refused gives the name and roles nothing to apply", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+
+      await h.service.onButton(rankPress(approval.id, "R3", OTHER));
+
+      expect(h.nameAndRoles.approved).toEqual([]);
+    });
+
+    test("a failing apply leaves the Rank Approval and the thread messages as they are", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.nameAndRoles.failWith(new Error("Discord refused the role change"));
+      const press = rankPress(approval.id, "R3", OFFICER);
+
+      await expect(h.service.onButton(press)).resolves.toBeUndefined();
+
+      expect(h.nameAndRoles.approved).toEqual([MEMBER]);
+      const approved = storedApproved(h, approval.id);
+      expect(approved).toMatchObject({ rank: "R3", approvedBy: OFFICER });
+      expect(h.links.linkFor(MEMBER)?.allianceRank).toEqual({
+        source: "rank-approval",
+        rank: "R3",
+        approvedBy: OFFICER,
+        approvedAt: NOW,
+      });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: rankApprovedMessage(approved) });
+      expect(h.channels.archived).toEqual([THREAD]);
     });
   });
 });
