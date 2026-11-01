@@ -606,6 +606,32 @@ class CardRefusedInteraction extends FakePickInteraction {
   }
 }
 
+describe("handlePick for the owner choosing a close Known Alliance", () => {
+  test("looks the Alliance up by its tag in the Home Kingdom, for the lookup, with one request", async () => {
+    const sessions = new PickSessions();
+    const pickId = sessions.open(
+      OWNER_ID,
+      { kind: "alliances", matches: [{ tag: "NML", name: "No Man's Land", kingdom: 330 }] },
+      OPENED_AT,
+    );
+    const interaction = new FakePickInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["0"],
+    });
+    const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "found",
+      value: allianceNmx,
+      fetchedAt: NOW,
+    });
+
+    await handlePick(interaction, context);
+
+    expect(getAlliance).toHaveBeenCalledTimes(1);
+    expect(getAlliance).toHaveBeenCalledWith(kingdomNumber(330), allianceKey("NML"), "lookup");
+  });
+});
+
 describe("handlePick when the public card cannot be posted after the menu said what is shown", () => {
   test("tells the owner privately that lookups are not working, and logs the failure", async () => {
     const sessions = new PickSessions();

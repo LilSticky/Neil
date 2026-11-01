@@ -1,6 +1,7 @@
 import { ComponentType, MessageFlags } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import {
   parseAllianceKey,
@@ -24,6 +25,7 @@ const PICK_ID = "a1b2c3d4";
 const FETCHED_AT = new Date("2026-10-30T15:20:00Z");
 const NOW = new Date("2026-10-30T16:00:00Z");
 const RESETS_AT = new Date("2026-10-31T00:00:00Z");
+const DAY_MS = 86_400_000;
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -515,8 +517,19 @@ const alliance: Alliance = {
   roster: [],
 };
 
-/** A context whose fake Game API answers every alliance lookup, by tag or by full name, with the given result. */
-function allianceContextReturning(result: LookupResult<Alliance>) {
+/** The Home Kingdom of the tests, where a tag alone is looked up and Known Alliances are kept. */
+const homeKingdom = kingdomNumber(330);
+
+/** A Known Alliance of the Home Kingdom, last seen the given number of days before NOW. */
+function knownAlliance(tag: string, name: string, daysAgo = 1): KnownAlliance {
+  return { kingdom: homeKingdom, tag, name, lastSeen: new Date(NOW.getTime() - daysAgo * DAY_MS) };
+}
+
+/**
+ * A context whose fake Game API answers every alliance lookup, by tag or by full name, with the given result. The
+ * Known Alliances are the ones given; the Home Kingdom is 330.
+ */
+function allianceContextReturning(result: LookupResult<Alliance>, known: readonly KnownAlliance[] = []) {
   const logged: string[] = [];
   const getAlliance = vi.fn<GetAlliance>(() => Promise.resolve(result));
   const findAlliance = vi.fn<FindAlliance>(() => Promise.resolve(result));
@@ -528,6 +541,8 @@ function allianceContextReturning(result: LookupResult<Alliance>) {
     logError: (message: string) => {
       logged.push(message);
     },
+    homeKingdom,
+    knownAlliances: { all: (): KnownAlliance[] => [...known] },
   };
   return { context, getAlliance, findAlliance, pickSessions, logged };
 }
@@ -934,7 +949,7 @@ describe("handleAlliance by the Alliance's full name", () => {
         method: "followUp",
         options: {
           content:
-            'No alliance is named exactly "No Man\'s Land". Use the full name, or the kingdom and tag; approximate names are not supported.',
+            'No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -947,7 +962,6 @@ describe("handleAlliance with a combination that is neither a kingdom and tag no
   test.each([
     { label: "nothing at all", strings: {}, integers: {} },
     { label: "a Kingdom alone", strings: {}, integers: { kingdom: 1 } },
-    { label: "a tag alone, without a Kingdom", strings: { tag: "NML" }, integers: {} },
     { label: "a full name with a Kingdom", strings: { name: "No Man's Land" }, integers: { kingdom: 1 } },
     { label: "a full name with a tag", strings: { name: "No Man's Land", tag: "NML" }, integers: {} },
     {
@@ -981,6 +995,116 @@ describe("handleAlliance with a combination that is neither a kingdom and tag no
       expect(findAlliance).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("handleAlliance with a tag and no Kingdom", () => {
+  test("asks the Game API for the Alliance by its tag in the Home Kingdom, for the lookup, and never by name", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: " NML " } });
+    const { context, getAlliance, findAlliance } = allianceContextReturning({
+      kind: "found",
+      value: alliance,
+      fetchedAt: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(getAlliance).toHaveBeenCalledWith(homeKingdom, allianceKey("NML"), "lookup");
+    expect(findAlliance).not.toHaveBeenCalled();
+  });
+
+  test("tells the caller privately, naming the Home Kingdom, when no Alliance has the tag there", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" } });
+    const { context } = allianceContextReturning({ kind: "not-found" });
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.allianceNotFound(allianceKey("NML"), homeKingdom),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+/** The single select menu of a pick list under the session id, with the given options. */
+function pickSelect(sessionId: string, options: readonly { readonly label: string; readonly value: string }[]) {
+  return [
+    {
+      type: ComponentType.ActionRow,
+      components: [{ type: ComponentType.StringSelect, custom_id: `pick:${sessionId}:select`, options }],
+    },
+  ];
+}
+
+describe("handleAlliance when no Alliance has the full name but Known Alliances are close", () => {
+  test("removes the thinking placeholder and privately opens a pick list of the close Known Alliances, as [TAG] Name", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "no mans" } }, USER_ID);
+    const known = [knownAlliance("NML", "No Man's Land"), knownAlliance("NMA", "Night Mares")];
+    const { context, pickSessions } = allianceContextReturning({ kind: "not-found" }, known);
+
+    await handleAlliance(interaction, context);
+
+    const matches: Match[] = [{ tag: "NML", name: "No Man's Land", kingdom: homeKingdom }];
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "alliances", matches }, NOW);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: expect.any(String) as unknown,
+          components: pickSelect(PICK_ID, [{ label: "[NML] No Man's Land", value: "0" }]),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("escapes Discord markdown in the names of the pick list", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "wolves" } }, USER_ID);
+    const { context } = allianceContextReturning({ kind: "not-found" }, [knownAlliance("WLF", "Wolves *Pack*")]);
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: expect.objectContaining({
+        components: pickSelect(PICK_ID, [{ label: "[WLF] Wolves \\*Pack\\*", value: "0" }]),
+      }) as unknown,
+    });
+  });
+
+  test("keeps the not-found text, and opens no pick list, when no Known Alliance is close", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const { context, pickSessions } = allianceContextReturning({ kind: "not-found" }, [
+      knownAlliance("NMA", "Night Mares"),
+    ]);
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).not.toHaveBeenCalled();
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content:
+            'No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
 });
 
 describe("handlePlayer when the card cannot be sent", () => {
@@ -1202,6 +1326,8 @@ describe("handleAlliance when the Game API throws", () => {
       logError: (message: string) => {
         logged.push(message);
       },
+      homeKingdom,
+      knownAlliances: { all: (): KnownAlliance[] => [] },
     };
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();

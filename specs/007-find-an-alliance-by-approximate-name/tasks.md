@@ -29,13 +29,13 @@ description: "Task list for slice 007, Find an alliance by approximate name"
   upsert (new name replaces), `all(now)` leaves out > 30 days, `forget(now)` deletes them. Implement.
 - [x] T003 Test `src/game-api/client.test.ts`: `onAllianceSeen` called once per fresh Player-with-Alliance and Alliance
   answer, not for cache hits, not for players without Alliance; a throwing hook never fails the lookup. Implement.
-- [ ] T004 Test `src/discord/alliance-autocomplete.test.ts` + `commands.test.ts`: options autocomplete; focused
+- [x] T004 Test `src/discord/alliance-autocomplete.test.ts` + `commands.test.ts`: options autocomplete; focused
   `name` → choices `{name: "[TAG] Name", value: full name}`, `tag` → value tag; empty → most recent; ≤ 25; names cut to
   100; no Game API call; errors answer an empty list. Implement + route in `client.ts`.
-- [ ] T005 Test `src/discord/lookup.test.ts` + `pick.test.ts`: `/alliance name:` not found → private pick list of
+- [x] T005 Test `src/discord/lookup.test.ts` + `pick.test.ts`: `/alliance name:` not found → private pick list of
   close Known Alliances (escaped `[TAG] Name`); pick → `getAlliance(home, tag, "lookup")` and the usual card; no close
   match → old not-found text; `tag:` without kingdom → Home Kingdom. Implement.
-- [ ] T006 Wiring: composition root stores Home Kingdom sightings, `forget` at startup (test in startup/connect tests).
+- [x] T006 Wiring: composition root stores Home Kingdom sightings, `forget` at startup (test in startup/connect tests).
 - [ ] T007 Docs: TEST-RUN.md §6c (collected cases), GAME-API.md note, ROADMAP (007 row), STATUS.
 - [ ] T008 `bot-reviewer` → `review.md`; fix must/should. T009 `spec-auditor` → `audit.md`.
 - [ ] T010 Manual check: collected in TEST-RUN.md §6c, run later by the user.

@@ -4,6 +4,9 @@ import { knownSince, type KnownAlliance } from "../domain/alliance-match.js";
 import { parseKingdom } from "../domain/lookup-input.js";
 import type { Alliance } from "../domain/player.js";
 
+/** The part of an Alliance the Known Alliances keep: its Kingdom, tag and name. */
+export type AllianceSighting = Pick<Alliance, "kingdom" | "tag" | "name">;
+
 const row = z.object({
   kingdom: z.number().int(),
   tag: z.string(),
@@ -16,7 +19,7 @@ export class KnownAllianceStore {
   constructor(private readonly db: DatabaseSync) {}
 
   /** Remembers an Alliance seen at `at`: a new name for a known tag replaces the old one. */
-  seen(alliance: Alliance, at: Date): void {
+  seen(alliance: AllianceSighting, at: Date): void {
     this.db
       .prepare(
         `INSERT INTO known_alliance (kingdom, tag, name, last_seen) VALUES (?, ?, ?, ?)

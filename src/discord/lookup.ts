@@ -4,6 +4,7 @@ import {
   type InteractionReplyOptions,
   type MessageMentionOptions,
 } from "discord.js";
+import { matchAlliances, type KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import type { GameApiClient } from "../game-api/client.js";
 import {
@@ -29,6 +30,7 @@ import {
   lookupMessages,
   renderAllianceCard,
   renderAlliancePickList,
+  renderCloseAlliancePickList,
   renderPlayerCard,
   renderPlayerPickList,
   renderRosterComponents,
@@ -62,6 +64,15 @@ export interface LookupContext<Method extends keyof LookupApi> {
   readonly pickSessions: Pick<PickSessions, "open">;
   readonly now: () => Date;
   readonly logError: (message: string) => void;
+}
+
+/**
+ * What /alliance needs on top of the lookup: the Home Kingdom, where a tag alone is looked up, and the Known Alliances,
+ * which a name nobody has is matched against.
+ */
+export interface AllianceLookupContext extends LookupContext<"getAlliance" | "findAlliance"> {
+  readonly homeKingdom: KingdomNumber;
+  readonly knownAlliances: { all(now: Date): readonly KnownAlliance[] };
 }
 
 /** A private message: its text and, for a pick list, its select menu. */
@@ -367,15 +378,14 @@ export async function handlePlayer(
 }
 
 /**
- * The shared Alliance flow for both ways of asking: the card with its roster menu, or the reason in private, and a
- * pick list for an ambiguous answer.
+ * The shared Alliance flow for both ways of asking: the card with its roster menu, or the reason in private, given by
+ * `failureMessage` when the answer gives no card.
  */
 async function showAlliance(
   interaction: LookupInteraction,
   context: LookupContext<"getAlliance" | "findAlliance">,
-  key: AllianceKey,
   ask: () => Promise<LookupResult<Alliance>>,
-  notFound: string,
+  failureMessage: (failure: Failure<Alliance>, now: Date) => PrivateMessage,
 ): Promise<void> {
   const ownerId = interaction.user.id;
   await showLookup(
@@ -383,18 +393,52 @@ async function showAlliance(
     context,
     ask,
     (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions),
-    (failure, now) => allianceFailureMessage(failure, key, notFound, ownerId, context.pickSessions, now),
+    failureMessage,
   );
 }
 
-/** /alliance with a Kingdom and a tag: the Alliance of that Kingdom with that tag. */
+/** The Known Alliances close to a name, best first; a store that cannot be read is logged and leaves none. */
+function closeKnownAlliances(name: AllianceKey, context: AllianceLookupContext, now: Date): readonly KnownAlliance[] {
+  try {
+    return matchAlliances(name, context.knownAlliances.all(now), now);
+  } catch (error) {
+    context.logError(`Reading the Known Alliances failed: ${errorText(error)}`);
+    return [];
+  }
+}
+
+/**
+ * The private answer to a name no Alliance has: a pick list of the Known Alliances close to it, or the not-found text
+ * when none is close.
+ */
+function nameNotFoundMessage(
+  name: AllianceKey,
+  ownerId: string,
+  context: AllianceLookupContext,
+  now: Date,
+): PrivateMessage {
+  const close = closeKnownAlliances(name, context, now);
+  if (close.length === 0) return { content: lookupMessages.allianceNameNotFound(name) };
+  const matches: Match[] = close.map((alliance) => ({
+    tag: alliance.tag,
+    name: alliance.name,
+    kingdom: alliance.kingdom,
+  }));
+  const sessionId = context.pickSessions.open(ownerId, { kind: "alliances", matches }, now);
+  return renderCloseAlliancePickList(name, matches, sessionId);
+}
+
+/**
+ * /alliance with a tag: the Alliance of that Kingdom with that tag. Without a Kingdom, the Home Kingdom is meant.
+ */
 async function lookUpAllianceByTag(
   interaction: LookupInteraction,
-  context: LookupContext<"getAlliance" | "findAlliance">,
-  kingdomValue: number,
+  context: AllianceLookupContext,
+  kingdomValue: number | null,
   tagText: string,
 ): Promise<void> {
-  const kingdom = parseKingdom(kingdomValue);
+  const kingdom: ParseResult<KingdomNumber> =
+    kingdomValue === null ? { ok: true, value: context.homeKingdom } : parseKingdom(kingdomValue);
   if (!kingdom.ok) {
     await replyPrivately(interaction, lookupMessages.invalidKingdom);
     return;
@@ -410,16 +454,23 @@ async function lookUpAllianceByTag(
   await showAlliance(
     interaction,
     context,
-    tag,
     () => context.gameApi.getAlliance(allianceKingdom, tag, "lookup"),
-    lookupMessages.allianceNotFound(tag, allianceKingdom),
+    (failure, now) =>
+      allianceFailureMessage(
+        failure,
+        tag,
+        lookupMessages.allianceNotFound(tag, allianceKingdom),
+        interaction.user.id,
+        context.pickSessions,
+        now,
+      ),
   );
 }
 
 /** /alliance with a full name alone: every Alliance with exactly that name, from any Kingdom. */
 async function lookUpAllianceByName(
   interaction: LookupInteraction,
-  context: LookupContext<"getAlliance" | "findAlliance">,
+  context: AllianceLookupContext,
   nameText: string,
 ): Promise<void> {
   const parsedName = parseAllianceKey(nameText);
@@ -429,28 +480,36 @@ async function lookUpAllianceByName(
   }
 
   const name = parsedName.value;
+  const ownerId = interaction.user.id;
   await showAlliance(
     interaction,
     context,
-    name,
     () => context.gameApi.findAlliance(name, "lookup"),
-    lookupMessages.allianceNameNotFound(name),
+    (failure, now) =>
+      failure.kind === "not-found"
+        ? nameNotFoundMessage(name, ownerId, context, now)
+        : allianceFailureMessage(
+            failure,
+            name,
+            lookupMessages.allianceNameNotFound(name),
+            ownerId,
+            context.pickSessions,
+            now,
+          ),
   );
 }
 
 /**
- * Answers /alliance: a Kingdom with a tag, or a full name alone, never a mix. Invalid input is answered privately at
- * once; otherwise a public card, a private pick list for an ambiguous answer, or the reason in private.
+ * Answers /alliance: a tag (with a Kingdom, or else the Home Kingdom) or a full name alone, never a mix. Invalid input
+ * is answered privately at once; otherwise a public card, a private pick list for an ambiguous answer or for a name
+ * close to Known Alliances, or the reason in private.
  */
-export async function handleAlliance(
-  interaction: LookupInteraction,
-  context: LookupContext<"getAlliance" | "findAlliance">,
-): Promise<void> {
+export async function handleAlliance(interaction: LookupInteraction, context: AllianceLookupContext): Promise<void> {
   await answer("/alliance", context, async () => {
     const kingdomValue = interaction.options.getInteger("kingdom");
     const tagText = interaction.options.getString("tag");
     const nameText = interaction.options.getString("name");
-    if (kingdomValue !== null && tagText !== null && nameText === null) {
+    if (nameText === null && tagText !== null) {
       await lookUpAllianceByTag(interaction, context, kingdomValue, tagText);
       return;
     }

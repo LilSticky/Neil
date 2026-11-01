@@ -1,10 +1,18 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, test } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
 import { utcDayOf, type DailyQuota } from "./domain/daily-quota.js";
+import { parseKingdom, type KingdomNumber } from "./domain/lookup-input.js";
+import type { Alliance } from "./domain/player.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
+import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
+import { openDatabase } from "./storage/database.js";
 import { InterviewStore } from "./storage/interview-store.js";
+import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
@@ -68,12 +76,27 @@ const VALID_ENV = {
   DATA_DIR: "./data",
 };
 
+// start() forgets the Known Alliances at once, so the stub Known Alliance store needs a real, migrated neil.db.
+const sharedDataDir = mkdtempSync(join(tmpdir(), "neil-startup-shared-"));
+const sharedDb = openDatabase(sharedDataDir);
+
+afterAll(() => {
+  sharedDb.close();
+  rmSync(sharedDataDir, { recursive: true, force: true });
+});
+
 /** Stores that are never queried: start() only hands them on to connect, which these tests fake. */
-function stubStores(): { readonly interviews: InterviewStore; readonly links: LinkStore; readonly applied: AppliedStore } {
+function stubStores(): {
+  readonly interviews: InterviewStore;
+  readonly links: LinkStore;
+  readonly applied: AppliedStore;
+  readonly knownAlliances: KnownAllianceStore;
+} {
   return {
     interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
     links: new LinkStore(new DatabaseSync(":memory:")),
     applied: new AppliedStore(new DatabaseSync(":memory:")),
+    knownAlliances: new KnownAllianceStore(sharedDb),
   };
 }
 
@@ -334,6 +357,95 @@ describe("start", () => {
       "disconnect",
       "closeStore",
     ]);
+  });
+});
+
+const DAY_MS = 86_400_000;
+const NOW_AT_START = new Date("2026-10-29T12:00:00Z");
+
+function kingdomOf(number: number): KingdomNumber {
+  const parsed = parseKingdom(number);
+  if (!parsed.ok) throw new Error(`test Kingdom ${number.toString()} must parse`);
+  return parsed.value;
+}
+
+/** An Alliance as the Game API answer describes it; only the Kingdom, tag and name reach the Known Alliance store. */
+function allianceOf(kingdom: KingdomNumber, tag: string, name: string): Alliance {
+  return { tag, name, kingdom, power: 0, memberCount: 0, capacity: 0, leaderName: undefined, roster: [] };
+}
+
+describe("start and the Known Alliances", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let knownAlliances: KnownAllianceStore;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-startup-known-"));
+    db = openDatabase(dataDir);
+    knownAlliances = new KnownAllianceStore(db);
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  /** Starts Neil with this test's Known Alliance store; resolves with the sighting hook start() gave the Game API client. */
+  async function startAndGetHook(): Promise<AllianceSeenHook> {
+    const hook = await startWithStore();
+    if (hook === undefined) throw new Error("start did not give the Game API client an alliance sighting hook");
+    return hook;
+  }
+
+  /** Starts Neil with this test's Known Alliance store; resolves with the sighting hook, if start() gave one. */
+  async function startWithStore(): Promise<AllianceSeenHook | undefined> {
+    let hook: AllianceSeenHook | undefined;
+    const { gameApi } = fakeDeps();
+    const { deps } = fakeDeps({
+      openStore: () => ({
+        load: () => ({ firstStartedAt: new Date("2026-10-01T00:00:00Z"), startCount: startCount(2) }),
+        save: () => undefined,
+        close: () => undefined,
+        dailyQuota: { load: () => undefined, save: () => undefined },
+        ...stubStores(),
+        knownAlliances,
+      }),
+      createGameApi: (_apiKey, _version, _cacheTtlMs, _quota, onAllianceSeen) => {
+        hook = onAllianceSeen;
+        return gameApi;
+      },
+    });
+
+    await start(deps);
+
+    return hook;
+  }
+
+  test("records a Home Kingdom Alliance that a Game API answer holds, with the time it was seen", async () => {
+    const hook = await startAndGetHook();
+
+    hook(kingdomOf(330), "NML", "No Man's Land");
+
+    expect(knownAlliances.all(NOW_AT_START)).toEqual([
+      { kingdom: 330, tag: "NML", name: "No Man's Land", lastSeen: NOW_AT_START },
+    ]);
+  });
+
+  test("does not record an Alliance of another Kingdom", async () => {
+    const hook = await startAndGetHook();
+
+    hook(kingdomOf(1), "NMX", "No Man's Land");
+
+    expect(knownAlliances.all(NOW_AT_START)).toEqual([]);
+  });
+
+  test("forgets the Known Alliances not seen for 30 days when Neil starts, and keeps the others", async () => {
+    knownAlliances.seen(allianceOf(kingdomOf(330), "OLD", "Old Land"), new Date(NOW_AT_START.getTime() - 31 * DAY_MS));
+    knownAlliances.seen(allianceOf(kingdomOf(330), "NEW", "New Land"), new Date(NOW_AT_START.getTime() - 29 * DAY_MS));
+
+    await startWithStore();
+
+    expect(db.prepare("SELECT tag FROM known_alliance ORDER BY tag").all()).toEqual([{ tag: "NEW" }]);
   });
 });
 

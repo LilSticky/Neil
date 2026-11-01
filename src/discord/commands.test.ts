@@ -84,6 +84,17 @@ describe("commands", () => {
     );
   });
 
+  test("hold /alliance with name and tag set to autocomplete from Known Alliances, and the kingdom not", () => {
+    const options = commands.find((command) => command.name === "alliance")?.options;
+
+    expect(options).toEqual([
+      expect.objectContaining({ name: "name", type: ApplicationCommandOptionType.String, autocomplete: true }),
+      expect.objectContaining({ name: "tag", type: ApplicationCommandOptionType.String, autocomplete: true }),
+      expect.objectContaining({ name: "kingdom", type: ApplicationCommandOptionType.Integer }),
+    ]);
+    expect(options?.[2]).not.toHaveProperty("autocomplete", true);
+  });
+
   test("hold /quota, guild only, without options and without default member permissions (Officers are checked by Neil)", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({

@@ -259,7 +259,7 @@ export const lookupMessages = {
   showing: (label: string): string => `Showing ${escapeText(label)}.`,
   giveKingdomAndTagOrName: "Give the kingdom and the alliance tag, or the alliance's exact full name.",
   allianceNameNotFound: (key: AllianceKey): string =>
-    `No alliance is named exactly "${escapeText(key)}". Use the full name, or the kingdom and tag; approximate names are not supported.`,
+    `No alliance is named "${escapeText(key)}", and none I know is close. Try the tag, or start typing and pick a suggestion.`,
 } as const;
 
 /** A Player match as the pick list labels it: its name and Kingdom. */
@@ -319,6 +319,31 @@ export function renderAlliancePickList(
   }));
   return {
     content: `Several alliances are named "${escapeText(key)}". Pick one:${note}`,
+    components: [
+      {
+        type: ComponentType.ActionRow,
+        components: [{ type: ComponentType.StringSelect, custom_id: `pick:${sessionId}:select`, options }],
+      },
+    ],
+  };
+}
+
+/**
+ * The private pick list for a name no Alliance has, while Known Alliances are close to it: a select menu of them as
+ * `[TAG] Name`, under the session id the pick handler looks up. The pick handler lists the matches in the same order.
+ */
+export function renderCloseAlliancePickList(
+  name: AllianceKey,
+  matches: readonly Match[],
+  sessionId: string,
+): { readonly content: string; readonly components: APIActionRowComponent<APIStringSelectComponent>[] } {
+  const { listed } = listedAllianceMatches(matches);
+  const options = listed.map((match, index) => ({
+    label: optionLabel(escapeText(`[${match.tag}] ${match.name ?? "Unknown"}`)),
+    value: index.toString(),
+  }));
+  return {
+    content: `No alliance is named "${escapeText(name)}". Did you mean one of these?`,
     components: [
       {
         type: ComponentType.ActionRow,

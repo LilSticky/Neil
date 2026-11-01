@@ -797,15 +797,15 @@ describe("lookupMessages for /alliance by name", () => {
     );
   });
 
-  test("allianceNameNotFound names the name and says approximate names are not supported", () => {
+  test("allianceNameNotFound names the name, says none is close and points to the tag or a suggestion", () => {
     expect(lookupMessages.allianceNameNotFound(allianceKey("No Such Land"))).toBe(
-      'No alliance is named exactly "No Such Land". Use the full name, or the kingdom and tag; approximate names are not supported.',
+      'No alliance is named "No Such Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
     );
   });
 
   test("allianceNameNotFound escapes the name as typed", () => {
     expect(lookupMessages.allianceNameNotFound(allianceKey("N_M*"))).toBe(
-      'No alliance is named exactly "N\\_M\\*". Use the full name, or the kingdom and tag; approximate names are not supported.',
+      'No alliance is named "N\\_M\\*", and none I know is close. Try the tag, or start typing and pick a suggestion.',
     );
   });
 });
