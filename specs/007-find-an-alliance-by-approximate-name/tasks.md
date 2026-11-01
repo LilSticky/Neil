@@ -36,6 +36,6 @@ description: "Task list for slice 007, Find an alliance by approximate name"
   close Known Alliances (escaped `[TAG] Name`); pick → `getAlliance(home, tag, "lookup")` and the usual card; no close
   match → old not-found text; `tag:` without kingdom → Home Kingdom. Implement.
 - [x] T006 Wiring: composition root stores Home Kingdom sightings, `forget` at startup (test in startup/connect tests).
-- [ ] T007 Docs: TEST-RUN.md §6c (collected cases), GAME-API.md note, ROADMAP (007 row), STATUS.
+- [x] T007 Docs: TEST-RUN.md §6c (collected cases), GAME-API.md note, ROADMAP (007 row), STATUS.
 - [ ] T008 `bot-reviewer` → `review.md`; fix must/should. T009 `spec-auditor` → `audit.md`.
 - [ ] T010 Manual check: collected in TEST-RUN.md §6c, run later by the user.
