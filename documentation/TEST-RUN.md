@@ -10,21 +10,21 @@ Texts Neil should show: [contracts/interview.md](../specs/005-interview-a-new-me
 
 | # | Step | Done |
 |---|------|------|
-| 0.1 | Developer Portal → Neil → Bot → switch on **Server Members Intent** (without it Neil cannot log in once slice 005 is deployed) | |
-| 0.2 | Test server: create `#onboarding` and `#neil-log` | |
-| 0.3 | `#onboarding`: Neil gets View Channel, Send Messages in Threads, Create Private Threads, Manage Threads; Moderator and King get Manage Threads | |
-| 0.4 | `#neil-log`: Neil gets View Channel, Send Messages | |
-| 0.5 | `.env`: `DISCORD_ONBOARDING_CHANNEL_ID`, `DISCORD_LOG_CHANNEL_ID`, `INTERVIEW_TIMEOUT_MINUTES=3` | |
-| 0.6 | Stop Neil on Wispbyte; `npm run commands:register`; `npm run dev` | |
-| 0.7 | Have a second Discord account ready ("the joiner"), not yet on the test server; know two real uids (yours and one without a rank, if you find one) | |
+| 0.1 | Developer Portal → Neil → Bot → switch on **Server Members Intent** (without it Neil cannot log in once slice 005 is deployed) | ✅ |
+| 0.2 | Test server: create `#onboarding` and `#neil-log` | ✅ |
+| 0.3 | `#onboarding`: Neil gets View Channel, Send Messages in Threads, Create Private Threads, Manage Threads; Moderator and King get Manage Threads | ✅ |
+| 0.4 | `#neil-log`: Neil gets View Channel, Send Messages | ✅ |
+| 0.5 | `.env`: `DISCORD_ONBOARDING_CHANNEL_ID`, `DISCORD_LOG_CHANNEL_ID`, `INTERVIEW_TIMEOUT_MINUTES=3` | ✅ |
+| 0.6 | Stop Neil on Wispbyte; `npm run commands:register`; `npm run dev` | ✅ |
+| 0.7 | Have a second Discord account ready ("the joiner"), not yet on the test server; know two real uids (yours and one without a rank, if you find one) | ✅ |
 
 ## 1. Startup checks
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 1.1 | Start Neil with `DISCORD_LOG_CHANNEL_ID` set to a wrong ID | Neil stops at once and names the log channel problem | | |
-| 1.2 | Remove Manage Threads from Neil in `#onboarding`, start | Neil stops and names the missing permission | | |
-| 1.3 | Restore both, start | Neil comes online; `/ping` answers | | |
+| 1.1 | Start Neil with `DISCORD_LOG_CHANNEL_ID` set to a wrong ID | Neil stops at once and names the log channel problem | ✅ | |
+| 1.2 | Remove Manage Threads from Neil in `#onboarding`, start | Neil stops and names the missing permission | ✅ | |
+| 1.3 | Restore both, start | Neil comes online; `/ping` answers | ✅ | |
 
 ## 2. A new Member gets Linked (US1)
 
