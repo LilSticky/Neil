@@ -18,6 +18,7 @@ function validEnv(overrides: Record<string, string | undefined> = {}): Record<st
     DISCORD_KING_ROLE_ID: KING_ROLE_ID,
     DISCORD_ONBOARDING_CHANNEL_ID: ONBOARDING_CHANNEL_ID,
     DISCORD_LOG_CHANNEL_ID: LOG_CHANNEL_ID,
+    HOME_KINGDOM: "330",
     LAP_TRACKER_API_KEY: FAKE_API_KEY,
     ...overrides,
   };
@@ -51,6 +52,8 @@ describe("loadConfig", () => {
       cacheTtlMs: 600_000,
       quotaReserve: 100,
       dataDir: "/srv/neil",
+      homeKingdom: 330,
+      troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
     });
   });
 
@@ -346,6 +349,75 @@ describe("loadConfig", () => {
     });
   });
 
+  describe("HOME_KINGDOM", () => {
+    const rule = "must be a whole number from 1 to 9999";
+
+    test("reports HOME_KINGDOM as required when it is missing", () => {
+      const error = failureOf(validEnv({ HOME_KINGDOM: undefined }));
+
+      expect(error.problems).toEqual(["HOME_KINGDOM: required"]);
+    });
+
+    test("exposes the Kingdom number as homeKingdom", () => {
+      const config = loadConfig(validEnv({ HOME_KINGDOM: "9999" }));
+
+      expect(config.homeKingdom).toBe(9999);
+    });
+
+    test.each([
+      ["zero", "0"],
+      ["above 9999", "10000"],
+      ["negative", "-1"],
+      ["a fraction", "330.5"],
+      ["letters", "kingdom330"],
+    ])("rejects %s", (_label, value) => {
+      const error = failureOf(validEnv({ HOME_KINGDOM: value }));
+
+      expect(error.problems).toEqual([`HOME_KINGDOM: ${rule}`]);
+    });
+  });
+
+  describe("TROOP_BRACKET_LEVELS", () => {
+    const rule = "must be 1 to 10 whole numbers of at least 1, strictly increasing";
+
+    test("defaults to 1, 3, 6, 10, 14, 17, 20, 24, 27, 30 when it is not set", () => {
+      const config = loadConfig(validEnv());
+
+      expect(config.troopBracketLevels).toEqual([1, 3, 6, 10, 14, 17, 20, 24, 27, 30]);
+    });
+
+    test("exposes the listed first levels in order as troopBracketLevels", () => {
+      const config = loadConfig(validEnv({ TROOP_BRACKET_LEVELS: "1,5,9" }));
+
+      expect(config.troopBracketLevels).toEqual([1, 5, 9]);
+    });
+
+    test("accepts a single level", () => {
+      const config = loadConfig(validEnv({ TROOP_BRACKET_LEVELS: "1" }));
+
+      expect(config.troopBracketLevels).toEqual([1]);
+    });
+
+    test("accepts exactly 10 levels", () => {
+      const config = loadConfig(validEnv({ TROOP_BRACKET_LEVELS: "1,2,3,4,5,6,7,8,9,10" }));
+
+      expect(config.troopBracketLevels).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    });
+
+    test.each([
+      ["11 levels", "1,2,3,4,5,6,7,8,9,10,11"],
+      ["a level of 0", "0,3,6"],
+      ["levels out of order", "5,3"],
+      ["a repeated level", "3,3,6"],
+      ["a fraction", "1,2.5"],
+      ["letters", "1,tier2"],
+    ])("rejects %s", (_label, value) => {
+      const error = failureOf(validEnv({ TROOP_BRACKET_LEVELS: value }));
+
+      expect(error.problems).toEqual([`TROOP_BRACKET_LEVELS: ${rule}`]);
+    });
+  });
+
   test("reports every missing or invalid setting together, in one error", () => {
     const error = failureOf({
       DISCORD_GUILD_ID: "not-a-snowflake",
@@ -359,6 +431,7 @@ describe("loadConfig", () => {
       "DISCORD_KING_ROLE_ID: required",
       "DISCORD_ONBOARDING_CHANNEL_ID: required",
       "DISCORD_LOG_CHANNEL_ID: required",
+      "HOME_KINGDOM: required",
       "LAP_TRACKER_API_KEY: required",
     ]);
   });
@@ -372,6 +445,7 @@ describe("loadConfig", () => {
       DISCORD_KING_ROLE_ID: KING_ROLE_ID,
       DISCORD_ONBOARDING_CHANNEL_ID: ONBOARDING_CHANNEL_ID,
       DISCORD_LOG_CHANNEL_ID: LOG_CHANNEL_ID,
+      HOME_KINGDOM: "330",
       LAP_TRACKER_API_KEY: FAKE_API_KEY,
     });
 
@@ -393,6 +467,7 @@ describe("loadConfig", () => {
         "- DISCORD_KING_ROLE_ID: required",
         "- DISCORD_ONBOARDING_CHANNEL_ID: required",
         "- DISCORD_LOG_CHANNEL_ID: required",
+        "- HOME_KINGDOM: required",
         "- LAP_TRACKER_API_KEY: required",
       ].join("\n"),
     );

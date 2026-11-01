@@ -11,18 +11,18 @@ test touches the network or the real Discord; stores use `:memory:`.
 
 ## Phase 1: Setup
 
-- [ ] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `HOME_KINGDOM` required kingdom
+- [x] T001 Test then implement config in `src/config.test.ts` / `src/config.ts`: `HOME_KINGDOM` required kingdom
   number (1–9999); `TROOP_BRACKET_LEVELS` optional, default `1,3,6,10,14,17,20,24,27,30`, strictly increasing whole
   numbers ≥ 1, 1–10 entries (`Configuration.homeKingdom`, `troopBracketLevels`). Add both to `env.example`.
 
 ## Phase 2: Domain
 
-- [ ] T002 [P] Test `src/domain/troop-bracket.test.ts`: `bracketFor(level, levels)` → `T1`…`T10` per the default table
+- [x] T002 [P] Test `src/domain/troop-bracket.test.ts`: `bracketFor(level, levels)` → `T1`…`T10` per the default table
   (1–2 T1, 3–5 T2, …, 30+ T10), `undefined` for 0 or a level below the first. Implement `src/domain/troop-bracket.ts`.
-- [ ] T003 [P] Test `src/domain/member-name.test.ts`: `nicknameFor(player, rank, homeKingdom)` per spec FR-002 and
+- [x] T003 [P] Test `src/domain/member-name.test.ts`: `nicknameFor(player, rank, homeKingdom)` per spec FR-002 and
   US1 1–6 (`[NML] Rogue`, `[NML|R4] Rogue`, `[ABC|R5] Rogue | #331`, `Rogue | #331`, `Rogue`, unknown rank → no rank,
   cut to 32 keeping tag/rank/kingdom, empty Player Name → `undefined`). Implement `src/domain/member-name.ts`.
-- [ ] T004 Test `src/domain/managed-roles.test.ts`: `rolesFor(player, rankOnLink, homeKingdom, levels)` (Home
+- [x] T004 Test `src/domain/managed-roles.test.ts`: `rolesFor(player, rankOnLink, homeKingdom, levels)` (Home
   Kingdom Alliance → tag; rank role only for a known rank in a Home Kingdom Alliance; `#<kingdom>` always; bracket
   when known); `isManagedRoleName(name)` recognises `R1`–`R5`, `#<n>`, `T1`–`T10` and a given set of Alliance tags;
   `planApply(heldManaged, wanted)` → `{add, remove}`. Implement `src/domain/managed-roles.ts`.

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseKingdom, type KingdomNumber } from "./domain/lookup-input.js";
 
 export interface Configuration {
   readonly discordToken: string;
@@ -15,6 +16,10 @@ export interface Configuration {
   /** Requests kept back for Onboarding Interviews; lookups stop when this many or fewer remain. */
   readonly quotaReserve: number;
   readonly dataDir: string;
+  /** The Home Kingdom: members of this Kingdom are Home Kingdom Players (FR-013). */
+  readonly homeKingdom: KingdomNumber;
+  /** The first level of each Troop Bracket T1…T10, strictly increasing (FR-006). */
+  readonly troopBracketLevels: readonly number[];
 }
 
 export class ConfigError extends Error {
@@ -44,6 +49,21 @@ const DEFAULT_INTERVIEW_TIMEOUT_MINUTES = 1440;
 const MAX_INTERVIEW_TIMEOUT_MINUTES = 525_600;
 const interviewTimeoutRule = "must be a whole number from 1 to 525600 (one year)";
 
+const homeKingdomRule = "must be a whole number from 1 to 9999";
+
+const DEFAULT_TROOP_BRACKET_LEVELS: readonly number[] = [1, 3, 6, 10, 14, 17, 20, 24, 27, 30];
+const TROOP_BRACKET_COUNT = 10;
+const troopBracketLevelsRule = "must be 1 to 10 whole numbers of at least 1, strictly increasing";
+
+/** Comma-separated first levels; undefined when the text breaks the rule. */
+function parseTroopBracketLevels(value: string): number[] | undefined {
+  const parts = value.split(",");
+  if (parts.length > TROOP_BRACKET_COUNT || !parts.every((part) => /^\d+$/.test(part))) return undefined;
+  const levels = parts.map(Number);
+  const increasing = levels.every((level, index) => level >= 1 && (index === 0 || level > (levels[index - 1] ?? 0)));
+  return increasing ? levels : undefined;
+}
+
 const schema = z.object({
   DISCORD_TOKEN: z.string(required).min(1, required),
   DISCORD_APPLICATION_ID: snowflake,
@@ -52,6 +72,25 @@ const schema = z.object({
   DISCORD_KING_ROLE_ID: snowflake,
   DISCORD_ONBOARDING_CHANNEL_ID: snowflake,
   DISCORD_LOG_CHANNEL_ID: snowflake,
+  HOME_KINGDOM: z
+    .string(required)
+    .min(1, required)
+    .regex(/^\d+$/, homeKingdomRule)
+    .transform((value, ctx): KingdomNumber => {
+      const parsed = parseKingdom(Number(value));
+      if (parsed.ok) return parsed.value;
+      ctx.addIssue({ code: "custom", message: homeKingdomRule });
+      return z.NEVER;
+    }),
+  TROOP_BRACKET_LEVELS: z
+    .string()
+    .transform((value, ctx): number[] => {
+      const levels = parseTroopBracketLevels(value);
+      if (levels !== undefined) return levels;
+      ctx.addIssue({ code: "custom", message: troopBracketLevelsRule });
+      return z.NEVER;
+    })
+    .optional(),
   INTERVIEW_TIMEOUT_MINUTES: z
     .string()
     .regex(/^\d+$/, interviewTimeoutRule)
@@ -98,5 +137,7 @@ export function loadConfig(env: Record<string, string | undefined>): Configurati
     cacheTtlMs: (result.data.GAME_API_CACHE_MINUTES ?? DEFAULT_CACHE_MINUTES) * 60_000,
     quotaReserve: result.data.GAME_API_QUOTA_RESERVE ?? DEFAULT_QUOTA_RESERVE,
     dataDir: result.data.DATA_DIR,
+    homeKingdom: result.data.HOME_KINGDOM,
+    troopBracketLevels: result.data.TROOP_BRACKET_LEVELS ?? DEFAULT_TROOP_BRACKET_LEVELS,
   };
 }
