@@ -8,19 +8,19 @@ export const ping = new SlashCommandBuilder()
 
 export const player = new SlashCommandBuilder()
   .setName("player")
-  .setDescription("Look up a player by uid or name")
+  .setDescription("Look up a player by name or uid")
   .setContexts(InteractionContextType.Guild)
   .addStringOption((option) =>
     option
-      .setName("uid")
-      .setDescription("The player's uid (the number under the profile picture)")
+      .setName("name")
+      .setDescription("The player's complete in-game name")
       .setRequired(false)
       .setMaxLength(32),
   )
   .addStringOption((option) =>
     option
-      .setName("name")
-      .setDescription("The player's complete in-game name")
+      .setName("uid")
+      .setDescription("The player's uid (the number under the profile picture)")
       .setRequired(false)
       .setMaxLength(32),
   )
@@ -37,6 +37,20 @@ export const alliance = new SlashCommandBuilder()
   .setName("alliance")
   .setDescription("Look up an alliance in a kingdom")
   .setContexts(InteractionContextType.Guild)
+  .addStringOption((option) =>
+    option
+      .setName("name")
+      .setDescription("The alliance's exact full name, alone")
+      .setRequired(false)
+      .setMaxLength(40),
+  )
+  .addStringOption((option) =>
+    option
+      .setName("tag")
+      .setDescription("The alliance tag, e.g. NML")
+      .setRequired(false)
+      .setMaxLength(40),
+  )
   .addIntegerOption((option) =>
     option
       .setName("kingdom")
@@ -44,20 +58,6 @@ export const alliance = new SlashCommandBuilder()
       .setRequired(false)
       .setMinValue(1)
       .setMaxValue(9999),
-  )
-  .addStringOption((option) =>
-    option
-      .setName("alliance")
-      .setDescription("The alliance tag, e.g. NML")
-      .setRequired(false)
-      .setMaxLength(40),
-  )
-  .addStringOption((option) =>
-    option
-      .setName("name")
-      .setDescription("The alliance's exact full name, alone")
-      .setRequired(false)
-      .setMaxLength(40),
   );
 
 export const quota = new SlashCommandBuilder()

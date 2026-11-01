@@ -16,25 +16,25 @@ describe("commands", () => {
     );
   });
 
-  test("hold /player, open to anyone, guild only, with optional uid and name of at most 32 characters and an optional integer kingdom from 1 to 9999", () => {
+  test("hold /player, open to anyone, guild only, with the name first, then the uid, then an optional integer kingdom from 1 to 9999; the name and uid are of at most 32 characters", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "player",
-        description: "Look up a player by uid or name",
+        description: "Look up a player by name or uid",
         type: ApplicationCommandType.ChatInput,
         default_member_permissions: undefined,
         contexts: [InteractionContextType.Guild],
         options: [
           expect.objectContaining({
             type: ApplicationCommandOptionType.String,
-            name: "uid",
-            description: "The player's uid (the number under the profile picture)",
+            name: "name",
             required: false,
             max_length: 32,
           }),
           expect.objectContaining({
             type: ApplicationCommandOptionType.String,
-            name: "name",
+            name: "uid",
+            description: "The player's uid (the number under the profile picture)",
             required: false,
             max_length: 32,
           }),
@@ -50,7 +50,7 @@ describe("commands", () => {
     );
   });
 
-  test("hold /alliance, open to anyone, guild only, with optional kingdom (integer 1 to 9999), alliance tag and full name (each of at most 40 characters)", () => {
+  test("hold /alliance, open to anyone, guild only, with the full name first, then the alliance tag, then an optional integer kingdom from 1 to 9999; the name and tag are of at most 40 characters", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "alliance",
@@ -60,24 +60,24 @@ describe("commands", () => {
         contexts: [InteractionContextType.Guild],
         options: [
           expect.objectContaining({
-            type: ApplicationCommandOptionType.Integer,
-            name: "kingdom",
+            type: ApplicationCommandOptionType.String,
+            name: "name",
             required: false,
-            min_value: 1,
-            max_value: 9999,
+            max_length: 40,
           }),
           expect.objectContaining({
             type: ApplicationCommandOptionType.String,
-            name: "alliance",
+            name: "tag",
             description: "The alliance tag, e.g. NML",
             required: false,
             max_length: 40,
           }),
           expect.objectContaining({
-            type: ApplicationCommandOptionType.String,
-            name: "name",
+            type: ApplicationCommandOptionType.Integer,
+            name: "kingdom",
             required: false,
-            max_length: 40,
+            min_value: 1,
+            max_value: 9999,
           }),
         ],
       }),

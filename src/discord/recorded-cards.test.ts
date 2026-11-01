@@ -38,7 +38,6 @@ describe("cards from recorded Game API answers", () => {
     expect(renderPlayerCard(result.value, result.fetchedAt, NOW)).toEqual({
       title: "DrLOL",
       fields: [
-        { name: "uid", value: "145563254785", inline: true },
         { name: "Kingdom", value: "#1", inline: true },
         { name: "Power", value: "15,902,728", inline: true },
         { name: "Sanctuary level", value: "23", inline: true },

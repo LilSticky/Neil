@@ -61,10 +61,9 @@ describe("renderPlayerCard", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({ title: "Vex" });
   });
 
-  test("shows uid, Kingdom, Power, Sanctuary level, Alliance and Alliance Rank as inline fields", () => {
+  test("shows Kingdom, Power, Sanctuary level, Alliance and Alliance Rank as inline fields", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
       fields: [
-        { name: "uid", value: "145563254785", inline: true },
         { name: "Kingdom", value: "#330", inline: true },
         { name: "Power", value: "15,902,728", inline: true },
         { name: "Sanctuary level", value: "42", inline: true },
@@ -79,7 +78,6 @@ describe("renderPlayerCard", () => {
 
     expect(card).toMatchObject({
       fields: [
-        { name: "uid", value: "145563254785" },
         { name: "Kingdom", value: "#330" },
         { name: "Power", value: "15,902,728" },
         { name: "Sanctuary level", value: "42" },
@@ -87,6 +85,10 @@ describe("renderPlayerCard", () => {
       ],
     });
     expect(card.fields?.map((field) => field.name)).not.toContain("Alliance Rank");
+  });
+
+  test("shows no uid anywhere on the card, lookups never show one", () => {
+    expect(JSON.stringify(renderPlayerCard(inAlliance, FETCHED_AT, NOW))).not.toContain("145563254785");
   });
 
   test("shows Unknown as the Alliance Rank when the Game gives none", () => {
@@ -412,7 +414,7 @@ describe("renderPlayerPickList", () => {
     });
   });
 
-  test("offers the matches in one select menu, ordered by Kingdom, valued by index in that order", () => {
+  test("offers the matches in one select menu, ordered by Kingdom, each labelled by its Player Name and described by its Kingdom, valued by index in that order", () => {
     expect(renderPlayerPickList(playerName("DrLOL"), unordered, "a1b2c3d4")).toMatchObject({
       components: [
         {
@@ -422,14 +424,21 @@ describe("renderPlayerPickList", () => {
               type: ComponentType.StringSelect,
               custom_id: "pick:a1b2c3d4:select",
               options: [
-                { label: "DrLOL · kingdom #1", value: "0" },
-                { label: "Vex · kingdom #330", value: "1" },
+                { label: "DrLOL", description: "Kingdom #1", value: "0" },
+                { label: "Vex", description: "Kingdom #330", value: "1" },
               ],
             },
           ],
         },
       ],
     });
+  });
+
+  test("shows no uid in the Player pick list", () => {
+    const text = JSON.stringify(renderPlayerPickList(playerName("DrLOL"), unordered, "a1b2c3d4"));
+
+    expect(text).not.toContain("145563254785");
+    expect(text).not.toContain("100000000002");
   });
 
   test("escapes the typed name in the question", () => {
@@ -454,7 +463,8 @@ describe("renderPlayerPickList with more than 25 matches", () => {
             {
               custom_id: "pick:a1b2c3d4:select",
               options: Array.from({ length: 25 }, (_, index) => ({
-                label: `P${index.toString()} · kingdom #${(index + 1).toString()}`,
+                label: `P${index.toString()}`,
+                description: `Kingdom #${(index + 1).toString()}`,
                 value: index.toString(),
               })),
             },
@@ -512,18 +522,24 @@ describe("renderAllianceCard roster fields", () => {
     ]);
   });
 
-  test("lists each Player as name · uid, sorted by name ignoring case within the rank", () => {
+  test("lists each Player by name alone, sorted by name ignoring case within the rank", () => {
     const card = renderAllianceCard({ ...alliance, roster }, FETCHED_AT, NOW);
 
-    expect(fieldValue(card, "R4")).toBe("Ana · 5555\netranger · 179060285441");
-    expect(fieldValue(card, "R3")).toBe("Benedict · 93159425");
-    expect(fieldValue(card, "Unknown")).toBe("Unnamed · 42");
+    expect(fieldValue(card, "R4")).toBe("Ana\netranger");
+    expect(fieldValue(card, "R3")).toBe("Benedict");
+    expect(fieldValue(card, "Unknown")).toBe("Unnamed");
+  });
+
+  test("shows no uid in any roster row", () => {
+    const card = renderAllianceCard({ ...alliance, roster }, FETCHED_AT, NOW);
+
+    expect(JSON.stringify(card)).not.toMatch(/93159425|179060285441|147744374785|5555|"42"/);
   });
 
   test("escapes the Player's name in each row", () => {
     const card = renderAllianceCard({ ...alliance, roster: [rosterEntry("5555", "_Ana_", "R4")] }, FETCHED_AT, NOW);
 
-    expect(fieldValue(card, "R4")).toBe("\\_Ana\\_ · 5555");
+    expect(fieldValue(card, "R4")).toBe("\\_Ana\\_");
   });
 
   test("continues an Alliance Rank whose rows pass 1,024 characters in a field named R5 (cont.)", () => {
@@ -572,9 +588,9 @@ describe("renderAllianceCard on a page of a roster of 100", () => {
     rosterEntry((100_000_000_000 + index).toString(), `M${index.toString().padStart(2, "0")}`, "R4"),
   );
 
-  /** The row the card shows for the member at this index of the menu order. */
+  /** The row the card shows for the member at this index of the menu order: the name alone, no uid. */
   function rowOf(index: number): string {
-    return `M${index.toString().padStart(2, "0")} · ${(100_000_000_000 + index).toString()}`;
+    return `M${index.toString().padStart(2, "0")}`;
   }
 
   /** The 25 rows of a page, starting at the member index the page begins with. */
@@ -625,7 +641,7 @@ describe("renderRosterComponents", () => {
     );
   }
 
-  test("offers one select menu of the members, placeholder Look up a member…, valued by index on the page", () => {
+  test("offers one select menu of the members, placeholder Look up a member…, each labelled by name and described by its Alliance Rank, valued by index on the page", () => {
     expect(renderRosterComponents(members(3), 0, "a1b2c3d4")).toMatchObject([
       {
         type: ComponentType.ActionRow,
@@ -635,9 +651,9 @@ describe("renderRosterComponents", () => {
             custom_id: "pick:a1b2c3d4:select:0",
             placeholder: "Look up a member…",
             options: [
-              { label: "R4 · M00", description: "uid 100000000000", value: "0" },
-              { label: "R4 · M01", description: "uid 100000000001", value: "1" },
-              { label: "R4 · M02", description: "uid 100000000002", value: "2" },
+              { label: "M00", description: "R4", value: "0" },
+              { label: "M01", description: "R4", value: "1" },
+              { label: "M02", description: "R4", value: "2" },
             ],
           },
         ],
@@ -645,9 +661,15 @@ describe("renderRosterComponents", () => {
     ]);
   });
 
-  test("labels a member without a known rank as Unknown", () => {
+  test("shows no uid in the roster menu's labels or descriptions", () => {
+    const text = JSON.stringify(renderRosterComponents(members(3), 0, "a1b2c3d4"));
+
+    expect(text).not.toMatch(/10000000000[0-2]/);
+  });
+
+  test("describes a member without a known rank as Unknown", () => {
     expect(renderRosterComponents([rosterEntry("42", "Unnamed", "unknown")], 0, "a1b2c3d4")).toMatchObject([
-      { components: [{ options: [{ label: "Unknown · Unnamed", value: "0" }] }] },
+      { components: [{ options: [{ label: "Unnamed", description: "Unknown", value: "0" }] }] },
     ]);
   });
 
@@ -691,11 +713,11 @@ describe("renderRosterComponents", () => {
       components: [
         {
           options: [
-            { label: "R4 · M25", value: "0" },
-            { label: "R4 · M26", value: "1" },
-            { label: "R4 · M27", value: "2" },
-            { label: "R4 · M28", value: "3" },
-            { label: "R4 · M29", value: "4" },
+            { label: "M25", description: "R4", value: "0" },
+            { label: "M26", description: "R4", value: "1" },
+            { label: "M27", description: "R4", value: "2" },
+            { label: "M28", description: "R4", value: "3" },
+            { label: "M29", description: "R4", value: "4" },
           ],
         },
       ],
@@ -857,6 +879,6 @@ describe("select menu option labels stay within 100 characters", () => {
   test("cuts a roster menu label of a 150-character Game name to 100, ending with an ellipsis", () => {
     const roster = [rosterEntry("145563254785", longName, "R4")];
 
-    expect(optionLabelsOf(renderRosterComponents(roster, 0, "a1b2c3d4"))).toEqual([`R4 · ${"A".repeat(94)}…`]);
+    expect(optionLabelsOf(renderRosterComponents(roster, 0, "a1b2c3d4"))).toEqual([`${"A".repeat(99)}…`]);
   });
 });

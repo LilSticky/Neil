@@ -199,10 +199,10 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
 
 ## Phase 10: User Story 7 - Lookups by name and tag, without uids (P2, added 2026-11-01)
 
-- [ ] T030 [P] [US7] Test `src/discord/commands.test.ts` + `lookup.test.ts`: `/player` options `name`, `uid`, `kingdom` in
+- [x] T030 [P] [US7] Test `src/discord/commands.test.ts` + `lookup.test.ts`: `/player` options `name`, `uid`, `kingdom` in
   that order (description "by name or uid"); `/alliance` options `name`, `tag`, `kingdom` (option `alliance` renamed to
   `tag`); lookups read `tag`. Implement `src/discord/commands.ts`, `src/discord/lookup.ts`.
-- [ ] T031 [P] [US7] Test `src/discord/lookup-cards.test.ts` (+ `recorded-cards.test.ts`): no uid on the Player card,
+- [x] T031 [P] [US7] Test `src/discord/lookup-cards.test.ts` (+ `recorded-cards.test.ts`): no uid on the Player card,
   in Alliance Roster rows, in the Player pick list (description `Kingdom #N`) or the roster menu (description: rank).
   Implement `src/discord/lookup-cards.ts`.
 - [ ] T032 Docs: contracts (interview, 004 lookups), quickstart, TEST-RUN.md (new section for US6/US7), GAME-API.md
