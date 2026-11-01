@@ -64,12 +64,21 @@ const migrations: readonly string[] = [
    CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
      WHERE step IN ('recommending', 'awaiting-recommendation', 'awaiting-pick', 'awaiting-uid', 'checking',
        'awaiting-confirmation', 'paused-for-quota')`,
+  // Migration 5: the Applied State of each Link (slice 006, ADR 8). Its row goes with its Link (foreign keys are on).
+  `CREATE TABLE applied (
+     member_id TEXT PRIMARY KEY REFERENCES link (member_id) ON DELETE CASCADE,
+     nickname TEXT NOT NULL,
+     roles_json TEXT NOT NULL,
+     applied_at TEXT NOT NULL,
+     complete INTEGER NOT NULL CHECK (complete IN (0, 1))
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir: string): DatabaseSync {
   const db = new DatabaseSync(join(dataDir, "neil.db"));
   try {
+    db.exec("PRAGMA foreign_keys = ON");
     db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
     const row = db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get();
     const applied = typeof row?.version === "number" ? row.version : 0;

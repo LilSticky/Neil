@@ -29,14 +29,14 @@ test touches the network or the real Discord; stores use `:memory:`.
 
 ## Phase 3: Storage
 
-- [ ] T005 Test `src/storage/database.test.ts` + `applied-store.test.ts`: migration 5 creates `applied` (member_id PK,
+- [x] T005 Test `src/storage/database.test.ts` + `applied-store.test.ts`: migration 5 creates `applied` (member_id PK,
   nickname, roles_json, applied_at, complete); a version-4 db upgrades; `record`/`get` round-trip;
   `linkedWithoutCompleteApply()` lists Links with no row or `complete = 0`; deleting a Link's row with the Link.
   Implement `src/storage/applied-store.ts`, migration 5.
 
 ## Phase 4: User Story 1 - A Linked Member gets their name and roles (P1)
 
-- [ ] T006 Test `src/discord/member-roles.test.ts` with a fake guild: finds roles by exact name; creates a missing
+- [x] T006 Test `src/discord/member-roles.test.ts` with a fake guild: finds roles by exact name; creates a missing
   role once (no permissions, not hoisted, not mentionable), also for two concurrent applies; refuses an existing role
   with permissions (skipped with reason); adds missing, removes unwanted Managed Roles, never touches other roles;
   sets the nickname; per-step errors (50013 Missing Permissions, owner, hierarchy) become `skipped` entries.
