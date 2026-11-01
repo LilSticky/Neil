@@ -89,7 +89,7 @@ does not; after 30 days without a sighting it is no longer suggested.
 - A tag and a name both match: a tag match outranks a name match of the same kind.
 - A very short query (1 letter): only tag or name prefixes match, no near spelling.
 - An autocomplete answer must arrive within Discord's 3 seconds; matching runs on stored data only.
-- Alliance names with Discord markdown: suggestion labels are plain text; the pick list escapes them.
+- Alliance names with Discord markdown: suggestion and pick-list labels are plain text; the pick list's message text escapes them.
 
 ## Requirements *(mandatory)*
 
