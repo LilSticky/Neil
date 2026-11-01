@@ -29,6 +29,15 @@ export function nameAndRolesNotAppliedLogLine(memberId: MemberId): Message {
   };
 }
 
+/** The log line when the startup apply stops at a Game API quota stop: the Linked Members not yet looked up are left. */
+export function nameAndRolesLeftLogLine(left: number): Message {
+  const noun = left === 1 ? "Linked Member" : "Linked Members";
+  return {
+    content: `🏷️ Name and roles at startup stopped by the Game API quota: ${left.toString()} ${noun} left for the next start.`,
+    allowedMentions: { parse: [] },
+  };
+}
+
 function nicknamePart(report: ApplyReport, nickname: string): string {
   switch (report.nickname) {
     case "set":

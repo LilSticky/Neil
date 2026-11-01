@@ -35,7 +35,11 @@ const NOW = new Date("2026-10-31T10:00:00Z");
 const OWNER: MemberId = "900000000000000001";
 const ALICE: MemberId = "111111111111111111";
 const OFFICER: MemberId = "555555555555555555";
+const BOB: MemberId = "222222222222222222";
+const CAROL: MemberId = "333333333333333333";
 const UID = uidOf("145563254785");
+const BOB_UID = uidOf("145563254786");
+const CAROL_UID = uidOf("145563254787");
 const LEADER_UID = uidOf("145563254700");
 const HOME_KINGDOM = kingdomOf(330);
 const TROOP_BRACKET_LEVELS = [1, 3, 6, 10, 14, 17, 20, 24, 27, 30] as const;
@@ -80,14 +84,20 @@ const ROGUE_GUEST: Player = {
 class FakeGameApi {
   readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
   private answer: LookupResult<Player> = { kind: "not-found" };
+  private readonly answers = new Map<string, LookupResult<Player>>();
 
   answerWith(result: LookupResult<Player>): void {
     this.answer = result;
   }
 
+  /** The answer for one uid; other uids get the answer from answerWith. */
+  answerFor(uid: Uid, result: LookupResult<Player>): void {
+    this.answers.set(String(uid), result);
+  }
+
   getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     this.lookups.push({ uid, purpose });
-    return Promise.resolve(this.answer);
+    return Promise.resolve(this.answers.get(String(uid)) ?? this.answer);
   }
 }
 
@@ -126,14 +136,29 @@ function linkAlice(h: Harness, rank: RankOnLink = GAME_RANK_R4): void {
   h.links.confirm({ link: { memberId: ALICE, uid: UID, linkedAt: NOW, allianceRank: rank } }, () => undefined);
 }
 
-/** Alice is on the server holding the named roles; roles that do not exist yet are defined first. */
-function joinAlice(h: Harness, held: readonly string[] = []): FakeRolesMember {
+/** A Link of the Member to the uid, as the Interview stores it. */
+function linkMember(h: Harness, memberId: MemberId, uid: Uid, rank: RankOnLink = GAME_RANK_R4): void {
+  h.links.confirm({ link: { memberId, uid, linkedAt: NOW, allianceRank: rank } }, () => undefined);
+}
+
+/** The Member is on the server holding the named roles; roles that do not exist yet are defined first. */
+function joinMember(h: Harness, memberId: MemberId, held: readonly string[] = []): FakeRolesMember {
   for (const name of held) {
     if (h.guild.rolesNamed(name).length === 0) h.guild.defineRole(name);
   }
-  const alice = h.guild.member(ALICE, held);
-  h.server.join(ALICE, h.guild, alice);
-  return alice;
+  const member = h.guild.member(memberId, held);
+  h.server.join(memberId, h.guild, member);
+  return member;
+}
+
+/** Alice is on the server holding the named roles; roles that do not exist yet are defined first. */
+function joinAlice(h: Harness, held: readonly string[] = []): FakeRolesMember {
+  return joinMember(h, ALICE, held);
+}
+
+/** The text of a log message. */
+function contentOf(message: BaseMessageOptions): string {
+  return message.content ?? "";
 }
 
 /** The names of the roles a member holds, sorted. */
@@ -337,6 +362,108 @@ describe("createNameAndRoles", () => {
       expect(h.errors[0]).toContain(ALICE);
       expect(h.applied.get(ALICE)).toBeUndefined();
       expect(h.logs).toEqual([]);
+    });
+  });
+
+  describe("atStartup", () => {
+    test("looks each Linked Member without a complete apply up once, with the lookup purpose, and applies the rank of the Link", async () => {
+      const alice = joinMember(h, ALICE);
+      const bob = joinMember(h, BOB);
+      linkMember(h, ALICE, UID, GAME_RANK_R4);
+      linkMember(h, BOB, BOB_UID, GAME_RANK_R4);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.gameApi.lookups).toEqual([
+        { uid: UID, purpose: "lookup" },
+        { uid: BOB_UID, purpose: "lookup" },
+      ]);
+      expect(alice.nickname).toBe("[NML|R4] Rogue");
+      expect(heldNames(alice)).toEqual(["#330", "NML", "R4", "T7"]);
+      expect(bob.nickname).toBe("[NML|R4] Rogue");
+    });
+
+    test("skips a Linked Member who is not on the server, with no lookup", async () => {
+      joinMember(h, BOB);
+      linkMember(h, ALICE, UID);
+      linkMember(h, BOB, BOB_UID);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.gameApi.lookups).toEqual([{ uid: BOB_UID, purpose: "lookup" }]);
+      expect(h.applied.get(ALICE)).toBeUndefined();
+      expect(h.errors).toEqual([]);
+    });
+
+    test("leaves a Linked Member whose apply is complete alone, with no lookup", async () => {
+      joinMember(h, ALICE);
+      joinMember(h, BOB);
+      linkMember(h, ALICE, UID);
+      linkMember(h, BOB, BOB_UID);
+      h.applied.record({
+        memberId: ALICE,
+        nickname: "[NML|R4] Rogue",
+        roles: ["NML", "R4", "#330", "T7"],
+        appliedAt: NOW,
+        complete: true,
+      });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.gameApi.lookups).toEqual([{ uid: BOB_UID, purpose: "lookup" }]);
+    });
+
+    test.each(["quota-spent", "reserve-kept"] as const)(
+      "stops at a %s from the Game API, leaves the rest for the next start and logs how many are left",
+      async (kind) => {
+        joinMember(h, ALICE);
+        joinMember(h, BOB);
+        const carol = joinMember(h, CAROL);
+        linkMember(h, ALICE, UID);
+        linkMember(h, BOB, BOB_UID);
+        linkMember(h, CAROL, CAROL_UID);
+        h.gameApi.answerFor(UID, { kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+        h.gameApi.answerFor(BOB_UID, { kind, resetsAt: NOW });
+        h.gameApi.answerFor(CAROL_UID, { kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+        await h.service.atStartup();
+
+        expect(h.gameApi.lookups.map((lookup) => lookup.uid)).toEqual([UID, BOB_UID]);
+        expect(h.applied.get(BOB)).toBeUndefined();
+        expect(carol.nickname).toBeUndefined();
+        expect(h.logs.map(contentOf).some((line) => /(\b2\b.*\bleft\b)|(\bleft\b.*\b2\b)/.test(line))).toBe(true);
+      },
+    );
+
+    test("logs a Player the Game API does not find, names the Member, and goes on to the next Linked Member", async () => {
+      const alice = joinMember(h, ALICE);
+      const bob = joinMember(h, BOB);
+      linkMember(h, ALICE, UID);
+      linkMember(h, BOB, BOB_UID);
+      h.gameApi.answerFor(UID, { kind: "not-found" });
+      h.gameApi.answerFor(BOB_UID, { kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(alice.nickname).toBeUndefined();
+      expect(h.applied.get(ALICE)).toBeUndefined();
+      expect(h.logs.map(contentOf).some((line) => line.includes(ALICE))).toBe(true);
+      expect(bob.nickname).toBe("[NML|R4] Rogue");
+      expect(h.errors).toEqual([]);
+    });
+
+    test("never throws when Discord cannot be reached: the failure is logged and nothing is recorded", async () => {
+      joinMember(h, ALICE);
+      linkMember(h, ALICE, UID);
+      h.server.failWith(new Error("Discord is unavailable"));
+
+      await expect(h.service.atStartup()).resolves.toBeUndefined();
+
+      expect(h.errors.length).toBeGreaterThan(0);
+      expect(h.applied.get(ALICE)).toBeUndefined();
     });
   });
 

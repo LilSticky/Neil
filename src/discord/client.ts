@@ -1,6 +1,7 @@
 import {
   Client,
   Events,
+  type BaseMessageOptions,
   GatewayIntentBits,
   GuildMember,
   type ButtonInteraction,
@@ -31,6 +32,7 @@ import {
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
+import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { handlePing, type PingInteraction } from "./ping.js";
@@ -254,6 +256,24 @@ async function fetchMember(guild: Guild, memberId: string): Promise<GuildMember 
   }
 }
 
+/**
+ * Posts the server permissions Neil lacks to the log, at startup. Runs in the background: a failure to read the bot's
+ * member or post the line is logged, never thrown.
+ */
+async function reportServerPermissions(
+  guild: Guild,
+  log: (message: BaseMessageOptions) => Promise<void>,
+  logError: (message: string) => void,
+): Promise<void> {
+  try {
+    const me = guild.members.me ?? (await guild.members.fetchMe());
+    await reportRolePermissions({ members: { me } }, log, logError);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    logError(`Checking the server permissions failed: ${reason}`);
+  }
+}
+
 /** The members of the guild for the name and roles; undefined for a user who is not on the guild. */
 function serverMembersOf(guild: Guild): ServerMembers {
   return {
@@ -470,6 +490,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     openServices({ interviews, rankApprovals });
+    // The startup apply and the permission report run in the background, so login does not wait for them.
+    void nameAndRoles.atStartup().catch((error: unknown) => {
+      logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
+    });
+    void reportServerPermissions(guild, (message) => channels.log(message), logError);
     const sweeper = createSweeper({
       interviews: options.interviews,
       links: options.links,

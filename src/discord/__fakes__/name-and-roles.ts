@@ -33,6 +33,10 @@ export class FakeNameAndRoles implements NameAndRoles {
     return this.outcome();
   }
 
+  atStartup(): Promise<void> {
+    return this.outcome();
+  }
+
   private outcome(): Promise<void> {
     return this.failure === undefined ? Promise.resolve() : Promise.reject(this.failure);
   }

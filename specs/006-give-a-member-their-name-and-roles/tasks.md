@@ -51,13 +51,13 @@ test touches the network or the real Discord; stores use `:memory:`.
 
 ## Phase 5: User Story 2 - Startup apply (P2)
 
-- [ ] T009 Test `name-and-roles.test.ts`: `atStartup()` takes `linkedWithoutCompleteApply()`, skips Members not on the
+- [x] T009 Test `name-and-roles.test.ts`: `atStartup()` takes `linkedWithoutCompleteApply()`, skips Members not on the
   server (no lookup), looks each up with `getPlayer(uid, "lookup")`, stops at a quota stop and logs how many are left,
   logs a not-found Player and leaves it. Implement; call from `connect` after the channel check (`client.ts`).
 
 ## Phase 6: User Story 3 - Permissions (P2)
 
-- [ ] T010 Test `src/discord/onboarding-channels.test.ts` (or a new `role-permissions.test.ts`): at startup a missing
+- [x] T010 Test `src/discord/onboarding-channels.test.ts` (or a new `role-permissions.test.ts`): at startup a missing
   Manage Roles / Manage Nicknames is logged to the log channel and Neil still starts. Implement.
 
 ## Phase 7: Polish
