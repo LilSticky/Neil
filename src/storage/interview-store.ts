@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   dueAt,
   MAX_FAILED_ATTEMPTS,
+  recommendationFound,
   startInterview,
   type AwaitingUid,
   type Checking,
@@ -176,8 +177,11 @@ export class InterviewStore {
 
   /** Opens an Interview for the Member, unless the Member already has an open one; then nothing is written. */
   create(draft: InterviewDraft, now: Date): CreateOutcome {
-    // The database gives the id; startInterview only needs one to build the Interview's shape.
-    const started = awaitingUidOf(startInterview({ ...draft, id: 0 }, now).interview);
+    // The database gives the id; startInterview only needs one to build the Interview's shape. Until the name lookup
+    // is wired in (T027/T029), the Interview asks for the uid at once, as it did before Recommended Players.
+    const started = awaitingUidOf(
+      recommendationFound(startInterview({ ...draft, id: 0 }, now).interview, { kind: "none" }, now).interview,
+    );
     try {
       const result = this.db.prepare(INSERT_ROW).run(rowOf(started, this.timeoutMs));
       return { kind: "created", interview: { ...started, id: Number(result.lastInsertRowid) } };
@@ -269,6 +273,9 @@ function awaitingUidOf(interview: OnboardingInterview): AwaitingUid {
 
 function isOpen(interview: OnboardingInterview): interview is OpenInterview {
   switch (interview.step) {
+    case "recommending":
+    case "awaiting-recommendation":
+    case "awaiting-pick":
     case "awaiting-uid":
     case "checking":
     case "awaiting-confirmation":
@@ -433,5 +440,10 @@ function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
         ended_at: interview.endedAt.toISOString(),
         end_reason: interview.reason,
       };
+    case "recommending":
+    case "awaiting-recommendation":
+    case "awaiting-pick":
+      // Not stored yet: the columns and the steps come with migration 4 (T027).
+      throw new Error(`the step ${interview.step} cannot be stored yet`);
   }
 }

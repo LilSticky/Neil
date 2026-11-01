@@ -177,7 +177,7 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
 
 - [x] T025 [P] [US6] Test `src/domain/recommended-player.test.ts`: `cleanDisplayName` per data-model.md (all examples,
   empty, > 32 characters, letters with accents and non-Latin letters kept). Implement `src/domain/recommended-player.ts`.
-- [ ] T026 [US6] Test `src/domain/onboarding-interview.test.ts`: the addendum table, every row (`startInterview` →
+- [x] T026 [US6] Test `src/domain/onboarding-interview.test.ts`: the addendum table, every row (`startInterview` →
   `recommending`; `recommendationFound(none | one | several)`; `acceptRecommendation`; `pickMatch(index)` incl. an index
   out of range → `ignored`; `declineRecommendation` without an attempt; `giveUid` with `chosen` (same uid with player →
   `awaiting-confirmation` + `confirmedByChoice`; same uid without player → `checking` keeping `chosen`, then `uidChecked`

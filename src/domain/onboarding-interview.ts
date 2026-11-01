@@ -1,5 +1,5 @@
-import { parseInterviewUid, type Uid } from "./lookup-input.js";
-import type { Player } from "./player.js";
+import { parseInterviewUid, parseUid, type Uid } from "./lookup-input.js";
+import type { PickablePlayerMatch, Player } from "./player.js";
 import type { MemberId } from "./rank-approval.js";
 
 /** Failed attempts that hand the Interview off to an Officer. */
@@ -28,6 +28,24 @@ export type UidCheck =
 export type ConfirmOutcome =
   { readonly kind: "linked" } | { readonly kind: "already-linked" };
 
+/**
+ * The answer of the name lookup for the Member's display name: no Recommended Player, one Player to accept or
+ * decline, or several matches to pick from.
+ */
+export type RecommendationResult =
+  | { readonly kind: "none" }
+  | { readonly kind: "one"; readonly player: Player }
+  | { readonly kind: "several"; readonly matches: readonly PickablePlayerMatch[] };
+
+/**
+ * The uid the Member chose: from the Recommended Player (player known) or from a pick (player undefined, the uid is
+ * all there is until the Game API has answered).
+ */
+export interface Chosen {
+  readonly uid: Uid;
+  readonly player: Player | undefined;
+}
+
 /** A new Onboarding Interview for a Member who joined, in the thread opened for them. */
 export interface NewInterview {
   readonly id: number;
@@ -46,24 +64,53 @@ interface OpenBase extends InterviewBase {
   readonly failedAttempts: OpenFailedAttempts;
 }
 
-/** Waiting for the Member to type their uid; lastAskedAt is when the thread last asked for it. */
-export interface AwaitingUid extends OpenBase {
-  readonly step: "awaiting-uid";
+/** Looking up the Recommended Player by the Member's display name; lastAskedAt is when the lookup started. */
+export interface Recommending extends OpenBase {
+  readonly step: "recommending";
   readonly lastAskedAt: Date;
 }
 
-/** Checking the uid the Member typed against the Game API. */
+/** Waiting for "That's me" or "That's not me" for the one Recommended Player; lastAskedAt is when it was shown. */
+export interface AwaitingRecommendation extends OpenBase {
+  readonly step: "awaiting-recommendation";
+  readonly lastAskedAt: Date;
+  readonly recommended: Player;
+}
+
+/** Waiting for a pick from several matches, shown as a list; lastAskedAt is when the list was shown. */
+export interface AwaitingPick extends OpenBase {
+  readonly step: "awaiting-pick";
+  readonly lastAskedAt: Date;
+  readonly matches: readonly PickablePlayerMatch[];
+}
+
+/**
+ * Waiting for the Member to type their uid; lastAskedAt is when the thread last asked for it. `chosen` is set after
+ * "That's me" or a pick.
+ */
+export interface AwaitingUid extends OpenBase {
+  readonly step: "awaiting-uid";
+  readonly lastAskedAt: Date;
+  readonly chosen?: Chosen;
+}
+
+/** Checking the uid the Member typed against the Game API. `chosen` is kept while the typed uid is the chosen one. */
 export interface Checking extends OpenBase {
   readonly step: "checking";
   readonly lastAskedAt: Date;
   readonly uid: Uid;
+  readonly chosen?: Chosen;
 }
 
-/** Waiting for the Member to confirm the Player shown ("That's me" or "That's not me"). */
+/**
+ * Waiting for the Member to confirm the Player shown ("That's me" or "That's not me"). `confirmedByChoice` marks a
+ * Player the Member already chose: the adapter confirms it at once.
+ */
 export interface AwaitingConfirmation extends OpenBase {
   readonly step: "awaiting-confirmation";
   readonly lastAskedAt: Date;
   readonly player: Player;
+  readonly confirmedByChoice?: true;
 }
 
 /** Paused until the Daily Quota resets; the timeout does not run meanwhile. */
@@ -96,7 +143,13 @@ export interface Abandoned extends InterviewBase {
 }
 
 export type OpenInterview =
-  AwaitingUid | Checking | AwaitingConfirmation | PausedForQuota;
+  | Recommending
+  | AwaitingRecommendation
+  | AwaitingPick
+  | AwaitingUid
+  | Checking
+  | AwaitingConfirmation
+  | PausedForQuota;
 
 /** The Onboarding Interview of one Member: exactly one step at a time, and each step carries what it needs. */
 export type OnboardingInterview =
@@ -104,6 +157,9 @@ export type OnboardingInterview =
 
 /** What happened, for the adapter to say in the thread and the log. */
 export type InterviewEvent =
+  | { readonly kind: "recommending" }
+  | { readonly kind: "recommended"; readonly player: Player }
+  | { readonly kind: "pick-list"; readonly matches: readonly PickablePlayerMatch[] }
   | { readonly kind: "asked" }
   | { readonly kind: "malformed" }
   | { readonly kind: "checking"; readonly uid: Uid }
@@ -141,14 +197,14 @@ const AFTER_FAILURE: Record<OpenFailedAttempts, AfterFailure> = {
   4: { handedOff: true },
 };
 
-/** Opens an Onboarding Interview asking the Member for their uid, with no failed attempt. */
+/** Opens an Onboarding Interview looking up the Recommended Player, with no failed attempt. */
 export function startInterview(
   input: NewInterview,
   now: Date,
 ): InterviewTransition {
   return {
     interview: {
-      step: "awaiting-uid",
+      step: "recommending",
       id: input.id,
       memberId: input.memberId,
       threadId: input.threadId,
@@ -156,12 +212,110 @@ export function startInterview(
       startedAt: now,
       lastAskedAt: now,
     },
+    event: { kind: "recommending" },
+  };
+}
+
+/**
+ * The name lookup answered. No Recommended Player asks for the uid at once; one Player waits for "That's me" or
+ * "That's not me"; several matches wait for a pick. Neither counts an attempt.
+ */
+export function recommendationFound(
+  interview: OnboardingInterview,
+  result: RecommendationResult,
+  now: Date,
+): InterviewTransition {
+  if (!isOpen(interview)) return refuse(interview);
+  if (interview.step !== "recommending") return ignore(interview);
+  switch (result.kind) {
+    case "none":
+      return { interview: awaitingUid(interview, now), event: { kind: "asked" } };
+    case "one":
+      return {
+        interview: {
+          step: "awaiting-recommendation",
+          ...fieldsOf(interview),
+          failedAttempts: interview.failedAttempts,
+          lastAskedAt: now,
+          recommended: result.player,
+        },
+        event: { kind: "recommended", player: result.player },
+      };
+    case "several":
+      return {
+        interview: {
+          step: "awaiting-pick",
+          ...fieldsOf(interview),
+          failedAttempts: interview.failedAttempts,
+          lastAskedAt: now,
+          matches: result.matches,
+        },
+        event: { kind: "pick-list", matches: result.matches },
+      };
+  }
+}
+
+/** The Member pressed "That's me": the uid of the Recommended Player is chosen, and the uid is asked for. */
+export function acceptRecommendation(
+  interview: OnboardingInterview,
+  now: Date,
+): InterviewTransition {
+  if (!isOpen(interview)) return refuse(interview);
+  if (interview.step !== "awaiting-recommendation") return ignore(interview);
+  return {
+    interview: {
+      step: "awaiting-uid",
+      ...fieldsOf(interview),
+      failedAttempts: interview.failedAttempts,
+      lastAskedAt: now,
+      chosen: { uid: interview.recommended.uid, player: interview.recommended },
+    },
     event: { kind: "asked" },
   };
 }
 
 /**
+ * The Member picked the match at index from the list: its uid is chosen, and the uid is asked for. An index outside
+ * the list, or a match without a valid uid, is ignored.
+ */
+export function pickMatch(
+  interview: OnboardingInterview,
+  index: number,
+  now: Date,
+): InterviewTransition {
+  if (!isOpen(interview)) return refuse(interview);
+  if (interview.step !== "awaiting-pick") return ignore(interview);
+  const match = interview.matches[index];
+  if (match === undefined) return ignore(interview);
+  const uid = parseUid(match.uid);
+  if (!uid.ok) return ignore(interview);
+  return {
+    interview: {
+      step: "awaiting-uid",
+      ...fieldsOf(interview),
+      failedAttempts: interview.failedAttempts,
+      lastAskedAt: now,
+      chosen: { uid: uid.value, player: undefined },
+    },
+    event: { kind: "asked" },
+  };
+}
+
+/** The Member declined the Recommended Player or the pick list ("That's not me", "None of these"): the uid is asked for, no attempt counted. */
+export function declineRecommendation(
+  interview: OnboardingInterview,
+  now: Date,
+): InterviewTransition {
+  if (!isOpen(interview)) return refuse(interview);
+  if (interview.step !== "awaiting-recommendation" && interview.step !== "awaiting-pick")
+    return ignore(interview);
+  return { interview: awaitingUid(interview, now), event: { kind: "asked" } };
+}
+
+/**
  * The Member typed a uid. A valid one starts a check; a malformed one is asked again without counting an attempt.
+ * A uid that is the chosen one goes straight to confirmation when the chosen Player is known, or to a check that keeps
+ * the choice when it is not; any other uid drops the choice.
  * `now` is accepted so that every transition takes the clock the same way; giving a uid does not move the clock.
  */
 export function giveUid(
@@ -174,21 +328,38 @@ export function giveUid(
   if (interview.step !== "awaiting-uid") return ignore(interview);
   const parsed = parseInterviewUid(typed);
   if (!parsed.ok) return { interview, event: { kind: "malformed" } };
+  const uid = parsed.value;
+  const chosen = interview.chosen;
+  if (chosen !== undefined && chosen.uid === uid && chosen.player !== undefined) {
+    return {
+      interview: {
+        step: "awaiting-confirmation",
+        ...fieldsOf(interview),
+        failedAttempts: interview.failedAttempts,
+        lastAskedAt: interview.lastAskedAt,
+        player: chosen.player,
+        confirmedByChoice: true,
+      },
+      event: { kind: "found", player: chosen.player },
+    };
+  }
   return {
     interview: {
       step: "checking",
       ...fieldsOf(interview),
       failedAttempts: interview.failedAttempts,
       lastAskedAt: interview.lastAskedAt,
-      uid: parsed.value,
+      uid,
+      ...withChoice(chosen !== undefined && chosen.uid === uid ? chosen : undefined),
     },
-    event: { kind: "checking", uid: parsed.value },
+    event: { kind: "checking", uid },
   };
 }
 
 /**
- * The Game API answered the uid check. A found Player waits for confirmation; a refusal counts an attempt, except
- * an unavailable Game API or a Daily Quota, which pause or retry without one.
+ * The Game API answered the uid check. A found Player waits for confirmation (confirmed by the choice when the Member
+ * chose this uid); a refusal counts an attempt, except an unavailable Game API or a Daily Quota, which pause or retry
+ * without one.
  */
 export function uidChecked(
   interview: OnboardingInterview,
@@ -206,6 +377,7 @@ export function uidChecked(
           failedAttempts: interview.failedAttempts,
           lastAskedAt: now,
           player: check.player,
+          ...confirmedByChoiceOf(interview.chosen),
         },
         event: { kind: "found", player: check.player },
       };
@@ -284,7 +456,9 @@ export function timeOut(
   if (!isOpen(interview)) return refuse(interview);
   if (
     interview.step !== "awaiting-uid" &&
-    interview.step !== "awaiting-confirmation"
+    interview.step !== "awaiting-confirmation" &&
+    interview.step !== "awaiting-recommendation" &&
+    interview.step !== "awaiting-pick"
   )
     return ignore(interview);
   return abandon(interview, "timed-out", now);
@@ -299,13 +473,16 @@ export function memberLeft(
   return abandon(interview, "left", now);
 }
 
-/** After a restart, a check that was in flight is lost: the Member is asked for their uid again, no attempt counted. */
+/**
+ * After a restart, a lookup or a check that was in flight is lost: the Member is asked for their uid again, no attempt
+ * counted.
+ */
 export function recoverAfterRestart(
   interview: OnboardingInterview,
   now: Date,
 ): InterviewTransition {
   if (!isOpen(interview)) return refuse(interview);
-  if (interview.step !== "checking") return ignore(interview);
+  if (interview.step !== "checking" && interview.step !== "recommending") return ignore(interview);
   return {
     interview: awaitingUid(interview, now),
     event: { kind: "asked" },
@@ -314,7 +491,7 @@ export function recoverAfterRestart(
 
 /**
  * When the Interview is due to time out: a timeout after the last ask while awaiting the Member, or the quota reset
- * while paused. Undefined for checking and ended Interviews.
+ * while paused. Undefined for lookups, checks and ended Interviews.
  */
 export function dueAt(
   interview: OnboardingInterview,
@@ -323,9 +500,12 @@ export function dueAt(
   switch (interview.step) {
     case "awaiting-uid":
     case "awaiting-confirmation":
+    case "awaiting-recommendation":
+    case "awaiting-pick":
       return new Date(interview.lastAskedAt.getTime() + timeoutMs);
     case "paused-for-quota":
       return interview.resumesAt;
+    case "recommending":
     case "checking":
     case "linked":
     case "handed-off":
@@ -349,6 +529,16 @@ function fieldsOf(interview: InterviewBase): InterviewBase {
     threadId: interview.threadId,
     startedAt: interview.startedAt,
   };
+}
+
+/** The optional `chosen` field, present only when there is a choice. */
+function withChoice(chosen: Chosen | undefined): { readonly chosen?: Chosen } {
+  return chosen === undefined ? {} : { chosen };
+}
+
+/** The optional `confirmedByChoice` field, set only when the Member chose the uid that was found. */
+function confirmedByChoiceOf(chosen: Chosen | undefined): { readonly confirmedByChoice?: true } {
+  return chosen === undefined ? {} : { confirmedByChoice: true };
 }
 
 /** An ended Interview refuses every event: nothing changes and the adapter says so. */

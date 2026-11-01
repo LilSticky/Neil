@@ -1,13 +1,17 @@
 import { describe, expect, test } from "vitest";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "./lookup-input.js";
-import type { Player } from "./player.js";
+import type { PickablePlayerMatch, Player } from "./player.js";
 import {
   MAX_FAILED_ATTEMPTS,
+  acceptRecommendation,
   confirm,
+  declineRecommendation,
   dueAt,
   giveUid,
   memberLeft,
+  pickMatch,
   quotaReset,
+  recommendationFound,
   recoverAfterRestart,
   reject,
   startInterview,
@@ -49,9 +53,45 @@ const PLAYER: Player = {
   allianceRank: "R4",
 };
 
-/** A fresh Onboarding Interview, asked at NOW. */
-function open(): OnboardingInterview {
+/** Two matches of the cleaned name, already in pick-list order (Kingdom, then name). */
+const PICK_MATCHES: readonly PickablePlayerMatch[] = [
+  { name: "Bob", kingdom: 12, uid: "123456789012" },
+  { name: "Carol", kingdom: 330, uid: "134567890123" },
+];
+const PICKED_UID = uidOf("123456789012");
+const PICKED_TYPED_UID = "123456789012";
+const OTHER_TYPED_UID = "134567890123";
+const OTHER_UID = uidOf(OTHER_TYPED_UID);
+const BOB: Player = { ...PLAYER, uid: PICKED_UID, name: "Bob", kingdom: kingdomOf(12) };
+
+/** An Onboarding Interview whose name lookup is in flight, started at NOW. */
+function recommending(): OnboardingInterview {
   return startInterview({ id: 1, memberId: MEMBER_ID, threadId: THREAD_ID }, NOW).interview;
+}
+
+/** Awaiting the uid after the name lookup found no Recommended Player, at NOW. */
+function open(): OnboardingInterview {
+  return recommendationFound(recommending(), { kind: "none" }, NOW).interview;
+}
+
+/** Awaiting "That's me" or "That's not me" for one Recommended Player, asked at NOW. */
+function awaitingRecommendation(): OnboardingInterview {
+  return recommendationFound(recommending(), { kind: "one", player: PLAYER }, NOW).interview;
+}
+
+/** Awaiting a pick from the several matches, asked at NOW. */
+function awaitingPick(): OnboardingInterview {
+  return recommendationFound(recommending(), { kind: "several", matches: PICK_MATCHES }, NOW).interview;
+}
+
+/** Awaiting the uid, with the Recommended Player accepted at NOW. */
+function chosenRecommendation(): OnboardingInterview {
+  return acceptRecommendation(awaitingRecommendation(), NOW).interview;
+}
+
+/** Awaiting the uid, with the pick of the first match made at NOW. */
+function chosenPick(): OnboardingInterview {
+  return pickMatch(awaitingPick(), 0, NOW).interview;
 }
 
 /** Awaiting the uid after `failures` failed attempts, each made at NOW. */
@@ -94,8 +134,25 @@ function linked(): OnboardingInterview {
 }
 
 describe("startInterview", () => {
-  test("opens an Onboarding Interview waiting for the uid, with no failed attempt, asked now", () => {
+  test("opens an Onboarding Interview looking up the Recommended Player, with no failed attempt, started now", () => {
     expect(startInterview({ id: 1, memberId: MEMBER_ID, threadId: THREAD_ID }, NOW)).toEqual({
+      interview: {
+        step: "recommending",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: NOW,
+      },
+      event: { kind: "recommending" },
+    });
+  });
+});
+
+describe("recommendationFound", () => {
+  test("no Recommended Player asks for the uid at once, with no failed attempt, asked now", () => {
+    expect(recommendationFound(recommending(), { kind: "none" }, LATER)).toEqual({
       interview: {
         step: "awaiting-uid",
         id: 1,
@@ -103,7 +160,105 @@ describe("startInterview", () => {
         threadId: THREAD_ID,
         failedAttempts: 0,
         startedAt: NOW,
-        lastAskedAt: NOW,
+        lastAskedAt: LATER,
+      },
+      event: { kind: "asked" },
+    });
+  });
+
+  test("one Recommended Player waits for \"That's me\" or \"That's not me\", asked now", () => {
+    expect(recommendationFound(recommending(), { kind: "one", player: PLAYER }, LATER)).toEqual({
+      interview: {
+        step: "awaiting-recommendation",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: LATER,
+        recommended: PLAYER,
+      },
+      event: { kind: "recommended", player: PLAYER },
+    });
+  });
+
+  test("several matches wait for a pick from the list, asked now", () => {
+    expect(recommendationFound(recommending(), { kind: "several", matches: PICK_MATCHES }, LATER)).toEqual({
+      interview: {
+        step: "awaiting-pick",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: LATER,
+        matches: PICK_MATCHES,
+      },
+      event: { kind: "pick-list", matches: PICK_MATCHES },
+    });
+  });
+});
+
+describe("acceptRecommendation", () => {
+  test("\"That's me\" asks for the uid with the Recommended Player chosen, asked now, no failed attempt", () => {
+    expect(acceptRecommendation(awaitingRecommendation(), LATER)).toEqual({
+      interview: {
+        step: "awaiting-uid",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: LATER,
+        chosen: { uid: UID, player: PLAYER },
+      },
+      event: { kind: "asked" },
+    });
+  });
+});
+
+describe("pickMatch", () => {
+  test("a pick asks for the uid with the picked match chosen, asked now, no failed attempt", () => {
+    expect(pickMatch(awaitingPick(), 0, LATER)).toEqual({
+      interview: {
+        step: "awaiting-uid",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: LATER,
+        chosen: { uid: PICKED_UID, player: undefined },
+      },
+      event: { kind: "asked" },
+    });
+  });
+
+  test.each([
+    ["past the end of the list", 2],
+    ["before the start of the list", -1],
+  ])("a pick %s is ignored and changes nothing", (_label, index) => {
+    expect(pickMatch(awaitingPick(), index, LATER)).toEqual({
+      interview: awaitingPick(),
+      event: { kind: "ignored" },
+    });
+  });
+});
+
+describe("declineRecommendation", () => {
+  test.each([
+    ["a Recommended Player", awaitingRecommendation],
+    ["a pick list", awaitingPick],
+  ])("declining %s asks for the uid, with no failed attempt, asked now", (_label, build) => {
+    expect(declineRecommendation(build(), LATER)).toEqual({
+      interview: {
+        step: "awaiting-uid",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: LATER,
       },
       event: { kind: "asked" },
     });
@@ -140,6 +295,57 @@ describe("giveUid", () => {
     expect(giveUid(open(), typed, LATER)).toEqual({
       interview: open(),
       event: { kind: "malformed" },
+    });
+  });
+
+  test("the uid of the Recommended Player chosen goes straight to awaiting confirmation, confirmed by the choice", () => {
+    expect(giveUid(chosenRecommendation(), TYPED_UID, LATER)).toMatchObject({
+      interview: {
+        step: "awaiting-confirmation",
+        failedAttempts: 0,
+        player: PLAYER,
+        confirmedByChoice: true,
+      },
+      event: { kind: "found", player: PLAYER },
+    });
+  });
+
+  test("the uid of a picked match goes to checking, keeping the pick; the found Player is then confirmed by the choice", () => {
+    const checkingPick = giveUid(chosenPick(), PICKED_TYPED_UID, LATER).interview;
+    expect(checkingPick).toEqual({
+      step: "checking",
+      id: 1,
+      memberId: MEMBER_ID,
+      threadId: THREAD_ID,
+      failedAttempts: 0,
+      startedAt: NOW,
+      lastAskedAt: NOW,
+      uid: PICKED_UID,
+      chosen: { uid: PICKED_UID, player: undefined },
+    });
+    expect(uidChecked(checkingPick, { kind: "found", player: BOB }, LATER).interview).toMatchObject({
+      step: "awaiting-confirmation",
+      player: BOB,
+      confirmedByChoice: true,
+    });
+  });
+
+  test.each([
+    ["a Recommended Player", chosenRecommendation],
+    ["a pick", chosenPick],
+  ])("a different uid after choosing %s drops the choice and goes to checking as any uid", (_label, build) => {
+    expect(giveUid(build(), OTHER_TYPED_UID, LATER)).toEqual({
+      interview: {
+        step: "checking",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: NOW,
+        uid: OTHER_UID,
+      },
+      event: { kind: "checking", uid: OTHER_UID },
     });
   });
 });
@@ -265,9 +471,12 @@ describe("quotaReset", () => {
 
 describe("timeOut", () => {
   test.each([
-    ["awaiting the uid", open()],
-    ["awaiting confirmation", inConfirmation()],
-  ])("an Interview %s that times out is abandoned as timed out, at now", (_label, interview) => {
+    ["awaiting the uid", open],
+    ["awaiting confirmation", inConfirmation],
+    ["awaiting a Recommended Player's answer", awaitingRecommendation],
+    ["awaiting a pick", awaitingPick],
+  ])("an Interview %s that times out is abandoned as timed out, at now", (_label, build) => {
+    const interview = build();
     expect(timeOut(interview, LATER)).toEqual({
       interview: {
         step: "abandoned",
@@ -286,11 +495,15 @@ describe("timeOut", () => {
 
 describe("memberLeft", () => {
   test.each([
-    ["awaiting the uid", open()],
-    ["checking", checking()],
-    ["awaiting confirmation", inConfirmation()],
-    ["paused for the quota", paused()],
-  ])("a Member who leaves while the Interview is %s abandons it as left, at now", (_label, interview) => {
+    ["looking up the Recommended Player", recommending],
+    ["awaiting the uid", open],
+    ["checking", checking],
+    ["awaiting confirmation", inConfirmation],
+    ["paused for the quota", paused],
+    ["awaiting a Recommended Player's answer", awaitingRecommendation],
+    ["awaiting a pick", awaitingPick],
+  ])("a Member who leaves while the Interview is %s abandons it as left, at now", (_label, build) => {
+    const interview = build();
     expect(memberLeft(interview, LATER)).toEqual({
       interview: {
         step: "abandoned",
@@ -312,6 +525,21 @@ describe("recoverAfterRestart", () => {
     const result = recoverAfterRestart(checkingAfter(2), LATER);
     expect(result.interview).toMatchObject({ step: "awaiting-uid", failedAttempts: 2 });
     expect(result.event).toEqual({ kind: "asked" });
+  });
+
+  test("an Interview stored as looking up the Recommended Player goes back to awaiting the uid, no failed attempt", () => {
+    expect(recoverAfterRestart(recommending(), LATER)).toEqual({
+      interview: {
+        step: "awaiting-uid",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: 0,
+        startedAt: NOW,
+        lastAskedAt: LATER,
+      },
+      event: { kind: "asked" },
+    });
   });
 });
 
@@ -367,17 +595,25 @@ describe("dueAt", () => {
     expect(dueAt(inConfirmation(), TIMEOUT_MS)).toEqual(new Date(NOW.getTime() + TIMEOUT_MS));
   });
 
+  test.each([
+    ["awaiting a Recommended Player's answer", awaitingRecommendation],
+    ["awaiting a pick", awaitingPick],
+  ])("an Interview %s is due a timeout after it was last asked", (_label, build) => {
+    expect(dueAt(build(), TIMEOUT_MS)).toEqual(new Date(NOW.getTime() + TIMEOUT_MS));
+  });
+
   test("a paused Interview is due when the quota resets", () => {
     expect(dueAt(paused(), TIMEOUT_MS)).toEqual(RESETS_AT);
   });
 
   test.each([
-    ["checking", checking()],
-    ["linked", linked()],
-    ["handed off", handedOff()],
-    ["abandoned", timeOut(open(), LATER).interview],
-  ])("an Interview that is %s has no due time", (_label, interview) => {
-    expect(dueAt(interview, TIMEOUT_MS)).toBeUndefined();
+    ["looking up the Recommended Player", recommending],
+    ["checking", checking],
+    ["linked", linked],
+    ["handed off", handedOff],
+    ["abandoned", () => timeOut(open(), LATER).interview],
+  ])("an Interview that is %s has no due time", (_label, build) => {
+    expect(dueAt(build(), TIMEOUT_MS)).toBeUndefined();
   });
 });
 
