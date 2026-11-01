@@ -3,7 +3,8 @@ import { z } from "zod";
 const idSchema = z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]).transform((id) => String(id));
 const rosterRowSchema = z.object({
     uid: idSchema,
-    rank_label: z.string().nullable(),
+    /** Missing or not text (some answers omit it) reads as null: the rank is then unknown, the body still valid. */
+    rank_label: z.string().nullable().catch(null),
 });
 /** The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us. */
 export const playerBodySchema = z.object({

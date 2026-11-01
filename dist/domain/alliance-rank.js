@@ -3,18 +3,21 @@ export function rankFromRoster(playerUid, roster) {
     const row = roster.find((entry) => entry.uid === playerUid);
     return row === undefined ? "unknown" : rankFromLabel(row.rankLabel);
 }
-/** The Alliance Rank for a roster label: R1–R5, otherwise unknown. */
+/** A label that starts with R1–R5, alone or followed by a title ("R4 – Diplomat"), never by another letter or digit. */
+const LABEL_PATTERN = /^R([1-5])(?![\p{L}\p{N}])/u;
+/** The Alliance Rank for a roster label: R1–R5, also when a title follows it ("R4 – Diplomat"); otherwise unknown. */
 export function rankFromLabel(label) {
-    switch (label) {
-        case "R1":
+    const rank = label === null ? undefined : LABEL_PATTERN.exec(label)?.[1];
+    switch (rank) {
+        case "1":
             return "R1";
-        case "R2":
+        case "2":
             return "R2";
-        case "R3":
+        case "3":
             return "R3";
-        case "R4":
+        case "4":
             return "R4";
-        case "R5":
+        case "5":
             return "R5";
         default:
             return "unknown";
