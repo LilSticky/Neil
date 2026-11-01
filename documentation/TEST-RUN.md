@@ -90,6 +90,23 @@ Needs a Player whose roster row has no rank. If you can't find one, mark "n/a" (
 | 6.3 | `/alliance tag:NML kingdom:1` (option renamed from `alliance`; run `npm run commands:register` first) | Roster card and member menu without uids | | |
 | 6.4 | `/quota` as an Officer | Quota, reserve and "left for lookups" | | |
 
+## 6b. Name and roles (slice 006, collected 2026-11-02)
+
+Setup: `HOME_KINGDOM=330` in `.env`; Neil's role gets Manage Roles and Manage Nicknames and is dragged above where
+the new roles will appear, below Moderator and King. Branch `006-give-a-member-their-name-and-roles`.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6b.1 | Start Neil with the joiner already Linked (from section 2) | Within a minute the joiner's nickname becomes `[TAG] Name` (or `[TAG\|R4] Name`, `… \| #331` for a Guest); roles for Alliance (Home Kingdom only), rank, `#kingdom`, `T…` appear; one line in `#neil-log` incl. "created role …" | | |
+| 6b.2 | Check the new roles in Server Settings → Roles | No permissions, not shown separately, not mentionable, below Neil's role | | |
+| 6b.3 | Restart Neil | No changes, no new log lines (already applied) | | |
+| 6b.4 | Unlinked main account: `/interview`, get Linked | Name and roles right after "Done … linked"; log line | | |
+| 6b.5 | Give the joiner a role named `T1` by hand, then (unlink in the db or use a fresh account) Link again | `T1` removed if it isn't their bracket; any non-Managed Role (e.g. Moderator) untouched | | |
+| 6b.6 | Link the server owner's account (if you can) | Roles given; log says the nickname was skipped (owner) | | |
+| 6b.7 | Remove Manage Roles from Neil, restart | Neil starts; `#neil-log` names the missing permission; Interviews still work | | |
+| 6b.8 | Rank Approval (section 4) for an R4 | Rank role `R4` given, nickname gains `\|R4` | | |
+| 6b.9 | Give an existing role named like a Managed Role (e.g. `R5`) a permission, then Link an R5 | Role not given; log says it has permissions | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
