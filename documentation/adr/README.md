@@ -13,3 +13,4 @@ with a new one and update both statuses here.
 | 5 | [SQLite for Links, interviews and quota](0005-sqlite-storage.md) | Accepted |
 | 6 | [Test and production server, production hosted on Wispbyte](0006-two-servers-deployed-from-main.md) | Accepted |
 | 7 | [Personal data of Links and Onboarding Interviews](0007-personal-data-of-links-and-interviews.md) | Accepted |
+| 8 | [Neil creates and manages its own roles](0008-neil-creates-managed-roles.md) | Accepted |

@@ -22,6 +22,8 @@ hierarchy problems are logged, never crash. Every change is logged." Decisions:
 - Q: Which roles? → A: all four kinds: Alliance, Alliance Rank, Kingdom, Troop Bracket.
 - Q: Members Linked before this slice ships? → A: at startup Neil applies name and roles to every Linked Member that
   does not have them yet (one lookup each, from the normal quota).
+- Q: Do Guests get an Alliance Rank role? → A: no; their R4/R5 still shows in the nickname, same format as
+  everyone.
 - Q: Dictionary? → A: Managed Role, Home Kingdom, Guest, Troop Bracket approved (2026-11-01).
 
 ## User Scenarios & Testing *(mandatory)*
@@ -166,8 +168,6 @@ roles are given, two log lines name what failed and why; Neil keeps running.
 ## Assumptions
 
 - The Player's sanctuary level is the Game API's `lv` (GAME-API.md), already read by the client.
-- Guests get no Alliance Rank role, so a foreign R5 gets no rank power on this server; their rank still shows in the
-  nickname only for R4/R5 like everyone's.
 - Neil's own role is placed above the Managed Roles by an Officer (server setup, documented in HOSTING.md); roles
   Neil creates appear just below Neil's role.
 - The test-server check is a manual step collected in TEST-RUN.md and run later by the user.
