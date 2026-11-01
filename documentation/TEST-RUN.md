@@ -30,13 +30,26 @@ Texts Neil should show: [contracts/interview.md](../specs/005-interview-a-new-me
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 2.1 | The joiner joins the server | Private thread `Interview – {name}` in `#onboarding`, greeting, help text, `Give my uid` button | | |
+| 2.1 | The joiner (server display name **not** a Player Name, e.g. `zz-nobody-zz`) joins the server | Private thread `Interview – {name}` in `#onboarding`, greeting, help text, `Give my uid` button (no recommendation) | | |
 | 2.2 | As an Officer, open `#onboarding` | You can see and read the thread; Members without Manage Threads cannot | | |
 | 2.3 | As the main account, press `Give my uid` in the joiner's thread | Private "belongs to someone else" | | |
 | 2.4 | Joiner: `Give my uid` → enter `abc` | Asked again with the help text; no try lost | | |
 | 2.5 | Joiner: enter `#` + a real uid | Card with Player Name, uid, Kingdom, Alliance, rank; `That's me` / `That's not me` | | |
 | 2.6 | Joiner: `That's me` | Buttons vanish; "Done … linked to …"; thread archived; 🔗 line in `#neil-log` | | |
 | 2.7 | Is the wording clear for a new player? Anything confusing? | — | | |
+
+## 2b. Recommended Player (US6, added 2026-11-01)
+
+Before each step, set the joiner's server nickname, then have them leave and rejoin (or use `/interview` while not Linked).
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 2b.1 | Nickname `[TAG] <your in-game name> \| #1`, join | Greeting and "Is this you?" card: Player Name, Kingdom, Alliance, rank, **no uid**; `That's me` / `That's not me` | | |
+| 2b.2 | `That's me` | Asked for the uid of that Player, with the help and `Give my uid` | | |
+| 2b.3 | Give that Player's uid | Linked at once (no second "Is this you?"); 🔗 line in `#neil-log` with the uid | | |
+| 2b.4 | Nickname `drlol` (several Players), join | Pick list `drlol · Kingdom #N`, no uids; `None of these` | | |
+| 2b.5 | Pick one, give a **different** uid | Usual card for that uid with `That's me` / `That's not me` | | |
+| 2b.6 | Recommendation shown → `That's not me` | Asked for the uid; no try lost | | |
 
 ## 3. Wrong, taken and unknown uids (US2)
 
@@ -72,9 +85,9 @@ Needs a Player whose roster row has no rank. If you can't find one, mark "n/a" (
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 6.1 | `/player uid:…` | Card as before | | |
-| 6.2 | `/player name:drlol` | Pick list across Kingdoms | | |
-| 6.3 | `/alliance kingdom:1 alliance:NML` | Roster card with the member menu | | |
+| 6.1 | `/player uid:…` | Card as before, but **no uid** on it; `name` is the first option | | |
+| 6.2 | `/player name:drlol` | Pick list across Kingdoms, no uids | | |
+| 6.3 | `/alliance tag:NML kingdom:1` (option renamed from `alliance`; run `npm run commands:register` first) | Roster card and member menu without uids | | |
 | 6.4 | `/quota` as an Officer | Quota, reserve and "left for lookups" | | |
 
 ## 7. Afterwards

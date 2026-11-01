@@ -1,5 +1,7 @@
 # Contract: `/player`, `/alliance`, `/quota` and their components
 
+> **Changed in slice 005 (2026-11-01, FR-026/FR-027):** `/player` lists `name` before `uid`; `/alliance` options are `name`, `tag` (was `alliance`), `kingdom`. No lookup answer shows uids any more (Player card, Alliance Roster, pick list, roster menu). See [005 spec](../../005-interview-a-new-member/spec.md).
+
 Changes to slice 003's [lookup-changes](../../003-look-up-players-within-the-daily-quota/contracts/lookup-changes.md)
 and [quota-command](../../003-look-up-players-within-the-daily-quota/contracts/quota-command.md). Everything not
 named here stays. All texts escape Game API and Member input; no message mentions anyone.

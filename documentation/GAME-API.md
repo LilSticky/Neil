@@ -49,7 +49,7 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 | `GET /alliances/{alliance_id}` | documented, not tried | an alliance by id |
 
 Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
-[discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004). There is
+[discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004), and the Onboarding Interview's Recommended Player (slice 005: one `/players/name/{name}` per Interview, Quota Reserve). There is
 no approximate (fuzzy) name search in the API.
 
 ### Player (`/players/{uid}`), verified fields
