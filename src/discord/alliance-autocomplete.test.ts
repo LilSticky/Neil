@@ -86,7 +86,7 @@ describe("handleAllianceAutocomplete for the name option", () => {
 
   test("cuts a label longer than 100 characters to 100", async () => {
     const wolves = known("WLF", `Wolves ${"x".repeat(120)}`);
-    const interaction = new FakeAutocompleteInteraction({ name: "name", value: "wolves" });
+    const interaction = new FakeAutocompleteInteraction({ name: "tag", value: "wlf" });
     const { context } = contextWith([wolves]);
 
     await handleAllianceAutocomplete(interaction, context);
@@ -95,6 +95,40 @@ describe("handleAllianceAutocomplete for the name option", () => {
     expect(choices).toHaveLength(1);
     expect(choices?.[0]?.name.length).toBeLessThanOrEqual(100);
     expect(choices?.[0]?.name.startsWith("[WLF] Wolves")).toBe(true);
+  });
+});
+
+describe("handleAllianceAutocomplete for the name option, with the value's length limit", () => {
+  test("leaves out an alliance whose full name is longer than 40 characters, since its value would exceed the option's limit", async () => {
+    const tooLong = known("WLF", `Wolves ${"x".repeat(34)}`);
+    const interaction = new FakeAutocompleteInteraction({ name: "name", value: "wolves" });
+    const { context } = contextWith([tooLong]);
+
+    await handleAllianceAutocomplete(interaction, context);
+
+    expect(interaction.responses).toEqual([[]]);
+  });
+
+  test("offers an alliance whose full name is exactly 40 characters", async () => {
+    const fortyChars = `Wolves ${"x".repeat(33)}`;
+    const interaction = new FakeAutocompleteInteraction({ name: "name", value: "wolves" });
+    const { context } = contextWith([known("WLF", fortyChars)]);
+
+    await handleAllianceAutocomplete(interaction, context);
+
+    expect(interaction.responses).toEqual([[{ name: `[WLF] ${fortyChars}`, value: fortyChars }]]);
+  });
+});
+
+describe("handleAllianceAutocomplete labels cut by code points", () => {
+  test("cuts a label at the last whole code point under 100 characters, never splitting a surrogate pair", async () => {
+    const wolves = known("WLF", `Wolves ${"😀".repeat(50)}`);
+    const interaction = new FakeAutocompleteInteraction({ name: "tag", value: "WLF" });
+    const { context } = contextWith([wolves]);
+
+    await handleAllianceAutocomplete(interaction, context);
+
+    expect(interaction.responses).toEqual([[{ name: `[WLF] Wolves ${"😀".repeat(43)}`, value: "WLF" }]]);
   });
 });
 

@@ -14,6 +14,7 @@ import type { AllianceKey, KingdomNumber, PlayerName } from "../domain/lookup-in
 import {
   listedAllianceMatches,
   listedPlayerMatches,
+  rankedAllianceMatches,
   type AllianceRank,
   type Alliance,
   type Match,
@@ -337,9 +338,8 @@ export function renderCloseAlliancePickList(
   matches: readonly Match[],
   sessionId: string,
 ): { readonly content: string; readonly components: APIActionRowComponent<APIStringSelectComponent>[] } {
-  const { listed } = listedAllianceMatches(matches);
-  const options = listed.map((match, index) => ({
-    label: optionLabel(escapeText(`[${match.tag}] ${match.name ?? "Unknown"}`)),
+  const options = rankedAllianceMatches(matches).map((match, index) => ({
+    label: optionLabel(`[${match.tag}] ${match.name ?? "Unknown"}`),
     value: index.toString(),
   }));
   return {

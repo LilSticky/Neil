@@ -15,6 +15,7 @@ import {
   lookupMessages,
   renderAllianceCard,
   renderAlliancePickList,
+  renderCloseAlliancePickList,
   renderPlayerCard,
   renderPlayerPickList,
   renderRosterComponents,
@@ -783,6 +784,53 @@ describe("renderAlliancePickList", () => {
               label: `[T${index.toString().padStart(2, "0")}] Clan · kingdom #${(index + 1).toString()}`,
               value: index.toString(),
             })),
+          },
+        ],
+      },
+    ]);
+  });
+});
+
+describe("renderCloseAlliancePickList", () => {
+  test("labels each close Known Alliance as plain [TAG] Name, without escaping its markdown characters", () => {
+    const pickList = renderCloseAlliancePickList(
+      allianceKey("no mans"),
+      [{ tag: "NML", name: "No_Man's *Land*", kingdom: 330 }],
+      "a1b2c3d4",
+    );
+
+    expect(optionLabelsOf(pickList.components)).toEqual(["[NML] No_Man's *Land*"]);
+  });
+
+  test("escapes the typed name in the question, not in the labels", () => {
+    const pickList = renderCloseAlliancePickList(
+      allianceKey("no_mans*"),
+      [{ tag: "NML", name: "No_Man's *Land*", kingdom: 330 }],
+      "a1b2c3d4",
+    );
+
+    expect(pickList.content).toBe('No alliance is named "no\\_mans\\*". Did you mean one of these?');
+    expect(optionLabelsOf(pickList.components)).toEqual(["[NML] No_Man's *Land*"]);
+  });
+
+  test("lists the matches in the order given, valued by index in that order, not sorted by name", () => {
+    const pickList = renderCloseAlliancePickList(
+      allianceKey("wolf"),
+      [
+        { tag: "WLF", name: "Wolfpack", kingdom: 330 },
+        { tag: "BWC", name: "Big Wolf Clan", kingdom: 330 },
+      ],
+      "a1b2c3d4",
+    );
+
+    expect(pickList.components).toMatchObject([
+      {
+        components: [
+          {
+            options: [
+              { label: "[WLF] Wolfpack", value: "0" },
+              { label: "[BWC] Big Wolf Clan", value: "1" },
+            ],
           },
         ],
       },

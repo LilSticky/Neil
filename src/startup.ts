@@ -101,7 +101,8 @@ export async function start(deps: StartupDeps): Promise<void> {
     }
     // Only the Home Kingdom's Alliances are kept: they are the ones /alliance suggests by name and tag.
     const onAllianceSeen: AllianceSeenHook = (kingdom, tag, name) => {
-      if (kingdom === config.homeKingdom) knownAlliances.seen({ kingdom, tag, name }, deps.now());
+      if (kingdom !== config.homeKingdom || tag.trim() === "" || name.trim() === "") return;
+      knownAlliances.seen({ kingdom, tag, name }, deps.now());
     };
     const gameApi = deps.createGameApi(
       config.gameApiKey,

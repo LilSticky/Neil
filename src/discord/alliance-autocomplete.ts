@@ -2,8 +2,10 @@ import { matchAlliances, normalise, type KnownAlliance } from "../domain/allianc
 
 /** Discord shows at most 25 choices. */
 const MAX_CHOICES = 25;
-/** Discord takes at most 100 characters of a choice's label and of its value. */
-const MAX_CHOICE_TEXT = 100;
+/** Discord takes at most 100 characters of a choice's label. */
+const MAX_LABEL_LENGTH = 100;
+/** The name option takes at most 40 characters; a longer full name cannot be its value. */
+const MAX_NAME_LENGTH = 40;
 
 /** One choice an autocomplete answer offers: the label Discord shows and the value the command receives. */
 export interface AutocompleteChoice {
@@ -50,10 +52,12 @@ function suggest(focused: FocusedOption, context: AllianceAutocompleteContext): 
     const now = context.now();
     const query = String(focused.value);
     const alliances = alliancesFor(query, context.knownAlliances.all(now), now);
-    return alliances.map((alliance) => ({
-      name: truncate(`[${alliance.tag}] ${alliance.name}`),
-      value: truncate(focused.name === "tag" ? alliance.tag : alliance.name),
-    }));
+    return alliances
+      .filter((alliance) => focused.name !== "name" || alliance.name.length <= MAX_NAME_LENGTH)
+      .map((alliance) => ({
+        name: cutLabel(`[${alliance.tag}] ${alliance.name}`),
+        value: focused.name === "tag" ? alliance.tag : alliance.name,
+      }));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     context.logError(`Suggesting alliances failed: ${reason}`);
@@ -67,6 +71,12 @@ function alliancesFor(query: string, known: readonly KnownAlliance[], now: Date)
   return [...known].sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime()).slice(0, MAX_CHOICES);
 }
 
-function truncate(text: string): string {
-  return text.slice(0, MAX_CHOICE_TEXT);
+/** The label cut to 100 characters, at a whole code point so no surrogate pair is split. */
+function cutLabel(text: string): string {
+  let cut = "";
+  for (const character of text) {
+    if (cut.length + character.length > MAX_LABEL_LENGTH) break;
+    cut += character;
+  }
+  return cut;
 }

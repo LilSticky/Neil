@@ -1068,7 +1068,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
     ]);
   });
 
-  test("escapes Discord markdown in the names of the pick list", async () => {
+  test("shows the names of the pick list as plain labels, without Discord markdown escapes", async () => {
     const interaction = new FakeLookupInteraction({ strings: { name: "wolves" } }, USER_ID);
     const { context } = allianceContextReturning({ kind: "not-found" }, [knownAlliance("WLF", "Wolves *Pack*")]);
 
@@ -1077,7 +1077,47 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: expect.objectContaining({
-        components: pickSelect(PICK_ID, [{ label: "[WLF] Wolves \\*Pack\\*", value: "0" }]),
+        components: pickSelect(PICK_ID, [{ label: "[WLF] Wolves *Pack*", value: "0" }]),
+      }) as unknown,
+    });
+  });
+
+  test("escapes the typed name in the message text, and keeps the markdown characters of the labels plain", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "no_mans*" } }, USER_ID);
+    const { context } = allianceContextReturning({ kind: "not-found" }, [
+      knownAlliance("NML", "No_Man's *Land*"),
+    ]);
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: expect.objectContaining({
+        content: 'No alliance is named "no\\_mans\\*". Did you mean one of these?',
+        components: pickSelect(PICK_ID, [{ label: "[NML] No_Man's *Land*", value: "0" }]),
+      }) as unknown,
+    });
+  });
+
+  test("lists the close Known Alliances in the order they match, best first, not alphabetically", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "wolf" } }, USER_ID);
+    const known = [knownAlliance("BWC", "Big Wolf Clan"), knownAlliance("WLF", "Wolfpack")];
+    const { context, pickSessions } = allianceContextReturning({ kind: "not-found" }, known);
+
+    await handleAlliance(interaction, context);
+
+    const matches: Match[] = [
+      { tag: "WLF", name: "Wolfpack", kingdom: homeKingdom },
+      { tag: "BWC", name: "Big Wolf Clan", kingdom: homeKingdom },
+    ];
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "alliances", matches }, NOW);
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: expect.objectContaining({
+        components: pickSelect(PICK_ID, [
+          { label: "[WLF] Wolfpack", value: "0" },
+          { label: "[BWC] Big Wolf Clan", value: "1" },
+        ]),
       }) as unknown,
     });
   });

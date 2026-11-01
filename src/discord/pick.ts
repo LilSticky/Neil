@@ -1,8 +1,8 @@
 import { MessageFlags, type InteractionReplyOptions, type InteractionUpdateOptions } from "discord.js";
 import { parseAllianceKey, parseKingdom, parseUid, type AllianceKey, type KingdomNumber } from "../domain/lookup-input.js";
 import {
-  listedAllianceMatches,
   listedPlayerMatches,
+  rankedAllianceMatches,
   type LookupResult,
   type PickableAllianceMatch,
   type PickablePlayerMatch,
@@ -215,7 +215,7 @@ async function pickFrom(
       await pickPlayerMatch(interaction, pickedAt(listedPlayerMatches(choice.matches).listed, value), context);
       return;
     case "alliances":
-      await pickAllianceMatch(interaction, pickedAt(listedAllianceMatches(choice.matches).listed, value), context);
+      await pickAllianceMatch(interaction, pickedAt(rankedAllianceMatches(choice.matches), value), context);
       return;
     case "roster":
       await pickRosterMember(interaction, pageOf(choice.entries, menuPage ?? session.page), value, context);

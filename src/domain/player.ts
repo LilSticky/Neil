@@ -95,6 +95,14 @@ export function listedAllianceMatches(matches: readonly Match[]): {
   return orderMatches(pickable);
 }
 
+/**
+ * The Alliance matches a ranked pick list offers, in the order given (the caller ranked them): only pickable ones, the
+ * first 25. Picks index into the same list.
+ */
+export function rankedAllianceMatches(matches: readonly Match[]): PickableAllianceMatch[] {
+  return matches.filter(pickableAllianceMatch).slice(0, PICK_LIST_LIMIT);
+}
+
 /** Orders matches by Kingdom, then name, keeps the first 25 and counts the rest. */
 export function orderMatches<T extends Match>(
   matches: readonly T[],

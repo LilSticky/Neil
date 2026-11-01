@@ -431,6 +431,17 @@ describe("start and the Known Alliances", () => {
     ]);
   });
 
+  test.each([
+    { label: "a blank tag", tag: " ", name: "No Man's Land" },
+    { label: "a blank name", tag: "NML", name: "" },
+  ])("does not record a Home Kingdom Alliance with $label", async ({ tag, name }) => {
+    const hook = await startAndGetHook();
+
+    hook(kingdomOf(330), tag, name);
+
+    expect(knownAlliances.all(NOW_AT_START)).toEqual([]);
+  });
+
   test("does not record an Alliance of another Kingdom", async () => {
     const hook = await startAndGetHook();
 
