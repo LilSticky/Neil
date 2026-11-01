@@ -31,6 +31,9 @@ Thread name: `Interview – {username}` (cut to 100 characters).
 | malformed | `That isn't a uid: it's only digits, like 145563254785.` + `{help}` | `Give my uid` |
 | checking (second submit) | private: `One moment, I'm still looking that up.` | – |
 | found | card: Player Name, uid, Kingdom, Alliance `[TAG] Name` or `no alliance`, Alliance Rank or `rank unknown`; `Is this you?` | buttons `That's me`, `That's not me` |
+| recommended (one free match, no uid shown) | `Welcome, {member}! Is this you?`<br>`{Player Name}, Kingdom #{kingdom}, [TAG] Name, {rank or rank unknown}` (or `no alliance`) | buttons `That's me`, `That's not me` |
+| pick list (several matches, no uid shown; at most 25 options) | `{member}, which of these players is you?` | select menu, options `{Player Name} · Kingdom #{kingdom}` valued by index; button `None of these` |
+| uid question after a choice | `Now give me the uid of {Player Name}: press the button and enter it.`<br>`{help}` | `Give my uid` |
 | not found | `I couldn't find a player with uid {uid}. Check the number.` + attempts left + `{help}` | `Give my uid` |
 | already Linked | `That player is already linked to another member. If it's yours, an Officer can help.` + attempts left | `Give my uid` |
 | rejected | `Okay, let's try again.` + attempts left + `{help}` | `Give my uid` |

@@ -1,12 +1,22 @@
-import { ButtonStyle, ComponentType, MessageFlags, TextInputStyle } from "discord.js";
+import {
+  ButtonStyle,
+  ComponentType,
+  MessageFlags,
+  TextInputStyle,
+  type APIActionRowComponent,
+  type APIComponentInActionRow,
+} from "discord.js";
 import { describe, expect, test } from "vitest";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { Player } from "../domain/player.js";
+import type { PickablePlayerMatch, Player } from "../domain/player.js";
 import type { ApprovableRank, MemberId, RankApproval } from "../domain/rank-approval.js";
 import {
   abandonedLogLine,
   askUidMessage,
+  askUidOfPlayerMessage,
   alreadyLinkedMessage,
+  pickListMessage,
+  recommendationMessage,
   buttonOfSomeoneElseReply,
   checkingReply,
   foundCardMessage,
@@ -505,6 +515,153 @@ describe("Rank Approval messages", () => {
       content: "\\_vex\\_ left the server; the rank approval is cancelled.",
       allowedMentions: { parse: [] },
     });
+  });
+});
+
+const PICK_MATCHES: readonly PickablePlayerMatch[] = [
+  { uid: "145563254785", name: "Vex", kingdom: 330 },
+  { uid: "145563254786", name: "Vex", kingdom: 331 },
+];
+
+function manyMatches(count: number): PickablePlayerMatch[] {
+  return Array.from({ length: count }, (_unused, index) => ({
+    uid: `1455632547${(10 + index).toString()}`,
+    name: `Vex ${index.toString()}`,
+    kingdom: 300 + index,
+  }));
+}
+
+/** The one select menu of a pick list; fails the test when the first row does not hold one. */
+function selectMenuOf(components: readonly APIActionRowComponent<APIComponentInActionRow>[]) {
+  const menu = components[0]?.components[0];
+  if (menu?.type !== ComponentType.StringSelect) throw new Error("the pick list has no select menu first");
+  return menu;
+}
+
+describe("Recommended Player custom ids", () => {
+  test.each(["accept", "decline", "pick"] as const)("%s round-trips through parseInterviewCustomId", (action) => {
+    expect(parseInterviewCustomId(interviewCustomId(action, 7))).toEqual({ action, interviewId: 7 });
+  });
+
+  test("builds interview:accept:{id}, interview:decline:{id} and interview:pick:{id}", () => {
+    expect(interviewCustomId("accept", 7)).toBe("interview:accept:7");
+    expect(interviewCustomId("decline", 7)).toBe("interview:decline:7");
+    expect(interviewCustomId("pick", 7)).toBe("interview:pick:7");
+  });
+
+  test("every new custom id is at most 100 characters, even for the largest id", () => {
+    for (const action of ["accept", "decline", "pick"] as const) {
+      expect(interviewCustomId(action, Number.MAX_SAFE_INTEGER).length).toBeLessThanOrEqual(100);
+    }
+  });
+});
+
+describe("Recommended Player messages", () => {
+  test("the recommendation greets the Member by mention and names the Player Name, Kingdom, Alliance and rank", () => {
+    const message = recommendationMessage(7, MEMBER, inAlliance);
+
+    expect(message.content).toContain(`Welcome, <@${MEMBER}>!`);
+    expect(message.content).toContain("Vex");
+    expect(message.content).toContain("Kingdom #330");
+    expect(message.content).toContain("[NML] Neil's Men, R5");
+    expect(message.allowedMentions).toEqual({ users: [MEMBER] });
+  });
+
+  test("the recommendation shows no uid anywhere in the message", () => {
+    expect(JSON.stringify(recommendationMessage(7, MEMBER, inAlliance))).not.toContain("145563254785");
+  });
+
+  test("a Recommended Player in an Alliance with an unknown rank reads rank unknown", () => {
+    expect(recommendationMessage(7, MEMBER, rankUnknown).content).toContain("rank unknown");
+  });
+
+  test("a Recommended Player without an Alliance reads no alliance", () => {
+    expect(recommendationMessage(7, MEMBER, withoutAlliance).content).toContain("no alliance");
+  });
+
+  test("the recommendation escapes the Player Name", () => {
+    expect(recommendationMessage(7, MEMBER, { ...inAlliance, name: "*Vex*" }).content).toContain("\\*Vex\\*");
+  });
+
+  test("the recommendation offers That's me and That's not me, with the accept and decline custom ids", () => {
+    expect(recommendationMessage(7, MEMBER, inAlliance)).toMatchObject({
+      components: [
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            { type: ComponentType.Button, style: ButtonStyle.Success, label: "That's me", custom_id: "interview:accept:7" },
+            {
+              type: ComponentType.Button,
+              style: ButtonStyle.Danger,
+              label: "That's not me",
+              custom_id: "interview:decline:7",
+            },
+          ],
+        },
+      ],
+    });
+  });
+});
+
+describe("pick list messages", () => {
+  test("the pick list is one select menu under interview:pick:{id}, then a None of these button", () => {
+    expect(pickListMessage(7, MEMBER, PICK_MATCHES)).toMatchObject({
+      components: [
+        {
+          type: ComponentType.ActionRow,
+          components: [{ type: ComponentType.StringSelect, custom_id: "interview:pick:7" }],
+        },
+        {
+          type: ComponentType.ActionRow,
+          components: [
+            {
+              type: ComponentType.Button,
+              style: ButtonStyle.Secondary,
+              label: "None of these",
+              custom_id: "interview:decline:7",
+            },
+          ],
+        },
+      ],
+      allowedMentions: { users: [MEMBER] },
+    });
+  });
+
+  test("each option is labelled Name · Kingdom #N and valued by its index in the list", () => {
+    const menu = selectMenuOf(pickListMessage(7, MEMBER, PICK_MATCHES).components);
+
+    expect(menu.options.map((option) => ({ label: option.label, value: option.value }))).toEqual([
+      { label: "Vex · Kingdom #330", value: "0" },
+      { label: "Vex · Kingdom #331", value: "1" },
+    ]);
+  });
+
+  test("no uid appears anywhere in the pick list: not in the content, the labels, the descriptions or the values", () => {
+    const serialized = JSON.stringify(pickListMessage(7, MEMBER, PICK_MATCHES));
+
+    expect(serialized).not.toContain("145563254785");
+    expect(serialized).not.toContain("145563254786");
+  });
+
+  test("the pick list holds at most 25 options and leaves the rest out", () => {
+    const menu = selectMenuOf(pickListMessage(7, MEMBER, manyMatches(30)).components);
+
+    expect(menu.options).toHaveLength(25);
+    expect(menu.options.map((option) => option.value).at(-1)).toBe("24");
+  });
+});
+
+describe("uid question after a choice", () => {
+  test("asks for the uid of the chosen Player's Name, with the uid help and the Give my uid button", () => {
+    const message = askUidOfPlayerMessage(7, "Vex");
+
+    expect(message.content).toContain("the uid of Vex");
+    expect(message.content).toContain(UID_HELP);
+    expect(message).toMatchObject({ components: [GIVE_UID_BUTTON], allowedMentions: { parse: [] } });
+  });
+
+  test("the uid question escapes the Player Name", () => {
+    expect(askUidOfPlayerMessage(7, "*Vex*").content).toContain("the uid of \\*Vex\\*");
   });
 });
 

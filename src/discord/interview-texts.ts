@@ -8,9 +8,10 @@ import {
   type APIAllowedMentions,
   type APIButtonComponentWithCustomId,
   type APIModalInteractionResponseCallbackData,
+  type APIStringSelectComponent,
 } from "discord.js";
 import type { Uid } from "../domain/lookup-input.js";
-import type { AllianceRank, Player } from "../domain/player.js";
+import type { AllianceRank, PickablePlayerMatch, Player } from "../domain/player.js";
 import type { ApprovableRank, MemberId, RankApproval } from "../domain/rank-approval.js";
 import { timeLeft, utcTime } from "./lookup-cards.js";
 
@@ -31,6 +32,11 @@ export interface ButtonMessage extends Message {
   readonly components: APIActionRowComponent<APIButtonComponentWithCustomId>[];
 }
 
+/** A message with a select menu and buttons under it: the pick list. */
+export interface PickListMessage extends Message {
+  readonly components: APIActionRowComponent<APIStringSelectComponent | APIButtonComponentWithCustomId>[];
+}
+
 /** A reply that only the person who acted sees. */
 export interface PrivateReply extends Message {
   readonly flags: MessageFlags.Ephemeral;
@@ -43,8 +49,9 @@ const UID_HELP =
   "In the game, tap your profile picture in the top left, then the feather next to your name. The number under the picture is your uid; the button next to it copies it.";
 const MINUTE_MS = 60_000;
 const MINUTES_PER_HOUR = 60;
+const PICK_LIST_MAX_OPTIONS = 25;
 
-const INTERVIEW_ACTIONS = ["uid", "modal", "confirm", "reject"] as const;
+const INTERVIEW_ACTIONS = ["uid", "modal", "confirm", "reject", "accept", "decline", "pick"] as const;
 /** What a button or modal on an Interview thread does. */
 export type InterviewAction = (typeof INTERVIEW_ACTIONS)[number];
 
@@ -282,6 +289,84 @@ export function foundCardMessage(interviewId: number, player: Player): ButtonMes
     ],
     allowedMentions: noMentions(),
   };
+}
+
+/** The thread message that recommends the one free match: it greets the Member, and offers That's me or That's not me. */
+export function recommendationMessage(interviewId: number, member: MemberId, player: Player): ButtonMessage {
+  return {
+    content: `Welcome, <@${member}>! Is this you?\n${escapeText(player.name)}, Kingdom #${player.kingdom.toString()}, ${allianceCardText(player)}.`,
+    components: [
+      {
+        type: ComponentType.ActionRow,
+        components: [
+          {
+            type: ComponentType.Button,
+            style: ButtonStyle.Success,
+            label: "That's me",
+            custom_id: interviewCustomId("accept", interviewId),
+          },
+          {
+            type: ComponentType.Button,
+            style: ButtonStyle.Danger,
+            label: "That's not me",
+            custom_id: interviewCustomId("decline", interviewId),
+          },
+        ],
+      },
+    ],
+    allowedMentions: { users: [member] },
+  };
+}
+
+/**
+ * The thread message for an ambiguous name: one select menu of the matches, valued by their index, then None of these.
+ * No uid is shown; the options are labelled Name · Kingdom #N.
+ */
+export function pickListMessage(
+  interviewId: number,
+  member: MemberId,
+  matches: readonly PickablePlayerMatch[],
+): PickListMessage {
+  const options = matches.slice(0, PICK_LIST_MAX_OPTIONS).map((match, index) => ({
+    label: `${match.name ?? "Unknown"} · Kingdom #${match.kingdom.toString()}`,
+    value: index.toString(),
+  }));
+  return {
+    content: `<@${member}>, which of these players is you?`,
+    components: [
+      {
+        type: ComponentType.ActionRow,
+        components: [
+          {
+            type: ComponentType.StringSelect,
+            custom_id: interviewCustomId("pick", interviewId),
+            options,
+          },
+        ],
+      },
+      {
+        type: ComponentType.ActionRow,
+        components: [
+          {
+            type: ComponentType.Button,
+            style: ButtonStyle.Secondary,
+            label: "None of these",
+            custom_id: interviewCustomId("decline", interviewId),
+          },
+        ],
+      },
+    ],
+    allowedMentions: { users: [member] },
+  };
+}
+
+/** The thread message that asks for the uid of the Player the Member chose from the pick list, with the help. */
+export function askUidOfPlayerMessage(interviewId: number, name: string): ButtonMessage {
+  return giveUidMessage(
+    `Now give me the uid of ${escapeText(name)}: press the button and enter it.\n${UID_HELP}`,
+    interviewId,
+    noMentions(),
+  );
 }
 
 /** The thread message for a uid the Game does not know, with the attempts left. */

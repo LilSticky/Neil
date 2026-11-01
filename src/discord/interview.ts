@@ -331,6 +331,10 @@ async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): 
     case "reject":
       return rejectPlayer(deps, button, parsed.interviewId);
     case "modal":
+    case "accept":
+    case "decline":
+    case "pick":
+      // Real handling of the Recommended Player buttons comes in T029; until then they are answered like an ended Interview.
       return button.reply(interviewEndedReply());
   }
 }

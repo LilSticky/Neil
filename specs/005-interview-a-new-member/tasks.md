@@ -186,7 +186,7 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
 - [x] T027 [US6] Test `src/storage/database.test.ts` + `interview-store.test.ts`: migration 4 (columns, recreated
   `one_open_interview` incl. new steps, a version-3 db upgrades with its rows kept); every new step and `chosen`
   round-trips; corrupt `matches_json` is skipped like other corrupt rows. Implement in `src/storage/`.
-- [ ] T028 [P] [US6] Test `src/discord/interview-texts.test.ts`: recommendation message (greeting, Player Name, Kingdom,
+- [x] T028 [P] [US6] Test `src/discord/interview-texts.test.ts`: recommendation message (greeting, Player Name, Kingdom,
   Alliance, rank, **no uid**, "That's me" / "That's not me"); pick list (select menu, labels `Name · Kingdom #N`, no uid,
   at most 25, "None of these" button); the uid question after a choice ("give the uid of <name>" + help); custom ids for
   the new actions parse back. Implement `src/discord/interview-texts.ts` (texts also in contracts/interview.md).
