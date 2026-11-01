@@ -1,11 +1,19 @@
 import { randomBytes } from "node:crypto";
-import type { Match, RosterEntry } from "../domain/player.js";
+import type { Alliance, Match, RosterEntry } from "../domain/player.js";
 
-/** What a pick list lets its owner choose from. */
+/**
+ * What a pick list lets its owner choose from. A roster menu also keeps the Alliance and the time its card was fetched,
+ * so turning its page can redraw the card with the members of that page.
+ */
 export type PickChoice =
   | { readonly kind: "players"; readonly matches: readonly Match[] }
   | { readonly kind: "alliances"; readonly matches: readonly Match[] }
-  | { readonly kind: "roster"; readonly entries: readonly RosterEntry[] };
+  | {
+      readonly kind: "roster";
+      readonly entries: readonly RosterEntry[];
+      readonly alliance: Alliance;
+      readonly fetchedAt: Date;
+    };
 
 /** A pick list as the bot remembers it: who opened it, what it offers, the page shown and when. */
 export interface PickSession {

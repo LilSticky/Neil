@@ -16,6 +16,8 @@ restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-th
 
 **Next step:** run `npm run commands:register` once against the server Wispbyte's Neil uses and check `/player name:…` there (the deploy runs from `main`); then start slice 005 "Interview a new member" with `/speckit-specify`.
 
+Fix (2026-11-01, issue #19): the Alliance card now lists only the 25 members of the roster menu's page and turns with it (it listed the whole roster on every page); slice 004 spec FR-006 updated.
+
 ## Known broken / WIP
 
 - Nothing known.
