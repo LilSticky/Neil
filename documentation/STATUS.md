@@ -21,8 +21,10 @@ stacked on 006: Neil remembers Home Kingdom Alliances it sees (Known Alliances, 
 suggests them while typing, and a full name the Game API does not know gets a "Did you mean" pick list; `tag:` without
 a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6c.
 
-**Next step (2026-11-02):** finish 007's review and PR; then the next slice from ROADMAP "Later" (the user's choice).
-#16, #22 and 007's PR stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
+007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
+
+**Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
+#16, #22 and #24 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
 next to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
