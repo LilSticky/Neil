@@ -200,16 +200,25 @@ export interface ConnectOptions {
 
 /** discord.js's code for a user who is not a member of the guild. */
 const UNKNOWN_MEMBER = 10007;
-const unknownMemberError = z.object({ code: z.literal(UNKNOWN_MEMBER) });
+/** Discord's code for an unknown user: a user who is no longer a member is answered the same way. */
+const UNKNOWN_USER = 10013;
+const unknownMemberError = z.object({ code: z.union([z.literal(UNKNOWN_MEMBER), z.literal(UNKNOWN_USER)]) });
 
 /** A role of the guild as the name and roles apply reads it. */
 function roleLikeOf(role: Role): RoleLike {
-  return { id: role.id, name: role.name, permissions: { bitfield: role.permissions.bitfield }, position: role.position };
+  return {
+    id: role.id,
+    name: role.name,
+    managed: role.managed,
+    permissions: { bitfield: role.permissions.bitfield },
+    position: role.position,
+  };
 }
 
 /** The guild as the name and roles apply reads it; the bot's highest role places the bot among the roles. */
 function rolesGuildOf(guild: Guild, botTopRolePosition: number): RolesGuild {
   return {
+    id: guild.id,
     ownerId: guild.ownerId,
     botTopRolePosition,
     get roles() {
@@ -457,6 +466,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       gameApi: options.gameApi,
       homeKingdom: options.homeKingdom,
       troopBracketLevels: options.troopBracketLevels,
+      officerRoleIds: options.officerRoleIds,
       log: (message) => channels.log(message),
       now,
       logError,

@@ -83,6 +83,25 @@ describe("nicknameFor", () => {
 
       expect(nicknameFor(player, gameApiRank("R5"), HOME_KINGDOM)).toBe(`[ABC|R5] ${"B".repeat(16)} | #331`);
     });
+
+    test.each([
+      [26, 331],
+      [40, 331],
+      [40, 330],
+    ] as const)(
+      "is never longer than 32 characters when the tag is %i characters long in Kingdom %i, so the tag is cut too",
+      (tagLength, kingdom) => {
+        const player = allied({
+          name: "Rogue",
+          kingdom,
+          sanctuaryLevel: 21,
+          tag: "T".repeat(tagLength),
+          rank: "R5",
+        });
+
+        expect(nicknameFor(player, gameApiRank("R5"), HOME_KINGDOM)?.length).toBeLessThanOrEqual(32);
+      },
+    );
   });
 
   describe("Player Name", () => {

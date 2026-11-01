@@ -12,20 +12,30 @@ export class FakeConnectGuild {
   readonly ownerId = "900000000000000001";
   private readonly channelStore = new FakeGuild();
   private readonly joined = new Set<string>();
+  private readonly fetchFailures = new Map<string, number>();
 
   readonly channels = this.channelStore.channels;
 
   readonly members = {
     me: {
       id: BOT_MEMBER_ID,
-      permissions: { has: (permission: bigint): boolean => this.serverPermissions.includes(permission) },
+      permissions: {
+        has: (permission: bigint): boolean => this.serverPermissions.includes(permission),
+      },
       roles: { highest: { position: 10 } },
     },
     fetch: (memberId: string): Promise<{ readonly id: string }> => {
+      const code = this.fetchFailures.get(memberId);
+      if (code !== undefined) return Promise.reject(Object.assign(new Error("Discord API error"), { code }));
       if (this.joined.has(memberId)) return Promise.resolve({ id: memberId });
       return Promise.reject(Object.assign(new Error("Unknown Member"), { code: UNKNOWN_MEMBER }));
     },
   };
+
+  /** Makes fetching this member fail with Discord's error code, as Discord answers for a user it cannot find. */
+  failFetch(memberId: string, code: number): void {
+    this.fetchFailures.set(memberId, code);
+  }
 
   /** @param serverPermissions the permission bits the bot holds in the server */
   constructor(private readonly serverPermissions: readonly bigint[]) {}

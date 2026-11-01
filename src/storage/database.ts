@@ -1,7 +1,15 @@
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-/** Ordered schema changes; index + 1 is the version. Never edit an applied one, append a new one. */
+/**
+ * Ordered schema changes; index + 1 is the version. Never edit an applied one, append a new one.
+ *
+ * Foreign keys are on, and a migration runs inside its transaction, where `PRAGMA foreign_keys` cannot be changed. So a
+ * future migration that rebuilds a parent table (create the new one, copy, drop the old, rename) would cascade: `DROP
+ * TABLE` deletes the child rows of an `ON DELETE CASCADE` reference first, and `link` rows would take their `applied`
+ * rows with them. A rebuild of `link` must turn `foreign_keys` off before its transaction starts (in a separate step
+ * of `openDatabase`), and check with `PRAGMA foreign_key_check` before it is turned back on.
+ */
 const migrations: readonly string[] = [
   `CREATE TABLE start_record (
      id INTEGER PRIMARY KEY CHECK (id = 1),

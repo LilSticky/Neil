@@ -29,6 +29,9 @@ const LOG_CHANNEL_ID = "1000000000000000002";
 const MODERATOR_ROLE_ID = "1000000000000000003";
 const KING_ROLE_ID = "1000000000000000004";
 const ALICE = "111111111111111111";
+const BOB = "222222222222222222";
+/** Discord's code for a user it cannot find. */
+const UNKNOWN_USER = 10013;
 const TOKEN = "fake-token-connect-test";
 const INTERVIEW_TIMEOUT_MS = 1440 * 60_000;
 const NOW = new Date("2026-11-02T10:00:00Z");
@@ -55,6 +58,7 @@ function kingdomOf(number: number): KingdomNumber {
 }
 
 const UID = uidOf("145563254785");
+const BOB_UID = uidOf("145563254786");
 const HOME_KINGDOM = kingdomOf(330);
 
 /** The Game API as connect uses it: records each Player lookup and finds no Player. */
@@ -166,6 +170,27 @@ describe("connect", () => {
     await expect(connect(TOKEN, connectOptions())).rejects.toThrow("log channel");
 
     expect(gameApi.lookups).toEqual([]);
+  });
+
+  test("treats a Linked Member Discord cannot find (10013) as not on the server: no lookup for them, no startup error", async () => {
+    const guild = serverWith(SERVER_PERMISSIONS);
+    guild.join(BOB);
+    guild.failFetch(ALICE, UNKNOWN_USER);
+    FakeClient.served = guild;
+    linkAlice();
+    links.confirm({ link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    try {
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(gameApi.lookups).toEqual([{ uid: BOB_UID, purpose: "lookup" }]);
+      });
+      expect(errorSpy).not.toHaveBeenCalled();
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   test("still starts when Neil lacks Manage Roles, and posts the missing permission to the log channel", async () => {

@@ -42,6 +42,8 @@ const BOB_UID = uidOf("145563254786");
 const CAROL_UID = uidOf("145563254787");
 const LEADER_UID = uidOf("145563254700");
 const HOME_KINGDOM = kingdomOf(330);
+const MODERATOR_ROLE_ID = "700000000000000001";
+const OFFICER_KING_ROLE_ID = "700000000000000002";
 const TROOP_BRACKET_LEVELS = [1, 3, 6, 10, 14, 17, 20, 24, 27, 30] as const;
 
 /** A Home Kingdom Alliance member in R4, level 21: nickname `[NML|R4] Rogue`, roles NML, R4, #330, T7. */
@@ -104,6 +106,7 @@ class FakeGameApi {
 /** The members of the server as the name and roles reach them: a member is on the server only when joined. */
 class FakeServerMembers implements ServerMembers {
   private readonly members = new Map<MemberId, ServerMember>();
+  private readonly failures = new Map<MemberId, Error>();
   private failure: Error | undefined = undefined;
 
   join(memberId: MemberId, guild: FakeRolesGuild, member: FakeRolesMember): void {
@@ -114,8 +117,15 @@ class FakeServerMembers implements ServerMembers {
     this.failure = error;
   }
 
+  /** Makes the lookup of this one Member fail; the other Members are reached as usual. */
+  failFor(memberId: MemberId, error: Error): void {
+    this.failures.set(memberId, error);
+  }
+
   memberOf(memberId: MemberId): Promise<ServerMember | undefined> {
     if (this.failure !== undefined) return Promise.reject(this.failure);
+    const failure = this.failures.get(memberId);
+    if (failure !== undefined) return Promise.reject(failure);
     return Promise.resolve(this.members.get(memberId));
   }
 }
@@ -188,6 +198,7 @@ describe("createNameAndRoles", () => {
       gameApi,
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: TROOP_BRACKET_LEVELS,
+      officerRoleIds: [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID],
       log: (message: BaseMessageOptions) => {
         logs.push(message);
         return Promise.resolve();
@@ -363,6 +374,42 @@ describe("createNameAndRoles", () => {
       expect(h.applied.get(ALICE)).toBeUndefined();
       expect(h.logs).toEqual([]);
     });
+
+    test("records the applied state as complete when the only skipped step is the owner's nickname", async () => {
+      joinMember(h, OWNER);
+      linkMember(h, OWNER, UID);
+
+      await h.service.onLinked(OWNER, ROGUE_R4, GAME_RANK_R4);
+
+      expect(h.applied.get(OWNER)).toMatchObject({ memberId: OWNER, complete: true });
+    });
+
+    test("never gives an Alliance tag that is an Officer role, and leaves that Member without it", async () => {
+      h.guild.defineRole("King", { id: OFFICER_KING_ROLE_ID });
+      const alice = joinAlice(h);
+      linkAlice(h);
+      const kingPlayer: Player = { ...ROGUE_R4, alliance: { tag: "King", name: "Kings", leaderUid: undefined } };
+
+      await h.service.onLinked(ALICE, kingPlayer, GAME_RANK_R4);
+
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7"]);
+      expect(h.applied.get(ALICE)?.complete).toBe(false);
+    });
+
+    test("logs that a Managed Role which grants permissions must lose them or be renamed, and still gives the others", async () => {
+      h.guild.defineRole("R4", { permissions: ADMINISTRATOR });
+      const alice = joinAlice(h);
+      linkAlice(h);
+
+      await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
+
+      expect(heldNames(alice)).toEqual(["#330", "NML", "T7"]);
+      const lines = h.logs.map(contentOf);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain("R4");
+      expect(lines[0]).toContain("must lose its permissions");
+      expect(lines[0]).toContain("renamed");
+    });
   });
 
   describe("atStartup", () => {
@@ -455,6 +502,20 @@ describe("createNameAndRoles", () => {
       expect(h.errors).toEqual([]);
     });
 
+    test("goes on to the next Linked Member when the apply for one of them fails", async () => {
+      joinMember(h, ALICE);
+      const bob = joinMember(h, BOB);
+      linkMember(h, ALICE, UID);
+      linkMember(h, BOB, BOB_UID);
+      h.server.failFor(ALICE, new Error("Discord is unavailable"));
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(bob.nickname).toBe("[NML|R4] Rogue");
+      expect(h.errors.some((line) => line.includes(ALICE))).toBe(true);
+    });
+
     test("never throws when Discord cannot be reached: the failure is logged and nothing is recorded", async () => {
       joinMember(h, ALICE);
       linkMember(h, ALICE, UID);
@@ -502,5 +563,31 @@ describe("createNameAndRoles", () => {
       expect(h.gameApi.lookups).toEqual([]);
       expect(h.logs).toEqual([]);
     });
+
+    test("a Member who is not on the server makes no lookup and logs nothing", async () => {
+      linkAlice(h, APPROVED_R4);
+
+      await h.service.onRankApproved(ALICE);
+
+      expect(h.gameApi.lookups).toEqual([]);
+      expect(h.logs).toEqual([]);
+    });
+
+    test.each(["quota-spent", "reserve-kept"] as const)(
+      "a %s from the Game API is logged as a quota stop, not as a Player the Game API does not give",
+      async (kind) => {
+        joinAlice(h);
+        linkAlice(h, APPROVED_R4);
+        h.gameApi.answerWith({ kind, resetsAt: NOW });
+
+        await h.service.onRankApproved(ALICE);
+
+        const lines = h.logs.map(contentOf);
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toContain(ALICE);
+        expect(lines[0]).toMatch(/quota/i);
+        expect(lines[0]).not.toContain("gave no Player");
+      },
+    );
   });
 });

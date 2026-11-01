@@ -6,6 +6,9 @@ export const MISSING_PERMISSIONS = 50013;
 /** Discord's code for a guild that already has the maximum number of roles. */
 export const MAXIMUM_ROLES_REACHED = 30005;
 
+/** The id of the fake guild unless a test gives another one. */
+const DEFAULT_GUILD_ID = "100000000000000000";
+
 /** An error shaped like discord.js's DiscordAPIError: it carries Discord's numeric code. */
 export class FakeDiscordError extends Error {
   constructor(
@@ -17,13 +20,17 @@ export class FakeDiscordError extends Error {
   }
 }
 
-/** A role of the fake guild. Permissions are a bit field, as in discord.js; position orders roles from the bottom. */
+/**
+ * A role of the fake guild. Permissions are a bit field, as in discord.js; position orders roles from the bottom; a
+ * managed role is one an integration owns.
+ */
 export class FakeRole implements RoleLike {
   constructor(
     readonly id: string,
     readonly name: string,
     readonly permissions: { readonly bitfield: bigint },
     readonly position: number,
+    readonly managed: boolean = false,
   ) {}
 }
 
@@ -41,19 +48,34 @@ export class FakeRolesGuild implements RolesGuild {
   private readonly failures = new Map<string, Error>();
   private nextId = 1;
 
-  constructor(readonly ownerId: string) {}
+  constructor(
+    readonly ownerId: string,
+    readonly id: string = DEFAULT_GUILD_ID,
+  ) {}
 
   get roles(): readonly RoleLike[] {
     return this.all;
   }
 
-  /** Defines a role that already exists in the guild, as an Officer or an earlier apply left it. */
-  defineRole(name: string, options: { readonly permissions?: bigint; readonly position?: number } = {}): FakeRole {
+  /**
+   * Defines a role that already exists in the guild, as an Officer or an earlier apply left it. `id` fixes the role's id
+   * (for example an Officer role's id from configuration, or the guild's id for @everyone).
+   */
+  defineRole(
+    name: string,
+    options: {
+      readonly permissions?: bigint;
+      readonly position?: number;
+      readonly id?: string;
+      readonly managed?: boolean;
+    } = {},
+  ): FakeRole {
     const role = new FakeRole(
-      this.newId(),
+      options.id ?? this.newId(),
       name,
       { bitfield: options.permissions ?? 0n },
       options.position ?? 1,
+      options.managed ?? false,
     );
     this.all.push(role);
     return role;
@@ -69,11 +91,15 @@ export class FakeRolesGuild implements RolesGuild {
     return this.createdOptions.map((options) => options.name);
   }
 
-  /** A member of the guild holding the named roles, which must already be defined. */
-  member(id: string, roleNames: readonly string[] = []): FakeRolesMember {
-    const held = roleNames.map((name) => {
-      const role = this.rolesNamed(name)[0];
-      if (role === undefined) throw new Error(`the fake guild has no role ${name}`);
+  /**
+   * A member of the guild holding the given roles: a name stands for the first defined role of that name, which must
+   * exist; a role object is held as it is, so a test can hold one of two duplicates.
+   */
+  member(id: string, roles: readonly (string | RoleLike)[] = []): FakeRolesMember {
+    const held = roles.map((entry) => {
+      if (typeof entry !== "string") return entry;
+      const role = this.rolesNamed(entry)[0];
+      if (role === undefined) throw new Error(`the fake guild has no role ${entry}`);
       return role;
     });
     return new FakeRolesMember(id, held, this);

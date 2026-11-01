@@ -4,10 +4,14 @@ import { isManagedRoleName, planApply } from "../domain/managed-roles.js";
 /** Discord's code for a missing permission: a role above the bot's, or a change to the owner's nickname. */
 const MISSING_PERMISSIONS = 50013;
 
-/** A role of the guild as the apply needs it: its exact name, its permission bits (0 when it grants none) and position. */
+/**
+ * A role of the guild as the apply needs it: its id and exact name, whether an integration owns it, its permission bits
+ * (0 when it grants none) and its position.
+ */
 export interface RoleLike {
   readonly id: string;
   readonly name: string;
+  readonly managed: boolean;
   readonly permissions: { readonly bitfield: bigint };
   readonly position: number;
 }
@@ -22,6 +26,8 @@ export interface NewRoleOptions {
 
 /** The part of a guild the apply uses; the discord.js adapter maps a real guild onto it. */
 export interface RolesGuild {
+  /** The guild's ID, which is also the ID of its @everyone role. */
+  readonly id: string;
   readonly ownerId: string;
   /** The position of the bot's highest role: roles at or above it are out of the bot's reach. */
   readonly botTopRolePosition: number;
@@ -38,15 +44,22 @@ export interface RolesMember {
   setNickname(nickname: string): Promise<void>;
 }
 
-/** What the Member should look like: the nickname (undefined when the Player Name is empty), the Managed Roles wanted, and the Alliance tags Neil manages. */
+/**
+ * What the Member should look like: the nickname (undefined when the Player Name is empty), the Managed Roles wanted,
+ * the Alliance tags Neil manages, and the IDs of the Officer roles, which Neil never gives or takes.
+ */
 export interface NameAndRolesWanted {
   readonly nickname: string | undefined;
   readonly roles: readonly string[];
   readonly managedTags: readonly string[];
+  readonly officerRoleIds: readonly string[];
 }
 
-/** Why a step was not done: the role grants permissions, the owner's nickname, a role out of reach, or Discord refused. */
-export type SkipReason = "has-permissions" | "owner" | "hierarchy" | "missing-permissions" | "error";
+/**
+ * Why a step was not done: the role grants permissions, the owner's nickname, a role out of reach, a name that is not a
+ * Managed Role (an Officer role, @everyone or an integration's role), or Discord refused.
+ */
+export type SkipReason = "has-permissions" | "owner" | "hierarchy" | "not-managed" | "missing-permissions" | "error";
 
 export interface Skipped {
   readonly what: string;
@@ -65,8 +78,8 @@ export interface ApplyReport {
 
 const discordError = z.object({ code: z.number() });
 
-/** Creation of a role that is in flight, by guild and then by name, so concurrent applies create it once. */
-const creationsByGuild = new WeakMap<RolesGuild, Map<string, Promise<RoleLike>>>();
+/** Role creations in flight, by guild ID and then by name, so concurrent applies create a missing role once. */
+const creationsByGuild = new Map<string, Map<string, Promise<RoleLike>>>();
 
 /**
  * Makes the Member match the wanted nickname and Managed Roles (FR-011). Each step is independent: a step Discord or
@@ -89,19 +102,32 @@ export async function applyNameAndRoles(
     if (nicknameSkip !== undefined) skipped.push(nicknameSkip);
   }
 
-  const held = member.roles.map((role) => role.name).filter((name) => isManagedRoleName(name, wanted.managedTags));
+  // Only roles Neil may hand out count as held: a role with permissions, an Officer role or an integration's is not one.
+  const held = [
+    ...new Set(
+      member.roles
+        .filter((role) => isGivable(guild, role, wanted.officerRoleIds) && role.permissions.bitfield === 0n)
+        .map((role) => role.name)
+        .filter((name) => isManagedRoleName(name, wanted.managedTags)),
+    ),
+  ];
   const plan = planApply(held, wanted.roles);
 
   for (const name of plan.remove) {
-    const skip = await removeRoles(guild, member, name, removed);
+    const skip = await removeRoles(guild, member, name, wanted.officerRoleIds, removed);
     if (skip !== undefined) skipped.push(skip);
   }
   for (const name of plan.add) {
-    const skip = await addRole(guild, member, name, { added, created });
+    const skip = await addRole(guild, member, name, wanted.officerRoleIds, { added, created });
     if (skip !== undefined) skipped.push(skip);
   }
 
   return { nickname, added, removed, created, skipped };
+}
+
+/** Whether Neil may give or take the role: not @everyone, not an integration's, and not an Officer role. */
+function isGivable(guild: RolesGuild, role: RoleLike, officerRoleIds: readonly string[]): boolean {
+  return role.id !== guild.id && !role.managed && !officerRoleIds.includes(role.id);
 }
 
 async function setNickname(guild: RolesGuild, member: RolesMember, nickname: string): Promise<Skipped | undefined> {
@@ -114,35 +140,57 @@ async function setNickname(guild: RolesGuild, member: RolesMember, nickname: str
   }
 }
 
+/**
+ * Takes off every held role of the name that Neil may give and that grants no permissions. A role out of reach is
+ * left and the others are still removed; the first problem is the skip.
+ */
 async function removeRoles(
   guild: RolesGuild,
   member: RolesMember,
   name: string,
+  officerRoleIds: readonly string[],
   removed: string[],
 ): Promise<Skipped | undefined> {
-  const held = member.roles.filter((role) => role.name === name);
-  try {
-    for (const role of held) {
-      if (role.position >= guild.botTopRolePosition) return { what: name, reason: "hierarchy" };
-      await member.removeRole(role);
+  const held = member.roles.filter(
+    (role) => role.name === name && isGivable(guild, role, officerRoleIds) && role.permissions.bitfield === 0n,
+  );
+  let skip: Skipped | undefined = undefined;
+  let didRemove = false;
+  for (const role of held) {
+    if (role.position >= guild.botTopRolePosition) {
+      skip ??= { what: name, reason: "hierarchy" };
+      continue;
     }
-    removed.push(name);
-    return undefined;
-  } catch (error) {
-    return { what: name, reason: reasonOf(error) };
+    try {
+      await member.removeRole(role);
+      didRemove = true;
+    } catch (error) {
+      skip ??= { what: name, reason: reasonOf(error) };
+    }
   }
+  if (didRemove) removed.push(name);
+  return skip;
 }
 
+/**
+ * Gives the Member the Managed Role of the name: the permission-free role of that name, or a new one when the guild has
+ * none. A name held only by Officer roles, @everyone or integration roles is never given, and a name whose roles all
+ * grant permissions is skipped.
+ */
 async function addRole(
   guild: RolesGuild,
   member: RolesMember,
   name: string,
+  officerRoleIds: readonly string[],
   report: { readonly added: string[]; readonly created: string[] },
 ): Promise<Skipped | undefined> {
   try {
-    const existing = guild.roles.find((role) => role.name === name);
-    if (existing !== undefined && existing.permissions.bitfield !== 0n) return { what: name, reason: "has-permissions" };
-    const found = existing === undefined ? await createOnce(guild, name) : { role: existing, wasCreated: false };
+    const named = guild.roles.filter((role) => role.name === name);
+    const givable = named.filter((role) => isGivable(guild, role, officerRoleIds));
+    if (named.length > 0 && givable.length === 0) return { what: name, reason: "not-managed" };
+    const free = givable.find((role) => role.permissions.bitfield === 0n);
+    if (givable.length > 0 && free === undefined) return { what: name, reason: "has-permissions" };
+    const found = free === undefined ? await createOnce(guild, name) : { role: free, wasCreated: false };
     if (found.wasCreated) report.created.push(name);
     if (found.role.position >= guild.botTopRolePosition) return { what: name, reason: "hierarchy" };
     await member.addRole(found.role);
@@ -153,7 +201,7 @@ async function addRole(
   }
 }
 
-/** Creates the role, or joins the creation another apply has in flight for the same name. */
+/** Creates the role, or joins the creation another apply has in flight for the same name in the same guild. */
 async function createOnce(guild: RolesGuild, name: string): Promise<{ role: RoleLike; wasCreated: boolean }> {
   const inFlight = creationsOf(guild);
   const pending = inFlight.get(name);
@@ -166,10 +214,10 @@ async function createOnce(guild: RolesGuild, name: string): Promise<{ role: Role
 }
 
 function creationsOf(guild: RolesGuild): Map<string, Promise<RoleLike>> {
-  const existing = creationsByGuild.get(guild);
+  const existing = creationsByGuild.get(guild.id);
   if (existing !== undefined) return existing;
   const created = new Map<string, Promise<RoleLike>>();
-  creationsByGuild.set(guild, created);
+  creationsByGuild.set(guild.id, created);
   return created;
 }
 

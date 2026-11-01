@@ -4,9 +4,10 @@ import type { Message } from "./interview-texts.js";
 import type { ApplyReport, SkipReason, Skipped } from "./member-roles.js";
 
 const SKIP_REASON_TEXT: Record<SkipReason, string> = {
-  "has-permissions": "grants permissions",
+  "has-permissions": "must lose its permissions or be renamed first",
   owner: "server owner",
   hierarchy: "above Neil's highest role",
+  "not-managed": "not a Managed Role",
   "missing-permissions": "missing permissions",
   error: "error",
 };
@@ -14,9 +15,9 @@ const SKIP_REASON_TEXT: Record<SkipReason, string> = {
 /** The log line of one apply: the nickname, then the roles added, removed and created, then every skipped step. */
 export function nameAndRolesLogLine(memberId: MemberId, report: ApplyReport, nickname: string): Message {
   const parts = [nicknamePart(report, nickname)];
-  if (report.added.length > 0) parts.push(`added ${report.added.join(", ")}`);
-  if (report.removed.length > 0) parts.push(`removed ${report.removed.join(", ")}`);
-  if (report.created.length > 0) parts.push(`created ${report.created.join(", ")}`);
+  if (report.added.length > 0) parts.push(`added ${namesText(report.added)}`);
+  if (report.removed.length > 0) parts.push(`removed ${namesText(report.removed)}`);
+  if (report.created.length > 0) parts.push(`created ${namesText(report.created)}`);
   if (report.skipped.length > 0) parts.push(`skipped ${report.skipped.map(skippedText).join(", ")}`);
   return { content: `🏷️ <@${memberId}>: ${parts.join("; ")}.`, allowedMentions: { parse: [] } };
 }
@@ -25,6 +26,14 @@ export function nameAndRolesLogLine(memberId: MemberId, report: ApplyReport, nic
 export function nameAndRolesNotAppliedLogLine(memberId: MemberId): Message {
   return {
     content: `🏷️ <@${memberId}>: name and roles not changed; the Game API gave no Player.`,
+    allowedMentions: { parse: [] },
+  };
+}
+
+/** The log line when a Rank Approval's apply stops at a Game API quota stop: nothing is applied. */
+export function nameAndRolesQuotaLogLine(memberId: MemberId): Message {
+  return {
+    content: `🏷️ <@${memberId}>: name and roles not changed; the Game API quota stopped the lookup.`,
     allowedMentions: { parse: [] },
   };
 }
@@ -50,5 +59,10 @@ function nicknamePart(report: ApplyReport, nickname: string): string {
 }
 
 function skippedText(skip: Skipped): string {
-  return `${skip.what} (${SKIP_REASON_TEXT[skip.reason]})`;
+  return `${escapeMarkdown(skip.what)} (${SKIP_REASON_TEXT[skip.reason]})`;
+}
+
+/** Role names as the log names them: escaped, so a name with Discord markdown shows as typed. */
+function namesText(names: readonly string[]): string {
+  return names.map((name) => escapeMarkdown(name)).join(", ");
 }

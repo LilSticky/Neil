@@ -64,8 +64,8 @@ test touches the network or the real Discord; stores use `:memory:`.
 
 - [x] T011 Docs: HOSTING.md (Manage Roles, Manage Nicknames, Neil's role above Managed Roles and below Officers,
   `HOME_KINGDOM`, `TROOP_BRACKET_LEVELS`), TEST-RUN.md section for 006, ADR index, STATUS, ROADMAP.
-- [ ] T012 `bot-reviewer` on the slice diff → `review.md`; fix must/should.
-- [ ] T013 `spec-auditor` → `audit.md`; close gaps.
+- [x] T012 `bot-reviewer` on the slice diff → `review.md`; fix must/should.
+- [x] T013 `spec-auditor` → `audit.md`; close gaps.
 - [ ] T014 Manual test-server check: collected in TEST-RUN.md §6b, run later by the user.
 
 ## Dependencies
