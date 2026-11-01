@@ -143,24 +143,27 @@ function rosterNote(hidden) {
     return `… and ${hidden.toString()} more, see the menu below`;
 }
 /**
- * The roster fields of a card: an empty roster reads so; otherwise the rows that fit under Discord's embed limit,
- * with a note counting the rest when some do not. `fixed` is what the rest of the embed already takes.
+ * The roster fields of a card's page: an empty roster reads so; otherwise the rows of the page that fit under Discord's
+ * embed limit, with a note counting the rest of the page when some do not. `fixed` is what the rest of the embed takes.
  */
-function rosterSection(roster, fixed) {
-    if (roster.length === 0)
+function rosterSection(shown, fixed) {
+    if (shown.length === 0)
         return [{ name: ROSTER_FIELD, value: EMPTY_ROSTER_TEXT }];
-    const ordered = sortRoster(roster);
-    const everything = rosterFields(ordered, EMBED_MAX_LENGTH - fixed);
-    if (everything.shown === ordered.length)
+    const everything = rosterFields(shown, EMBED_MAX_LENGTH - fixed);
+    if (everything.shown === shown.length)
         return everything.fields;
     // The reserve is for the note at its longest, when every row is left out.
-    const reserve = ROSTER_FIELD.length + rosterNote(ordered.length).length;
-    const fitted = rosterFields(ordered, EMBED_MAX_LENGTH - fixed - reserve);
-    const hidden = ordered.length - fitted.shown;
+    const reserve = ROSTER_FIELD.length + rosterNote(shown.length).length;
+    const fitted = rosterFields(shown, EMBED_MAX_LENGTH - fixed - reserve);
+    const hidden = shown.length - fitted.shown;
     return [...fitted.fields, { name: ROSTER_FIELD, value: rosterNote(hidden) }];
 }
-/** The public card for an Alliance. Every Game API text is escaped; a missing Leader reads Unknown. */
-export function renderAllianceCard(alliance, fetchedAt, now) {
+/**
+ * The public card for an Alliance. Its roster section lists only the rows of one page of the roster menu (25 per page,
+ * in menu order; a page past the last one is clamped), so the card follows the menu's page. The Alliance fields are the
+ * same on every page. Every Game API text is escaped; a missing Leader reads Unknown.
+ */
+export function renderAllianceCard(alliance, fetchedAt, now, page = 0) {
     const fields = [
         { name: "Kingdom", value: `#${alliance.kingdom.toString()}`, inline: true },
         { name: "Power", value: alliance.power.toLocaleString("en-US"), inline: true },
@@ -180,7 +183,8 @@ export function renderAllianceCard(alliance, fetchedAt, now) {
         fields,
         footer: footerFor(fetchedAt, now),
     };
-    return { ...embed, fields: [...fields, ...rosterSection(alliance.roster, embedCharacters(embed))] };
+    const shown = pageOf(sortRoster(alliance.roster), page);
+    return { ...embed, fields: [...fields, ...rosterSection(shown, embedCharacters(embed))] };
 }
 /** The Player pick list's note when matches were left out. */
 const PLAYER_PICK_LIMIT_NOTE = "Only the first 25 are listed; add a kingdom to narrow it.";

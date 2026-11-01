@@ -1,7 +1,7 @@
 import { MessageFlags } from "discord.js";
 import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
 import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
-import { alliancePickLabel, lookupMessages, playerPickLabel, renderRosterComponents } from "./lookup-cards.js";
+import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderRosterComponents, } from "./lookup-cards.js";
 import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, } from "./lookup.js";
 import { isOwner, pageOf, parseCustomId } from "./pick-sessions.js";
 const pickMessages = {
@@ -117,7 +117,10 @@ async function turnRosterPage(interaction, session, page, context) {
         return;
     }
     context.pickSessions.turnPage(session.id, page);
-    await interaction.update({ components: renderRosterComponents(choice.entries, page, session.id) });
+    await interaction.update({
+        embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
+        components: renderRosterComponents(choice.entries, page, session.id),
+    });
 }
 /** Answers a button or select menu of a pick list: only its owner, only while it is open, the rest privately. */
 export async function handlePick(interaction, context) {
