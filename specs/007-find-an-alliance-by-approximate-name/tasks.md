@@ -23,11 +23,11 @@ description: "Task list for slice 007, Find an alliance by approximate name"
 
 ## Tasks
 
-- [ ] T001 [P] Test `src/domain/alliance-match.test.ts`: normalise; every FR-003 rank, the spec's examples (`man`,
+- [x] T001 [P] Test `src/domain/alliance-match.test.ts`: normalise; every FR-003 rank, the spec's examples (`man`,
   `no mans`, `No Mna's Land`), 1–2 letter queries prefix only, ties by last seen, 30-day cut, limit 25. Implement.
-- [ ] T002 [P] Test `src/storage/database.test.ts` + `known-alliance-store.test.ts`: migration 6, v5 upgrade, `seen`
+- [x] T002 [P] Test `src/storage/database.test.ts` + `known-alliance-store.test.ts`: migration 6, v5 upgrade, `seen`
   upsert (new name replaces), `all(now)` leaves out > 30 days, `forget(now)` deletes them. Implement.
-- [ ] T003 Test `src/game-api/client.test.ts`: `onAllianceSeen` called once per fresh Player-with-Alliance and Alliance
+- [x] T003 Test `src/game-api/client.test.ts`: `onAllianceSeen` called once per fresh Player-with-Alliance and Alliance
   answer, not for cache hits, not for players without Alliance; a throwing hook never fails the lookup. Implement.
 - [ ] T004 Test `src/discord/alliance-autocomplete.test.ts` + `commands.test.ts`: options autocomplete; focused
   `name` → choices `{name: "[TAG] Name", value: full name}`, `tag` → value tag; empty → most recent; ≤ 25; names cut to
