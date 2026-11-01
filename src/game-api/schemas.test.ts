@@ -28,6 +28,20 @@ describe("playerBodySchema", () => {
     expect(playerBodySchema.safeParse(body).success).toBe(true);
   });
 
+  test("accepts roster rows without rank_label, or with one that is not text, as rank unknown", () => {
+    const body = {
+      ...playerInAlliance,
+      alliance_members: playerInAlliance.alliance_members.map((row, index) =>
+        index === 0 ? { ...row, rank_label: 104 } : { uid: row.uid },
+      ),
+    };
+
+    const parsed = playerBodySchema.safeParse(body);
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.alliance_members?.every((row) => row.rank_label === null)).toBe(true);
+  });
+
   test("ignores fields it does not know about", () => {
     const body = { ...playerInAlliance, a_field_the_game_added_later: { anything: true } };
 

@@ -71,6 +71,22 @@ describe("rankFromLabel", () => {
     expect(rankFromLabel(label)).toBe(expected);
   });
 
+  test.each([
+    ["R4 – Diplomat", "R4"],
+    ["R4 – Militarist", "R4"],
+    ["R4 – Recruiter", "R4"],
+    ["R4 – God of War", "R4"],
+    ["R4 – Goddess", "R4"],
+    ["R4 - Diplomat", "R4"],
+    ["R3 Someone's title", "R3"],
+  ] as const)("maps the titled label %j to its rank %s", (label, expected) => {
+    expect(rankFromLabel(label)).toBe(expected);
+  });
+
+  test.each(["R45", "R4x", "R10"])("maps the label %j, which only starts like a rank, to unknown", (label) => {
+    expect(rankFromLabel(label)).toBe("unknown");
+  });
+
   test("maps a missing label (null) to unknown", () => {
     expect(rankFromLabel(null)).toBe("unknown");
   });
