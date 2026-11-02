@@ -1,7 +1,6 @@
 import {
   ButtonStyle,
   ComponentType,
-  escapeMarkdown,
   type APIActionRowComponent,
   type APIButtonComponentWithCustomId,
   type APIEmbed,
@@ -15,8 +14,10 @@ import {
   topBy,
   type ActivityKind,
   type ActivityTotal,
+  type TablePage,
 } from "../domain/alliance-overview.js";
 import type { Alliance, RosterEntry } from "../domain/player.js";
+import { embedCharacters, escapeText, fitTitle, footerFor } from "./lookup-cards.js";
 
 /** The Alliance Overview: the overview embed, the table page embed and the page buttons under them. */
 export interface OverviewReply {
@@ -38,6 +39,9 @@ const ACTIVITY_LABELS: Readonly<Record<ActivityKind, string>> = {
 };
 const ACTIVITY_KINDS: readonly ActivityKind[] = ["weeklyActivity", "dailyHonor", "dailyTech"];
 const LIST_LENGTH = 5;
+/** Discord's limits: a description, and everything in one message (titles, footers, field names and values). */
+const DESCRIPTION_MAX_LENGTH = 4096;
+const MESSAGE_MAX_LENGTH = 6000;
 const NAME_MAX_LENGTH = 32;
 const NO_ACTIVITY_DATA = "no activity data";
 const NO_DATA = "no data";
@@ -60,16 +64,24 @@ export function parseOverviewCustomId(customId: string): OverviewCustomId | unde
   return { sessionId, page };
 }
 
-/** The Alliance Overview of an Alliance as of a moment: the overview embed and one page of the member table. */
-export function renderOverview(alliance: Alliance, sessionId: string, page: number, now: Date): OverviewReply {
+/**
+ * The Alliance Overview of an Alliance fetched at one moment and shown at another: the overview embed and one page of
+ * the member table. The table's rows are cut so the whole reply stays within Discord's limits.
+ */
+export function renderOverview(
+  alliance: Alliance,
+  fetchedAt: Date,
+  now: Date,
+  sessionId: string,
+  page: number,
+): OverviewReply {
   const table = tablePage(alliance.roster, page);
-  const embeds: APIEmbed[] = [
-    {
-      title: `[${alliance.tag}] ${escapeMarkdown(alliance.name)} · Overview`,
-      fields: overviewFields(alliance.roster, now),
-    },
-    tableEmbed(table.rows, table.page, table.pageCount),
-  ];
+  const overview: APIEmbed = {
+    title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)} · Overview`),
+    fields: overviewFields(alliance.roster, now),
+    footer: footerFor(fetchedAt, now),
+  };
+  const embeds: APIEmbed[] = [overview, tableEmbed(table, embedCharacters(overview))];
   return { embeds, components: pageButtons(sessionId, table.page, table.pageCount) };
 }
 
@@ -105,10 +117,31 @@ function listText(entries: readonly RosterEntry[], kind: ActivityKind): string {
     .join("\n");
 }
 
-function tableEmbed(rows: readonly RosterEntry[], page: number, pageCount: number): APIEmbed {
-  const embed: APIEmbed = { title: `Members · page ${(page + 1).toString()} of ${pageCount.toString()}` };
-  if (rows.length === 0) return embed;
-  return { ...embed, description: rows.map(tableRow).join("\n") };
+/**
+ * The table embed of one page. Its rows are kept while the description stays within 4,096 characters and the message
+ * within 6,000, given the `otherCharacters` the rest of the reply takes; the rows that do not fit are left out.
+ */
+function tableEmbed(table: TablePage, otherCharacters: number): APIEmbed {
+  const embed: APIEmbed = {
+    title: `Members · page ${(table.page + 1).toString()} of ${table.pageCount.toString()}`,
+  };
+  const room = Math.min(DESCRIPTION_MAX_LENGTH, MESSAGE_MAX_LENGTH - otherCharacters - embedCharacters(embed));
+  const lines = linesWithin(table.rows.map(tableRow), room);
+  if (lines.length === 0) return embed;
+  return { ...embed, description: lines.join("\n") };
+}
+
+/** The first lines that, joined by newlines, take at most `limit` characters. */
+function linesWithin(lines: readonly string[], limit: number): string[] {
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    const next = used + (kept.length === 0 ? 0 : 1) + line.length;
+    if (next > limit) break;
+    kept.push(line);
+    used = next;
+  }
+  return kept;
 }
 
 /** One member of the table: name, the three figures (or "no data") and the last online time. */
@@ -136,7 +169,7 @@ function seenText(entry: RosterEntry): string {
 function displayName(name: string): string {
   const characters = Array.from(name);
   const cut = characters.length > NAME_MAX_LENGTH ? `${characters.slice(0, NAME_MAX_LENGTH - 1).join("")}…` : name;
-  return escapeMarkdown(cut);
+  return escapeText(cut);
 }
 
 /** Previous, the page, Next; no buttons when the table fits one page. */

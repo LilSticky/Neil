@@ -56,7 +56,7 @@ export interface PickInteraction extends PlaceholderInteraction {
 /** What the pick handler needs: the Game API lookups, the pick lists, and where to log a failure. */
 export interface PickContext {
   readonly gameApi: Pick<LookupApi, "getPlayer" | "getAlliance">;
-  readonly pickSessions: Pick<PickSessions, "get" | "open" | "turnPage">;
+  readonly pickSessions: Pick<PickSessions, "get" | "open" | "turnPage" | "linkOverview">;
   readonly now: () => Date;
   readonly logError: (message: string) => void;
 }
@@ -253,22 +253,51 @@ async function turnRosterPage(
 }
 
 /**
- * The Alliance Overview for the asker. It is held by a pick list the asker opens here, which holds the Alliance, so the
- * page buttons of the overview can show it again; the pick list belongs to the asker, not to the owner of the card.
+ * Opens a pick list for the asker that holds the Alliance, so the page buttons of an Alliance Overview can show it again;
+ * the pick list belongs to the asker, not to the owner of the card. Returns its id.
  */
-function overviewFor(
+function openOverviewSession(
   alliance: Alliance,
   fetchedAt: Date,
   askerId: string,
   pickSessions: Pick<PickSessions, "open">,
   now: Date,
+): string {
+  return pickSessions.open(askerId, { kind: "roster", entries: sortRoster(alliance.roster), alliance, fetchedAt }, now);
+}
+
+/**
+ * The Alliance Overview of a card's pick list for the asker: the one the asker already holds under that pick list while
+ * it is open; otherwise a new one, which the pick list then remembers for the asker.
+ */
+function overviewUnderCard(
+  card: PickSession,
+  alliance: Alliance,
+  fetchedAt: Date,
+  askerId: string,
+  pickSessions: Pick<PickSessions, "get" | "open" | "linkOverview">,
+  now: Date,
 ): OverviewReply {
-  const sessionId = pickSessions.open(
-    askerId,
-    { kind: "roster", entries: sortRoster(alliance.roster), alliance, fetchedAt },
-    now,
-  );
-  return renderOverview(alliance, sessionId, 0, now);
+  const heldId = card.overviews.get(askerId);
+  if (heldId !== undefined && pickSessions.get(heldId, now) !== "expired") {
+    return renderOverview(alliance, fetchedAt, now, heldId, 0);
+  }
+  const sessionId = openOverviewSession(alliance, fetchedAt, askerId, pickSessions, now);
+  pickSessions.linkOverview(card.id, askerId, sessionId);
+  return renderOverview(alliance, fetchedAt, now, sessionId, 0);
+}
+
+/**
+ * Sends an Alliance Overview privately. A refused Discord call is logged, and the press is answered as unavailable so it
+ * is never left unacknowledged.
+ */
+async function sendOverview(interaction: PickInteraction, context: PickContext, send: () => Promise<unknown>): Promise<void> {
+  try {
+    await send();
+  } catch (error) {
+    context.logError(`Showing the Alliance Overview failed: ${errorText(error)}`);
+    await replyPrivately(interaction, lookupMessages.unavailable);
+  }
 }
 
 /**
@@ -292,8 +321,10 @@ async function pressOverview(
   const session = context.pickSessions.get(press.sessionId, context.now());
   if (session !== "expired" && session.choice.kind === "roster") {
     const { alliance, fetchedAt } = session.choice;
-    const overview = overviewFor(alliance, fetchedAt, askerId, context.pickSessions, context.now());
-    await interaction.reply({ ...overview, flags: MessageFlags.Ephemeral, allowedMentions });
+    const overview = overviewUnderCard(session, alliance, fetchedAt, askerId, context.pickSessions, context.now());
+    await sendOverview(interaction, context, () =>
+      interaction.reply({ ...overview, flags: MessageFlags.Ephemeral, allowedMentions }),
+    );
     return;
   }
 
@@ -303,16 +334,19 @@ async function pressOverview(
     interaction,
     context,
     () => context.gameApi.getAlliance(kingdomNumber, tag, "lookup"),
-    (alliance, fetchedAt, now) => overviewFor(alliance, fetchedAt, askerId, context.pickSessions, now),
+    (alliance, fetchedAt, now) =>
+      renderOverview(alliance, fetchedAt, now, openOverviewSession(alliance, fetchedAt, askerId, context.pickSessions, now), 0),
     (failure, now) =>
-      allianceFailureMessage(
-        failure,
-        tag,
-        lookupMessages.allianceNotFound(tag, kingdomNumber),
-        askerId,
-        context.pickSessions,
-        now,
-      ),
+      failure.kind === "ambiguous"
+        ? { content: lookupMessages.tryAgain }
+        : allianceFailureMessage(
+            failure,
+            tag,
+            lookupMessages.allianceNotFound(tag, kingdomNumber),
+            askerId,
+            context.pickSessions,
+            now,
+          ),
     { flags: MessageFlags.Ephemeral },
   );
 }
@@ -362,6 +396,9 @@ export async function handleOverview(interaction: PickInteraction, context: Pick
       await replyPrivately(interaction, lookupMessages.unavailable);
       return;
     }
-    await interaction.update(renderOverview(session.choice.alliance, session.id, parsed.page, context.now()));
+    const { alliance, fetchedAt } = session.choice;
+    await sendOverview(interaction, context, () =>
+      interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page)),
+    );
   });
 }

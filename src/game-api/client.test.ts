@@ -554,6 +554,18 @@ describe("GameApiClient.getAlliance result", () => {
     });
   });
 
+  test("a last_online_at beyond the range of a date reads as an unknown time, not an invalid date", async () => {
+    const [first, ...others] = alliance.members;
+    if (first === undefined) throw new Error("the recorded alliance has no members");
+    const body = { ...alliance, members: [{ ...first, last_online_at: Number.MAX_SAFE_INTEGER }, ...others] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
+    expect(result.value.roster[0]?.lastOnlineAt).toBeUndefined();
+  });
+
   test("a roster member's activity figures read as undefined when the Game gives none", async () => {
     const [first, ...others] = alliance.members;
     if (first === undefined) throw new Error("the recorded alliance has no members");

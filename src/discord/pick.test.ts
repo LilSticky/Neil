@@ -1,4 +1,10 @@
-import { ComponentType, MessageFlags, type APIButtonComponentWithCustomId, type InteractionReplyOptions } from "discord.js";
+import {
+  ComponentType,
+  MessageFlags,
+  type APIButtonComponentWithCustomId,
+  type InteractionReplyOptions,
+  type InteractionUpdateOptions,
+} from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { sortRoster } from "../domain/alliance-rank.js";
 import type { RequestPurpose } from "../domain/daily-quota.js";
@@ -739,7 +745,7 @@ describe("handlePick for the Overview button of an Alliance card while its pick 
       {
         method: "reply",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, pickId, 0, NOW).embeds,
+          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, pickId, 0).embeds,
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         }) as unknown,
@@ -776,7 +782,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
       {
         method: "editReply",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, UNKNOWN_SESSION_ID, 0, NOW).embeds,
+          embeds: renderOverview(allianceNmx, NOW, NOW, UNKNOWN_SESSION_ID, 0).embeds,
         }) as unknown,
       },
     ]);
@@ -818,7 +824,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, overviewId, 1, NOW).embeds,
+          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1).embeds,
         }) as unknown,
       },
     ]);
@@ -843,5 +849,136 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
         },
       },
     ]);
+  });
+});
+
+/** A press whose first reply Discord refuses; the later calls are answered. The refused attempt is recorded. */
+class FirstReplyRefusedInteraction extends FakePickInteraction {
+  private refusals = 0;
+
+  override reply(options: InteractionReplyOptions): Promise<void> {
+    if (this.refusals > 0) return super.reply(options);
+    this.refusals += 1;
+    this.calls.push({ method: "reply", options });
+    return Promise.reject(new Error("Discord refused the reply"));
+  }
+}
+
+/** A page turn whose first update Discord refuses; the later calls are answered. The refused attempt is recorded. */
+class FirstUpdateRefusedInteraction extends FakePickInteraction {
+  private refusals = 0;
+
+  override update(options: InteractionUpdateOptions): Promise<void> {
+    if (this.refusals > 0) return super.update(options);
+    this.refusals += 1;
+    this.calls.push({ method: "update", options });
+    return Promise.reject(new Error("Discord refused the update"));
+  }
+}
+
+describe("handlePick for the Overview button when Discord refuses the reply", () => {
+  test("answers the press privately that the Alliance Overview is unavailable, and logs the refusal", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FirstReplyRefusedInteraction({
+      customId: overviewButtonOf(pickId, allianceNmx).custom_id,
+      userId: OTHER_MEMBER_ID,
+    });
+    const { context, logged } = contextWith(sessions, { kind: "not-found" });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls.map((call) => call.method)).toEqual(["reply", "reply"]);
+    expect(interaction.calls.at(-1)).toEqual({
+      method: "reply",
+      options: {
+        content: lookupMessages.unavailable,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(logged.some((line) => line.includes("Discord refused the reply"))).toBe(true);
+  });
+});
+
+describe("handleOverview when Discord refuses the page turn", () => {
+  test("answers the press privately that the Alliance Overview is unavailable, and logs the refusal", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context, logged } = contextWith(sessions, { kind: "not-found" });
+    const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const interaction = new FirstUpdateRefusedInteraction({
+      customId: `overview:${overviewId}:1`,
+      userId: OTHER_MEMBER_ID,
+    });
+
+    await handleOverview(interaction, context);
+
+    expect(interaction.calls.map((call) => call.method)).toEqual(["update", "reply"]);
+    expect(interaction.calls.at(-1)).toEqual({
+      method: "reply",
+      options: {
+        content: lookupMessages.unavailable,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(logged.some((line) => line.includes("Discord refused the update"))).toBe(true);
+  });
+});
+
+describe("handlePick for the Overview button of an Alliance card while its pick session is gone, and the lookup is ambiguous", () => {
+  test("tells the Member privately to try again, with no pick list, when the lookup finds several Alliances", async () => {
+    const sessions = new PickSessions();
+    const interaction = new FakePickInteraction({
+      customId: overviewButtonOf(UNKNOWN_SESSION_ID, allianceNmx).custom_id,
+      userId: OTHER_MEMBER_ID,
+    });
+    const { context } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "ambiguous",
+      matches: ALLIANCE_MATCHES,
+    });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: lookupMessages.tryAgain,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(interaction.calls.filter((call) => call.method === "followUp" && call.options.components !== undefined)).toEqual(
+      [],
+    );
+  });
+});
+
+describe("handlePick for the Overview button of an Alliance card, pressed again by one Member", () => {
+  test("gives the same Alliance Overview id to every press by that Member under the same card", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+
+    const first = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const second = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+
+    expect(second).toBe(first);
+  });
+
+  test("does not evict the card's own pick list, so its roster menu still turns the page", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+    const pressCustomId = overviewButtonOf(pickId, allianceNmx).custom_id;
+
+    for (let press = 0; press < 600; press += 1) {
+      await handlePick(new FakePickInteraction({ customId: pressCustomId, userId: OTHER_MEMBER_ID }), context);
+    }
+    const turn = new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID });
+    await handlePick(turn, context);
+
+    expect(turn.calls.map((call) => call.method)).toEqual(["update"]);
   });
 });

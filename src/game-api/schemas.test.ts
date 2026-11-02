@@ -161,6 +161,17 @@ describe("allianceBodySchema roster", () => {
     expect(parsed.members).toEqual([{ uid: "93159425", nick_name: "Benedict", rank_label: "R3" }]);
   });
 
+  test("reads a last_online_at beyond the range of a date as absent, and keeps the member", () => {
+    const body = {
+      ...alliance,
+      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: Number.MAX_SAFE_INTEGER }],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
+  });
+
   test("gives an empty roster when the body has no members", () => {
     const parsed = allianceBodySchema.parse(withoutField(alliance, "members"));
 

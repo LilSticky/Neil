@@ -31,5 +31,5 @@ description: "Task list for slice 008, Alliance overview"
   Alliance card; press → private overview with no Game API call while the session holds the Alliance; session gone →
   one lookup (lookup purpose); failure → private try-again; page buttons only for the asker. Implement.
 - [x] T005 Docs: TEST-RUN.md §6d (collected), GAME-API.md (fields used), ROADMAP, STATUS.
-- [ ] T006 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
+- [x] T006 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
 - [ ] T007 Manual check collected in TEST-RUN.md §6d, run later by the user.

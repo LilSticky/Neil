@@ -23,6 +23,8 @@ export interface PickSession {
   readonly choice: PickChoice;
   /** The page of a roster menu on screen; 0 for a pick list of matches, which has one page. */
   readonly page: number;
+  /** The Alliance Overview each Member holds under this roster menu, by the Member's id: one per Member, reused. */
+  readonly overviews: ReadonlyMap<string, string>;
 }
 
 const LIFETIME_MS = 15 * 60_000;
@@ -39,7 +41,7 @@ export class PickSessions {
   /** Opens a pick list for the Member and returns its id, short enough for a custom id. */
   open(ownerId: string, choice: PickChoice, now: Date): string {
     const id = randomBytes(8).toString("hex");
-    this.sessions.set(id, { id, ownerId, createdAt: now, choice, page: 0 });
+    this.sessions.set(id, { id, ownerId, createdAt: now, choice, page: 0, overviews: new Map() });
     if (this.sessions.size > MAX_SESSIONS) {
       const oldest = this.sessions.keys().next();
       if (!oldest.done) this.sessions.delete(oldest.value);
@@ -59,6 +61,13 @@ export class PickSessions {
     const session = this.sessions.get(id);
     if (session === undefined) return;
     this.sessions.set(id, { ...session, page: clampPage(page, entriesOf(session.choice)) });
+  }
+
+  /** Remembers the Alliance Overview a Member holds under a pick list; an unknown id does nothing. */
+  linkOverview(id: string, memberId: string, overviewId: string): void {
+    const session = this.sessions.get(id);
+    if (session === undefined) return;
+    this.sessions.set(id, { ...session, overviews: new Map(session.overviews).set(memberId, overviewId) });
   }
 }
 

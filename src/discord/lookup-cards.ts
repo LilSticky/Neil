@@ -62,7 +62,7 @@ export function utcTime(moment: Date): string {
  * The card footer: the source and when the data was fetched, in UTC. Today's fetch shows the time only; an earlier
  * day shows the day and English month too.
  */
-function footerFor(fetchedAt: Date, now: Date): { readonly text: string } {
+export function footerFor(fetchedAt: Date, now: Date): { readonly text: string } {
   const time = utcTime(fetchedAt);
   const when = utcDayOf(fetchedAt) === utcDayOf(now)
     ? time
@@ -71,7 +71,7 @@ function footerFor(fetchedAt: Date, now: Date): { readonly text: string } {
 }
 
 /** Escapes Game API and user text for Discord markdown; discord.js leaves a lone `~` alone, so it is escaped here. */
-function escapeText(text: string): string {
+export function escapeText(text: string): string {
   return escapeMarkdown(text).replaceAll("~", "\\~");
 }
 
@@ -79,7 +79,7 @@ function escapeText(text: string): string {
  * Fits an escaped title into Discord's 256 characters, ending with an ellipsis. It cuts after escaping, so the
  * limit counts what Discord shows, and it never leaves a backslash without the character it escapes.
  */
-function fitTitle(escaped: string): string {
+export function fitTitle(escaped: string): string {
   if (escaped.length <= TITLE_MAX_LENGTH) return escaped;
   let kept = escaped.slice(0, TITLE_MAX_LENGTH - 1);
   const trailingBackslashes = /\\*$/.exec(kept)?.[0] ?? "";
@@ -122,7 +122,7 @@ export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): AP
 }
 
 /** The characters Discord counts toward an embed's limit: the title, the footer and every field's name and value. */
-function embedCharacters(embed: APIEmbed): number {
+export function embedCharacters(embed: APIEmbed): number {
   const texts = [
     embed.title ?? "",
     embed.footer?.text ?? "",

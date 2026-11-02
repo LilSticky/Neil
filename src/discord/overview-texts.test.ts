@@ -2,13 +2,15 @@ import { ButtonStyle, ComponentType, type APIActionRowComponent, type APIButtonC
 import { describe, expect, test } from "vitest";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, RosterEntry } from "../domain/player.js";
-import { overviewCustomId, parseOverviewCustomId, renderOverview } from "./overview-texts.js";
+import { overviewCustomId, parseOverviewCustomId, renderOverview, type OverviewReply } from "./overview-texts.js";
 
 const NOW = new Date("2026-11-02T12:00:00Z");
+const FETCHED_AT = new Date("2026-11-02T10:00:00Z");
 const SESSION = "a1b2c3d4e5f60718";
 const DESCRIPTION_MAX_LENGTH = 4096;
 const FIELD_VALUE_MAX_LENGTH = 1024;
 const MESSAGE_MAX_LENGTH = 6000;
+const TITLE_MAX_LENGTH = 256;
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -30,7 +32,7 @@ interface Figures {
   readonly lastOnlineAt?: Date;
 }
 
-/** A roster member; a figure left out is undefined, as when the Game API gives no data. */
+/** A roster member; a figure left out is undefined, as when the Game gives no data. */
 function member(uidText: string, name: string, figures: Figures = {}): RosterEntry {
   return {
     uid: uid(uidText),
@@ -55,6 +57,11 @@ function allianceWith(roster: readonly RosterEntry[]): Alliance {
     leaderName: "DrLOL",
     roster,
   };
+}
+
+/** The Alliance Overview of a roster, fetched at FETCHED_AT and shown at NOW, on the given page. */
+function overviewOf(roster: readonly RosterEntry[], page = 0): OverviewReply {
+  return renderOverview(allianceWith(roster), FETCHED_AT, NOW, SESSION, page);
 }
 
 const alpha = member("179060285441", "Alpha", {
@@ -92,13 +99,30 @@ function totalCharacters(embeds: readonly APIEmbed[]): number {
 
 describe("renderOverview: the Alliance Overview embed", () => {
   test("titles the overview with the Alliance's tag and name", () => {
-    const reply = renderOverview(allianceWith([alpha, beta, gamma]), SESSION, 0, NOW);
+    const reply = overviewOf([alpha, beta, gamma]);
 
     expect(reply.embeds[0]?.title).toBe("[NML] No Man's Land · Overview");
   });
 
+  test("escapes the tag and the name in the title, and a lone ~, as the card titles do", () => {
+    const alliance: Alliance = { ...allianceWith([alpha]), tag: "N*L", name: "Tilde ~ Clan" };
+
+    const reply = renderOverview(alliance, FETCHED_AT, NOW, SESSION, 0);
+
+    expect(reply.embeds[0]?.title).toBe("[N\\*L] Tilde \\~ Clan · Overview");
+  });
+
+  test("cuts a title longer than Discord's 256 characters, ending with an ellipsis", () => {
+    const alliance: Alliance = { ...allianceWith([alpha]), name: "N".repeat(300) };
+
+    const title = renderOverview(alliance, FETCHED_AT, NOW, SESSION, 0).embeds[0]?.title ?? "";
+
+    expect(title.length).toBeLessThanOrEqual(TITLE_MAX_LENGTH);
+    expect(title.endsWith("…")).toBe(true);
+  });
+
   test("shows the sum and the average of Weekly Activity, Daily Honor and Daily Tech", () => {
-    const embed = renderOverview(allianceWith([alpha, beta]), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf([alpha, beta]).embeds[0];
 
     expect(fieldValue(embed, "Weekly Activity")).toBe("sum 500 · average 250");
     expect(fieldValue(embed, "Daily Honor")).toBe("sum 100 · average 50");
@@ -106,13 +130,13 @@ describe("renderOverview: the Alliance Overview embed", () => {
   });
 
   test("leaves a member without data out of the totals, which then count only the others", () => {
-    const embed = renderOverview(allianceWith([alpha, beta, delta]), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf([alpha, beta, delta]).embeds[0];
 
     expect(fieldValue(embed, "Weekly Activity")).toBe("sum 500 · average 250");
   });
 
   test("says no activity data for a figure that no member has", () => {
-    const embed = renderOverview(allianceWith([delta]), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf([delta]).embeds[0];
 
     expect(fieldValue(embed, "Weekly Activity")).toBe("no activity data");
     expect(fieldValue(embed, "Top Weekly Activity")).toBe("no activity data");
@@ -120,14 +144,14 @@ describe("renderOverview: the Alliance Overview embed", () => {
   });
 
   test("shows how many members are online now and how many were online in the last 24 hours", () => {
-    const embed = renderOverview(allianceWith([alpha, beta, gamma]), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf([alpha, beta, gamma]).embeds[0];
 
     expect(fieldValue(embed, "Online now")).toBe("1");
     expect(fieldValue(embed, "Online in the last 24 hours")).toBe("1");
   });
 
   test("counts the members without data in words", () => {
-    const embed = renderOverview(allianceWith([alpha, delta]), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf([alpha, delta]).embeds[0];
 
     expect(fieldValue(embed, "No data")).toBe("1 member without data");
   });
@@ -143,7 +167,7 @@ describe("renderOverview: the Alliance Overview embed", () => {
       member("100000000007", "Gi", { weeklyActivity: 60, dailyHonor: 7, dailyTech: 11 }),
     ];
 
-    const embed = renderOverview(allianceWith(roster), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf(roster).embeds[0];
 
     expect(fieldValue(embed, "Top Weekly Activity")).toBe("1. Di · 90\n2. Ben · 70\n3. Gi · 60\n4. Ed · 50\n5. Ann · 30");
     expect(fieldValue(embed, "Top Daily Honor")).toBe("1. Gi · 7\n2. Fi · 6\n3. Ed · 5\n4. Di · 4\n5. Cy · 3");
@@ -162,37 +186,65 @@ describe("renderOverview: the Alliance Overview embed", () => {
       member("100000000008", "Hal"),
     ];
 
-    const embed = renderOverview(allianceWith(roster), SESSION, 0, NOW).embeds[0];
+    const embed = overviewOf(roster).embeds[0];
 
     expect(fieldValue(embed, "Least Active")).toBe("1. Cy · 10\n2. Fi · 20\n3. Ann · 30\n4. Ed · 50\n5. Gi · 60");
   });
 
   test("escapes markdown in the names of the lists", () => {
-    const embed = renderOverview(allianceWith([member("100000000001", "*Vex*", { weeklyActivity: 5 })]), SESSION, 0, NOW)
-      .embeds[0];
+    const embed = overviewOf([member("100000000001", "*Vex*", { weeklyActivity: 5 })]).embeds[0];
 
     expect(fieldValue(embed, "Least Active")).toBe("1. \\*Vex\\* · 5");
   });
 
   test("shows no uid anywhere in the reply", () => {
-    const reply = renderOverview(allianceWith([alpha, beta, gamma, delta]), SESSION, 0, NOW);
+    const reply = overviewOf([alpha, beta, gamma, delta]);
 
     const text = JSON.stringify(reply);
     expect(text).not.toContain("179060285441");
     expect(text).not.toContain("93159425");
     expect(text).not.toContain("300000000001");
   });
+
+  test("shows when the roster was fetched in the footer, in UTC, as the card does", () => {
+    const reply = overviewOf([alpha]);
+
+    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker · as of 10:00 UTC");
+  });
+
+  test("shows the day and the month of a roster fetched on an earlier day", () => {
+    const reply = renderOverview(allianceWith([alpha]), new Date("2026-10-30T16:00:00Z"), NOW, SESSION, 0);
+
+    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker · as of 30 Oct 16:00 UTC");
+  });
+
+  test("keeps the whole reply within the message limit when names escape to twice their length and figures are long", () => {
+    const roster = Array.from({ length: 30 }, (_, index) =>
+      member(String(100_000_000_000 + index), "*".repeat(40), {
+        weeklyActivity: Number.MAX_SAFE_INTEGER - index,
+        dailyHonor: Number.MAX_SAFE_INTEGER - index,
+        dailyTech: Number.MAX_SAFE_INTEGER - index,
+        online: false,
+        lastOnlineAt: NOW,
+      }),
+    );
+
+    const reply = overviewOf(roster);
+
+    expect(reply.embeds[1]?.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX_LENGTH);
+    expect(totalCharacters(reply.embeds)).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
+  });
 });
 
 describe("renderOverview: the table page", () => {
   test("lists each member's name, Weekly Activity, Daily Honor, Daily Tech and last online in its description", () => {
-    const table = renderOverview(allianceWith([alpha]), SESSION, 0, NOW).embeds[1];
+    const table = overviewOf([alpha]).embeds[1];
 
     expect(table?.description).toBe("Alpha · 490 · 40 · 4,600 · <t:1793285439:R>");
   });
 
   test("shows online instead of a time for a member online now, and – for an unknown last online time", () => {
-    const table = renderOverview(allianceWith([beta, delta]), SESSION, 0, NOW).embeds[1];
+    const table = overviewOf([beta, delta]).embeds[1];
 
     expect(table?.description).toContain("Beta · 10 · 60 · 400 · online");
     expect(table?.description).toContain("Delta · no data · –");
@@ -203,8 +255,8 @@ describe("renderOverview: the table page", () => {
       member(String(100_000_000_000 + index), `Player ${index.toString()}`, { weeklyActivity: index + 1 }),
     );
 
-    const first = renderOverview(allianceWith(roster), SESSION, 0, NOW).embeds[1];
-    const second = renderOverview(allianceWith(roster), SESSION, 1, NOW).embeds[1];
+    const first = overviewOf(roster, 0).embeds[1];
+    const second = overviewOf(roster, 1).embeds[1];
 
     expect(first?.description?.split("\n")).toHaveLength(25);
     expect(second?.description?.split("\n")).toHaveLength(5);
@@ -213,7 +265,7 @@ describe("renderOverview: the table page", () => {
   });
 
   test("gives a member with no data last", () => {
-    const table = renderOverview(allianceWith([delta, gamma]), SESSION, 0, NOW).embeds[1];
+    const table = overviewOf([delta, gamma]).embeds[1];
 
     expect(table?.description?.split("\n")[0]).toContain("Gamma");
     expect(table?.description?.split("\n")[1]).toContain("Delta");
@@ -231,7 +283,7 @@ describe("renderOverview: the table page", () => {
       }),
     );
 
-    const reply = renderOverview(allianceWith(roster), SESSION, 0, NOW);
+    const reply = overviewOf(roster);
     const table = reply.embeds[1];
 
     expect(table?.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX_LENGTH);
@@ -257,13 +309,13 @@ describe("renderOverview: page buttons", () => {
   }
 
   test("has no page buttons when the table fits one page", () => {
-    const reply = renderOverview(allianceWith([alpha, beta]), SESSION, 0, NOW);
+    const reply = overviewOf([alpha, beta]);
 
     expect(reply.components).toEqual([]);
   });
 
   test("on the first of two pages, Previous is disabled and Next turns to page 2", () => {
-    const reply = renderOverview(allianceWith(thirty), SESSION, 0, NOW);
+    const reply = overviewOf(thirty, 0);
     const [previous, , next] = buttonsOf(reply.components);
 
     expect(reply.components).toHaveLength(1);
@@ -273,7 +325,7 @@ describe("renderOverview: page buttons", () => {
   });
 
   test("on the second of two pages, Previous turns to page 1 and Next is disabled", () => {
-    const reply = renderOverview(allianceWith(thirty), SESSION, 1, NOW);
+    const reply = overviewOf(thirty, 1);
     const [previous, , next] = buttonsOf(reply.components);
 
     expect(previous).toMatchObject({ custom_id: `overview:${SESSION}:0`, disabled: false });
