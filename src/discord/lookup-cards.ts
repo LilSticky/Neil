@@ -14,6 +14,7 @@ import {
 import { sortRoster } from "../domain/alliance-rank.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import { parseAllianceKey, type AllianceKey, type KingdomNumber, type PlayerName } from "../domain/lookup-input.js";
+import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 import {
   listedAllianceMatches,
   listedPlayerMatches,
@@ -43,8 +44,6 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 /** The accent color both cards use. */
 const CARD_COLOR = 0xb33a3a;
 const TRACKER_ORIGIN = "https://lastasylumtracker.com";
-/** A picture path the tracker serves: under /static/, of a picture extension, and no `..` (dots are not allowed). */
-const PICTURE_PATH = /^\/static\/[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/;
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -111,7 +110,7 @@ export function languageName(code: string): string {
 
 /** The full address of a picture the tracker serves, or undefined when the path is not a picture path. */
 export function trackerPicture(path: string | undefined): string | undefined {
-  if (path === undefined || !PICTURE_PATH.test(path)) return undefined;
+  if (path === undefined || !PICTURE_PATH_PATTERN.test(path)) return undefined;
   return `${TRACKER_ORIGIN}${path}`;
 }
 

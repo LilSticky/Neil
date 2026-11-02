@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 
 /** A Game API id: a JSON number in the recordings, or a string of digits. Always read back as a string. */
 const idSchema = z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]).transform((id) => String(id));
@@ -6,24 +7,26 @@ const idSchema = z.union([z.number().int().nonnegative(), z.string().regex(/^\d+
 /** A whole number that cannot be negative; any other value reads as undefined (the body is still valid). */
 const wholeCountSchema = z.number().int().nonnegative().optional().catch(undefined);
 
-/** Text that is not empty; any other value reads as undefined. */
-const textSchema = z.string().min(1).optional().catch(undefined);
+/**
+ * A language tag such as `ja`, `en`, `zh-Hans` or `pt-BR`: two or three letters, then up to three subtags of letters
+ * and digits. Any other text, or one too long to be a tag, reads as undefined.
+ */
+const languageSchema = z
+  .string()
+  .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/)
+  .optional()
+  .catch(undefined);
 
 /** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
 const MAX_DATE_SECONDS = 8_640_000_000_000;
 
-/** A Unix time in seconds a Date holds; any other value reads as undefined. */
-const unixSecondsSchema = z.number().int().nonnegative().max(MAX_DATE_SECONDS).optional().catch(undefined);
+/** A Unix time in seconds a Date holds, above the Unix epoch; 0 and any other value reads as undefined (unknown). */
+const unixSecondsSchema = z.number().int().positive().max(MAX_DATE_SECONDS).optional().catch(undefined);
 
 /**
- * A picture path under /static/, of a picture extension. Dots are not allowed in the directory part, so no `..` can
- * match; any other value reads as undefined.
+ * A picture path under /static/, of a picture extension (see PICTURE_PATH_PATTERN); any other value reads as undefined.
  */
-const picturePathSchema = z
-  .string()
-  .regex(/^\/static\/[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$/)
-  .optional()
-  .catch(undefined);
+const picturePathSchema = z.string().regex(PICTURE_PATH_PATTERN).optional().catch(undefined);
 
 const rosterRowSchema = z.object({
   uid: idSchema,
@@ -54,7 +57,7 @@ export const playerBodySchema = z.object({
   vip: wholeCountSchema,
   likes: wholeCountSchema,
   last_online_at: unixSecondsSchema,
-  language: textSchema,
+  language: languageSchema,
   x: wholeCountSchema,
   y: wholeCountSchema,
   avatar_url: picturePathSchema,
@@ -67,7 +70,7 @@ export type PlayerBody = z.infer<typeof playerBodySchema>;
  * One row of an Alliance's `members`; the name and the rank label may be null. The Kingdom (`kid`) and sanctuary level
  * (`lv`) read as absent when they are not whole numbers. The activity figures (`active`, `daily_honor`, `daily_tech`)
  * are null when the Game has no data, and read as absent when they are not whole numbers.
- * `last_online_at` is a Unix time in seconds, read as absent beyond the range a Date holds. `power` reads as absent
+ * `last_online_at` is a Unix time in seconds, read as absent when it is 0 or beyond the range a Date holds. `power` reads as absent
  * when it is not a whole number that cannot be negative.
  */
 const rosterMemberSchema = z.object({
@@ -81,7 +84,7 @@ const rosterMemberSchema = z.object({
   daily_honor: z.number().int().nullish().catch(undefined),
   daily_tech: z.number().int().nullish().catch(undefined),
   online: z.boolean().nullish().catch(undefined),
-  last_online_at: z.number().int().nonnegative().max(MAX_DATE_SECONDS).nullish().catch(undefined),
+  last_online_at: z.number().int().positive().max(MAX_DATE_SECONDS).nullish().catch(undefined),
 });
 
 export type RosterMemberBody = z.infer<typeof rosterMemberSchema>;
@@ -115,7 +118,7 @@ export const allianceBodySchema = z.object({
   level: wholeCountSchema,
   exp: wholeCountSchema,
   gift_level: wholeCountSchema,
-  language: textSchema,
+  language: languageSchema,
   /** Only `rank.rank` is read, a whole number of at least 1; the score is not read. */
   rank: z
     .object({ rank: z.number().int().min(1) })

@@ -77,6 +77,52 @@ describe("allianceBodySchema", () => {
   });
 });
 
+/** Language tags the Game may send, such as ja, en, zh-Hans or pt-BR. */
+const VALID_LANGUAGE_TAGS = ["ja", "en", "zh-Hans", "pt-BR"];
+
+/** Text that is too long for a language tag, or is not one; it reads as absent and the body is still accepted. */
+const UNREADABLE_LANGUAGES = [
+  { label: "a text of 1,100 characters", value: "a".repeat(1100) },
+  { label: "a text that is not a language tag", value: "ja jp!" },
+  { label: "a text of digits", value: "123" },
+];
+
+describe("language tags", () => {
+  test.each(VALID_LANGUAGE_TAGS)("keeps the language tag %s of a Player", (language) => {
+    const parsed = playerBodySchema.safeParse({ ...playerInAlliance, language });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.language).toBe(language);
+  });
+
+  test.each(VALID_LANGUAGE_TAGS)("keeps the language tag %s of an Alliance", (language) => {
+    const parsed = allianceBodySchema.safeParse({ ...alliance, language });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.language).toBe(language);
+  });
+
+  test.each(UNREADABLE_LANGUAGES)(
+    "reads a Player language that is $label as absent, and still accepts the body",
+    ({ value }) => {
+      const parsed = playerBodySchema.safeParse({ ...playerInAlliance, language: value });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.language).toBeUndefined();
+    },
+  );
+
+  test.each(UNREADABLE_LANGUAGES)(
+    "reads an Alliance language that is $label as absent, and still accepts the body",
+    ({ value }) => {
+      const parsed = allianceBodySchema.safeParse({ ...alliance, language: value });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.language).toBeUndefined();
+    },
+  );
+});
+
 describe("allianceBodySchema roster", () => {
   test("reads each member of the recorded roster as uid, nick_name and rank_label, with the uid as a string", () => {
     const parsed = allianceBodySchema.parse(alliance);
@@ -197,6 +243,17 @@ describe("allianceBodySchema roster", () => {
     const body = {
       ...alliance,
       members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: Number.MAX_SAFE_INTEGER }],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
+  });
+
+  test("reads a last_online_at of 0 as absent, not as the Unix epoch, and keeps the member", () => {
+    const body = {
+      ...alliance,
+      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: 0 }],
     };
 
     const parsed = allianceBodySchema.parse(body);

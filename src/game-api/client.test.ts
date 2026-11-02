@@ -602,6 +602,18 @@ describe("GameApiClient.getAlliance result", () => {
     expect(result.value.roster[0]?.lastOnlineAt).toBeUndefined();
   });
 
+  test("a last_online_at of 0 for a roster member reads as an unknown time, not the Unix epoch", async () => {
+    const [first, ...others] = alliance.members;
+    if (first === undefined) throw new Error("the recorded alliance has no members");
+    const body = { ...alliance, members: [{ ...first, last_online_at: 0 }, ...others] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
+    expect(result.value.roster[0]?.lastOnlineAt).toBeUndefined();
+  });
+
   test("a roster member's activity figures read as undefined when the Game gives none", async () => {
     const [first, ...others] = alliance.members;
     if (first === undefined) throw new Error("the recorded alliance has no members");
@@ -1776,6 +1788,7 @@ const UNREADABLE_TIME: readonly UnreadableValue[] = [
   { label: "a text", value: "1793154302" },
   { label: "a fraction", value: 1793154302.5 },
   { label: "a time beyond the range of a Date", value: Number.MAX_SAFE_INTEGER },
+  { label: "zero", value: 0 },
 ];
 
 const UNREADABLE_TEXT: readonly UnreadableValue[] = [
@@ -1783,6 +1796,9 @@ const UNREADABLE_TEXT: readonly UnreadableValue[] = [
   NULL_VALUE,
   { label: "an empty text", value: "" },
   { label: "a number", value: 12 },
+  { label: "a text of 1,100 characters", value: "a".repeat(1100) },
+  { label: "a text that is not a language tag", value: "ja jp!" },
+  { label: "a text of digits", value: "123" },
 ];
 
 /** A picture path: under /static/, no "..", and one of the picture extensions. */

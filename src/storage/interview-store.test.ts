@@ -322,6 +322,33 @@ describe("InterviewStore", () => {
     expect(store.due(RESETS_AT).interviews).toEqual([paused]);
   });
 
+  test("save stores the Player without its details, and the Player read back keeps its other fields", () => {
+    const store = new InterviewStore(db, TIMEOUT_MS);
+    const recommending = createdOf(store.create(DRAFT, NOW));
+    const withDetails: Player = {
+      ...PLAYER,
+      details: {
+        kills: 4420,
+        vipLevel: 4,
+        likes: 110,
+        lastOnlineAt: new Date("2026-10-28T02:25:02Z"),
+        language: "en",
+        location: { x: 807, y: 846 },
+        avatarPath: "/static/avatars/head_90002.png",
+        kingdomBadgePath: "/static/kingdom/badge_1.png",
+      },
+    };
+    const recommended = recommendationFound(recommending, { kind: "one", player: withDetails }, LATER).interview;
+    if (recommended.step !== "awaiting-recommendation") throw new Error("the test Interview does not recommend a Player");
+
+    store.save(recommended);
+
+    const row = db.prepare("SELECT player_json FROM onboarding_interview WHERE id = ?").get(recommended.id);
+    expect(JSON.stringify(row)).toContain("player_json");
+    expect(JSON.stringify(row)).not.toContain("details");
+    expect(store.get(recommended.id)).toEqual({ ...recommended, recommended: PLAYER });
+  });
+
   test("due lists only open Interviews whose due time has come, not checking or ended ones", () => {
     const store = new InterviewStore(db, TIMEOUT_MS);
     const asking = startedAwaitingUid(store, DRAFT, NOW);

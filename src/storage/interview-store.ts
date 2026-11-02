@@ -453,6 +453,19 @@ function interviewOf(raw: unknown): OnboardingInterview | undefined {
   }
 }
 
+/** A Player as its JSON column keeps it: the playerRecord fields only, never the details the Interview does not read back. */
+function playerJson(player: Player): string {
+  return JSON.stringify({
+    uid: player.uid,
+    name: player.name,
+    kingdom: player.kingdom,
+    power: player.power,
+    sanctuaryLevel: player.sanctuaryLevel,
+    alliance: player.alliance,
+    allianceRank: player.allianceRank,
+  });
+}
+
 /** The chosen uid and its Player, when the Member chose one; undefined when the columns do not fit together. */
 function chosenOf(uid: Uid | null, playerJson: string | null): { readonly chosen?: Chosen } | undefined {
   if (uid === null) return playerJson === null ? {} : undefined;
@@ -525,7 +538,7 @@ function chosenColumnsOf(chosen: Chosen | undefined): Pick<RowValues, "chosen_ui
   if (chosen === undefined) return { chosen_uid: null, chosen_player_json: null };
   return {
     chosen_uid: chosen.uid,
-    chosen_player_json: chosen.player === undefined ? null : JSON.stringify(chosen.player),
+    chosen_player_json: chosen.player === undefined ? null : playerJson(chosen.player),
   };
 }
 
@@ -546,7 +559,7 @@ function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
       return {
         ...common,
         ...NO_STEP_FIELDS,
-        player_json: JSON.stringify(interview.recommended),
+        player_json: playerJson(interview.recommended),
         last_asked_at: interview.lastAskedAt.toISOString(),
       };
     case "awaiting-pick":
@@ -576,7 +589,7 @@ function rowOf(interview: OnboardingInterview, timeoutMs: number): RowValues {
         ...common,
         ...NO_STEP_FIELDS,
         uid: interview.player.uid,
-        player_json: JSON.stringify(interview.player),
+        player_json: playerJson(interview.player),
         chosen_uid: interview.confirmedByChoice === true ? interview.player.uid : null,
         last_asked_at: interview.lastAskedAt.toISOString(),
       };
