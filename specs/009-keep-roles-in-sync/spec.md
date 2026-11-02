@@ -93,7 +93,7 @@ summary says "1 left".
 - **FR-005**: The Daily Sync MUST use at most `SYNC_SHARE` requests per day (default 500) and never the Quota Reserve;
   Members left over come first the next day.
 - **FR-006**: Each changed Member MUST get one log line (what changed); each run MUST end with one summary line.
-- **FR-007**: The Daily Sync MUST NOT start Rank Approvals, unlink, or remove Links.
+- **FR-007**: The Daily Sync MUST NOT start Rank Approvals, unlink, or remove Links. *(Narrowed by slice 010: Members no longer on the server are Unlinked.)*
 
 ## Success Criteria *(mandatory)*
 
