@@ -95,6 +95,8 @@ restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-th
 See [discovery/initial.md](discovery/initial.md#open-questions): which Discord roles exist and which Neil
 may manage (needed by slice 006); (Wispbyte's disk persistence: answered yes in slice 001.)
 
+**Roadmap (2026-11-03):** REAPER (an R5-kept exile list and a command for the closest unshielded exile) added to Later; its open questions are in [#35](https://github.com/LilSticky/Neil/issues/35).
+
 ## Standing notes
 
 - Sessions wrap up before the plan limit: `.claude/hooks/usage-guard.mjs` tells a session once, at 95% of the

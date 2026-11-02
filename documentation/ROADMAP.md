@@ -26,7 +26,12 @@ States: `planned` · `in progress` · `in review` · `done`
 
 ## Later (unordered)
 
-- None.
+- **REAPER: Roster of Exiled Antagonists, Pervs, Evildoers & Reprobates.** Lets the R5s keep a list of
+  Players the server's community has exiled for being malicious (add and remove), and any Member find the
+  closest unshielded exile, with their coordinates. Domain: exile list, closest unshielded exile (terms
+  to agree in the dictionary). Adapters: slash commands, storage, Game API coordinates (`x`/`y`).
+  Open questions in [#35](https://github.com/LilSticky/Neil/issues/35); notably the Game API's `shielding` has always read 0 (GAME-API.md), so
+  shield state may not be knowable.
 
 ## Project infrastructure (not slices)
 
