@@ -42,14 +42,16 @@ Member (`/unlink member:`), a Member can Unlink themselves (`/unlink`), an Offic
 (`/rank`, stored with the Officer; the Daily Sync keeps it while the game lists no rank) and can Link a Member whose
 Interview was handed off, from a uid after confirming the Player (`/link`, an Officer Link). Each correction posts one
 log line naming who made it. The Member re-check was cut (the Daily Sync covers it). New commands: `npm run commands:register`
-is needed again ([HOSTING.md](HOSTING.md)). Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6g. Review (T009) and
-audit are pending; the PR is to come.
+is needed for /unlink, /rank and /link ([HOSTING.md](HOSTING.md)). Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6g.
+Reviewed (1 must, 3 should, 3 could fixed; C3, hiding Officer commands, left open), audited; PR
+[#32](https://github.com/LilSticky/Neil/pull/32) (issue #31), 1766 tests. T001–T009 done; T010 (manual check, TEST-RUN.md §6g)
+waits for the user.
 
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
-**Next step (2026-11-02):** the user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b to 6g). The roadmap is empty after
-slice 011. #16, #22, #24, #26, #28, #30 and the 011 pull request stay open until then; then merge in order (#16, retarget
-and merge the next to `main`, and so on).
+**Next step (2026-11-02):** the roadmap has no slices left after 011. The user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b
+to 6g). The stack #16, #22, #24, #26, #28, #30 and #32 stays open until then; then merge in order (#16 first, retarget
+each next pull request to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
