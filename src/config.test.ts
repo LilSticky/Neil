@@ -54,6 +54,8 @@ describe("loadConfig", () => {
       dataDir: "/srv/neil",
       homeKingdom: 330,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
+      syncHourUtc: 3,
+      syncShare: 500,
     });
   });
 
@@ -471,6 +473,79 @@ describe("loadConfig", () => {
         "- LAP_TRACKER_API_KEY: required",
       ].join("\n"),
     );
+  });
+
+  describe("SYNC_HOUR_UTC", () => {
+    const rule = "must be a whole number from 0 to 23";
+
+    test("defaults to 3 (03:00 UTC) when it is not set", () => {
+      const config = loadConfig(validEnv());
+
+      expect(config.syncHourUtc).toBe(3);
+    });
+
+    test.each([
+      ["0", 0],
+      ["3", 3],
+      ["23", 23],
+    ])("exposes SYNC_HOUR_UTC %s as syncHourUtc %d", (value, syncHourUtc) => {
+      const config = loadConfig(validEnv({ SYNC_HOUR_UTC: value }));
+
+      expect(config.syncHourUtc).toBe(syncHourUtc);
+    });
+
+    test.each([
+      ["24", "24"],
+      ["-1 (negative)", "-1"],
+      ["a fraction", "3.5"],
+      ["words", "three"],
+    ])("rejects %s", (_label, value) => {
+      const error = failureOf(validEnv({ SYNC_HOUR_UTC: value }));
+
+      expect(error.problems).toEqual([`SYNC_HOUR_UTC: ${rule}`]);
+    });
+
+    test("never shows the SYNC_HOUR_UTC value when it is invalid", () => {
+      const error = failureOf(validEnv({ SYNC_HOUR_UTC: "4242" }));
+
+      expect(error.message).not.toContain("4242");
+    });
+  });
+
+  describe("SYNC_SHARE", () => {
+    const rule = "must be a whole number of at least 1";
+
+    test("defaults to 500 requests a day when it is not set", () => {
+      const config = loadConfig(validEnv());
+
+      expect(config.syncShare).toBe(500);
+    });
+
+    test.each([
+      ["1", 1],
+      ["2500", 2500],
+    ])("exposes SYNC_SHARE %s as syncShare %d", (value, syncShare) => {
+      const config = loadConfig(validEnv({ SYNC_SHARE: value }));
+
+      expect(config.syncShare).toBe(syncShare);
+    });
+
+    test.each([
+      ["0", "0"],
+      ["-5 (negative)", "-5"],
+      ["a fraction", "1.5"],
+      ["words", "lots"],
+    ])("rejects %s", (_label, value) => {
+      const error = failureOf(validEnv({ SYNC_SHARE: value }));
+
+      expect(error.problems).toEqual([`SYNC_SHARE: ${rule}`]);
+    });
+
+    test("never shows the SYNC_SHARE value when it is invalid", () => {
+      const error = failureOf(validEnv({ SYNC_SHARE: "314.15" }));
+
+      expect(error.message).not.toContain("314.15");
+    });
   });
 
   test("never shows the token value when other settings are invalid", () => {

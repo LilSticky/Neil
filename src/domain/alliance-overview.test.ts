@@ -25,6 +25,8 @@ function member(name: string, figures: Figures = {}): RosterEntry {
     uid: parsed.value,
     name,
     allianceRank: "R1",
+    kingdom: undefined,
+    sanctuaryLevel: undefined,
     weeklyActivity: figures.weeklyActivity,
     dailyHonor: figures.dailyHonor,
     dailyTech: figures.dailyTech,

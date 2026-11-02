@@ -489,7 +489,7 @@ describe("renderPlayerPickList with more than 25 matches", () => {
 });
 
 function rosterEntry(uidText: string, name: string, allianceRank: RosterEntry["allianceRank"]): RosterEntry {
-  return { uid: uid(uidText), name, allianceRank, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
+  return { uid: uid(uidText), name, allianceRank, kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
 }
 
 function fieldValue(embed: APIEmbed, name: string): string | undefined {
@@ -571,6 +571,8 @@ describe("renderAllianceCard with 100 long rows", () => {
     uid: uid((100_000_000_000_000 + index).toString()),
     name: `${"_".repeat(30)}${index.toString().padStart(2, "0")}`,
     allianceRank: RANKS[index % RANKS.length] ?? "unknown",
+    kingdom: undefined,
+    sanctuaryLevel: undefined,
     weeklyActivity: undefined,
     dailyHonor: undefined,
     dailyTech: undefined,

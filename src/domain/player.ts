@@ -35,6 +35,10 @@ export interface RosterEntry {
   readonly uid: Uid;
   readonly name: string;
   readonly allianceRank: AllianceRank;
+  /** The Kingdom the Member is in (`kid`); undefined when the Game gives none. */
+  readonly kingdom: KingdomNumber | undefined;
+  /** The Member's sanctuary level (`lv`); undefined when the Game gives none. */
+  readonly sanctuaryLevel: number | undefined;
   /** Weekly Activity points (`active`). */
   readonly weeklyActivity: number | undefined;
   /** Today's Daily Honor (`daily_honor`). */

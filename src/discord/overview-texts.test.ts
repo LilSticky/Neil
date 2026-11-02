@@ -38,6 +38,8 @@ function member(uidText: string, name: string, figures: Figures = {}): RosterEnt
     uid: uid(uidText),
     name,
     allianceRank: "R3",
+    kingdom: undefined,
+    sanctuaryLevel: undefined,
     weeklyActivity: figures.weeklyActivity,
     dailyHonor: figures.dailyHonor,
     dailyTech: figures.dailyTech,

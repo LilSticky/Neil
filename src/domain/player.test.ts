@@ -129,7 +129,7 @@ describe("Alliance and RosterEntry", () => {
   });
 
   test("a roster row holds the uid, the name and the Alliance Rank of one Player", () => {
-    const row: RosterEntry = { uid: uidOf("145563254785"), name: "DrLol", allianceRank: "R4", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
+    const row: RosterEntry = { uid: uidOf("145563254785"), name: "DrLol", allianceRank: "R4", kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
     const alliance: Alliance = {
       tag: "NML",
       name: "No Man's Land",

@@ -254,6 +254,8 @@ const ROSTER: readonly RosterEntry[] = Array.from({ length: 30 }, (_value, index
   uid: uid((100_000_000_000 + index).toString()),
   name: `M${index.toString().padStart(2, "0")}`,
   allianceRank: "R4",
+  kingdom: undefined,
+  sanctuaryLevel: undefined,
   weeklyActivity: undefined,
   dailyHonor: undefined,
   dailyTech: undefined,

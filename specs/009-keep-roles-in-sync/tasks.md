@@ -22,10 +22,10 @@ description: "Task list for slice 009, Keep roles in sync"
 
 ## Tasks
 
-- [ ] T001 Test then implement config `SYNC_HOUR_UTC`, `SYNC_SHARE` (`src/config.ts`, env.example).
-- [ ] T002 [P] Test `src/domain/daily-quota.test.ts` + quota-keeper: purpose `"sync"` refused at the reserve. Implement.
-- [ ] T003 [P] Test schemas/client: roster `kid`/`lv` → `kingdom`/`sanctuaryLevel` (recorded fixture). Implement.
-- [ ] T004 Test `src/domain/daily-sync.test.ts`: planSync grouping and left-over first; playerFromRoster; rankAfterSync
+- [x] T001 Test then implement config `SYNC_HOUR_UTC`, `SYNC_SHARE` (`src/config.ts`, env.example).
+- [x] T002 [P] Test `src/domain/daily-quota.test.ts` + quota-keeper: purpose `"sync"` refused at the reserve. Implement.
+- [x] T003 [P] Test schemas/client: roster `kid`/`lv` → `kingdom`/`sanctuaryLevel` (recorded fixture). Implement.
+- [x] T004 Test `src/domain/daily-sync.test.ts`: planSync grouping and left-over first; playerFromRoster; rankAfterSync
   (every FR-004 case); isDue (before/after hour, already ran today, missed hour). Implement.
 - [ ] T005 Test storage: migration 7, v6 upgrade; applied keeps the last Alliance; `LinkStore.updateRank`; daily_sync
   record and left-over round-trip. Implement.
