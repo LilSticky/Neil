@@ -4,7 +4,7 @@ Reviewer: `bot-reviewer` (2026-11-02), diff `010-say-goodbye...011-correct-a-lin
 
 ## Must
 
-- [ ] M1 Unlink races with apply. In `src/discord/unlink.ts:55-58`, Neil takes the roles and nickname off first and
+- [x] M1 Unlink races with apply. In `src/discord/unlink.ts:55-58`, Neil takes the roles and nickname off first and
   only then deletes the Link (`links.unlink`). An apply that has already read the Link can run in that gap and put
   roles back on Discord: `approveRank` from /rank, `name-and-roles.ts:180-189` during `getPlayer`, `syncTo:215`,
   `applyTo:245`, or `onLinked`. Its `applied.record` then fails on the foreign key, so nothing tracks those roles any
@@ -13,23 +13,24 @@ Reviewer: `bot-reviewer` (2026-11-02), diff `010-say-goodbye...011-correct-a-lin
 
 ## Should
 
-- [ ] S1 `src/discord/corrections.ts:299-326` confirmLink: the button is not acknowledged until after `isOnServer` (a
+- [x] S1 `src/discord/corrections.ts:299-326` confirmLink: the button is not acknowledged until after `isOnServer` (a
   REST fetch on a cache miss), `leaderPing` (another fetch) and the store. Under REST rate limiting this can take
   longer than Discord's 3 seconds. Fix: `deferUpdate()` first, then `editReply`/`followUp` (ephemeral) for a refusal.
-- [ ] S2 `src/domain/correction.ts:20` `mayCorrect` is unused; the handlers repeat its rules (`callerIsOfficer` plus
+- [x] S2 `src/domain/correction.ts:20` `mayCorrect` is unused; the handlers repeat its rules (`callerIsOfficer` plus
   the self check at `corrections.ts:251`, and `officerRank`). Fix: have the handlers call `mayCorrect`, or delete it.
-- [ ] S3 `corrections.ts:285-288`: the button checks only that the presser is the Officer who ran /link, not that they
+- [x] S3 `corrections.ts:285-288`: the button checks only that the presser is the Officer who ran /link, not that they
   are still an Officer (the role can be lost within the 5 minutes). Fix: also check the presser's roles.
 
 ## Could
 
-- [ ] C1 `corrections.ts:276` handleLinkButton: a `link:` customId that does not parse is never answered ("interaction
+- [x] C1 `corrections.ts:276` handleLinkButton: a `link:` customId that does not parse is never answered ("interaction
   failed"). Fix: reply with `linkEndedReply()`.
-- [ ] C2 `corrections.ts:288`: the confirmation is removed before confirmLink; a refusal leaves the card with live
+- [x] C2 `corrections.ts:288`: the confirmation is removed before confirmLink; a refusal leaves the card with live
   buttons, which then say "ended". Fix: `update` the card to an ended state when refusing.
 - [ ] C3 `src/discord/commands.ts:78,86` (/rank, /link): no `setDefaultMemberPermissions`, so every Member sees the
   Officer-only commands. Handler checks are correct; least privilege only.
-- [ ] C4 `src/storage/database.ts` migration 9: `linked_by TEXT` has no CHECK (snowflake or NULL); zod catches bad
+  Left open: visibility of Officer commands needs per-server permission overrides; handler checks stand.
+- [x] C4 `src/storage/database.ts` migration 9: `linked_by TEXT` has no CHECK (snowflake or NULL); zod catches bad
   values on read. Fix: `CHECK (linked_by IS NULL OR linked_by GLOB '[0-9]*')`.
 
 ## Checked and clean

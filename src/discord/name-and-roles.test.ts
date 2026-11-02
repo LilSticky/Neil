@@ -89,6 +89,7 @@ class FakeGameApi {
   readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
   private answer: LookupResult<Player> = { kind: "not-found" };
   private readonly answers = new Map<string, LookupResult<Player>>();
+  private hold: { readonly reached: () => void; readonly released: Promise<void> } | undefined = undefined;
 
   answerWith(result: LookupResult<Player>): void {
     this.answer = result;
@@ -99,9 +100,28 @@ class FakeGameApi {
     this.answers.set(String(uid), result);
   }
 
+  /** Holds the next lookup until the test releases it; the answer is then given as usual. */
+  holdNextLookup(): { readonly reached: Promise<void>; readonly release: () => void } {
+    let reached: () => void = () => undefined;
+    const reachedPromise = new Promise<void>((done) => {
+      reached = done;
+    });
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((done) => {
+      release = done;
+    });
+    this.hold = { reached, released };
+    return { reached: reachedPromise, release };
+  }
+
   getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     this.lookups.push({ uid, purpose });
-    return Promise.resolve(this.answers.get(String(uid)) ?? this.answer);
+    const answer = this.answers.get(String(uid)) ?? this.answer;
+    const hold = this.hold;
+    if (hold === undefined) return Promise.resolve(answer);
+    this.hold = undefined;
+    hold.reached();
+    return hold.released.then(() => answer);
   }
 }
 
@@ -195,6 +215,22 @@ describe("createNameAndRoles", () => {
   });
 
   describe("onLinked", () => {
+    test("a Link ended while the Member is being fetched gives the Member no nickname, roles or applied state", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      const fetch = h.server.holdNextLookup();
+
+      const applying = h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
+      await fetch.reached;
+      h.links.unlink(ALICE);
+      fetch.release();
+      await applying;
+
+      expect(alice.nickname).toBeUndefined();
+      expect(heldNames(alice)).toEqual([]);
+      expect(h.applied.get(ALICE)).toBeUndefined();
+    });
+
     test("sets the nickname and gives exactly the Managed Roles that fit the Player, with no Game API request", async () => {
       const alice = joinAlice(h);
       linkAlice(h);
@@ -401,6 +437,23 @@ describe("createNameAndRoles", () => {
   });
 
   describe("atStartup", () => {
+    test("a Link ended while the lookup is in flight at startup gives the Member no nickname or roles", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      const lookup = h.gameApi.holdNextLookup();
+
+      const starting = h.service.atStartup();
+      await lookup.reached;
+      h.links.unlink(ALICE);
+      lookup.release();
+      await starting;
+
+      expect(alice.nickname).toBeUndefined();
+      expect(heldNames(alice)).toEqual([]);
+      expect(h.applied.get(ALICE)).toBeUndefined();
+    });
+
     test("looks each Linked Member without a complete apply up once, with the lookup purpose, and applies the rank of the Link", async () => {
       const alice = joinMember(h, ALICE);
       const bob = joinMember(h, BOB);
@@ -632,6 +685,22 @@ describe("createNameAndRoles", () => {
   });
 
   describe("syncMember", () => {
+    test("a Link ended while the Member is being fetched gives the Member nothing, and reports no change", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      const fetch = h.server.holdNextLookup();
+
+      const syncing = h.service.syncMember(ALICE, ROGUE_R4, GAME_RANK_R4);
+      await fetch.reached;
+      h.links.unlink(ALICE);
+      fetch.release();
+
+      expect(await syncing).toBe(false);
+      expect(alice.nickname).toBeUndefined();
+      expect(heldNames(alice)).toEqual([]);
+      expect(h.applied.get(ALICE)).toBeUndefined();
+    });
+
     test("logs nothing for the owner, whose nickname is always skipped, when nothing else changed", async () => {
       joinMember(h, OWNER, ["#330", "NML", "R4", "T7"]);
       linkMember(h, OWNER, UID);
@@ -658,6 +727,23 @@ describe("createNameAndRoles", () => {
       expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "lookup" }]);
       expect(alice.nickname).toBe("[NML|R4] Rogue");
       expect(heldNames(alice)).toEqual(["#330", "NML", "R4", "T7"]);
+    });
+
+    test("a Link ended while the lookup is in flight gives the Member no nickname, roles or applied state", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h, APPROVED_R4);
+      h.gameApi.answerWith({ kind: "found", value: { ...ROGUE_R4, allianceRank: "unknown" }, fetchedAt: NOW });
+      const lookup = h.gameApi.holdNextLookup();
+
+      const approving = h.service.onRankApproved(ALICE);
+      await lookup.reached;
+      h.links.unlink(ALICE);
+      lookup.release();
+      await approving;
+
+      expect(alice.nickname).toBeUndefined();
+      expect(heldNames(alice)).toEqual([]);
+      expect(h.applied.get(ALICE)).toBeUndefined();
     });
 
     test("a Player the lookup does not return changes nothing and is logged", async () => {

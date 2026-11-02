@@ -12,10 +12,14 @@ import { MAX_FAILED_ATTEMPTS } from "../domain/onboarding-interview.js";
 import type { LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
+import { AppliedStore } from "../storage/applied-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { FakeRolesGuild } from "./__fakes__/roles-guild.js";
+import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
+import { createNameAndRoles } from "./name-and-roles.js";
 import {
   handleLink,
   handleLinkButton,
@@ -28,6 +32,7 @@ import {
 } from "./corrections.js";
 import type { ButtonMessage, Message, OfficerRoles, PrivateReply } from "./interview-texts.js";
 import { rankSetLogLine } from "./interview-texts.js";
+import { linkEndedReply } from "./corrections-texts.js";
 import type { PendingRankApproval } from "./rank-approval.js";
 
 function uidOf(digits: string): Uid {
@@ -40,6 +45,8 @@ const NOW = new Date("2026-11-02T10:00:00Z");
 const OFFICERS: OfficerRoles = { moderatorRoleId: "900000000000000001", kingRoleId: "900000000000000002" };
 const MEMBER_ROLE_ID = "900000000000000003";
 const OFFICER_ROLE_IDS = [OFFICERS.moderatorRoleId];
+/** The owner of the guild: Neil never changes the owner's nickname. */
+const OWNER_ID = "999999999999999999";
 
 const OFFICER: MemberId = "888888888888888888";
 const LINKED: MemberId = "111111111111111111";
@@ -107,13 +114,28 @@ class FakeChannels {
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
   readonly logs: BaseMessageOptions[] = [];
   readonly archived: string[] = [];
+  private logFailure: Error | undefined = undefined;
+  private readonly postFailures = new Map<string, Error>();
+
+  /** Every log line is refused from now on: the log channel cannot be written to. */
+  refuseLog(error: Error): void {
+    this.logFailure = error;
+  }
+
+  /** Posts to this thread are refused from now on: the thread is gone. */
+  refusePostsTo(threadId: string, error: Error): void {
+    this.postFailures.set(threadId, error);
+  }
 
   post(threadId: string, message: BaseMessageOptions): Promise<string> {
+    const failure = this.postFailures.get(threadId);
+    if (failure !== undefined) return Promise.reject(failure);
     this.posts.push({ threadId, message });
     return Promise.resolve(`message-${this.posts.length.toString()}`);
   }
 
   log(message: BaseMessageOptions): Promise<void> {
+    if (this.logFailure !== undefined) return Promise.reject(this.logFailure);
     this.logs.push(message);
     return Promise.resolve();
   }
@@ -125,6 +147,7 @@ class FakeChannels {
 }
 
 interface Harness {
+  readonly db: DatabaseSync;
   readonly links: LinkStore;
   readonly interviews: InterviewStore;
   readonly unlink: FakeUnlink;
@@ -142,6 +165,7 @@ function makeHarness(): Harness {
   const interviews = new InterviewStore(db, 60 * 60_000);
   const errors: string[] = [];
   return {
+    db,
     links,
     interviews,
     unlink: new FakeUnlink(links),
@@ -441,6 +465,163 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
 
     expect(contentOf(interaction.replies[0])).not.toContain("Daily Sync");
   });
+
+  test("still stores the rank, replies privately and re-applies the name and roles when the log channel refuses the line", async () => {
+    linkMember(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.channels.refuseLog(new Error("Missing Access"));
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
+    expect(h.links.linkFor(LINKED)?.allianceRank).toEqual(expect.objectContaining({ source: "rank-approval", rank: "R4" }));
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(contentOf(interaction.replies[0])).toContain("R4");
+    expect(h.nameAndRoles.approved).toEqual([LINKED]);
+  });
+});
+
+describe("handleRank: the name and roles it re-applies make one Game API lookup, with the lookup purpose", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("looks the Linked Member's Player up exactly once, from the lookup share", async () => {
+    linkMember(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    const members = new FakeServerMembers();
+    const guild = new FakeRolesGuild(OWNER_ID);
+    members.join(LINKED, guild, guild.member(LINKED, []));
+    const nameAndRoles = createNameAndRoles({
+      members,
+      applied: new AppliedStore(h.db),
+      links: h.links,
+      gameApi: h.gameApi,
+      unlink: h.unlink,
+      homeKingdom: KINGDOM,
+      troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
+      officerRoleIds: OFFICER_ROLE_IDS,
+      log: () => Promise.resolve(),
+      now: () => NOW,
+      logError: (line: string) => h.errors.push(line),
+    });
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, {
+      links: h.links,
+      channels: h.channels,
+      nameAndRoles,
+      officerRoles: OFFICERS,
+      now: () => NOW,
+      logError: (line) => h.errors.push(line),
+    });
+
+    expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
+  });
+});
+
+/* Confirm of an Officer Link, pressed by the Officer who asked: the press is acknowledged first, and a refusal is answered
+ * and ends the card. */
+
+describe("handleLinkButton: the press is acknowledged first, and its refusal ends the card", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("Confirm is acknowledged with deferUpdate before the Member is checked on the server", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    const button = await press(h, confirm, OFFICER);
+
+    expect(button.steps.slice(0, 2)).toEqual(["deferUpdate", "isOnServer"]);
+  });
+
+  test("a Confirm refused after the acknowledgement goes out as an ephemeral follow-up", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.onServer.delete(HANDED_OFF);
+
+    const button = await press(h, confirm, OFFICER);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ method: "followUp", flags: MessageFlags.Ephemeral })]);
+  });
+
+  test("a refused Confirm updates the card to an ended state, so no live buttons stay under it", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    linkMember(h, OTHER_LINKED, FOUND_UID, UNKNOWN_RANK);
+
+    const button = await press(h, confirm, OFFICER);
+
+    const updates = button.answers.filter((answer) => answer.method === "update");
+    expect(updates).toHaveLength(1);
+    expect(updates[0]?.content).toContain("Vera");
+  });
+
+  test("Confirm pressed by the asking Officer who no longer holds an Officer role is refused privately, and stores nothing", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    const button = await press(h, confirm, OFFICER, [MEMBER_ROLE_ID]);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+    expect(h.nameAndRoles.linked).toEqual([]);
+  });
+
+  test("a link: button whose custom id does not parse is answered privately that the link has ended", async () => {
+    const button = await press(h, "link:not-a-confirmation", OFFICER);
+
+    expect(privateAnswersOf(button)).toEqual([
+      expect.objectContaining({ content: linkEndedReply().content, flags: MessageFlags.Ephemeral }),
+    ]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+});
+
+describe("handleLinkButton: a failing channel does not stop the Officer Link", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("Confirm still stores the Officer Link when the Interview thread is gone", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.channels.refusePostsTo(`thread-of-${HANDED_OFF}`, new Error("Unknown Channel"));
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.links.linkFor(HANDED_OFF)).toEqual(
+      expect.objectContaining({ memberId: HANDED_OFF, uid: FOUND_UID, madeBy: { kind: "officer-link", officerId: OFFICER } }),
+    );
+    expect(h.interviews.latestFor(HANDED_OFF)).toMatchObject({ step: "linked", uid: FOUND_UID });
+  });
+
+  test("Confirm still applies the name and roles and archives the thread when the log channel refuses the line", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.channels.refuseLog(new Error("Missing Access"));
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.links.linkFor(HANDED_OFF)).toBeDefined();
+    expect(h.nameAndRoles.linked).toEqual([expect.objectContaining({ memberId: HANDED_OFF })]);
+    expect(h.channels.archived).toEqual([`thread-of-${HANDED_OFF}`]);
+  });
 });
 
 /* /link: an Officer Links a handed-off Member by hand, after confirming the Player shown. */
@@ -539,11 +720,23 @@ class FakeLinkInteraction implements LinkInteraction {
 /** A button press on the Officer Link card: records every answer, and an update of the card without privacy flags. */
 class FakeLinkButton implements LinkButtonInteraction {
   readonly answers: { readonly method: "reply" | "update" | "followUp"; readonly content: string; readonly flags?: MessageFlags.Ephemeral }[] = [];
+  /** The steps of the press in order: the acknowledgement, and each check that follows it. */
+  readonly steps: string[] = [];
 
   constructor(
     readonly customId: string,
     readonly user: { readonly id: string },
+    private readonly roleIds: readonly string[] = OFFICER_ROLE_IDS,
   ) {}
+
+  memberRoleIds(): readonly string[] {
+    return this.roleIds;
+  }
+
+  deferUpdate(): Promise<void> {
+    this.steps.push("deferUpdate");
+    return Promise.resolve();
+  }
 
   reply(message: PrivateReply): Promise<void> {
     this.answers.push({ method: "reply", content: message.content, flags: message.flags });
@@ -653,10 +846,25 @@ async function openCard(
   return { confirm, cancel };
 }
 
-/** Presses a button of the Officer Link card as the given user, and returns the press with its answers. */
-async function press(h: LinkHarness, customId: string, byUser: MemberId): Promise<FakeLinkButton> {
-  const button = new FakeLinkButton(customId, { id: byUser });
-  await handleLinkButton(button, confirmDeps(h));
+/**
+ * Presses a button of the Officer Link card as the given user, holding the roles given (an Officer's by default), and
+ * returns the press with its answers and steps.
+ */
+async function press(
+  h: LinkHarness,
+  customId: string,
+  byUser: MemberId,
+  roleIds: readonly string[] = OFFICER_ROLE_IDS,
+): Promise<FakeLinkButton> {
+  const button = new FakeLinkButton(customId, { id: byUser }, roleIds);
+  const deps = confirmDeps(h);
+  await handleLinkButton(button, {
+    ...deps,
+    isOnServer: (memberId: MemberId) => {
+      button.steps.push("isOnServer");
+      return deps.isOnServer(memberId);
+    },
+  });
   return button;
 }
 

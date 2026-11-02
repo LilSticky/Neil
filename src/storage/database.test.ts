@@ -30,6 +30,7 @@ describe("openDatabase", () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
+      { version: 10 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -51,6 +52,7 @@ describe("openDatabase", () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
+      { version: 10 },
     ]);
     db.close();
   });
@@ -60,7 +62,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 9");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 10");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -175,6 +177,7 @@ describe("openDatabase", () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
+      { version: 10 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -312,7 +315,30 @@ describe("openDatabase", () => {
     }
   });
 
-  test("upgrades a version 8 database to 9 and keeps its Links, which read as made from In-game Proof", () => {
+  test("migration 10 lets linked_by be NULL or digits only, on insert and on update", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, linked_by) VALUES (?, ?, ?, ?, ?)");
+      const linkedAt = "2026-10-29T12:00:00.000Z";
+
+      expect(() => insert.run("member-1", "uid-1", linkedAt, "unknown", "officer-1")).toThrow();
+      expect(() => insert.run("member-2", "uid-2", linkedAt, "unknown", "")).toThrow();
+      expect(() => insert.run("member-3", "uid-3", linkedAt, "unknown", "12a")).toThrow();
+      insert.run("member-4", "uid-4", linkedAt, "unknown", "888888888888888888");
+      insert.run("member-5", "uid-5", linkedAt, "unknown", null);
+
+      const update = db.prepare("UPDATE link SET linked_by = ? WHERE member_id = ?");
+      expect(() => update.run("officer-1", "member-5")).toThrow();
+      update.run("888888888888888888", "member-5");
+      expect(db.prepare("SELECT linked_by FROM link WHERE member_id = 'member-5'").get()).toEqual({
+        linked_by: "888888888888888888",
+      });
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 8 database and keeps its Links, which read as made from In-game Proof", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
     legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v8.sql"), "utf8"));
     legacy
@@ -332,6 +358,7 @@ describe("openDatabase", () => {
         { version: 7 },
         { version: 8 },
         { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -364,6 +391,7 @@ describe("openDatabase", () => {
         { version: 7 },
         { version: 8 },
         { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -399,6 +427,7 @@ describe("openDatabase", () => {
         { version: 7 },
         { version: 8 },
         { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -434,6 +463,7 @@ describe("openDatabase", () => {
         { version: 7 },
         { version: 8 },
         { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -509,6 +539,7 @@ describe("openDatabase", () => {
       { version: 7 },
       { version: 8 },
       { version: 9 },
+      { version: 10 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),

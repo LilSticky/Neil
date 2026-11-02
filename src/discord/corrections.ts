@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { MessageFlags } from "discord.js";
+import { mayCorrect, type Corrector } from "../domain/correction.js";
 import { needsRankApproval, officerRank, rankOnLink, type Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
 import { isOfficer } from "../domain/officer.js";
@@ -35,6 +36,7 @@ import {
   noAllianceReply,
   notHandedOffReply,
   notLinkedReply,
+  notOfficerButtonReply,
   notOfficerReply,
   ownLinkReply,
   parseLinkCustomId,
@@ -77,11 +79,17 @@ export interface LinkInteraction {
   editReply(message: Message | ButtonMessage): Promise<void>;
 }
 
-/** A press of an Officer Link card's button, as the corrections read it. */
+/**
+ * A press of an Officer Link card's button, as the corrections read it. The press is acknowledged with deferUpdate before
+ * any check, so every answer after it is a follow-up, and the card is replaced by an edit.
+ */
 export interface LinkButtonInteraction {
   readonly customId: string;
   readonly user: { readonly id: string };
-  reply(message: PrivateReply): Promise<void>;
+  memberRoleIds(): readonly string[];
+  deferUpdate(): Promise<void>;
+  /** A private answer to the press, after its acknowledgement. */
+  followUp(message: PrivateReply): Promise<void>;
   /** Replaces the card with a message that has no buttons. */
   update(message: Message): Promise<void>;
 }
@@ -135,6 +143,8 @@ const CONFIRMATION_MS = 5 * 60_000;
 /** An Officer Link the Officer has been shown and may confirm. */
 export interface PendingLink {
   readonly officerId: MemberId;
+  /** The Officer roles when the Officer Link was asked: a Confirm is refused from a Member who no longer holds one. */
+  readonly officerRoleIds: readonly string[];
   readonly memberId: MemberId;
   readonly uid: Uid;
   readonly player: Player;
@@ -173,9 +183,25 @@ export class PendingLinkConfirmations {
   }
 }
 
-/** Whether the caller holds an Officer role. */
-function callerIsOfficer(interaction: { memberRoleIds(): readonly string[] }, officerRoles: OfficerRoles): boolean {
-  return isOfficer(interaction.memberRoleIds(), [officerRoles.moderatorRoleId, officerRoles.kingRoleId]);
+/** The Officer roles of the server: the Moderator and the King. */
+function officerRoleIdsOf(officerRoles: OfficerRoles): readonly string[] {
+  return [officerRoles.moderatorRoleId, officerRoles.kingRoleId];
+}
+
+/** The caller of a command as a correction sees them: their id, and whether they hold an Officer role. */
+function correctorOf(
+  interaction: { readonly callerId: MemberId; memberRoleIds(): readonly string[] },
+  officerRoles: OfficerRoles,
+): Corrector {
+  return {
+    memberId: interaction.callerId,
+    isOfficer: isOfficer(interaction.memberRoleIds(), officerRoleIdsOf(officerRoles)),
+  };
+}
+
+/** Writes a log line of a correction. A log channel that refuses it is logged, and the correction stands. */
+async function logLine(logError: (line: string) => void, write: () => Promise<void>): Promise<void> {
+  await answer("the log line of a correction", { logError }, write);
 }
 
 /** Defers the reply privately, runs the command, and logs (never throws) what fails. */
@@ -197,16 +223,15 @@ function privately(
  */
 export function handleUnlink(interaction: CorrectionInteraction, deps: UnlinkCommandDeps): Promise<void> {
   return privately("/unlink", interaction, deps.logError, async () => {
-    const callerId = interaction.callerId;
-    const named = interaction.memberOption();
-    if (named === undefined || named === callerId) {
-      if (deps.links.linkFor(callerId) === undefined) return interaction.editReply(notLinkedReply(callerId));
-      await deps.unlink.unlink({ id: callerId }, "self");
+    const caller = correctorOf(interaction, deps.officerRoles);
+    const named = interaction.memberOption() ?? caller.memberId;
+    if (!mayCorrect("unlink", caller, named).ok) return interaction.editReply(notOfficerReply());
+    if (deps.links.linkFor(named) === undefined) return interaction.editReply(notLinkedReply(named));
+    if (named === caller.memberId) {
+      await deps.unlink.unlink({ id: named }, "self");
       return interaction.editReply(unlinkedSelfReply());
     }
-    if (!callerIsOfficer(interaction, deps.officerRoles)) return interaction.editReply(notOfficerReply());
-    if (deps.links.linkFor(named) === undefined) return interaction.editReply(notLinkedReply(named));
-    await deps.unlink.unlink({ id: named }, { kind: "officer", officerId: callerId });
+    await deps.unlink.unlink({ id: named }, { kind: "officer", officerId: caller.memberId });
     return interaction.editReply(unlinkedByOfficerReply(named));
   });
 }
@@ -217,22 +242,26 @@ export function handleUnlink(interaction: CorrectionInteraction, deps: UnlinkCom
  */
 export function handleRank(interaction: CorrectionInteraction, deps: RankCommandDeps): Promise<void> {
   return privately("/rank", interaction, deps.logError, async () => {
-    if (!callerIsOfficer(interaction, deps.officerRoles)) return interaction.editReply(notOfficerReply());
+    const caller = correctorOf(interaction, deps.officerRoles);
     const memberId = interaction.memberOption();
     const rank = asApprovableRank(interaction.rankOption() ?? "");
+    // Without a Member named, only the Officer check can refuse, so the caller stands in for the target.
+    const verdict = mayCorrect("rank-approval", caller, memberId ?? caller.memberId);
+    if (!verdict.ok && verdict.reason === "not-officer") return interaction.editReply(notOfficerReply());
     if (memberId === undefined || rank === undefined) return interaction.editReply(rankInputReply());
     const link = deps.links.linkFor(memberId);
     if (link === undefined) return interaction.editReply(notLinkedReply(memberId));
+    if (!verdict.ok) return interaction.editReply(ownLinkReply());
     const now = deps.now();
-    const decision = officerRank(link, rank, interaction.callerId, now);
+    const decision = officerRank(link, rank, caller.memberId, now);
     if (!decision.ok) {
       return interaction.editReply(decision.reason === "own-link" ? ownLinkReply() : noAllianceReply(memberId));
     }
-    const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: interaction.callerId }, now);
+    const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: caller.memberId }, now);
     if (settled !== undefined) {
-      await deps.channels.post(settled.threadId, rankSetInThreadMessage(interaction.callerId, memberId, rank));
+      await deps.channels.post(settled.threadId, rankSetInThreadMessage(caller.memberId, memberId, rank));
     }
-    await deps.channels.log(rankSetLogLine(interaction.callerId, memberId, rank));
+    await logLine(deps.logError, () => deps.channels.log(rankSetLogLine(caller.memberId, memberId, rank)));
     await interaction.editReply(rankSetReply(memberId, rank, decision.gameRank));
     await deps.nameAndRoles.onRankApproved(memberId);
   });
@@ -244,11 +273,14 @@ export function handleRank(interaction: CorrectionInteraction, deps: RankCommand
  */
 export function handleLink(interaction: LinkInteraction, deps: LinkCommandDeps): Promise<void> {
   return privately("/link", interaction, deps.logError, async () => {
-    if (!callerIsOfficer(interaction, deps.officerRoles)) return interaction.editReply(notOfficerReply());
+    const caller = correctorOf(interaction, deps.officerRoles);
     const memberId = interaction.memberOption();
     const uid = parseUid(interaction.uidOption() ?? "");
+    // Without a Member named, only the Officer check can refuse, so the caller stands in for the target.
+    const verdict = mayCorrect("officer-link", caller, memberId ?? caller.memberId);
+    if (!verdict.ok && verdict.reason === "not-officer") return interaction.editReply(notOfficerReply());
     if (memberId === undefined || !uid.ok) return interaction.editReply(linkInputReply());
-    if (memberId === interaction.callerId) return interaction.editReply(selfLinkReply());
+    if (!verdict.ok) return interaction.editReply(selfLinkReply());
     if (deps.interviews.latestFor(memberId)?.step !== "handed-off") {
       return interaction.editReply(notHandedOffReply(memberId));
     }
@@ -259,7 +291,13 @@ export function handleLink(interaction: LinkInteraction, deps: LinkCommandDeps):
     const result = await deps.gameApi.getPlayer(uid.value, "onboarding-interview");
     if (result.kind !== "found") return interaction.editReply(linkLookupFailureReply(result, uid.value, now));
     const confirmationId = deps.confirmations.add(
-      { officerId: interaction.callerId, memberId, uid: uid.value, player: result.value },
+      {
+        officerId: caller.memberId,
+        officerRoleIds: officerRoleIdsOf(deps.officerRoles),
+        memberId,
+        uid: uid.value,
+        player: result.value,
+      },
       now,
     );
     return interaction.editReply(linkCardMessage(confirmationId, memberId, result.value));
@@ -272,9 +310,13 @@ export function handleLink(interaction: LinkInteraction, deps: LinkCommandDeps):
  * nothing when the state has moved on.
  */
 export async function handleLinkButton(button: LinkButtonInteraction, deps: LinkButtonDeps): Promise<void> {
-  const parsed = parseLinkCustomId(button.customId);
-  if (parsed === undefined) return;
-  await answer("/link button", { logError: deps.logError }, () => pressLinkButton(button, parsed, deps));
+  await answer("/link button", { logError: deps.logError }, async () => {
+    // Acknowledged first: the checks below make Game API and Discord calls that may outlast Discord's three seconds.
+    await button.deferUpdate();
+    const parsed = parseLinkCustomId(button.customId);
+    if (parsed === undefined) return button.followUp(linkEndedReply());
+    await pressLinkButton(button, parsed, deps);
+  });
 }
 
 async function pressLinkButton(
@@ -283,8 +325,10 @@ async function pressLinkButton(
   deps: LinkButtonDeps,
 ): Promise<void> {
   const pending = deps.confirmations.get(press.confirmationId, deps.now());
-  if (pending === undefined) return button.reply(linkEndedReply());
-  if (pending.officerId !== button.user.id) return button.reply(linkNotYoursReply());
+  if (pending === undefined) return button.followUp(linkEndedReply());
+  if (pending.officerId !== button.user.id) return button.followUp(linkNotYoursReply());
+  // The Officer who asked may have lost the role since: only an Officer may press, as when the Link was asked.
+  if (!isOfficer(button.memberRoleIds(), pending.officerRoleIds)) return button.followUp(notOfficerButtonReply());
   deps.confirmations.remove(press.confirmationId);
   if (press.action === "cancel") {
     return button.update(linkCardEndedMessage(pending.memberId, pending.player, "cancelled"));
@@ -294,14 +338,18 @@ async function pressLinkButton(
 
 /**
  * Stores the Officer Link: the Link, the Interview as linked, and a pending Rank Approval when the rank is unknown, in one
- * transaction. A Member who left, or a state that moved on, is refused privately and nothing is stored.
+ * transaction. A Member who left, or a state that moved on, is refused privately, and the card ends with nothing stored.
  */
 async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, deps: LinkButtonDeps): Promise<void> {
   const now = deps.now();
   const { memberId, player } = pending;
-  if (!(await deps.isOnServer(memberId))) return button.reply(linkRefusedReply());
+  const refuse = async (): Promise<void> => {
+    await button.followUp(linkRefusedReply());
+    await button.update(linkCardEndedMessage(memberId, player, "refused"));
+  };
+  if (!(await deps.isOnServer(memberId))) return refuse();
   const latest = deps.interviews.latestFor(memberId);
-  if (latest === undefined) return button.reply(linkRefusedReply());
+  if (latest === undefined) return refuse();
   const link: Link = {
     memberId,
     uid: pending.uid,
@@ -321,7 +369,7 @@ async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, 
     "handed-off",
     draft === undefined ? { link } : { link, rankApproval: draft },
   );
-  if (outcome?.kind !== "linked") return button.reply(linkRefusedReply());
+  if (outcome?.kind !== "linked") return refuse();
   await button.update(linkCardEndedMessage(memberId, player, "linked"));
   await finishOfficerLink(deps, pending, latest.threadId, link, outcome.rankApproval);
 }
@@ -339,7 +387,9 @@ async function finishOfficerLink(
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
   await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
-  await deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId));
+  await logLine(deps.logError, () =>
+    deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)),
+  );
   try {
     await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);
   } catch (error) {

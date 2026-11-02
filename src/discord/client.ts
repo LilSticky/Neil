@@ -445,16 +445,23 @@ function correctionLike(command: ChatInputCommandInteraction): CorrectionInterac
   };
 }
 
-/** The discord.js button press as an Officer Link reads it; the card loses its buttons when it is updated. */
+/**
+ * The discord.js button press as an Officer Link reads it. The press is acknowledged with deferUpdate, so the card is then
+ * edited (not updated) and every answer is a follow-up.
+ */
 function linkButtonLike(button: ButtonInteraction): LinkButtonInteraction {
   return {
     customId: button.customId,
     user: button.user,
-    reply: async (message) => {
-      await button.reply(message);
+    memberRoleIds: () => memberRoleIds(button.member),
+    deferUpdate: async () => {
+      await button.deferUpdate();
+    },
+    followUp: async (message) => {
+      await button.followUp(message);
     },
     update: async (message) => {
-      await button.update({ ...message, components: [] });
+      await button.editReply({ ...message, components: [] });
     },
   };
 }

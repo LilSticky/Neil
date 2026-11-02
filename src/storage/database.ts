@@ -104,6 +104,14 @@ const migrations: readonly string[] = [
   // Migration 9: who made a Link (slice 011). NULL is In-game Proof, as every Link before it; an Officer Link names its
   // Officer.
   `ALTER TABLE link ADD COLUMN linked_by TEXT`,
+  // Migration 10: linked_by is a snowflake or NULL (slice 011, review C4). SQLite cannot add a CHECK to a column, so a
+  // trigger on each write refuses any other value.
+  `CREATE TRIGGER link_linked_by_on_insert BEFORE INSERT ON link
+     WHEN NEW.linked_by IS NOT NULL AND (NEW.linked_by = '' OR NEW.linked_by GLOB '*[^0-9]*')
+     BEGIN SELECT RAISE(ABORT, 'link.linked_by must be a snowflake or NULL'); END;
+   CREATE TRIGGER link_linked_by_on_update BEFORE UPDATE OF linked_by ON link
+     WHEN NEW.linked_by IS NOT NULL AND (NEW.linked_by = '' OR NEW.linked_by GLOB '*[^0-9]*')
+     BEGIN SELECT RAISE(ABORT, 'link.linked_by must be a snowflake or NULL'); END`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

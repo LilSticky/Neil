@@ -43,19 +43,20 @@ export function createUnlink(deps: UnlinkDeps): Unlink {
 }
 
 /**
- * Ends a Member's Link. For a Member on the server, Neil first takes off the Managed Roles and the nickname it set, then
- * cancels the Member's own pending Rank Approval; then the Link and its applied state are removed, and the Member is
- * logged, told privately (not when they Unlinked themselves), and the Rank Approvals waiting on them are handed on. Each
- * step is guarded, so a failure is logged and the next step still runs.
+ * Ends a Member's Link. The Link and its applied state are removed first. For a Member on the server, Neil then takes off
+ * the Managed Roles and the nickname it set, and cancels the Member's own pending Rank Approval. The Member is logged and
+ * told privately (not when they Unlinked themselves), and the Rank Approvals waiting on them are handed on. Each step is
+ * guarded, so a failure is logged and the next step still runs.
  */
 async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: UnlinkReason): Promise<void> {
   const applied = attempt(deps, memberId, "reading the applied state", () => deps.applied.get(memberId));
+  // The Link goes first, so an apply that is under way finds no Link and gives the Member nothing more.
+  const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {
     notChanged = await takeOffOnServer(deps, memberId, applied);
     await cancelOwnApproval(deps, memberId);
   }
-  const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
   if (removed !== undefined) {
     await attemptAsync(deps, memberId, "logging the Unlink", () =>
       deps.channels.log(unlinkedLogLine(memberId, removed.uid, applied?.nickname, reason, notChanged)),

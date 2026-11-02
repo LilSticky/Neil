@@ -2,6 +2,12 @@ import type { MemberId } from "../../domain/rank-approval.js";
 import type { ServerMember, ServerMembers } from "../name-and-roles.js";
 import type { FakeRolesGuild, FakeRolesMember } from "./roles-guild.js";
 
+/** A lookup held back: `reached` resolves when the lookup is made, and the answer comes only once `release` is called. */
+export interface HeldLookup {
+  readonly reached: Promise<void>;
+  readonly release: () => void;
+}
+
 /** The members of the server as the name and roles reach them: a member is on the server only when joined. */
 export class FakeServerMembers implements ServerMembers {
   /** Every lookup of a Member on the server, in order: a test counts how often a Member was fetched. */
@@ -9,6 +15,7 @@ export class FakeServerMembers implements ServerMembers {
   private readonly members = new Map<MemberId, ServerMember>();
   private readonly failures = new Map<MemberId, Error>();
   private failure: Error | undefined = undefined;
+  private hold: { readonly reached: () => void; readonly released: Promise<void> } | undefined = undefined;
 
   join(memberId: MemberId, guild: FakeRolesGuild, member: FakeRolesMember): void {
     this.members.set(memberId, { guild, member });
@@ -23,11 +30,30 @@ export class FakeServerMembers implements ServerMembers {
     this.failures.set(memberId, error);
   }
 
+  /** Holds the next lookup of a Member until the test releases it; the Member is then answered as usual. */
+  holdNextLookup(): HeldLookup {
+    let reached: () => void = () => undefined;
+    const reachedPromise = new Promise<void>((done) => {
+      reached = done;
+    });
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((done) => {
+      release = done;
+    });
+    this.hold = { reached, released };
+    return { reached: reachedPromise, release };
+  }
+
   memberOf(memberId: MemberId): Promise<ServerMember | undefined> {
     this.lookups.push(memberId);
     if (this.failure !== undefined) return Promise.reject(this.failure);
     const failure = this.failures.get(memberId);
     if (failure !== undefined) return Promise.reject(failure);
-    return Promise.resolve(this.members.get(memberId));
+    const answer = this.members.get(memberId);
+    const hold = this.hold;
+    if (hold === undefined) return Promise.resolve(answer);
+    this.hold = undefined;
+    hold.reached();
+    return hold.released.then(() => answer);
   }
 }

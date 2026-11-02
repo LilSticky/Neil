@@ -29,6 +29,11 @@ export function notOfficerReply(): Message {
   return replyText("Only an Officer can do that.");
 }
 
+/** The private reply to a button press by someone who no longer holds an Officer role. */
+export function notOfficerButtonReply(): PrivateReply {
+  return privateText("Only an Officer can do that.");
+}
+
 /** The private reply when the Member has no Link to end or to give a rank to. */
 export function notLinkedReply(memberId: MemberId): Message {
   return replyText(`<@${memberId}> is not Linked, so there is no Link to change.`);
@@ -143,8 +148,12 @@ function linkButton(
 }
 
 /** The Officer Link card once its confirmation is over: the Player and the outcome, without buttons. */
-export function linkCardEndedMessage(memberId: MemberId, player: Player, outcome: "linked" | "cancelled"): Message {
-  const verdict = outcome === "linked" ? `Linked <@${memberId}>.` : "Cancelled: nothing was linked.";
+export function linkCardEndedMessage(memberId: MemberId, player: Player, outcome: "linked" | "cancelled" | "refused"): Message {
+  const verdict = {
+    linked: `Linked <@${memberId}>.`,
+    cancelled: "Cancelled: nothing was linked.",
+    refused: "Refused: nothing was linked.",
+  }[outcome];
   return replyText(`${playerCardText(player)}\n${verdict}`);
 }
 

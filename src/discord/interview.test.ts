@@ -1136,6 +1136,18 @@ describe("createInterviews", () => {
       expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
     });
 
+    test("opens a new Interview after the Member Unlinked themselves", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+      await h.unlink.unlink({ id: MEMBER }, "self");
+      const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
+
+      await h.service.onCommand(command);
+
+      openInterviewIdOf(h, MEMBER);
+      expect(h.channels.opened).toEqual([{ id: MEMBER, username: "vex_fan" }]);
+      expect(command.replies).toEqual([interviewOpenedReply(THREAD)]);
+    });
+
     test("opens a new Interview after the last one was abandoned by the timeout", async () => {
       const abandonedId = await joinedMember(h);
       const open = h.interviews.get(abandonedId);

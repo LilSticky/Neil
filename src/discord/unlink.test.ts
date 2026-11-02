@@ -517,21 +517,21 @@ describe("createUnlink", () => {
     );
 
     test.each(CASES)(
-      "ends the Link and the applied state only after the roles are taken off, when %s Unlinks",
+      "ends the Link before the roles are taken off, so an apply that reads the Link meanwhile finds none, when %s Unlinks",
       async (_who, reason) => {
         linkMember(h, LEAVER_ID, LEAVER_UID);
         applyNickname(h, LEAVER_ID, "NML Rogue");
         const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
-        const stillLinkedAtRemoval: boolean[] = [];
+        const linkedAtRemoval: boolean[] = [];
         const removeRole = member.removeRole.bind(member);
         vi.spyOn(member, "removeRole").mockImplementation(async (role) => {
-          stillLinkedAtRemoval.push(h.links.linkFor(LEAVER_ID) !== undefined && h.applied.get(LEAVER_ID) !== undefined);
+          linkedAtRemoval.push(h.links.linkFor(LEAVER_ID) !== undefined);
           await removeRole(role);
         });
 
         await h.service.unlink(LEAVER, reason);
 
-        expect(stillLinkedAtRemoval).toEqual([true, true]);
+        expect(linkedAtRemoval).toEqual([false, false]);
         expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
         expect(h.applied.get(LEAVER_ID)).toBeUndefined();
       },
