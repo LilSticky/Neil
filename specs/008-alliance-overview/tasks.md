@@ -30,6 +30,6 @@ description: "Task list for slice 008, Alliance overview"
 - [x] T004 Test `src/discord/lookup-cards.test.ts` + `pick.test.ts` (+ client routing): "Overview" button on the
   Alliance card; press → private overview with no Game API call while the session holds the Alliance; session gone →
   one lookup (lookup purpose); failure → private try-again; page buttons only for the asker. Implement.
-- [ ] T005 Docs: TEST-RUN.md §6d (collected), GAME-API.md (fields used), ROADMAP, STATUS.
+- [x] T005 Docs: TEST-RUN.md §6d (collected), GAME-API.md (fields used), ROADMAP, STATUS.
 - [ ] T006 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
 - [ ] T007 Manual check collected in TEST-RUN.md §6d, run later by the user.

@@ -21,6 +21,10 @@ stacked on 006: Neil remembers Home Kingdom Alliances it sees (Known Alliances, 
 suggests them while typing, and a full name the Game API does not know gets a "Did you mean" pick list; `tag:` without
 a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6c.
 
+Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, stacked on 007: an "Overview" button on
+the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
+table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d.
+
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
 **Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
