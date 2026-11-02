@@ -27,7 +27,7 @@ const OFFICERS: OfficerRoles = { moderatorRoleId: "900000000000000001", kingRole
 
 /** The Member who leaves: a Linked Member, and the approver of the Rank Approvals of the others. */
 const LEAVER_ID: MemberId = "111111111111111111";
-const LEAVER = { id: LEAVER_ID, username: "vex" };
+const LEAVER = { id: LEAVER_ID };
 const ALICE: MemberId = "222222222222222222";
 const BOB: MemberId = "333333333333333333";
 const CAROL: MemberId = "444444444444444444";
@@ -190,7 +190,6 @@ describe("createUnlink", () => {
       channels,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
-      now: () => NOW,
       logError: (line: string) => {
         errors.push(line);
       },
@@ -343,7 +342,7 @@ describe("createUnlink", () => {
     });
 
     test("does nothing for a Member without a Link: no log line and no private message", async () => {
-      await expect(h.service.unlink({ id: STRANGER, username: "nobody" }, "left")).resolves.toBeUndefined();
+      await expect(h.service.unlink({ id: STRANGER }, "left")).resolves.toBeUndefined();
 
       expect(h.channels.logs).toEqual([]);
       expect(h.privateMessages.attempts).toEqual([]);
@@ -352,7 +351,7 @@ describe("createUnlink", () => {
     test("still hands on a pending Rank Approval the Member without a Link was the approver of", async () => {
       const alice = pendingApproval(h, ALICE, ALICE_UID, THREAD_ALICE, { kind: "member", memberId: STRANGER });
 
-      await h.service.unlink({ id: STRANGER, username: "nobody" }, "left");
+      await h.service.unlink({ id: STRANGER }, "left");
 
       expect(h.links.get(alice.id)).toMatchObject({ state: "pending", approver: { kind: "officers" } });
       expect(h.channels.logs).toEqual([]);

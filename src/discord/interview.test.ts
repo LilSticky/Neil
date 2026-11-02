@@ -49,6 +49,7 @@ import {
 } from "./interview-texts.js";
 import { createSweeper } from "./interview-sweeper.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { FakeUnlink } from "./__fakes__/unlink.js";
 import {
   createInterviews,
   type ButtonInteractionLike,
@@ -437,6 +438,7 @@ interface Harness {
   readonly gameApi: FakeGameApi;
   readonly rankApprovals: FakeRankApprovals;
   readonly nameAndRoles: FakeNameAndRoles;
+  readonly unlink: FakeUnlink;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
@@ -526,6 +528,7 @@ describe("createInterviews", () => {
     const gameApi = new FakeGameApi();
     const rankApprovals = new FakeRankApprovals();
     const nameAndRoles = new FakeNameAndRoles();
+    const unlink = new FakeUnlink(links);
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const deps: InterviewDeps = {
@@ -535,6 +538,7 @@ describe("createInterviews", () => {
       gameApi,
       rankApprovals,
       nameAndRoles,
+      unlink,
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
@@ -543,7 +547,7 @@ describe("createInterviews", () => {
       },
     };
     const service = createInterviews(deps);
-    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, onServer, errors, service, deps };
+    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, unlink, onServer, errors, service, deps };
   });
 
   afterEach(() => {
@@ -1668,6 +1672,45 @@ describe("createInterviews", () => {
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off" });
       expect(h.channels.logs).toHaveLength(logsBefore);
       expect(h.channels.lockedAndArchived).toEqual([]);
+    });
+
+    test("Unlinks a Linked Member as left, after their pending Rank Approval is cancelled", async () => {
+      const approval = await pendingRankApprovalOfMember(h);
+      let stateAtUnlink: string | undefined;
+      h.unlink.onCall = () => {
+        stateAtUnlink = h.links.get(approval.id)?.state;
+      };
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.unlink.calls).toEqual([{ memberId: MEMBER, reason: "left" }]);
+      expect(stateAtUnlink).toBe("cancelled");
+    });
+
+    test("Unlinks a Member with no Link as left too, after their open Interview is abandoned", async () => {
+      const interviewId = await joinedMember(h);
+      let stepAtUnlink: string | undefined;
+      h.unlink.onCall = () => {
+        stepAtUnlink = h.interviews.get(interviewId)?.step;
+      };
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.unlink.calls).toEqual([{ memberId: MEMBER, reason: "left" }]);
+      expect(stepAtUnlink).toBe("abandoned");
+    });
+
+    test("a Member who left and was Unlinked joins again and starts a new Onboarding Interview", async () => {
+      h.links.confirm(
+        { link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } },
+        () => undefined,
+      );
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.links.linkFor(MEMBER)).toBeUndefined();
+      expect(h.interviews.openFor(MEMBER)).toBeDefined();
     });
   });
 

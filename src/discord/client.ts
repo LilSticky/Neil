@@ -40,6 +40,7 @@ import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
+import { createUnlink } from "./unlink.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import {
   answer,
@@ -511,11 +512,23 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    const unlink = createUnlink({
+      links: options.links,
+      applied: options.applied,
+      channels,
+      sendPrivateMessage: async (memberId, message) => {
+        const user = await client.users.fetch(memberId);
+        await user.send(message);
+      },
+      officerRoles,
+      logError,
+    });
     const nameAndRoles = createNameAndRoles({
       members: serverMembersOf(guild),
       applied: options.applied,
       links: options.links,
       gameApi: options.gameApi,
+      unlink,
       homeKingdom: options.homeKingdom,
       troopBracketLevels: options.troopBracketLevels,
       officerRoleIds: options.officerRoleIds,
@@ -544,6 +557,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       officerRoles,
       rankApprovals,
       nameAndRoles,
+      unlink,
       isOnServer: (memberId) => guild.members.fetch(memberId).then(
         () => true,
         () => false,
@@ -569,6 +583,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
             members: serverMembersOf(guild),
             gameApi: options.gameApi,
             nameAndRoles,
+            unlink,
             share: options.syncShare,
             quotaReserve: options.quotaReserve,
             log: (message) => channels.log(message),

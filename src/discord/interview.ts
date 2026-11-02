@@ -30,6 +30,7 @@ import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../sto
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { RankApprovals } from "./rank-approval.js";
+import type { Unlink } from "./unlink.js";
 import {
   abandonedLogLine,
   alreadyLinkedMessage,
@@ -137,6 +138,7 @@ export interface InterviewDeps {
   readonly channels: OnboardingChannels;
   readonly rankApprovals: RankApprovals;
   readonly nameAndRoles: NameAndRoles;
+  readonly unlink: Unlink;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -406,13 +408,17 @@ function notLinkedToOther(deps: InterviewDeps, memberId: MemberId, match: Pickab
   return holder === undefined || holder === memberId;
 }
 
-/** A Member who left: the open Interview is abandoned as left, and the pending Rank Approval of their Link is cancelled. */
+/**
+ * A Member who left: the open Interview is abandoned as left, the pending Rank Approval of their Link is cancelled, and
+ * their Link is Unlinked as left.
+ */
 async function leaveServer(deps: InterviewDeps, member: LeftMember): Promise<void> {
   const now = deps.now();
   const interview = deps.interviews.openFor(member.id);
   if (interview !== undefined) await abandonOnLeave(deps, interview, member.username, now);
   const approval = deps.links.pendingFor(member.id);
   if (approval !== undefined) await cancelRankApproval(deps, approval, member.username, now);
+  await deps.unlink.unlink({ id: member.id }, "left");
 }
 
 async function abandonOnLeave(deps: InterviewDeps, interview: OpenInterview, username: string, now: Date): Promise<void> {

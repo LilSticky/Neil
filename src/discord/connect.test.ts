@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ChannelType, PermissionFlagsBits } from "discord.js";
+import { ChannelType, Events, PermissionFlagsBits } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { todaysQuota, utcDayOf, type RequestPurpose } from "../domain/daily-quota.js";
 import { parseUid, parseKingdom, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
@@ -17,6 +17,7 @@ import { LinkStore } from "../storage/link-store.js";
 import { FakeConnectGuild } from "./__fakes__/connect-guild.js";
 import { FakeClient } from "./__fakes__/discord-client.js";
 import { connect, type ConnectOptions } from "./client.js";
+import { unlinkedLogLine, unlinkedPrivateMessage } from "./unlink-texts.js";
 
 // connect creates a discord.js Client; the test replaces it with a fake that serves the guild the test sets.
 vi.mock("discord.js", async (importOriginal) => {
@@ -133,6 +134,8 @@ describe("connect", () => {
     gameApi = new FakeGameApi();
     connection = undefined;
     FakeClient.served = undefined;
+    FakeClient.directMessages = [];
+    FakeClient.refuseDirectMessages = false;
   });
 
   afterEach(async () => {
@@ -148,6 +151,24 @@ describe("connect", () => {
       { link: { memberId: ALICE, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" } } },
       () => undefined,
     );
+  }
+
+  /** Alice is Linked and applied: her nickname is the one Neil gave her. */
+  function linkAppliedAlice(): void {
+    linkAlice();
+    applied.record({ memberId: ALICE, nickname: "Rogue", roles: [], appliedAt: NOW, complete: true, alliance: undefined });
+  }
+
+  /** The member leaves the guild, as Discord reports it. */
+  function leave(memberId: string): void {
+    const client = FakeClient.latest;
+    if (client === undefined) throw new Error("connect created no client");
+    client.emit(Events.GuildMemberRemove, { id: memberId, user: { username: "vex" }, guild: { id: GUILD_ID } });
+  }
+
+  /** The log line Unlink writes for Alice, as the channel holds it. */
+  function aliceUnlinkLine(reason: "left" | "missing"): string {
+    return unlinkedLogLine(ALICE, UID, "Rogue", reason).content;
   }
 
   /** Today's Daily Sync is recorded as run, so connect does not start one: the lookups of these tests are the startup apply's only. */
@@ -267,6 +288,80 @@ describe("connect", () => {
     await vi.waitFor(() => {
       expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
     });
+  });
+
+  describe("a Linked Member who leaves", () => {
+    test("is Unlinked: the Link ends and the log line names the Member, the uid and the nickname", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(ALICE);
+      FakeClient.served = guild;
+      linkAppliedAlice();
+      recordDailySyncRunToday();
+      connection = await connect(TOKEN, connectOptions());
+
+      leave(ALICE);
+
+      await vi.waitFor(() => {
+        expect(guild.messagesIn(LOG_CHANNEL_ID)).toContain(aliceUnlinkLine("left"));
+      });
+      expect(links.linkFor(ALICE)).toBeUndefined();
+    });
+
+    test("is sent a private message that their Link ended", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(ALICE);
+      FakeClient.served = guild;
+      linkAppliedAlice();
+      recordDailySyncRunToday();
+      connection = await connect(TOKEN, connectOptions());
+
+      leave(ALICE);
+
+      await vi.waitFor(() => {
+        expect(FakeClient.directMessages).toEqual([{ userId: ALICE, content: unlinkedPrivateMessage().content }]);
+      });
+    });
+
+    test("is still Unlinked when Discord refuses the private message, and no error is logged", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(ALICE);
+      FakeClient.served = guild;
+      FakeClient.refuseDirectMessages = true;
+      linkAppliedAlice();
+      recordDailySyncRunToday();
+      connection = await connect(TOKEN, connectOptions());
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      try {
+        leave(ALICE);
+
+        await vi.waitFor(() => {
+          expect(guild.messagesIn(LOG_CHANNEL_ID)).toContain(aliceUnlinkLine("left"));
+        });
+        expect(links.linkFor(ALICE)).toBeUndefined();
+        expect(errorSpy).not.toHaveBeenCalled();
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+  });
+
+  test("at startup, a Linked Member Discord reports as not on the server is Unlinked, with no Game API request for them", async () => {
+    const guild = serverWith(SERVER_PERMISSIONS);
+    FakeClient.served = guild;
+    links.confirm(
+      { link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } },
+      () => undefined,
+    );
+    applied.record({ memberId: BOB, nickname: "Lupa", roles: [], appliedAt: NOW, complete: true, alliance: undefined });
+    recordDailySyncRunToday();
+
+    connection = await connect(TOKEN, connectOptions());
+
+    await vi.waitFor(() => {
+      expect(links.linkFor(BOB)).toBeUndefined();
+    });
+    expect(gameApi.lookups).toEqual([]);
   });
 
   test("disconnect stops a Daily Sync run in progress before its next request, and resolves once the run has ended", async () => {

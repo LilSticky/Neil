@@ -11,10 +11,9 @@ import {
   type UnlinkReason,
 } from "./unlink-texts.js";
 
-/** A Member as an Unlink needs them: the id to find their Link, the name for the log. */
+/** A Member as an Unlink needs them: the id, to find their Link and its applied state. */
 export interface UnlinkedMember {
   readonly id: MemberId;
-  readonly username: string;
 }
 
 /** The Unlink entry point the Discord client and the startup and Daily Sync checks route to. It never throws. */
@@ -29,7 +28,6 @@ export interface UnlinkDeps {
   readonly channels: Pick<OnboardingChannels, "log" | "post">;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
-  readonly now: () => Date;
   readonly logError: (line: string) => void;
 }
 

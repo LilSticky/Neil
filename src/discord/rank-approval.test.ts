@@ -378,6 +378,18 @@ describe("createRankApprovals", () => {
       expect(late.updates).toEqual([]);
     });
 
+    test("refuses the departed approver's old press once the Rank Approval went to the Officers, and changes nothing", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      const button = rankPress(approval.id, "R3", LEADER);
+
+      await h.service.onButton(button);
+
+      expect(button.replies).toEqual([rankNotAllowedReply()]);
+      expect(h.links.get(approval.id)).toMatchObject({ state: "pending" });
+      expect(h.links.linkFor(MEMBER)?.allianceRank).toEqual({ source: "unknown" });
+    });
+
     test("refuses a press on a Rank Approval that is already approved, and keeps the first rank", async () => {
       const approval = linkWithPendingApproval(h, { kind: "officers" });
       await h.service.announce(approval, PLAYER_UNKNOWN);
