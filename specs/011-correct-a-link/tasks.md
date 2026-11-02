@@ -55,7 +55,7 @@ description: "Task list for slice 011, Correct a link"
 - [x] T006 Test then implement `/rank`: stores and re-applies, settles a pending Rank Approval with a thread message,
   game-rank note, refusals (US3 AS1–6); Daily Sync keeps an Officer's rank while the game lists none and uses a game
   rank (SC-004).
-- [ ] T007 Test then implement `/link` and its buttons: lookup with the Interview purpose, confirm/cancel/expiry, stored
+- [x] T007 Test then implement `/link` and its buttons: lookup with the Interview purpose, confirm/cancel/expiry, stored
   as an Officer Link, Interview ended, name and roles, Rank Approval when unknown, log line; refusals (not handed off,
   uid taken, not found, unavailable, quota spent, self, not an Officer, Member gone) (US4 AS1–6).
 - [ ] T008 Docs: TEST-RUN.md §6g (collected), 005 spec FR-008 note, HOSTING.md (`commands:register`), ROADMAP, STATUS.

@@ -60,6 +60,8 @@ function handlers() {
     quota: vi.fn(() => Promise.resolve()),
     unlink: vi.fn(() => Promise.resolve()),
     rank: vi.fn(() => Promise.resolve()),
+    link: vi.fn(() => Promise.resolve()),
+    linkButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
@@ -180,6 +182,20 @@ describe("createClient", () => {
 
     expect(routed.rank).toHaveBeenCalledWith(interaction);
     expect(routed.unlink).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /link to the link handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("link");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.link).toHaveBeenCalledWith(interaction);
+    expect(routed.unlink).not.toHaveBeenCalled();
+    expect(routed.rank).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
   });
@@ -321,6 +337,19 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, interaction as never);
 
     expect(routed.interviewModal).toHaveBeenCalledWith(interaction);
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+    expect(routed.pick).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with link: to the link button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "link:7:confirm");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.linkButton).toHaveBeenCalledWith(interaction);
+    expect(routed.rankButton).not.toHaveBeenCalled();
     expect(routed.interviewButton).not.toHaveBeenCalled();
     expect(routed.pick).not.toHaveBeenCalled();
   });

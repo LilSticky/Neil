@@ -4,17 +4,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import type { RequestPurpose } from "../domain/daily-quota.js";
 import type { Link, RankOnLink } from "../domain/link.js";
-import { parseUid, type Uid } from "../domain/lookup-input.js";
+import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import type { HandedOff, Abandoned } from "../domain/onboarding-interview.js";
+import { MAX_FAILED_ATTEMPTS } from "../domain/onboarding-interview.js";
+import type { LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
-import { handleRank, handleUnlink, type CorrectionInteraction } from "./corrections.js";
-import type { Message, OfficerRoles, PrivateReply } from "./interview-texts.js";
+import {
+  handleLink,
+  handleLinkButton,
+  handleRank,
+  handleUnlink,
+  PendingLinkConfirmations,
+  type CorrectionInteraction,
+  type LinkButtonInteraction,
+  type LinkInteraction,
+} from "./corrections.js";
+import type { ButtonMessage, Message, OfficerRoles, PrivateReply } from "./interview-texts.js";
 import { rankSetLogLine } from "./interview-texts.js";
+import type { PendingRankApproval } from "./rank-approval.js";
 
 function uidOf(digits: string): Uid {
   const parsed = parseUid(digits);
@@ -92,6 +106,7 @@ class FakeCorrectionInteraction implements CorrectionInteraction {
 class FakeChannels {
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
   readonly logs: BaseMessageOptions[] = [];
+  readonly archived: string[] = [];
 
   post(threadId: string, message: BaseMessageOptions): Promise<string> {
     this.posts.push({ threadId, message });
@@ -100,6 +115,11 @@ class FakeChannels {
 
   log(message: BaseMessageOptions): Promise<void> {
     this.logs.push(message);
+    return Promise.resolve();
+  }
+
+  archive(threadId: string): Promise<void> {
+    this.archived.push(threadId);
     return Promise.resolve();
   }
 }
@@ -420,5 +440,563 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     await handleRank(interaction, deps);
 
     expect(contentOf(interaction.replies[0])).not.toContain("Daily Sync");
+  });
+});
+
+/* /link: an Officer Links a handed-off Member by hand, after confirming the Player shown. */
+
+const HANDED_OFF: MemberId = "555555555555555555";
+const RUNNING: MemberId = "666666666666666666";
+const FOUND_UID = uidOf("145563254790");
+const NOW_PLUS_30_MINUTES = new Date(NOW.getTime() + 30 * 60_000);
+
+function kingdomOf(digits: number): KingdomNumber {
+  const parsed = parseKingdom(digits);
+  if (!parsed.ok) throw new Error(`the test kingdom ${digits.toString()} is not a valid kingdom`);
+  return parsed.value;
+}
+
+const KINGDOM = kingdomOf(245);
+/** A Player with a known Alliance Rank: the Link needs no Rank Approval. */
+const PLAYER_RANKED: Player = {
+  uid: FOUND_UID,
+  name: "Vera",
+  kingdom: KINGDOM,
+  power: 15_000_000,
+  sanctuaryLevel: 20,
+  alliance: { tag: "NML", name: "NML Alliance", leaderUid: undefined },
+  allianceRank: "R3",
+};
+/** A Player in an Alliance whose rank the Game API does not list: the Link needs a Rank Approval. */
+const PLAYER_UNRANKED: Player = { ...PLAYER_RANKED, allianceRank: "unknown" };
+
+/** The Game API for a uid: records every lookup and answers with the result set. */
+class FakeLinkGameApi {
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  answer: LookupResult<Player> = { kind: "found", value: PLAYER_RANKED, fetchedAt: NOW };
+
+  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose });
+    return Promise.resolve(this.answer);
+  }
+}
+
+/** The Rank Approvals as /link uses them: records every Rank Approval announced. */
+class FakeRankApprovals {
+  readonly announced: { readonly approval: PendingRankApproval; readonly player: Player }[] = [];
+
+  announce(approval: PendingRankApproval, player: Player): Promise<void> {
+    this.announced.push({ approval, player });
+    return Promise.resolve();
+  }
+}
+
+/**
+ * The slash command as /link reads it, and the replies it gets: each edit is recorded with the custom ids of the buttons
+ * under it, so a test presses the buttons the Officer was shown.
+ */
+class FakeLinkInteraction implements LinkInteraction {
+  readonly deferrals: { readonly flags: MessageFlags.Ephemeral }[] = [];
+  readonly replies: {
+    readonly content: string;
+    readonly flags: MessageFlags.Ephemeral;
+    readonly buttonIds: readonly string[];
+  }[] = [];
+
+  constructor(
+    readonly callerId: MemberId,
+    private readonly roleIds: readonly string[],
+    private readonly options: { readonly member?: MemberId; readonly uid?: string } = {},
+  ) {}
+
+  memberRoleIds(): readonly string[] {
+    return this.roleIds;
+  }
+
+  memberOption(): MemberId | undefined {
+    return this.options.member;
+  }
+
+  uidOption(): string | undefined {
+    return this.options.uid;
+  }
+
+  deferReply(options: { readonly flags: MessageFlags.Ephemeral }): Promise<void> {
+    this.deferrals.push(options);
+    return Promise.resolve();
+  }
+
+  editReply(message: Message | ButtonMessage): Promise<void> {
+    const deferral = this.deferrals[0];
+    if (deferral === undefined) return Promise.reject(new Error("editReply before deferReply"));
+    const buttonIds =
+      "components" in message ? message.components.flatMap((row) => row.components.map((button) => button.custom_id)) : [];
+    this.replies.push({ content: message.content, flags: deferral.flags, buttonIds });
+    return Promise.resolve();
+  }
+}
+
+/** A button press on the Officer Link card: records every answer, and an update of the card without privacy flags. */
+class FakeLinkButton implements LinkButtonInteraction {
+  readonly answers: { readonly method: "reply" | "update" | "followUp"; readonly content: string; readonly flags?: MessageFlags.Ephemeral }[] = [];
+
+  constructor(
+    readonly customId: string,
+    readonly user: { readonly id: string },
+  ) {}
+
+  reply(message: PrivateReply): Promise<void> {
+    this.answers.push({ method: "reply", content: message.content, flags: message.flags });
+    return Promise.resolve();
+  }
+
+  update(message: Message): Promise<void> {
+    this.answers.push({ method: "update", content: message.content });
+    return Promise.resolve();
+  }
+
+  followUp(message: PrivateReply): Promise<void> {
+    this.answers.push({ method: "followUp", content: message.content, flags: message.flags });
+    return Promise.resolve();
+  }
+}
+
+/** The answers a button press gave privately: everything but the update of the card. */
+function privateAnswersOf(button: FakeLinkButton): FakeLinkButton["answers"] {
+  return button.answers.filter((answer) => answer.method !== "update");
+}
+
+interface LinkHarness extends Harness {
+  readonly gameApi: FakeLinkGameApi;
+  readonly rankApprovals: FakeRankApprovals;
+  /** The Members on the server; a Member not in it has left. */
+  readonly onServer: Set<MemberId>;
+  readonly confirmations: PendingLinkConfirmations;
+  now: Date;
+}
+
+function makeLinkHarness(): LinkHarness {
+  const base = makeHarness();
+  return {
+    ...base,
+    gameApi: new FakeLinkGameApi(),
+    rankApprovals: new FakeRankApprovals(),
+    onServer: new Set([OFFICER, LINKED, OTHER_LINKED, UNLINKED, NOT_OFFICER_LINKED, HANDED_OFF, RUNNING]),
+    confirmations: new PendingLinkConfirmations(),
+    now: NOW,
+  };
+}
+
+/** The dependencies of /link: the Interview, the Link, the Game API and the confirmations, at the harness's time. */
+function linkDeps(h: LinkHarness) {
+  return {
+    links: h.links,
+    interviews: h.interviews,
+    gameApi: h.gameApi,
+    isOnServer: (memberId: MemberId) => Promise.resolve(h.onServer.has(memberId)),
+    officerRoles: OFFICERS,
+    confirmations: h.confirmations,
+    now: () => h.now,
+    logError: (line: string) => h.errors.push(line),
+  };
+}
+
+/** The dependencies of the Officer Link buttons: what a confirmed Link stores, says, applies and logs. */
+function confirmDeps(h: LinkHarness) {
+  return {
+    links: h.links,
+    interviews: h.interviews,
+    channels: h.channels,
+    rankApprovals: h.rankApprovals,
+    nameAndRoles: h.nameAndRoles,
+    isOnServer: (memberId: MemberId) => Promise.resolve(h.onServer.has(memberId)),
+    confirmations: h.confirmations,
+    now: () => h.now,
+    logError: (line: string) => h.errors.push(line),
+  };
+}
+
+/** Stores an open Interview for the Member, as /interview would. */
+function openInterviewFor(h: LinkHarness, memberId: MemberId): void {
+  const created = h.interviews.create({ memberId, threadId: `thread-of-${memberId}` }, NOW);
+  if (created.kind !== "created") throw new Error("the test Interview was not created");
+}
+
+/** Stores the Member's Interview as handed off, as after five failed attempts. */
+function storeHandedOff(h: LinkHarness, memberId: MemberId): void {
+  openInterviewFor(h, memberId);
+  const open = h.interviews.openFor(memberId);
+  if (open === undefined) throw new Error("the test Interview is not open");
+  const handedOff: HandedOff = {
+    step: "handed-off",
+    id: open.id,
+    memberId,
+    threadId: open.threadId,
+    failedAttempts: MAX_FAILED_ATTEMPTS,
+    startedAt: open.startedAt,
+    endedAt: NOW,
+  };
+  h.interviews.save(handedOff);
+}
+
+/** Runs /link as the caller and returns the custom ids of the Confirm and Cancel buttons the card shows. */
+async function openCard(
+  h: LinkHarness,
+  officer: MemberId,
+  member: MemberId,
+  uid: string,
+): Promise<{ readonly confirm: string; readonly cancel: string }> {
+  const interaction = new FakeLinkInteraction(officer, OFFICER_ROLE_IDS, { member, uid });
+  await handleLink(interaction, linkDeps(h));
+  const [confirm, cancel] = interaction.replies[0]?.buttonIds ?? [];
+  if (confirm === undefined || cancel === undefined) throw new Error("the card shows no Confirm and Cancel buttons");
+  return { confirm, cancel };
+}
+
+/** Presses a button of the Officer Link card as the given user, and returns the press with its answers. */
+async function press(h: LinkHarness, customId: string, byUser: MemberId): Promise<FakeLinkButton> {
+  const button = new FakeLinkButton(customId, { id: byUser });
+  await handleLinkButton(button, confirmDeps(h));
+  return button;
+}
+
+describe("handleLink refusals: nothing is looked up or stored", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("a Member who is not an Officer is refused privately, and no Player is looked up", async () => {
+    const interaction = new FakeLinkInteraction(NOT_OFFICER_LINKED, [MEMBER_ROLE_ID], { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(contentOf(interaction.replies[0])).toContain("Officer");
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+
+  test("an Officer naming themselves is refused privately, and no Player is looked up", async () => {
+    storeHandedOff(h, OFFICER);
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: OFFICER, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(OFFICER)).toBeUndefined();
+  });
+
+  test("a Member whose latest Interview is still running is refused privately, as not handed off", async () => {
+    openInterviewFor(h, RUNNING);
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: RUNNING, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(RUNNING)).toBeUndefined();
+    expect(h.interviews.latestFor(RUNNING)?.step).toBe("recommending");
+  });
+
+  test("a Member with no Interview at all is refused privately, as not handed off", async () => {
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: UNLINKED, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(UNLINKED)).toBeUndefined();
+  });
+
+  test("a uid that is not only digits is refused privately, before any lookup", async () => {
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: "12ab" });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+
+  test("a uid already Linked to another Member is refused privately, naming that Member, before any lookup", async () => {
+    linkMember(h, OTHER_LINKED, FOUND_UID, UNKNOWN_RANK);
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(contentOf(interaction.replies[0])).toContain(`<@${OTHER_LINKED}>`);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+
+  test("a Member who is not on the server is refused privately, before any lookup", async () => {
+    h.onServer.delete(HANDED_OFF);
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(h.gameApi.lookups).toEqual([]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+
+  test("a uid no Player has is refused privately, and nothing is stored", async () => {
+    h.gameApi.answer = { kind: "not-found" };
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+  });
+
+  test("an unreachable Game API is refused privately, and nothing is stored", async () => {
+    h.gameApi.answer = { kind: "unavailable", reason: "unexpected" };
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+
+  test("a spent Daily Quota is refused privately, and nothing is stored", async () => {
+    h.gameApi.answer = { kind: "quota-spent", resetsAt: NOW_PLUS_30_MINUTES };
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral, buttonIds: [] })]);
+    expect(contentOf(interaction.replies[0])).toContain("look players up");
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+  });
+});
+
+describe("handleLink: the Player is shown for confirmation", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("looks the uid up once, with the Interview purpose, from the Quota Reserve", async () => {
+    await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    expect(h.gameApi.lookups).toEqual([{ uid: FOUND_UID, purpose: "onboarding-interview" }]);
+  });
+
+  test("shows the Player privately, with name and uid, and a Confirm and a Cancel button whose custom ids start with link:", async () => {
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(interaction.replies).toHaveLength(1);
+    expect(interaction.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+    expect(contentOf(interaction.replies[0])).toContain("Vera");
+    expect(contentOf(interaction.replies[0])).toContain(FOUND_UID);
+    expect(interaction.replies[0]?.buttonIds).toHaveLength(2);
+    expect(interaction.replies[0]?.buttonIds.every((id) => id.startsWith("link:"))).toBe(true);
+  });
+
+  test("stores nothing before the Officer confirms", async () => {
+    await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+    expect(h.channels.logs).toEqual([]);
+  });
+});
+
+describe("handleLinkButton: Confirm makes the Officer Link", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("Confirm by the same Officer stores the Link as an Officer Link made by that Officer", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.links.linkFor(HANDED_OFF)).toEqual(
+      expect.objectContaining({ memberId: HANDED_OFF, uid: FOUND_UID, madeBy: { kind: "officer-link", officerId: OFFICER } }),
+    );
+  });
+
+  test("Confirm ends the handed-off Interview as linked to the uid", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.interviews.latestFor(HANDED_OFF)).toMatchObject({ step: "linked", uid: FOUND_UID });
+  });
+
+  test("Confirm posts the linked message in the Interview thread and archives that thread when the rank is known", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.channels.posts).toEqual([expect.objectContaining({ threadId: `thread-of-${HANDED_OFF}` })]);
+    expect(contentOf(h.channels.posts[0]?.message)).toContain("Vera");
+    expect(h.channels.archived).toEqual([`thread-of-${HANDED_OFF}`]);
+    expect(h.rankApprovals.announced).toEqual([]);
+  });
+
+  test("Confirm applies the name and roles of the Player, as for any Link", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.nameAndRoles.linked).toEqual([
+      { memberId: HANDED_OFF, player: PLAYER_RANKED, rank: { source: "game-api", rank: "R3" } },
+    ]);
+  });
+
+  test("Confirm of a Player whose rank is unknown announces a Rank Approval for the thread, and leaves the thread open", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.rankApprovals.announced).toHaveLength(1);
+    const announced = h.rankApprovals.announced[0];
+    expect(announced?.approval.linkedMemberId).toBe(HANDED_OFF);
+    expect(announced?.approval.threadId).toBe(`thread-of-${HANDED_OFF}`);
+    expect(announced?.approval.state).toBe("pending");
+    expect(announced?.player).toEqual(PLAYER_UNRANKED);
+    expect(h.channels.archived).toEqual([]);
+  });
+
+  test("Confirm logs exactly one line naming the Member, the uid, the Player and the Officer", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.channels.logs).toHaveLength(1);
+    const line = contentOf(h.channels.logs[0]);
+    expect(line).toContain(`<@${HANDED_OFF}>`);
+    expect(line).toContain(FOUND_UID);
+    expect(line).toContain("Vera");
+    expect(line).toContain(`<@${OFFICER}>`);
+    expect(h.errors).toEqual([]);
+  });
+});
+
+describe("handleLinkButton: Confirm refuses and stores nothing when the state moved on", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("Confirm after the uid was Linked to another Member meanwhile is refused privately, and stores nothing", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    linkMember(h, OTHER_LINKED, FOUND_UID, UNKNOWN_RANK);
+
+    const button = await press(h, confirm, OFFICER);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+    expect(h.channels.logs).toEqual([]);
+    expect(h.nameAndRoles.linked).toEqual([]);
+  });
+
+  test("Confirm after the Interview is no longer handed off is refused privately, and stores nothing", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    const handedOff = h.interviews.latestFor(HANDED_OFF);
+    if (handedOff?.step !== "handed-off") throw new Error("the test Interview is not handed off");
+    const abandoned: Abandoned = {
+      step: "abandoned",
+      id: handedOff.id,
+      memberId: HANDED_OFF,
+      threadId: handedOff.threadId,
+      failedAttempts: 0,
+      startedAt: handedOff.startedAt,
+      endedAt: NOW,
+      reason: "timed-out",
+    };
+    h.interviews.save(abandoned);
+
+    const button = await press(h, confirm, OFFICER);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("abandoned");
+    expect(h.channels.logs).toEqual([]);
+    expect(h.nameAndRoles.linked).toEqual([]);
+  });
+
+  test("Confirm after the Member left the server is refused privately, and stores nothing", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.onServer.delete(HANDED_OFF);
+
+    const button = await press(h, confirm, OFFICER);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.channels.logs).toEqual([]);
+    expect(h.nameAndRoles.linked).toEqual([]);
+  });
+
+  test("Confirm after the confirmation expired is refused privately, and stores nothing", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.now = NOW_PLUS_30_MINUTES;
+
+    const button = await press(h, confirm, OFFICER);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+    expect(h.channels.logs).toEqual([]);
+  });
+
+  test("Cancel stores nothing, logs nothing, and leaves the Interview handed off", async () => {
+    const { cancel } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, cancel, OFFICER);
+
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+    expect(h.channels.logs).toEqual([]);
+    expect(h.channels.posts).toEqual([]);
+    expect(h.nameAndRoles.linked).toEqual([]);
+  });
+
+  test("a Confirm pressed by another user is refused privately, and the Link is not made", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    const button = await press(h, confirm, NOT_OFFICER_LINKED);
+
+    expect(privateAnswersOf(button)).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(h.links.linkFor(HANDED_OFF)).toBeUndefined();
+    expect(h.interviews.latestFor(HANDED_OFF)?.step).toBe("handed-off");
+    expect(h.channels.logs).toEqual([]);
   });
 });

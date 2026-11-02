@@ -619,17 +619,18 @@ async function linkConfirmed(deps: InterviewDeps, interview: AwaitingConfirmatio
 }
 
 /**
- * Stores the Link and the Interview as linked, in one transaction. Undefined when the Interview is no longer awaiting
- * its confirmation: then nothing is stored.
+ * Stores the Link and the Interview as linked, in one transaction. Undefined when the stored Interview is no longer on
+ * expectedStep: then nothing is stored. Shared with /link, which expects a handed-off Interview.
  */
-function storeLink(
-  deps: InterviewDeps,
+export function storeLinkIfStep(
+  deps: Pick<InterviewDeps, "links" | "interviews">,
   linked: OnboardingInterview,
+  expectedStep: OnboardingInterview["step"],
   input: { readonly link: Link; readonly rankApproval?: PendingRankApprovalDraft },
 ): ConfirmOutcome | undefined {
   try {
     return deps.links.confirm(input, () => {
-      if (!deps.interviews.saveIfStep(linked, "awaiting-confirmation")) throw new InterviewMovedOn();
+      if (!deps.interviews.saveIfStep(linked, expectedStep)) throw new InterviewMovedOn();
     });
   } catch (error) {
     if (error instanceof InterviewMovedOn) return undefined;
@@ -637,10 +638,18 @@ function storeLink(
   }
 }
 
+function storeLink(
+  deps: InterviewDeps,
+  linked: OnboardingInterview,
+  input: { readonly link: Link; readonly rankApproval?: PendingRankApprovalDraft },
+): ConfirmOutcome | undefined {
+  return storeLinkIfStep(deps, linked, "awaiting-confirmation", input);
+}
+
 /** A Link with an unknown rank waits for a Rank Approval, asked of the leader's Member when present, else the Officers. */
-function pendingApprovalFor(
+export function pendingApprovalFor(
   link: Link,
-  interview: AwaitingConfirmation,
+  interview: Pick<AwaitingConfirmation, "memberId" | "threadId">,
   leaderMemberId: MemberId | undefined,
   now: Date,
 ): PendingRankApprovalDraft | undefined {
@@ -719,7 +728,10 @@ function linkFor(interview: AwaitingConfirmation, now: Date): Link {
 }
 
 /** The Member of the Alliance's leader, when that Member is Linked and on the server; otherwise nobody is pinged. */
-async function leaderPing(deps: InterviewDeps, player: Player): Promise<MemberId | undefined> {
+export async function leaderPing(
+  deps: Pick<InterviewDeps, "links" | "isOnServer">,
+  player: Player,
+): Promise<MemberId | undefined> {
   const leaderUid = player.alliance?.leaderUid;
   if (leaderUid === undefined) return undefined;
   const leader = deps.links.memberForUid(leaderUid);

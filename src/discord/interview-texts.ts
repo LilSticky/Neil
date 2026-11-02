@@ -258,14 +258,18 @@ export function uidModal(interviewId: number): APIModalInteractionResponseCallba
   };
 }
 
-/** The thread message with the card of a found Player and the buttons to confirm or reject it. */
-export function foundCardMessage(interviewId: number, player: Player): ButtonMessage {
-  const content = [
+/** The card of a Player as text: name, uid with kingdom, and Alliance and rank, one line each. */
+export function playerCardText(player: Player): string {
+  return [
     escapeText(player.name),
     `uid ${escapeText(player.uid)} · Kingdom #${player.kingdom.toString()}`,
     allianceCardText(player),
-    "Is this you?",
   ].join("\n");
+}
+
+/** The thread message with the card of a found Player and the buttons to confirm or reject it. */
+export function foundCardMessage(interviewId: number, player: Player): ButtonMessage {
+  const content = `${playerCardText(player)}\nIs this you?`;
   return {
     content,
     components: [
@@ -536,15 +540,28 @@ export function rankCancelledLeftMessage(username: string): Message {
   };
 }
 
-/** The log line for a Link; it pings the Alliance's leader's Member only when given. */
-export function linkLogLine(member: MemberId, player: Player, leaderMemberId: MemberId | undefined): Message {
+/** The start of a Link's log line: the Member, the Player and the Alliance. */
+function linkLogBase(member: MemberId, player: Player): string {
   const alliance =
     player.alliance === undefined
       ? "no alliance"
       : `[${escapeText(player.alliance.tag)}], ${rankText(player.allianceRank)}`;
-  const base = `🔗 <@${member}> linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}, #${player.kingdom.toString()}, ${alliance}).`;
+  return `🔗 <@${member}> linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}, #${player.kingdom.toString()}, ${alliance}).`;
+}
+
+/** The log line for a Link; it pings the Alliance's leader's Member only when given. */
+export function linkLogLine(member: MemberId, player: Player, leaderMemberId: MemberId | undefined): Message {
+  const base = linkLogBase(member, player);
   if (leaderMemberId === undefined) return { content: base, allowedMentions: noMentions() };
   return { content: `${base} <@${leaderMemberId}>`, allowedMentions: { users: [leaderMemberId] } };
+}
+
+/** The log line for an Officer Link: the Link's line, then the Officer who made it. */
+export function officerLinkLogLine(member: MemberId, player: Player, officerId: MemberId): Message {
+  return {
+    content: `${linkLogBase(member, player)} Made by <@${officerId}>.`,
+    allowedMentions: { users: [officerId] },
+  };
 }
 
 /** The log line for a uid that was already Linked to another Member. */

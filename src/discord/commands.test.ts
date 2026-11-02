@@ -167,10 +167,35 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /interview, /unlink and /rank", () => {
+  test("hold /link, open to anyone, guild only, with a required user option member first, then a required uid of at most 32 characters, as /player has", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "link",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.User,
+            name: "member",
+            required: true,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "uid",
+            required: true,
+            max_length: 32,
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /interview, /unlink, /rank and /link", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "interview",
+      "link",
       "ping",
       "player",
       "quota",

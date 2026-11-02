@@ -99,6 +99,19 @@ export const rank = new SlashCommandBuilder()
       ),
   );
 
+export const link = new SlashCommandBuilder()
+  .setName("link")
+  .setDescription("Link a Member to a uid, for a Member an Interview handed off (Officers)")
+  .setContexts(InteractionContextType.Guild)
+  .addUserOption((option) => option.setName("member").setDescription("The handed-off Member").setRequired(true))
+  .addStringOption((option) =>
+    option
+      .setName("uid")
+      .setDescription("The Member's uid (the number under the profile picture)")
+      .setRequired(true)
+      .setMaxLength(32),
+  );
+
 /** Everything registered for the configured server, as REST payloads. */
 export const commands = [
   ping.toJSON(),
@@ -108,4 +121,5 @@ export const commands = [
   interview.toJSON(),
   unlink.toJSON(),
   rank.toJSON(),
+  link.toJSON(),
 ];
