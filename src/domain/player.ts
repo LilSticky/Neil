@@ -27,11 +27,22 @@ export type Player =
   | (PlayerProfile & { readonly alliance: undefined; readonly allianceRank: undefined })
   | (PlayerProfile & { readonly alliance: PlayerAlliance; readonly allianceRank: AllianceRank });
 
-/** One Player on an Alliance's roster; the name is "Unknown" when the Game gave none. */
+/**
+ * One Player on an Alliance's roster; the name is "Unknown" when the Game gave none. The activity figures, the online
+ * flag and the last online time are undefined when the Game gives no data for them.
+ */
 export interface RosterEntry {
   readonly uid: Uid;
   readonly name: string;
   readonly allianceRank: AllianceRank;
+  /** Weekly Activity points (`active`). */
+  readonly weeklyActivity: number | undefined;
+  /** Today's Daily Honor (`daily_honor`). */
+  readonly dailyHonor: number | undefined;
+  /** Today's Daily Tech (`daily_tech`). */
+  readonly dailyTech: number | undefined;
+  readonly online: boolean | undefined;
+  readonly lastOnlineAt: Date | undefined;
 }
 
 /** An Alliance as the Game describes it. */

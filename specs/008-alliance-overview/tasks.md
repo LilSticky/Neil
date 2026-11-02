@@ -21,11 +21,11 @@ description: "Task list for slice 008, Alliance overview"
 
 ## Tasks
 
-- [ ] T001 Test `src/game-api/schemas.test.ts` + `client.test.ts`: the five roster fields map (recorded `alliance.json`
+- [x] T001 Test `src/game-api/schemas.test.ts` + `client.test.ts`: the five roster fields map (recorded `alliance.json`
   first member: 490, 40, 4600, offline, last online 1793285439 s; others undefined). Implement.
-- [ ] T002 [P] Test `src/domain/alliance-overview.test.ts`: totals, top 5 each, Least Active 5, no-data count and
+- [x] T002 [P] Test `src/domain/alliance-overview.test.ts`: totals, top 5 each, Least Active 5, no-data count and
   exclusion, online now / 24 h, table paging and sort. Implement.
-- [ ] T003 Test `src/discord/overview-texts.test.ts`: embed content per FR-002/FR-006, table page with buttons,
+- [x] T003 Test `src/discord/overview-texts.test.ts`: embed content per FR-002/FR-006, table page with buttons,
   limits, escaping. Implement.
 - [ ] T004 Test `src/discord/lookup-cards.test.ts` + `pick.test.ts` (+ client routing): "Overview" button on the
   Alliance card; press → private overview with no Game API call while the session holds the Alliance; session gone →

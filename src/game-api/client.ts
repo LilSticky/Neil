@@ -588,7 +588,16 @@ function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
   if (!uid.ok) return [];
   const name = member.nick_name ?? "";
   return [
-    { uid: uid.value, name: name === "" ? "Unknown" : name, allianceRank: rankFromLabel(member.rank_label ?? null) },
+    {
+      uid: uid.value,
+      name: name === "" ? "Unknown" : name,
+      allianceRank: rankFromLabel(member.rank_label ?? null),
+      weeklyActivity: member.active ?? undefined,
+      dailyHonor: member.daily_honor ?? undefined,
+      dailyTech: member.daily_tech ?? undefined,
+      online: member.online ?? undefined,
+      lastOnlineAt: member.last_online_at === null || member.last_online_at === undefined ? undefined : new Date(member.last_online_at * 1000),
+    },
   ];
 }
 
