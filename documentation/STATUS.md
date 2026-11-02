@@ -28,12 +28,12 @@ table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TE
 Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`, stacked on 008: a Daily Sync at
 `SYNC_HOUR_UTC` re-reads each Alliance with Linked Members once (and looks up movers by uid) within a Sync Share of
 500 requests, and restores nicknames and Managed Roles; one log line per changed Member and a summary. Test cases
-collected in [TEST-RUN.md](TEST-RUN.md) §6e.
+collected in [TEST-RUN.md](TEST-RUN.md) §6e. Reviewed (3 must, 6 should fixed), audited; PR [#28](https://github.com/LilSticky/Neil/pull/28) (issue #27), 1581 tests.
 
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
 **Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
-#16, #22, #24 and #26 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
+#16, #22, #24, #26 and #28 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
 next to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
