@@ -26,7 +26,7 @@ description: "Task list for slice 010, Say goodbye"
   pending/officers, approved, cancelled → unchanged.
 - [x] T002 Test then implement storage: `LinkStore.unlink` (Link and applied gone, uid re-linkable, second call
   undefined, approval history kept); `pendingApprovedBy`; saving a handed-on approval.
-- [ ] T003 Test then implement `src/discord/unlink.ts` + texts: US1 1–3, US2 1–2, edge cases (log channel fails,
+- [x] T003 Test then implement `src/discord/unlink.ts` + texts: US1 1–3, US2 1–2, edge cases (log channel fails,
   thread gone, private message refused, no Link → nothing).
 - [ ] T004 Test then implement wiring: leave event Unlinks after the Interview/Rank Approval handling (US1 4–5);
   startup sweep and Daily Sync Unlink missing Members, not on fetch failure (US3 1–3, US2 3); `sendPrivateMessage`
