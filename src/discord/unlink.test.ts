@@ -146,7 +146,7 @@ interface Harness {
 
 /** A Link with an unknown Alliance Rank, made when the test starts. */
 function aLink(memberId: MemberId, uid: Uid): Link {
-  return { memberId, uid, linkedAt: NOW, allianceRank: { source: "unknown" } };
+  return { memberId, uid, linkedAt: NOW, allianceRank: { source: "unknown" }, madeBy: { kind: "in-game-proof" } };
 }
 
 /** Stores the Link of a Member, with no applied state yet. */

@@ -243,7 +243,7 @@ function linkMember(
     readonly roles: readonly string[];
   },
 ): void {
-  h.links.confirm({ link: { memberId, uid, linkedAt: NOW, allianceRank: state.rank } }, () => undefined);
+  h.links.confirm({ link: { memberId, uid, linkedAt: NOW, allianceRank: state.rank, madeBy: { kind: "in-game-proof" } } }, () => undefined);
   h.applied.record({
     memberId,
     nickname: state.nickname,

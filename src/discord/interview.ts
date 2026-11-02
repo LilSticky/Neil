@@ -714,6 +714,7 @@ function linkFor(interview: AwaitingConfirmation, now: Date): Link {
     uid: interview.player.uid,
     linkedAt: now,
     allianceRank: rankOnLink(interview.player),
+    madeBy: { kind: "in-game-proof" },
   };
 }
 

@@ -292,6 +292,7 @@ export function linkOf(raw: unknown): Link {
     uid: parsed.data.uid,
     linkedAt: parsed.data.linked_at,
     allianceRank: rankOnLinkOf(parsed.data),
+    madeBy: { kind: "in-game-proof" },
   };
 }
 

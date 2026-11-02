@@ -158,7 +158,7 @@ function pendingApprovalFor(
 ): Extract<RankApproval, { readonly state: "pending" }> {
   links.confirm(
     {
-      link: { memberId, uid, linkedAt: askedAt, allianceRank: { source: "unknown" } },
+      link: { memberId, uid, linkedAt: askedAt, allianceRank: { source: "unknown" }, madeBy: { kind: "in-game-proof" } },
       rankApproval: {
         state: "pending",
         linkedMemberId: memberId,

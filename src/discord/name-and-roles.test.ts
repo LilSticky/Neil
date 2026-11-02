@@ -119,12 +119,12 @@ interface Harness {
 
 /** The Link of Alice is stored, as the Interview stores it before the name and roles are applied. */
 function linkAlice(h: Harness, rank: RankOnLink = GAME_RANK_R4): void {
-  h.links.confirm({ link: { memberId: ALICE, uid: UID, linkedAt: NOW, allianceRank: rank } }, () => undefined);
+  h.links.confirm({ link: { memberId: ALICE, uid: UID, linkedAt: NOW, allianceRank: rank, madeBy: { kind: "in-game-proof" } } }, () => undefined);
 }
 
 /** A Link of the Member to the uid, as the Interview stores it. */
 function linkMember(h: Harness, memberId: MemberId, uid: Uid, rank: RankOnLink = GAME_RANK_R4): void {
-  h.links.confirm({ link: { memberId, uid, linkedAt: NOW, allianceRank: rank } }, () => undefined);
+  h.links.confirm({ link: { memberId, uid, linkedAt: NOW, allianceRank: rank, madeBy: { kind: "in-game-proof" } } }, () => undefined);
 }
 
 /** The Member is on the server holding the named roles; roles that do not exist yet are defined first. */

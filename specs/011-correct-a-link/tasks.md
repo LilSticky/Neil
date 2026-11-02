@@ -39,7 +39,7 @@ description: "Task list for slice 011, Correct a link"
 
 ## Tasks
 
-- [ ] T001 Test then implement domain: `Link.madeBy`; `officerRank` (own Link, no Alliance, unknown, approved earlier,
+- [x] T001 Test then implement domain: `Link.madeBy`; `officerRank` (own Link, no Alliance, unknown, approved earlier,
   game-api same rank, game-api different rank → `gameRank`); who may correct (US1 AS5, US3 AS5–6, US4 AS5).
 - [ ] T002 Test then implement domain `linkByOfficer` (handed-off → linked with the Officer; every other step not
   applicable) (US4 AS1–2).

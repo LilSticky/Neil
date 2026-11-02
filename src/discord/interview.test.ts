@@ -148,6 +148,7 @@ const LEADER_LINK: Link = {
   uid: LEADER_UID,
   linkedAt: NOW,
   allianceRank: { source: "no-alliance" },
+  madeBy: { kind: "in-game-proof" },
 };
 
 /** A promise whose resolve function the test calls later. */
@@ -565,7 +566,7 @@ describe("createInterviews", () => {
     });
 
     test("ignores a Member who is already Linked", async () => {
-      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
 
       await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
 
@@ -691,6 +692,7 @@ describe("createInterviews", () => {
         uid: UID,
         linkedAt: NOW,
         allianceRank: { source: "game-api", rank: "R4" },
+        madeBy: { kind: "in-game-proof" },
       });
     });
 
@@ -822,6 +824,7 @@ describe("createInterviews", () => {
         uid: UID,
         linkedAt: NOW,
         allianceRank: { source: "game-api", rank: "R4" },
+        madeBy: { kind: "in-game-proof" },
       });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
       expect(late.replies).toEqual([interviewEndedReply()]);
@@ -913,7 +916,7 @@ describe("createInterviews", () => {
 
   describe("a uid that fails", () => {
     test("refuses a uid Linked to another Member, counts the attempt, logs it and tells nobody else", async () => {
-      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       const interviewId = await joinedMember(h);
 
       await submitUid(h, interviewId, UID_DIGITS);
@@ -1098,7 +1101,7 @@ describe("createInterviews", () => {
     });
 
     test("tells the Member privately that they are Linked and opens nothing when the Member has a Link", async () => {
-      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       const command = new FakeCommand({ id: MEMBER, username: "vex_fan" });
 
       await h.service.onCommand(command);
@@ -1111,7 +1114,7 @@ describe("createInterviews", () => {
     });
 
     test("does not look the Player up in the Game API when the Member is Linked", async () => {
-      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
 
       await h.service.onCommand(new FakeCommand({ id: MEMBER, username: "vex_fan" }));
 
@@ -1309,7 +1312,7 @@ describe("createInterviews", () => {
     });
 
     test("one match already Linked to someone: asks for the uid as usual, with no failed attempt and no reason given", async () => {
-      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       const interviewId = await recommendedMemberJoined(h, PLAYER);
 
       expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
@@ -1358,7 +1361,7 @@ describe("createInterviews", () => {
     });
 
     test("a match Linked to another Member is left out of the pick list, the Member is not offered it", async () => {
-      h.links.confirm({ link: { memberId: OTHER, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: OTHER, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
       await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
 
@@ -1368,8 +1371,8 @@ describe("createInterviews", () => {
 
     test("when every match is Linked to another Member, the Member is asked for the uid as usual, with no failed attempt", async () => {
       const THIRD: MemberId = "999999999999999999";
-      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
-      h.links.confirm({ link: { memberId: THIRD, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: THIRD, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       h.gameApi.answerNameWith({ kind: "ambiguous", matches: PICK_LIST });
       const interviewId = await joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
 
@@ -1531,6 +1534,7 @@ describe("createInterviews", () => {
         uid: UID,
         linkedAt: NOW,
         allianceRank: { source: "game-api", rank: "R4" },
+        madeBy: { kind: "in-game-proof" },
       });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
@@ -1548,7 +1552,7 @@ describe("createInterviews", () => {
 
     test("the uid of the recommended Player, Linked to someone else since the choice, is refused as any taken uid", async () => {
       const interviewId = await recommendationAccepted(h, PLAYER);
-      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: OTHER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
 
       await submitUid(h, interviewId, UID_DIGITS);
 
@@ -1570,6 +1574,7 @@ describe("createInterviews", () => {
         uid: UID,
         linkedAt: NOW,
         allianceRank: { source: "game-api", rank: "R4" },
+        madeBy: { kind: "in-game-proof" },
       });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
     });
@@ -1702,7 +1707,7 @@ describe("createInterviews", () => {
 
     test("Unlinks a Linked Member as left when the thread of their open Interview cannot be posted to", async () => {
       await joinedMember(h);
-      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       h.channels.refusePosts = true;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
@@ -1713,7 +1718,7 @@ describe("createInterviews", () => {
 
     test("Unlinks a Linked Member as left when the thread of their open Interview cannot be locked", async () => {
       await joinedMember(h);
-      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } }, () => undefined);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
       h.channels.refuseLocks = true;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
@@ -1734,7 +1739,7 @@ describe("createInterviews", () => {
 
     test("a Member who left and was Unlinked joins again and starts a new Onboarding Interview", async () => {
       h.links.confirm(
-        { link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } },
+        { link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" }, madeBy: { kind: "in-game-proof" } } },
         () => undefined,
       );
 
@@ -1784,7 +1789,7 @@ describe("createInterviews", () => {
       ).resolves.toBeUndefined();
 
       expect(h.nameAndRoles.linked).toHaveLength(1);
-      expect(linkOfMember(h)).toEqual({ memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" } });
+      expect(linkOfMember(h)).toEqual({ memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" }, madeBy: { kind: "in-game-proof" } });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
       expect(h.channels.archived).toEqual([THREAD]);
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);

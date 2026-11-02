@@ -36,7 +36,7 @@ const LINKED_AT = new Date("2026-10-30T12:00:00Z");
 const ASKED_AT = new Date("2026-10-30T12:05:00Z");
 
 function linkOf(memberId: MemberId, uid: Uid, allianceRank: RankOnLink = { source: "no-alliance" }): Link {
-  return { memberId, uid, linkedAt: LINKED_AT, allianceRank };
+  return { memberId, uid, linkedAt: LINKED_AT, allianceRank, madeBy: { kind: "in-game-proof" } };
 }
 
 function pendingDraft(linkedMemberId: MemberId): PendingRankApprovalDraft {
@@ -303,7 +303,7 @@ describe("LinkStore", () => {
 
     store.updateRank(ALICE, { source: "game-api", rank: "R4" });
 
-    expect(store.linkFor(ALICE)).toEqual({ ...alice, allianceRank: { source: "game-api", rank: "R4" } });
+    expect(store.linkFor(ALICE)).toEqual({ ...alice, allianceRank: { source: "game-api", rank: "R4" }, madeBy: { kind: "in-game-proof" } });
   });
 
   test("updateRank drops an approved rank to unknown when the Player is no longer in that Alliance", () => {

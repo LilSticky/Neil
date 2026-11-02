@@ -430,6 +430,7 @@ describe("InterviewStore", () => {
       uid: UID,
       linkedAt: LATER,
       allianceRank: { source: "game-api", rank: "R4" },
+      madeBy: { kind: "in-game-proof" },
     };
     const linked = confirmInterview(awaitingConfirmationFrom(created), { kind: "linked" }, LATER).interview;
 
@@ -453,6 +454,7 @@ describe("InterviewStore", () => {
       uid: UID,
       linkedAt: LATER,
       allianceRank: { source: "game-api", rank: "R4" },
+      madeBy: { kind: "in-game-proof" },
     };
 
     expect(() =>
