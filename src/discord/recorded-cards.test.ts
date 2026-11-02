@@ -70,7 +70,7 @@ describe("cards from recorded Game API answers", () => {
       color: 0xb33a3a,
       author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
       thumbnail: { url: "https://lastasylumtracker.com/static/alliance/badge_103.png" },
-      description: "Open to all",
+      description: "**Join Requirements:** Open to all",
       footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
     // The roster fields follow these seven; their rows are covered in lookup-cards.test.ts.

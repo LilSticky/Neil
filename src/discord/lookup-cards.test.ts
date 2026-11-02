@@ -1252,7 +1252,7 @@ const fullAllianceCard: APIEmbed = {
   color: ACCENT_COLOR,
   author: { name: "Kingdom #1", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
   thumbnail: { url: `${TRACKER}/static/alliance/badge_103.png` },
-  description: "Open to all",
+  description: "**Join Requirements:** Open to all",
   fields: [...fullAllianceFields, EMPTY_ROSTER_FIELD],
   footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
 };

@@ -374,7 +374,7 @@ export function renderAllianceCard(alliance: Alliance, fetchedAt: Date, now: Dat
     color: CARD_COLOR,
     author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
     ...(thumbnail === undefined ? {} : { thumbnail }),
-    ...(joinRequirements === undefined ? {} : { description: joinRequirements }),
+    ...(joinRequirements === undefined ? {} : { description: `**Join Requirements:** ${joinRequirements}` }),
     fields,
     footer: footerFor(fetchedAt, now),
   };
