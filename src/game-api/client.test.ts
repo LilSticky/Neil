@@ -10,7 +10,7 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import type { Alliance, LookupResult, Player } from "../domain/player.js";
+import type { Alliance, AllianceDetails, LookupResult, Player, PlayerDetails } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import allianceByName from "./__fixtures__/alliance-by-name.json" with { type: "json" };
@@ -31,6 +31,30 @@ const FIXED_NOW = new Date("2026-10-30T15:20:00Z");
 const NEXT_MIDNIGHT_UTC = new Date("2026-10-31T00:00:00Z");
 const CACHE_TTL_MS = 600_000;
 const QUOTA_RESERVE = 100;
+
+/** The Player details of the recorded player-in-alliance.json (slice 012, T001). */
+const RECORDED_PLAYER_DETAILS: PlayerDetails = {
+  kills: 4420,
+  vipLevel: 4,
+  likes: 110,
+  lastOnlineAt: new Date(1793154302 * 1000),
+  language: "en",
+  location: { x: 807, y: 846 },
+  avatarPath: "/static/avatars/head_90002.png",
+  kingdomBadgePath: "/static/kingdom/badge_1.png",
+};
+
+/** The Alliance details of the recorded alliance.json (slice 012, T001). */
+const RECORDED_ALLIANCE_DETAILS: AllianceDetails = {
+  level: 4,
+  xp: 8829850,
+  giftLevel: 6,
+  kingdomPowerRank: 25,
+  language: "ja",
+  joinRequirements: { open: true, minimumPower: 0, minimumSanctuaryLevel: 0 },
+  badgePath: "/static/alliance/badge_103.png",
+  kingdomBadgePath: "/static/kingdom/badge_1.png",
+};
 
 interface SentRequest {
   readonly url: string;
@@ -207,6 +231,7 @@ describe("GameApiClient.getPlayer result", () => {
         sanctuaryLevel: 23,
         alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
+        details: RECORDED_PLAYER_DETAILS,
       },
       fetchedAt: FIXED_NOW,
     });
@@ -243,6 +268,7 @@ describe("GameApiClient.getPlayer result", () => {
         sanctuaryLevel: 23,
         alliance: undefined,
         allianceRank: undefined,
+        details: RECORDED_PLAYER_DETAILS,
       },
       fetchedAt: FIXED_NOW,
     });
@@ -502,10 +528,12 @@ describe("GameApiClient.getAlliance result", () => {
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",
+      details: RECORDED_ALLIANCE_DETAILS,
       roster: [
         {
           uid: parsedUid("179060285441"),
           name: "etranger",
+          power: 26041955,
           allianceRank: "R4",
           kingdom: parsedKingdom(1),
           sanctuaryLevel: 22,
@@ -518,6 +546,7 @@ describe("GameApiClient.getAlliance result", () => {
         {
           uid: parsedUid("93159425"),
           name: "Benedict",
+          power: 17081208,
           allianceRank: "R3",
           kingdom: parsedKingdom(1),
           sanctuaryLevel: 26,
@@ -530,6 +559,7 @@ describe("GameApiClient.getAlliance result", () => {
         {
           uid: parsedUid("147744374785"),
           name: "Settong",
+          power: 16713141,
           allianceRank: "R1",
           kingdom: parsedKingdom(1),
           sanctuaryLevel: 21,
@@ -1340,6 +1370,7 @@ describe("GameApiClient.findPlayer result", () => {
         sanctuaryLevel: 23,
         alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
+        details: RECORDED_PLAYER_DETAILS,
       },
       fetchedAt: FIXED_NOW,
     });
@@ -1693,4 +1724,222 @@ describe("GameApiClient onAllianceSeen hook", () => {
     expect(onAllianceSeen).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ kind: "found", value: { uid: "145563254785", alliance: { tag: "NML" } } });
   });
+});
+
+/** A value an unreadable Game field may hold, labelled for the test name. */
+interface UnreadableValue {
+  readonly label: string;
+  readonly value: unknown;
+}
+
+/** One unreadable value of a Game field, and the detail it must leave undefined while the rest stay as recorded. */
+interface DetailCase<K extends PropertyKey> extends UnreadableValue {
+  readonly field: string;
+  readonly detail: K;
+}
+
+function casesOf<K extends PropertyKey>(detail: K, field: string, values: readonly UnreadableValue[]): DetailCase<K>[] {
+  return values.map((value) => ({ ...value, field, detail }));
+}
+
+/** A copy of the details without one key, to compare the others once that one is left out. */
+function without(details: object | undefined, key: PropertyKey): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(details ?? {}).filter(([name]) => name !== key));
+}
+
+function foundPlayer(result: LookupResult<Player>): Player {
+  if (result.kind !== "found") throw new Error(`expected the Player, got ${result.kind}`);
+  return result.value;
+}
+
+function foundAlliance(result: LookupResult<Alliance>): Alliance {
+  if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
+  return result.value;
+}
+
+const MISSING: UnreadableValue = { label: "missing", value: undefined };
+const NULL_VALUE: UnreadableValue = { label: "null", value: null };
+
+/** Whole numbers that cannot be negative. */
+const UNREADABLE_COUNT: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "a text", value: "4420" },
+  { label: "a fraction", value: 4420.5 },
+  { label: "a negative number", value: -1 },
+];
+
+/** Unix times in seconds, which must be a whole number a Date holds. */
+const UNREADABLE_TIME: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "a text", value: "1793154302" },
+  { label: "a fraction", value: 1793154302.5 },
+  { label: "a time beyond the range of a Date", value: Number.MAX_SAFE_INTEGER },
+];
+
+const UNREADABLE_TEXT: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "an empty text", value: "" },
+  { label: "a number", value: 12 },
+];
+
+/** A picture path: under /static/, no "..", and one of the picture extensions. */
+const UNREADABLE_PATH: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "a number", value: 5 },
+  { label: "a path outside /static/", value: "/avatars/head_90002.png" },
+  { label: "an absolute URL", value: "https://example.com/static/avatars/head_90002.png" },
+  { label: "a path with ..", value: "/static/avatars/../head_90002.png" },
+  { label: "an .svg file", value: "/static/avatars/head_90002.svg" },
+  { label: "a .txt file", value: "/static/avatars/head_90002.txt" },
+];
+
+/** The rank object: the rank is a whole number of at least 1; the score is not read. */
+const UNREADABLE_RANK: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "a bare number", value: 25 },
+  { label: "a rank of 0", value: { rank: 0, score: "208815434" } },
+  { label: "a rank that is a text", value: { rank: "25", score: "208815434" } },
+  { label: "a fractional rank", value: { rank: 25.5, score: "208815434" } },
+];
+
+/** The join object: auto is a boolean, power and castle_level are whole numbers that cannot be negative. */
+const UNREADABLE_JOIN: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "a bare text", value: "open" },
+  { label: "an auto that is a text", value: { auto: "true", power: 0, castle_level: 0 } },
+  { label: "a power that is a text", value: { auto: true, power: "0", castle_level: 0 } },
+  { label: "a negative castle level", value: { auto: true, power: 0, castle_level: -1 } },
+  { label: "no auto", value: { power: 0, castle_level: 0 } },
+];
+
+const playerDetailCases: readonly DetailCase<keyof PlayerDetails>[] = [
+  ...casesOf("kills", "kills", UNREADABLE_COUNT),
+  ...casesOf("vipLevel", "vip", UNREADABLE_COUNT),
+  ...casesOf("likes", "likes", UNREADABLE_COUNT),
+  ...casesOf("lastOnlineAt", "last_online_at", UNREADABLE_TIME),
+  ...casesOf("language", "language", UNREADABLE_TEXT),
+  ...casesOf("location", "x", UNREADABLE_COUNT),
+  ...casesOf("location", "y", UNREADABLE_COUNT),
+  ...casesOf("avatarPath", "avatar_url", UNREADABLE_PATH),
+  ...casesOf("kingdomBadgePath", "server_badge_url", UNREADABLE_PATH),
+];
+
+const allianceDetailCases: readonly DetailCase<keyof AllianceDetails>[] = [
+  ...casesOf("level", "level", UNREADABLE_COUNT),
+  ...casesOf("xp", "exp", UNREADABLE_COUNT),
+  ...casesOf("giftLevel", "gift_level", UNREADABLE_COUNT),
+  ...casesOf("language", "language", UNREADABLE_TEXT),
+  ...casesOf("kingdomPowerRank", "rank", UNREADABLE_RANK),
+  ...casesOf("joinRequirements", "join", UNREADABLE_JOIN),
+  ...casesOf("badgePath", "badge_url", UNREADABLE_PATH),
+  ...casesOf("kingdomBadgePath", "server_badge_url", UNREADABLE_PATH),
+];
+
+describe("GameApiClient.getPlayer details", () => {
+  test("reads every Player detail of the recorded body", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(foundPlayer(result).details).toEqual(RECORDED_PLAYER_DETAILS);
+  });
+
+  test.each(playerDetailCases)(
+    "a Player whose $field is $label leaves only $detail undefined, and the body is still found",
+    async ({ field, value, detail }) => {
+      const body = { ...playerInAlliance, [field]: value };
+      const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+      const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+      const player = foundPlayer(result);
+      expect(player).toMatchObject({
+        uid: "145563254785",
+        name: "DrLOL",
+        kingdom: 1,
+        power: 15902728,
+        sanctuaryLevel: 23,
+        allianceRank: "R5",
+      });
+      expect(player.details?.[detail]).toBeUndefined();
+      expect(without(player.details, detail)).toEqual(without(RECORDED_PLAYER_DETAILS, detail));
+    },
+  );
+});
+
+describe("GameApiClient.getAlliance details", () => {
+  test("reads every Alliance detail of the recorded body", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, alliance));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(foundAlliance(result).details).toEqual(RECORDED_ALLIANCE_DETAILS);
+  });
+
+  test("reads Join Requirements with open from auto, and the minimums from power and castle_level", async () => {
+    const body = { ...alliance, join: { auto: false, power: 5_000_000, castle_level: 20 } };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(foundAlliance(result).details?.joinRequirements).toEqual({
+      open: false,
+      minimumPower: 5_000_000,
+      minimumSanctuaryLevel: 20,
+    });
+  });
+
+  test.each(allianceDetailCases)(
+    "an Alliance whose $field is $label leaves only $detail undefined, and the body is still found",
+    async ({ field, value, detail }) => {
+      const body = { ...alliance, [field]: value };
+      const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+      const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+      expect(foundAlliance(result)).toMatchObject({
+        tag: "NML",
+        name: "No Man's Land",
+        power: 208815434,
+        memberCount: 52,
+        capacity: 100,
+        leaderName: "DrLOL",
+      });
+      expect(foundAlliance(result).details?.[detail]).toBeUndefined();
+      expect(without(foundAlliance(result).details, detail)).toEqual(without(RECORDED_ALLIANCE_DETAILS, detail));
+    },
+  );
+});
+
+describe("GameApiClient.getAlliance roster power", () => {
+  test("reads the power of each recorded roster member", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, alliance));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(foundAlliance(result).roster.map((row) => row.power)).toEqual([26041955, 17081208, 16713141]);
+  });
+
+  test.each(UNREADABLE_COUNT)(
+    "a roster member whose power is $label reads its power as undefined, and the member is kept",
+    async ({ value }) => {
+      const [first, ...others] = alliance.members;
+      if (first === undefined) throw new Error("the recorded alliance has no members");
+      const body = { ...alliance, members: [{ ...first, power: value }, ...others] };
+      const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+      const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+      const roster = foundAlliance(result).roster;
+      expect(roster.map((row) => row.uid)).toEqual(["179060285441", "93159425", "147744374785"]);
+      expect(roster[0]?.power).toBeUndefined();
+      expect(roster[1]?.power).toBe(17081208);
+    },
+  );
 });

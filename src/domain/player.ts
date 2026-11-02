@@ -11,12 +11,30 @@ export interface PlayerAlliance {
   readonly leaderUid: Uid | undefined;
 }
 
+/** The details of a Player beyond the profile; each value is undefined when the Game gives none readable. */
+export interface PlayerDetails {
+  readonly kills: number | undefined;
+  readonly vipLevel: number | undefined;
+  readonly likes: number | undefined;
+  /** The last time the Player was seen online (`last_online_at`). */
+  readonly lastOnlineAt: Date | undefined;
+  /** The language code the Player uses (`language`). */
+  readonly language: string | undefined;
+  /** The Player's position on the map (`x`, `y`). */
+  readonly location: { readonly x: number; readonly y: number } | undefined;
+  /** The picture path of the Player's avatar (`avatar_url`). */
+  readonly avatarPath: string | undefined;
+  /** The picture path of the Player's Kingdom badge (`server_badge_url`). */
+  readonly kingdomBadgePath: string | undefined;
+}
+
 interface PlayerProfile {
   readonly uid: Uid;
   readonly name: string;
   readonly kingdom: KingdomNumber;
   readonly power: number;
   readonly sanctuaryLevel: number;
+  readonly details?: PlayerDetails;
 }
 
 /**
@@ -35,6 +53,8 @@ export interface RosterEntry {
   readonly uid: Uid;
   readonly name: string;
   readonly allianceRank: AllianceRank;
+  /** The Member's power (`power`); undefined when the Game gives none readable. */
+  readonly power?: number;
   /** The Kingdom the Member is in (`kid`); undefined when the Game gives none. */
   readonly kingdom: KingdomNumber | undefined;
   /** The Member's sanctuary level (`lv`); undefined when the Game gives none. */
@@ -49,6 +69,30 @@ export interface RosterEntry {
   readonly lastOnlineAt: Date | undefined;
 }
 
+/** The Join Requirements of an Alliance: whether it is open, and the minimums a joiner needs. */
+export interface JoinRequirements {
+  readonly open: boolean;
+  readonly minimumPower: number;
+  readonly minimumSanctuaryLevel: number;
+}
+
+/** The details of an Alliance beyond the profile; each value is undefined when the Game gives none readable. */
+export interface AllianceDetails {
+  readonly level: number | undefined;
+  /** The experience points of the Alliance (`exp`). */
+  readonly xp: number | undefined;
+  readonly giftLevel: number | undefined;
+  /** The Alliance's rank among the Alliances of its Kingdom (`rank.rank`). */
+  readonly kingdomPowerRank: number | undefined;
+  /** The language code the Alliance uses (`language`). */
+  readonly language: string | undefined;
+  readonly joinRequirements: JoinRequirements | undefined;
+  /** The picture path of the Alliance's badge (`badge_url`). */
+  readonly badgePath: string | undefined;
+  /** The picture path of the Kingdom badge (`server_badge_url`). */
+  readonly kingdomBadgePath: string | undefined;
+}
+
 /** An Alliance as the Game describes it. */
 export interface Alliance {
   readonly tag: string;
@@ -59,6 +103,7 @@ export interface Alliance {
   readonly capacity: number;
   readonly leaderName: string | undefined;
   readonly roster: readonly RosterEntry[];
+  readonly details?: AllianceDetails;
 }
 
 /** One candidate when a lookup is ambiguous; every field is optional because the Game may omit it. */

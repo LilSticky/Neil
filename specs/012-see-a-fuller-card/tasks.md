@@ -43,7 +43,7 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
 
 ## Tasks
 
-- [ ] **T001** Domain types and Game API reading (FR-005, FR-008). Tests in `src/game-api/schemas.test.ts` and
+- [x] **T001** Domain types and Game API reading (FR-005, FR-008). Tests in `src/game-api/schemas.test.ts` and
   `client.test.ts`: the recorded `player-in-alliance.json` gives every Player detail (kills 4420, VIP 4, likes 110,
   language `en`, location 807/846, last online 1793154302, avatar `/static/avatars/head_90002.png`, kingdom badge
   `/static/kingdom/badge_1.png`); `alliance.json` gives level 4, XP 8,829,850, gift level 6, rank 25, language `ja`,
