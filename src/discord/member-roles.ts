@@ -70,7 +70,7 @@ export interface Skipped {
 
 /** The outcome of an apply: what changed, what was created, and every step that was skipped. */
 export interface ApplyReport {
-  /** "untouched" when there was no nickname to set. */
+  /** "untouched" when there was no nickname to set, or the nickname on the server already matches. */
   readonly nickname: "set" | "skipped" | "untouched";
   readonly added: string[];
   readonly removed: string[];
@@ -98,7 +98,8 @@ export async function applyNameAndRoles(
   const skipped: Skipped[] = [];
 
   let nickname: ApplyReport["nickname"] = "untouched";
-  if (wanted.nickname !== undefined) {
+  // A nickname that already matches is not set again: the Daily Sync would otherwise PATCH every Member every day.
+  if (wanted.nickname !== undefined && member.nickname !== wanted.nickname) {
     const nicknameSkip = await setNickname(guild, member, wanted.nickname);
     nickname = nicknameSkip === undefined ? "set" : "skipped";
     if (nicknameSkip !== undefined) skipped.push(nicknameSkip);

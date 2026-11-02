@@ -522,6 +522,20 @@ describe("createNameAndRoles", () => {
     });
   });
 
+  describe("syncMember", () => {
+    test("logs nothing for the owner, whose nickname is always skipped, when nothing else changed", async () => {
+      joinMember(h, OWNER, ["#330", "NML", "R4", "T7"]);
+      linkMember(h, OWNER, UID);
+      await h.service.syncMember(OWNER, ROGUE_R4, GAME_RANK_R4);
+      h.logs.splice(0);
+
+      const changed = await h.service.syncMember(OWNER, ROGUE_R4, GAME_RANK_R4);
+
+      expect(changed).toBe(false);
+      expect(h.logs).toEqual([]);
+    });
+  });
+
   describe("onRankApproved", () => {
     const APPROVED_R4: RankOnLink = { source: "rank-approval", rank: "R4", approvedBy: OFFICER, approvedAt: NOW };
 

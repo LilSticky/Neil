@@ -97,6 +97,10 @@ const migrations: readonly string[] = [
      day TEXT NOT NULL,
      left_over_json TEXT NOT NULL
    )`,
+  // Migration 8: whether the Alliance of an Applied State was recorded. A row from before migration 7 has no Alliance
+  // columns, which is not the same as no Alliance; the rows that already name an Alliance are recorded.
+  `ALTER TABLE applied ADD COLUMN alliance_recorded INTEGER NOT NULL DEFAULT 0 CHECK (alliance_recorded IN (0, 1));
+   UPDATE applied SET alliance_recorded = 1 WHERE alliance_kingdom IS NOT NULL`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

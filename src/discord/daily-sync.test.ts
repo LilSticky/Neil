@@ -3,7 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BaseMessageOptions } from "discord.js";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { AllianceRef } from "../domain/daily-sync.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import type { RankOnLink } from "../domain/link.js";
@@ -14,6 +14,7 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
+import type { DailySyncRecord } from "../storage/daily-sync-store.js";
 import { FakeDailySyncGameApi } from "./__fakes__/daily-sync-game-api.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
@@ -441,12 +442,12 @@ describe("runDailySync", () => {
     expect(h.gameApi.requests).toEqual([{ kind: "roster", kingdom: 330, tag: "NML", purpose: "sync" }]);
   });
 
-  test("looks up by uid each Member of an Alliance whose roster the Game API cannot give", async () => {
+  test("looks up by uid each Member of an Alliance whose roster the Game API does not find", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
     linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
     joinMember(h, ANA, []);
     joinMember(h, BEN, []);
-    h.gameApi.answerRoster(HOME, "NML", { kind: "unavailable", reason: "unexpected" });
+    h.gameApi.answerRoster(HOME, "NML", { kind: "not-found" });
 
     await runDailySync(h.deps);
 
@@ -534,6 +535,177 @@ describe("runDailySync", () => {
     await runDailySync(h.deps);
 
     expect(h.runs.load()).toEqual({ day: utcDayOf(NOW), leftOver: [] });
+  });
+
+  test("counts every request a call sends, retries included, against the Sync Share", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    joinMember(h, ANA, []);
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: ABC, nickname: "", roles: [] });
+    joinMember(h, BEN, []);
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+    h.gameApi.answerRoster(HOME, "ABC", found(allianceOf("ABC", HOME, [rosterRow(BEN_UID, "Lupa", "R4")])));
+    h.gameApi.chargePerCall(3);
+
+    await runDailySync({ ...h.deps, share: 3 });
+
+    expect(rosterTags(h)).toEqual(["NML"]);
+    expect(h.runs.load()?.leftOver).toEqual([BEN]);
+    expect(summaryOf(h)).toMatch(/\b3 requests\b/);
+  });
+
+  test("records the day, with every planned Member left over, before the first request, so a run cut short is not repeated", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    joinMember(h, ANA, []);
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: ABC, nickname: "", roles: [] });
+    joinMember(h, BEN, []);
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+    h.gameApi.answerRoster(HOME, "ABC", found(allianceOf("ABC", HOME, [rosterRow(BEN_UID, "Lupa", "R4")])));
+    const recordsAtRequests: (DailySyncRecord | undefined)[] = [];
+    h.gameApi.onRequest(() => {
+      recordsAtRequests.push(h.runs.load());
+    });
+
+    await runDailySync(h.deps);
+
+    expect(recordsAtRequests[0]).toEqual({ day: utcDayOf(NOW), leftOver: [ANA, BEN] });
+  });
+
+  test.each([
+    ["unavailable", { kind: "unavailable", reason: "unexpected" }],
+    ["try-again", { kind: "try-again" }],
+  ] as const)(
+    "stops the run at a %s Alliance roster: no uid lookup follows, the Members not reached are left over, and only the summary is logged",
+    async (_label, outage) => {
+      linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+      joinMember(h, ANA, []);
+      linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: ABC, nickname: "", roles: [] });
+      joinMember(h, BEN, []);
+      h.gameApi.answerRoster(HOME, "NML", outage);
+      h.gameApi.answerRoster(HOME, "ABC", found(allianceOf("ABC", HOME, [rosterRow(BEN_UID, "Lupa", "R4")])));
+
+      await runDailySync(h.deps);
+
+      expect(h.gameApi.requests).toHaveLength(1);
+      expect(rosterTags(h)).toEqual(["NML"]);
+      expect(h.runs.load()?.leftOver).toEqual([ANA, BEN]);
+      expect(h.logs).toHaveLength(1);
+    },
+  );
+
+  test.each([
+    ["unavailable", { kind: "unavailable", reason: "unexpected" }],
+    ["try-again", { kind: "try-again" }],
+  ] as const)(
+    "stops the run at a %s uid lookup, leaves the Members not reached for the next day, and logs no line for them",
+    async (_label, outage) => {
+      linkMember(h, ANA, ANA_UID, { rank: { source: "no-alliance" }, alliance: undefined, nickname: "", roles: [] });
+      joinMember(h, ANA, []);
+      linkMember(h, BEN, BEN_UID, { rank: { source: "no-alliance" }, alliance: undefined, nickname: "", roles: [] });
+      joinMember(h, BEN, []);
+      h.gameApi.answerPlayer(ANA_UID, outage);
+      h.gameApi.answerPlayer(BEN_UID, found(playerOf(BEN_UID, "Lupa", HOME, 21)));
+
+      await runDailySync(h.deps);
+
+      expect(h.gameApi.requests).toEqual([{ kind: "player", uid: String(ANA_UID), purpose: "sync" }]);
+      expect(h.runs.load()?.leftOver).toEqual([ANA, BEN]);
+      expect(h.logs).toHaveLength(1);
+    },
+  );
+
+  test("checks a Member left over by the last run first, by uid ahead of the rosters", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    joinMember(h, ANA, []);
+    linkMember(h, BEN, BEN_UID, { rank: { source: "no-alliance" }, alliance: undefined, nickname: "Lupa", roles: ["#330", "T7"] });
+    joinMember(h, BEN, ["#330", "T7"], "Lupa");
+    h.runs.save({ day: utcDayOf(new Date("2026-11-01T10:00:00Z")), leftOver: [BEN] });
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+    h.gameApi.answerPlayer(BEN_UID, found(playerOf(BEN_UID, "Lupa", HOME, 21)));
+
+    await runDailySync(h.deps);
+
+    expect(h.gameApi.requests[0]).toEqual({ kind: "player", uid: String(BEN_UID), purpose: "sync" });
+  });
+
+  test("applies the Link as it is when the Member is reached, so a Rank Approval given during the run is kept", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: UNKNOWN_RANK, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "#330", "T7"] });
+    const member = joinMember(h, ANA, ["NML", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
+    h.gameApi.onRequest(() => {
+      h.links.updateRank(ANA, APPROVED_R3);
+    });
+
+    await runDailySync(h.deps);
+
+    expect(h.links.linkFor(ANA)?.allianceRank).toEqual(APPROVED_R3);
+    expect(heldNames(member)).toContain("R3");
+  });
+
+  test("fetches each Member on the server once in a run", async () => {
+    syncedAnaInNml(h);
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+
+    await runDailySync(h.deps);
+
+    expect(h.server.lookups.filter((memberId) => memberId === ANA)).toHaveLength(1);
+  });
+
+  test("starts no Rank Approval and removes no Link when the Game API gives no rank for a Linked Member", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
+    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
+
+    await runDailySync(h.deps);
+
+    expect(h.links.linkFor(ANA)?.allianceRank).toEqual(UNKNOWN_RANK);
+    expect(h.links.pendingFor(ANA)).toBeUndefined();
+  });
+
+  test("stops after the request in flight once aborted: the Members not reached are left over and the summary is logged", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    joinMember(h, ANA, []);
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: ABC, nickname: "", roles: [] });
+    joinMember(h, BEN, []);
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+    h.gameApi.answerRoster(HOME, "ABC", found(allianceOf("ABC", HOME, [rosterRow(BEN_UID, "Lupa", "R4")])));
+    const controller = new AbortController();
+    h.gameApi.onRequest(() => {
+      controller.abort();
+    });
+
+    await runDailySync({ ...h.deps, signal: controller.signal });
+
+    expect(rosterTags(h)).toEqual(["NML"]);
+    expect(h.runs.load()?.leftOver).toContain(BEN);
+    expect(summaryOf(h)).toMatch(/Daily Sync/);
+  });
+
+  test("reads 100 Linked Members in 10 Alliances with one roster each, plus one lookup per mover: at most 12 requests", async () => {
+    const tagOf = (group: number): string => `A${String.fromCharCode(65 + group)}`;
+    const memberIdOf = (index: number): MemberId => `3${String(index).padStart(17, "0")}`;
+    const uidAt = (index: number): Uid => uidOf(String(145563254000 + index));
+    const rowsByTag = new Map<string, RosterEntry[]>();
+    for (let index = 0; index < 100; index += 1) {
+      const tag = tagOf(Math.floor(index / 10));
+      const memberId = memberIdOf(index);
+      linkMember(h, memberId, uidAt(index), { rank: GAME_R4, alliance: { kingdom: HOME, tag }, nickname: "", roles: [] });
+      joinMember(h, memberId, []);
+      // The first two Members have moved: the roster of their Alliance does not list them.
+      if (index >= 2) {
+        rowsByTag.set(tag, [...(rowsByTag.get(tag) ?? []), rosterRow(uidAt(index), `Rogue ${index.toString()}`, "R4")]);
+      } else {
+        h.gameApi.answerPlayer(uidAt(index), found(playerOf(uidAt(index), `Rogue ${index.toString()}`, HOME, 21)));
+      }
+    }
+    for (let group = 0; group < 10; group += 1) {
+      const tag = tagOf(group);
+      h.gameApi.answerRoster(HOME, tag, found(allianceOf(tag, HOME, rowsByTag.get(tag) ?? [])));
+    }
+
+    await runDailySync(h.deps);
+
+    expect(h.gameApi.requests.filter((request) => request.kind === "roster")).toHaveLength(10);
+    expect(h.gameApi.requests.length).toBeLessThanOrEqual(12);
   });
 });
 
@@ -634,10 +806,33 @@ describe("startDailySync", () => {
     expect(h.gameApi.requests).toEqual([]);
   });
 
+  test("stopping the Daily Sync ends a run in progress before its next request, and resolves once the run has ended", async () => {
+    linkedAnaWithRoster();
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: ABC, nickname: "", roles: [] });
+    joinMember(h, BEN, []);
+    h.gameApi.answerRoster(HOME, "ABC", found(allianceOf("ABC", HOME, [rosterRow(BEN_UID, "Lupa", "R4")])));
+    h.clock.now = new Date("2026-11-02T03:00:00Z");
+    const stop = startDailySync(h.deps, SYNC_HOUR_UTC, schedule);
+    const stops: Promise<void>[] = [];
+    h.gameApi.onRequest(() => {
+      if (stops.length === 0) stops.push(stop());
+    });
+
+    await vi.waitFor(() => {
+      expect(stops).toHaveLength(1);
+    });
+    await Promise.all(stops);
+
+    expect(rosterTags(h)).toEqual(["NML"]);
+    expect(h.runs.load()?.leftOver).toContain(BEN);
+    expect(summaryOf(h)).toMatch(/Daily Sync/);
+    expect(timers[0]?.stopped).toBe(true);
+  });
+
   test("stopping the Daily Sync stops its timer", () => {
     const stop = startDailySync(h.deps, SYNC_HOUR_UTC, schedule);
 
-    stop();
+    void stop();
 
     expect(timers[0]?.stopped).toBe(true);
   });

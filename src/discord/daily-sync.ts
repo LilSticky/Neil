@@ -5,16 +5,18 @@ import {
   planSync,
   playerFromRoster,
   rankAfterSync,
+  type AllianceRef,
+  type LastAlliance,
   type SyncLink,
+  type SyncStep,
 } from "../domain/daily-sync.js";
-import type { Link } from "../domain/link.js";
 import { parseAllianceKey, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { AppliedStore } from "../storage/applied-store.js";
 import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { LinkStore } from "../storage/link-store.js";
-import type { ServerMembers, SyncNameAndRoles } from "./name-and-roles.js";
+import type { ServerMember, ServerMembers, SyncNameAndRoles } from "./name-and-roles.js";
 import { nameAndRolesNotAppliedLogLine } from "./name-and-roles-texts.js";
 import type { Schedule } from "./interview-sweeper.js";
 
@@ -30,136 +32,165 @@ export interface DailySyncGameApi {
 
 /** What a Daily Sync run needs: the stores, the server, the Game API, the name and roles, the Sync Share and the log. */
 export interface DailySyncDeps {
-  readonly links: Pick<LinkStore, "all">;
+  readonly links: Pick<LinkStore, "all" | "linkFor">;
   readonly applied: Pick<AppliedStore, "get">;
   readonly runs: Pick<DailySyncStore, "load" | "save">;
   readonly members: ServerMembers;
   readonly gameApi: DailySyncGameApi;
   readonly nameAndRoles: SyncNameAndRoles;
-  /** The most Game API requests one run may send; from SYNC_SHARE. */
+  /** The most Game API requests one run may send, retries included; from SYNC_SHARE. */
   readonly share: number;
   /** Requests kept back for Onboarding Interviews; the Daily Sync stops at this reserve like a lookup does. */
   readonly quotaReserve: number;
+  /** Aborted to stop the run: it sends no further request, saves what is left over and logs its summary. */
+  readonly signal?: AbortSignal;
   readonly log: (message: BaseMessageOptions) => Promise<void>;
   readonly logError: (line: string) => void;
   readonly now: () => Date;
 }
 
-/** What one run did: the Members changed, the Members skipped, the requests sent. */
+/** What one run did: the Members changed and skipped. The requests are counted from the Daily Quota. */
 interface RunCounts {
   changed: number;
   skipped: number;
-  requests: number;
+}
+
+/** A Linked Member on the server, fetched once for the run. */
+interface PresentMember {
+  readonly link: SyncLink;
+  readonly server: ServerMember;
 }
 
 /**
  * Runs the Daily Sync once: each Linked Member on the server is checked against the Game API, by one roster request per
- * Alliance or by a uid lookup, within the Sync Share and above the Quota Reserve. The Members not reached are left for the
- * next day, and the record of the run is saved before its summary is logged. Rejects only when Discord cannot be reached.
+ * Alliance or by a uid lookup, within the Sync Share and above the Quota Reserve. The day is recorded before the first
+ * request, and the Members not reached are left over for the next day. Stops at an outage (unavailable, try-again or
+ * not prepared) or an abort, and logs its summary. Rejects only when Discord cannot be reached.
  */
 export async function runDailySync(deps: DailySyncDeps): Promise<void> {
   const now = deps.now();
-  const links = deps.links.all();
-  const linkById = new Map<MemberId, Link>(links.map((link) => [link.memberId, link]));
-  const syncLinks: SyncLink[] = links.map((link) => ({
+  const day = utcDayOf(now);
+  const syncLinks: SyncLink[] = deps.links.all().map((link) => ({
     memberId: link.memberId,
     uid: link.uid,
-    lastAlliance: deps.applied.get(link.memberId)?.alliance,
+    lastAlliance: lastAllianceOf(deps.applied.get(link.memberId)),
   }));
-  const plan = planSync(syncLinks, deps.runs.load()?.leftOver ?? []);
-  const pending = new Set<MemberId>([
-    ...plan.rosters.flatMap((group) => group.links.map((link) => link.memberId)),
-    ...plan.byUid.map((link) => link.memberId),
-  ]);
-  const counts: RunCounts = { changed: 0, skipped: 0, requests: 0 };
-  const mayRequest = (): boolean =>
-    counts.requests < deps.share && canSendFor(deps.gameApi.quotaToday(), "sync", deps.quotaReserve);
+  const steps = planSync(syncLinks, deps.runs.load()?.leftOver ?? []);
+  // Every planned Member is left over until reached, so a run cut short is not repeated today and its Members come first.
+  const pending = new Set<MemberId>(steps.flatMap(linksOf).map((link) => link.memberId));
+  deps.runs.save({ day, leftOver: [...pending] });
 
-  /** Applies a Player to a Linked Member: the rank is worked out from the Link and the Alliance last applied. */
-  const apply = async (link: SyncLink, player: Player): Promise<void> => {
-    const current = linkById.get(link.memberId);
+  const counts: RunCounts = { changed: 0, skipped: 0 };
+  // Requests are counted by the Daily Quota's used figure, so a retry inside a call counts as the request it is.
+  const usedAtStart = deps.gameApi.quotaToday().used;
+  const requestsSent = (): number => Math.max(0, deps.gameApi.quotaToday().used - usedAtStart);
+  const mayRequest = (): boolean =>
+    requestsSent() < deps.share &&
+    deps.signal?.aborted !== true &&
+    canSendFor(deps.gameApi.quotaToday(), "sync", deps.quotaReserve);
+
+  /** Applies the Player to a reached Member: the rank is worked out from the Link as it is now and the Alliance last applied. */
+  const apply = async (present: PresentMember, player: Player): Promise<void> => {
+    const { link, server } = present;
+    const current = deps.links.linkFor(link.memberId);
     if (current !== undefined) {
       const rank = rankAfterSync(current.allianceRank, link.lastAlliance, player);
-      if (await deps.nameAndRoles.syncMember(link.memberId, player, rank)) counts.changed += 1;
+      if (await deps.nameAndRoles.syncMember(link.memberId, player, rank, server)) counts.changed += 1;
     }
     pending.delete(link.memberId);
   };
 
-  // The Members of each Alliance: one roster request for those on the server; the ones the roster does not give follow.
-  const fallbacks: SyncLink[] = [];
-  let stopped = false;
-  for (const group of plan.rosters) {
-    const candidates = await onServer(deps, group.links, pending, counts);
-    if (candidates.length === 0) continue;
-    const key = parseAllianceKey(group.alliance.tag);
-    if (!key.ok) {
-      fallbacks.push(...candidates);
-      continue;
+  /** Fetches the Member, who leaves the run when they are not on the server. */
+  const present = async (link: SyncLink): Promise<PresentMember | undefined> => {
+    const server = await deps.members.memberOf(link.memberId);
+    if (server !== undefined) return { link, server };
+    counts.skipped += 1;
+    pending.delete(link.memberId);
+    return undefined;
+  };
+
+  /** Looks one Member up by uid. Returns false when the run must stop. */
+  const lookUp = async (member: PresentMember): Promise<boolean> => {
+    if (!mayRequest()) return false;
+    const result = await deps.gameApi.getPlayer(member.link.uid, "sync");
+    if (result.kind === "found") {
+      await apply(member, result.value);
+      return true;
     }
-    if (!mayRequest()) {
+    if (result.kind === "not-found") {
+      counts.skipped += 1;
+      pending.delete(member.link.memberId);
+      await deps.log(nameAndRolesNotAppliedLogLine(member.link.memberId));
+      return true;
+    }
+    return false;
+  };
+
+  /** One roster request for the Alliance, applied to the Members on the server it lists. Returns false when the run must stop. */
+  const readRoster = async (alliance: AllianceRef, links: readonly SyncLink[], fallbacks: PresentMember[]): Promise<boolean> => {
+    const members: PresentMember[] = [];
+    for (const link of links) {
+      const member = await present(link);
+      if (member !== undefined) members.push(member);
+    }
+    if (members.length === 0) return true;
+    const key = parseAllianceKey(alliance.tag);
+    if (!key.ok) {
+      fallbacks.push(...members);
+      return true;
+    }
+    if (!mayRequest()) return false;
+    const result = await deps.gameApi.getAlliance(alliance.kingdom, key.value, "sync");
+    if (result.kind === "not-found") {
+      fallbacks.push(...members);
+      return true;
+    }
+    if (result.kind !== "found") return false;
+    for (const member of members) {
+      const entry = result.value.roster.find((row) => row.uid === member.link.uid);
+      const player = entry === undefined ? undefined : playerFromRoster(result.value, entry);
+      if (player === undefined) fallbacks.push(member);
+      else await apply(member, player);
+    }
+    return true;
+  };
+
+  /** A uid step: the Member is fetched, then looked up when present. Returns false when the run must stop. */
+  const uidStep = async (link: SyncLink): Promise<boolean> => {
+    const member = await present(link);
+    return member === undefined ? true : lookUp(member);
+  };
+
+  // The steps in their planned order; the Members a roster does not give are looked up by uid after them.
+  const fallbacks: PresentMember[] = [];
+  let stopped = false;
+  for (const step of steps) {
+    const going = step.kind === "roster" ? await readRoster(step.alliance, step.links, fallbacks) : await uidStep(step.link);
+    if (!going) {
       stopped = true;
       break;
     }
-    counts.requests += 1;
-    const result: LookupResult<Alliance> = await deps.gameApi.getAlliance(group.alliance.kingdom, key.value, "sync");
-    if (result.kind !== "found") {
-      fallbacks.push(...candidates);
-      continue;
-    }
-    for (const link of candidates) {
-      const entry = result.value.roster.find((row) => row.uid === link.uid);
-      const player = entry === undefined ? undefined : playerFromRoster(result.value, entry);
-      if (player === undefined) fallbacks.push(link);
-      else await apply(link, player);
-    }
   }
-
-  // The uid lookups: the Members in no Alliance at their last apply, then those the rosters did not give.
-  for (const link of stopped ? [] : [...plan.byUid, ...fallbacks]) {
-    const [present] = await onServer(deps, [link], pending, counts);
-    if (present === undefined) continue;
-    if (!mayRequest()) break;
-    counts.requests += 1;
-    const result = await deps.gameApi.getPlayer(link.uid, "sync");
-    if (result.kind === "found") {
-      await apply(link, result.value);
-    } else if (result.kind === "quota-spent" || result.kind === "reserve-kept") {
-      break;
-    } else {
-      counts.skipped += 1;
-      pending.delete(link.memberId);
-      await deps.log(nameAndRolesNotAppliedLogLine(link.memberId));
-    }
+  for (const member of stopped ? [] : fallbacks) {
+    if (!(await lookUp(member))) break;
   }
 
   const leftOver = [...pending];
-  deps.runs.save({ day: utcDayOf(now), leftOver });
-  await deps.log(summaryLine(utcDayOf(now), counts, leftOver.length));
+  deps.runs.save({ day, leftOver });
+  const summary = { changed: counts.changed, skipped: counts.skipped, requests: requestsSent() };
+  await deps.log(summaryLine(day, summary, leftOver.length));
 }
 
-/**
- * The links whose Member is on the server, in order. A Member not on it is skipped, with no request for them, and leaves
- * the run's work.
- */
-async function onServer(
-  deps: DailySyncDeps,
-  links: readonly SyncLink[],
-  pending: Set<MemberId>,
-  counts: RunCounts,
-): Promise<SyncLink[]> {
-  const present: SyncLink[] = [];
-  for (const link of links) {
-    if ((await deps.members.memberOf(link.memberId)) === undefined) {
-      counts.skipped += 1;
-      pending.delete(link.memberId);
-    } else {
-      present.push(link);
-    }
-  }
-  return present;
+/** The Alliance a Member was last applied in: none when there is no Applied State, which is unrecorded. */
+function lastAllianceOf(state: { readonly alliance?: LastAlliance | undefined } | undefined): LastAlliance {
+  return state === undefined ? "unrecorded" : state.alliance;
 }
 
-function summaryLine(day: string, counts: RunCounts, left: number): BaseMessageOptions {
+function linksOf(step: SyncStep): readonly SyncLink[] {
+  return step.kind === "roster" ? step.links : [step.link];
+}
+
+function summaryLine(day: string, counts: { changed: number; skipped: number; requests: number }, left: number): BaseMessageOptions {
   const requests = `${counts.requests.toString()} ${counts.requests === 1 ? "request" : "requests"}`;
   return {
     content: `📅 Daily Sync for ${day} (UTC): ${counts.changed.toString()} changed, ${counts.skipped.toString()} skipped, ${requests}, ${left.toString()} left.`,
@@ -169,29 +200,35 @@ function summaryLine(day: string, counts: RunCounts, left: number): BaseMessageO
 
 /**
  * Starts the Daily Sync: a check now and every 10 minutes after, each running the Daily Sync when it is due (the Sync hour
- * has come and today's run is not recorded). Runs never overlap. Returns the function that stops the checks.
+ * has come and today's run is not recorded). Runs never overlap. Returns the function that stops the checks: it ends a run
+ * in progress before its next request, and resolves once that run has ended.
  */
-export function startDailySync(deps: DailySyncDeps, syncHourUtc: number, schedule: Schedule): () => void {
-  let running = false;
+export function startDailySync(deps: DailySyncDeps, syncHourUtc: number, schedule: Schedule): () => Promise<void> {
+  const stopping = new AbortController();
+  let running: Promise<void> | undefined = undefined;
   const check = (): void => {
-    if (running) return;
+    if (running !== undefined || stopping.signal.aborted) return;
     try {
       if (!isDue(deps.runs.load()?.day, deps.now(), syncHourUtc)) return;
     } catch (error) {
       deps.logError(`Checking the Daily Sync failed: ${reasonOf(error)}`);
       return;
     }
-    running = true;
-    void runDailySync(deps)
+    running = runDailySync({ ...deps, signal: stopping.signal })
       .catch((error: unknown) => {
         deps.logError(`The Daily Sync failed: ${reasonOf(error)}`);
       })
       .finally(() => {
-        running = false;
+        running = undefined;
       });
   };
   check();
-  return schedule(check, CHECK_EVERY_MS);
+  const stopTimer = schedule(check, CHECK_EVERY_MS);
+  return async () => {
+    stopTimer();
+    stopping.abort();
+    await running;
+  };
 }
 
 function reasonOf(error: unknown): string {

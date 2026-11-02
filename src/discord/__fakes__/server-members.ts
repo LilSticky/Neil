@@ -4,6 +4,8 @@ import type { FakeRolesGuild, FakeRolesMember } from "./roles-guild.js";
 
 /** The members of the server as the name and roles reach them: a member is on the server only when joined. */
 export class FakeServerMembers implements ServerMembers {
+  /** Every lookup of a Member on the server, in order: a test counts how often a Member was fetched. */
+  readonly lookups: MemberId[] = [];
   private readonly members = new Map<MemberId, ServerMember>();
   private readonly failures = new Map<MemberId, Error>();
   private failure: Error | undefined = undefined;
@@ -22,6 +24,7 @@ export class FakeServerMembers implements ServerMembers {
   }
 
   memberOf(memberId: MemberId): Promise<ServerMember | undefined> {
+    this.lookups.push(memberId);
     if (this.failure !== undefined) return Promise.reject(this.failure);
     const failure = this.failures.get(memberId);
     if (failure !== undefined) return Promise.reject(failure);

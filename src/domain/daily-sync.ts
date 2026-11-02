@@ -10,48 +10,56 @@ export interface AllianceRef {
   readonly tag: string;
 }
 
+/**
+ * The Alliance a Member was last applied in: an Alliance, none, or "unrecorded" for an Applied State written before
+ * the Alliance was recorded (so it is not known whether the Member had one).
+ */
+export type LastAlliance = AllianceRef | undefined | "unrecorded";
+
 /** A Linked Member as the Daily Sync sees it: the uid they are linked to, and the Alliance they were last seen in. */
 export interface SyncLink {
   readonly memberId: MemberId;
   readonly uid: Uid;
-  readonly lastAlliance: AllianceRef | undefined;
+  readonly lastAlliance: LastAlliance;
 }
 
-/** The Game API requests a Daily Sync needs: one roster per Alliance, and one uid lookup per Member in no Alliance. */
-export interface SyncPlan {
-  readonly rosters: readonly { readonly alliance: AllianceRef; readonly links: readonly SyncLink[] }[];
-  readonly byUid: readonly SyncLink[];
-}
+/** One Game API request of a Daily Sync: the roster of an Alliance for its Linked Members, or one Member's uid lookup. */
+export type SyncStep =
+  | { readonly kind: "roster"; readonly alliance: AllianceRef; readonly links: readonly SyncLink[] }
+  | { readonly kind: "uid"; readonly link: SyncLink };
 
 /**
- * Plans the requests of a Daily Sync. Members the last run left over go first, so their Alliances and their uid
- * lookups come before the others'. Members last seen in no Alliance get a uid lookup; the rest share one roster per
- * Alliance.
+ * Plans the requests of a Daily Sync, in the order they are sent. Members the last run left over come first, so their
+ * steps come before the others'. A Member last seen in no Alliance, or whose Alliance is unrecorded, gets a uid lookup;
+ * the rest share one roster per Alliance, placed where the first of its Members comes.
  */
-export function planSync(links: readonly SyncLink[], leftOver: readonly MemberId[]): SyncPlan {
+export function planSync(links: readonly SyncLink[], leftOver: readonly MemberId[]): SyncStep[] {
   const leftOverIds = new Set(leftOver);
   const ordered = [
     ...links.filter((link) => leftOverIds.has(link.memberId)),
     ...links.filter((link) => !leftOverIds.has(link.memberId)),
   ];
 
-  const byAlliance = new Map<string, { alliance: AllianceRef; links: SyncLink[] }>();
-  const byUid: SyncLink[] = [];
+  const steps: SyncStep[] = [];
+  // Each roster's links array is shared with its step, so a later Member of the Alliance joins the step made for it.
+  const rosterLinks = new Map<string, SyncLink[]>();
   for (const link of ordered) {
     const alliance = link.lastAlliance;
-    if (alliance === undefined) {
-      byUid.push(link);
+    if (alliance === undefined || alliance === "unrecorded") {
+      steps.push({ kind: "uid", link });
       continue;
     }
     const key = `${alliance.kingdom.toString()}:${alliance.tag}`;
-    const group = byAlliance.get(key);
-    if (group === undefined) {
-      byAlliance.set(key, { alliance, links: [link] });
+    const members = rosterLinks.get(key);
+    if (members !== undefined) {
+      members.push(link);
     } else {
-      group.links.push(link);
+      const created: SyncLink[] = [link];
+      rosterLinks.set(key, created);
+      steps.push({ kind: "roster", alliance, links: created });
     }
   }
-  return { rosters: [...byAlliance.values()], byUid };
+  return steps;
 }
 
 /**
@@ -73,19 +81,20 @@ export function playerFromRoster(alliance: Alliance, entry: RosterEntry): Player
 }
 
 /**
- * The Alliance Rank a Link carries after a Daily Sync (FR-004). The rank the Game API gives in an Alliance wins;
- * a Rank Approval stays only while the Player is still in the Alliance it was approved in; anything else is unknown,
- * and a Player in no Alliance has none.
+ * The Alliance Rank a Link carries after a Daily Sync (FR-004). The rank the Game API gives in an Alliance wins; a
+ * Rank Approval stays while the Player is in the Alliance it was approved in, or while the Alliance last applied is
+ * unrecorded (it cannot be told that they moved). Anything else is unknown, and a Player in no Alliance has none.
  */
-export function rankAfterSync(rank: RankOnLink, lastAlliance: AllianceRef | undefined, now: Player): RankOnLink {
+export function rankAfterSync(rank: RankOnLink, lastAlliance: LastAlliance, now: Player): RankOnLink {
   if (now.alliance === undefined) return { source: "no-alliance" };
   const gameRank = now.allianceRank;
   if (gameRank !== "unknown") return { source: "game-api", rank: gameRank };
+  if (rank.source !== "rank-approval") return { source: "unknown" };
 
   const stillInLastAlliance =
-    lastAlliance !== undefined && lastAlliance.tag === now.alliance.tag && lastAlliance.kingdom === now.kingdom;
-  if (rank.source === "rank-approval" && stillInLastAlliance) return rank;
-  return { source: "unknown" };
+    lastAlliance === "unrecorded" ||
+    (lastAlliance !== undefined && lastAlliance.tag === now.alliance.tag && lastAlliance.kingdom === now.kingdom);
+  return stillInLastAlliance ? rank : { source: "unknown" };
 }
 
 /**

@@ -27,54 +27,61 @@ describe("planSync", () => {
     const ben = linkOf(MEMBER_BEN, "93159425", NML);
     const cal = linkOf(MEMBER_CAL, "147744374785", ABC);
 
-    const plan = planSync([ana, ben, cal], []);
+    const steps = planSync([ana, ben, cal], []);
 
-    expect(plan).toEqual({
-      rosters: [
-        { alliance: NML, links: [ana, ben] },
-        { alliance: ABC, links: [cal] },
-      ],
-      byUid: [],
-    });
+    expect(steps).toEqual([
+      { kind: "roster", alliance: NML, links: [ana, ben] },
+      { kind: "roster", alliance: ABC, links: [cal] },
+    ]);
   });
 
   test("reads the same tag in another Kingdom as another Alliance, with its own roster", () => {
     const ana = linkOf(MEMBER_ANA, "145563254785", NML);
     const ben = linkOf(MEMBER_BEN, "93159425", NML_IN_OTHER_KINGDOM);
 
-    const plan = planSync([ana, ben], []);
+    const steps = planSync([ana, ben], []);
 
-    expect(plan.rosters.map((roster) => roster.alliance)).toEqual([NML, NML_IN_OTHER_KINGDOM]);
+    expect(steps.map((step) => (step.kind === "roster" ? step.alliance : undefined))).toEqual([NML, NML_IN_OTHER_KINGDOM]);
   });
 
   test("looks up by uid the Linked Members in no Alliance, and asks no roster for them", () => {
     const ana = linkOf(MEMBER_ANA, "145563254785", undefined);
     const ben = linkOf(MEMBER_BEN, "93159425", NML);
 
-    const plan = planSync([ana, ben], []);
+    const steps = planSync([ana, ben], []);
 
-    expect(plan).toEqual({
-      rosters: [{ alliance: NML, links: [ben] }],
-      byUid: [ana],
-    });
+    expect(steps).toContainEqual({ kind: "uid", link: ana });
+    expect(steps.filter((step) => step.kind === "roster")).toEqual([{ kind: "roster", alliance: NML, links: [ben] }]);
   });
 
   test("puts the Alliance of a left-over Member first, ahead of the Alliances of the others", () => {
     const ana = linkOf(MEMBER_ANA, "145563254785", NML);
     const cal = linkOf(MEMBER_CAL, "147744374785", ABC);
 
-    const plan = planSync([ana, cal], [MEMBER_CAL]);
+    const steps = planSync([ana, cal], [MEMBER_CAL]);
 
-    expect(plan.rosters.map((roster) => roster.alliance)).toEqual([ABC, NML]);
+    expect(steps[0]).toEqual({ kind: "roster", alliance: ABC, links: [cal] });
   });
 
-  test("puts a left-over Member in no Alliance first among the uid lookups", () => {
+  test("puts a left-over Member in no Alliance first, ahead of the rosters and the other uid lookups", () => {
     const ana = linkOf(MEMBER_ANA, "145563254785", undefined);
     const ben = linkOf(MEMBER_BEN, "93159425", undefined);
+    const cal = linkOf(MEMBER_CAL, "147744374785", NML);
 
-    const plan = planSync([ana, ben], [MEMBER_BEN]);
+    const steps = planSync([ana, ben, cal], [MEMBER_BEN]);
 
-    expect(plan.byUid).toEqual([ben, ana]);
+    expect(steps[0]).toEqual({ kind: "uid", link: ben });
+    expect(steps).toHaveLength(3);
+  });
+
+  test("puts a left-over Member in no Alliance ahead of a Member whose Alliance comes first in the Links", () => {
+    const ana = linkOf(MEMBER_ANA, "145563254785", NML);
+    const ben = linkOf(MEMBER_BEN, "93159425", ABC);
+    const cal = linkOf(MEMBER_CAL, "147744374785", undefined);
+
+    const steps = planSync([ana, ben, cal], [MEMBER_CAL]);
+
+    expect(steps[0]).toEqual({ kind: "uid", link: cal });
   });
 });
 
@@ -131,6 +138,12 @@ describe("rankAfterSync", () => {
     const now = allied({ name: "etranger", kingdom: 1, sanctuaryLevel: 22, tag: "NML", rank: "unknown" });
 
     expect(rankAfterSync(approvedRank("R3"), NML, now)).toEqual(approvedRank("R3"));
+  });
+
+  test("keeps an approved rank when the Alliance last applied is unrecorded and the Game API gives no rank", () => {
+    const now = allied({ name: "etranger", kingdom: 1, sanctuaryLevel: 22, tag: "NML", rank: "unknown" });
+
+    expect(rankAfterSync(approvedRank("R3"), "unrecorded", now)).toEqual(approvedRank("R3"));
   });
 
   test("drops an approved rank when the Player moved to another Alliance where the rank is unknown", () => {

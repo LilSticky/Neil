@@ -28,6 +28,7 @@ describe("openDatabase", () => {
       { version: 5 },
       { version: 6 },
       { version: 7 },
+      { version: 8 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -47,6 +48,7 @@ describe("openDatabase", () => {
       { version: 5 },
       { version: 6 },
       { version: 7 },
+      { version: 8 },
     ]);
     db.close();
   });
@@ -56,7 +58,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 7");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 8");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -169,6 +171,7 @@ describe("openDatabase", () => {
       { version: 5 },
       { version: 6 },
       { version: 7 },
+      { version: 8 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -262,6 +265,7 @@ describe("openDatabase", () => {
         "complete",
         "alliance_kingdom",
         "alliance_tag",
+        "alliance_recorded",
       ]);
     } finally {
       db.close();
@@ -276,6 +280,18 @@ describe("openDatabase", () => {
         .all()
         .map((row) => String(row.name));
       expect(columns).toEqual(expect.arrayContaining(["day", "left_over_json"]));
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 8 adds alliance_recorded to applied, 0 unless a row says its Alliance was recorded", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const column = db
+        .prepare("SELECT name, dflt_value FROM pragma_table_info('applied') WHERE name = 'alliance_recorded'")
+        .get();
+      expect(column).toEqual({ name: "alliance_recorded", dflt_value: "0" });
     } finally {
       db.close();
     }
@@ -302,6 +318,7 @@ describe("openDatabase", () => {
         { version: 5 },
         { version: 6 },
         { version: 7 },
+        { version: 8 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -335,6 +352,7 @@ describe("openDatabase", () => {
         { version: 5 },
         { version: 6 },
         { version: 7 },
+        { version: 8 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -368,6 +386,7 @@ describe("openDatabase", () => {
         { version: 5 },
         { version: 6 },
         { version: 7 },
+        { version: 8 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -431,6 +450,7 @@ describe("openDatabase", () => {
       { version: 5 },
       { version: 6 },
       { version: 7 },
+      { version: 8 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),

@@ -55,9 +55,10 @@ export interface SyncNameAndRoles {
   /**
    * The Member gets the name and roles of the Player with the rank given, the nickname always restored, and the rank and
    * the Alliance are recorded. Resolves to whether anything changed (a line is logged then); false for a Member not on
-   * the server. Never throws: a failure is logged and changes nothing else.
+   * the server. `server` is the Member as the caller already fetched them, so each is fetched once; else they are fetched
+   * here. Never throws: a failure is logged and changes nothing else.
    */
-  syncMember(memberId: MemberId, player: Player, rank: RankOnLink): Promise<boolean>;
+  syncMember(memberId: MemberId, player: Player, rank: RankOnLink, server?: ServerMember): Promise<boolean>;
 }
 
 export interface NameAndRolesDeps {
@@ -80,7 +81,7 @@ export function createNameAndRoles(deps: NameAndRolesDeps): NameAndRoles & SyncN
     onLinked: (memberId, player, rank) => guarded(deps, memberId, () => applyToMember(deps, memberId, player, rank)),
     onRankApproved: (memberId) => guarded(deps, memberId, () => approveRank(deps, memberId)),
     atStartup: () => startUp(deps),
-    syncMember: (memberId, player, rank) => syncGuarded(deps, memberId, player, rank),
+    syncMember: (memberId, player, rank, server) => syncGuarded(deps, memberId, player, rank, server),
   };
 }
 
@@ -96,9 +97,15 @@ async function guarded(deps: NameAndRolesDeps, memberId: MemberId, work: () => P
   }
 }
 
-async function syncGuarded(deps: NameAndRolesDeps, memberId: MemberId, player: Player, rank: RankOnLink): Promise<boolean> {
+async function syncGuarded(
+  deps: NameAndRolesDeps,
+  memberId: MemberId,
+  player: Player,
+  rank: RankOnLink,
+  server: ServerMember | undefined,
+): Promise<boolean> {
   try {
-    return await syncTo(deps, memberId, player, rank);
+    return await syncTo(deps, memberId, player, rank, server);
   } catch (error) {
     deps.logError(`Syncing ${memberId}'s name and roles failed: ${reasonOf(error)}`);
     return false;
@@ -170,8 +177,14 @@ async function approveRank(deps: NameAndRolesDeps, memberId: MemberId): Promise<
  * and the rank are recorded. A change, a restored nickname included, logs one line; false when the Member is not on the
  * server.
  */
-async function syncTo(deps: NameAndRolesDeps, memberId: MemberId, player: Player, rank: RankOnLink): Promise<boolean> {
-  const server = await deps.members.memberOf(memberId);
+async function syncTo(
+  deps: NameAndRolesDeps,
+  memberId: MemberId,
+  player: Player,
+  rank: RankOnLink,
+  fetched: ServerMember | undefined,
+): Promise<boolean> {
+  const server = fetched ?? (await deps.members.memberOf(memberId));
   if (server === undefined) return false;
   const previous = deps.applied.get(memberId);
   const nickname = nicknameFor(player, rank, deps.homeKingdom);
@@ -187,7 +200,9 @@ async function syncTo(deps: NameAndRolesDeps, memberId: MemberId, player: Player
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
   deps.links.updateRank(memberId, rank);
   const nicknameChanged = report.nickname === "set" && currentNickname !== nickname;
-  if (!nicknameChanged && !rolesChanged(report) && report.skipped.length === 0) return false;
+  // The owner's nickname skip is the same on every run and never a change, so it is not logged.
+  const otherSkips = report.skipped.filter((skip) => !isOwnerNicknameSkip(skip));
+  if (!nicknameChanged && !rolesChanged(report) && otherSkips.length === 0) return false;
   const note = rank.source === "unknown" && player.alliance !== undefined ? RANK_CHECK_NOTE : undefined;
   await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? "", note));
   return true;

@@ -116,6 +116,29 @@ describe("AppliedStore", () => {
     expect(store.get(ALICE)?.alliance).toBeUndefined();
   });
 
+  test("get reads the Alliance of an Applied State written before the Alliance was recorded as unrecorded, not as no Alliance", () => {
+    const store = new AppliedStore(db);
+    links.confirm({ link: linkOf(ALICE, ALICE_UID) }, () => undefined);
+    // The row as it was written before the Alliance columns existed: the five columns the apply always set.
+    db.prepare("INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete) VALUES (?, ?, ?, ?, ?)").run(
+      ALICE,
+      "[NML] Rogue",
+      JSON.stringify(["NML", "#331", "T3"]),
+      APPLIED_AT.toISOString(),
+      1,
+    );
+
+    expect(store.get(ALICE)?.alliance).toBe("unrecorded");
+  });
+
+  test("get reads a Member recorded in no Alliance as no Alliance, not as unrecorded", () => {
+    const store = new AppliedStore(db);
+    links.confirm({ link: linkOf(ALICE, ALICE_UID) }, () => undefined);
+    store.record({ ...appliedOf(ALICE, true), alliance: undefined });
+
+    expect(store.get(ALICE)?.alliance).toBeUndefined();
+  });
+
   test("linkedWithoutCompleteApply lists a Link with no Applied State", () => {
     const store = new AppliedStore(db);
     const alice = linkOf(ALICE, ALICE_UID);

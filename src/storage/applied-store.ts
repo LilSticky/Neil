@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
-import type { AllianceRef } from "../domain/daily-sync.js";
+import type { LastAlliance } from "../domain/daily-sync.js";
 import type { Link } from "../domain/link.js";
 import { parseKingdom } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
@@ -8,7 +8,7 @@ import { linkOf } from "./link-store.js";
 
 /**
  * What Neil last applied to a Linked Member: the nickname and Managed Roles set, when, whether nothing was skipped, and
- * the Alliance the Member was in then (undefined in no Alliance).
+ * the Alliance the Member was in then (undefined in no Alliance; "unrecorded" for a row written before it was recorded).
  */
 export interface AppliedState {
   readonly memberId: MemberId;
@@ -16,7 +16,7 @@ export interface AppliedState {
   readonly roles: readonly string[];
   readonly appliedAt: Date;
   readonly complete: boolean;
-  readonly alliance?: AllianceRef | undefined;
+  readonly alliance?: LastAlliance | undefined;
 }
 
 const appliedRow = z.object({
@@ -30,6 +30,7 @@ const appliedRow = z.object({
   }),
   applied_at: z.iso.datetime().transform((value) => new Date(value)),
   complete: z.union([z.literal(0), z.literal(1)]),
+  alliance_recorded: z.union([z.literal(0), z.literal(1)]),
   alliance_kingdom: z.number().int().nullable(),
   alliance_tag: z.string().nullable(),
 });
@@ -41,7 +42,8 @@ export class AppliedStore {
   get(memberId: MemberId): AppliedState | undefined {
     const raw = this.db
       .prepare(
-        "SELECT member_id, nickname, roles_json, applied_at, complete, alliance_kingdom, alliance_tag FROM applied WHERE member_id = ?",
+        `SELECT member_id, nickname, roles_json, applied_at, complete, alliance_recorded, alliance_kingdom, alliance_tag
+         FROM applied WHERE member_id = ?`,
       )
       .get(memberId);
     return raw === undefined ? undefined : appliedOf(raw);
@@ -49,12 +51,14 @@ export class AppliedStore {
 
   /** Stores the Applied State, replacing the Member's previous one. */
   record(state: AppliedState): void {
+    const alliance = allianceColumnsOf(state.alliance);
     this.db
       .prepare(
-        `INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete, alliance_kingdom, alliance_tag)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete, alliance_recorded, alliance_kingdom,
+           alliance_tag)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (member_id) DO UPDATE SET nickname = excluded.nickname, roles_json = excluded.roles_json,
-           applied_at = excluded.applied_at, complete = excluded.complete,
+           applied_at = excluded.applied_at, complete = excluded.complete, alliance_recorded = excluded.alliance_recorded,
            alliance_kingdom = excluded.alliance_kingdom, alliance_tag = excluded.alliance_tag`,
       )
       .run(
@@ -63,8 +67,9 @@ export class AppliedStore {
         JSON.stringify(state.roles),
         state.appliedAt.toISOString(),
         state.complete ? 1 : 0,
-        state.alliance?.kingdom ?? null,
-        state.alliance?.tag ?? null,
+        alliance.recorded,
+        alliance.kingdom,
+        alliance.tag,
       );
   }
 
@@ -91,16 +96,31 @@ function appliedOf(raw: unknown): AppliedState {
     roles: parsed.data.roles_json,
     appliedAt: parsed.data.applied_at,
     complete: parsed.data.complete === 1,
-    alliance: allianceOf(parsed.data.alliance_kingdom, parsed.data.alliance_tag),
+    alliance: allianceOf(parsed.data),
   };
 }
 
-/** The Alliance columns: both set (the Kingdom and tag) or both NULL (no Alliance). */
-function allianceOf(kingdom: number | null, tag: string | null): AllianceRef | undefined {
-  if (kingdom === null && tag === null) return undefined;
-  const parsed = kingdom === null ? undefined : parseKingdom(kingdom);
-  if (tag === null || parsed === undefined || !parsed.ok) throw corruptAppliedError();
-  return { kingdom: parsed.value, tag };
+/** The Alliance columns of an Applied State: whether it was recorded, and the Kingdom and tag when there is one. */
+interface AllianceColumns {
+  readonly recorded: 0 | 1;
+  readonly kingdom: number | null;
+  readonly tag: string | null;
+}
+
+/** The columns for the Alliance: "unrecorded" leaves them empty and unrecorded; no Alliance is recorded with both NULL. */
+function allianceColumnsOf(alliance: LastAlliance): AllianceColumns {
+  if (alliance === "unrecorded") return { recorded: 0, kingdom: null, tag: null };
+  if (alliance === undefined) return { recorded: 1, kingdom: null, tag: null };
+  return { recorded: 1, kingdom: alliance.kingdom, tag: alliance.tag };
+}
+
+/** The Alliance of a row: unrecorded when its marker says so, else both columns set (an Alliance) or both NULL (none). */
+function allianceOf(row: { alliance_recorded: 0 | 1; alliance_kingdom: number | null; alliance_tag: string | null }): LastAlliance {
+  if (row.alliance_recorded === 0) return "unrecorded";
+  if (row.alliance_kingdom === null && row.alliance_tag === null) return undefined;
+  const parsed = row.alliance_kingdom === null ? undefined : parseKingdom(row.alliance_kingdom);
+  if (row.alliance_tag === null || parsed === undefined || !parsed.ok) throw corruptAppliedError();
+  return { kingdom: parsed.value, tag: row.alliance_tag };
 }
 
 function corruptAppliedError(): Error {

@@ -36,5 +36,5 @@ description: "Task list for slice 009, Keep roles in sync"
   wired in `connect`. Implement.
 - [x] T008 Docs: HOSTING.md (variables), TEST-RUN.md §6e (collected), ADR 4 note (sync share now real), ROADMAP,
   STATUS.
-- [ ] T009 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
+- [x] T009 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
 - [ ] T010 Manual check collected in TEST-RUN.md §6e, run later by the user.

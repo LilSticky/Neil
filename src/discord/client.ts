@@ -200,6 +200,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
 
 export interface ConnectOptions {
   readonly buildInfo: BuildInfo;
+  /** The clock: the time of each Daily Quota check, apply and run record. */
+  readonly now: () => Date;
   readonly startRecord: StartRecord;
   readonly gameApi: GameApi;
   /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
@@ -430,7 +432,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   };
   // One store for every pick list: the lookups open them, the pick handler answers them.
   const pickSessions = new PickSessions();
-  const now = (): Date => new Date();
+  const now = options.now;
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,
     pickSessions,
@@ -490,9 +492,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     },
     { guildId: options.guildId, logError },
   );
-  // The sweeper and the Daily Sync run from the moment the channels are checked; stopped again on disconnect.
+  // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
+  // apply); both are stopped again on disconnect.
   let stopSweeper: () => void = () => undefined;
-  let stopDailySync: () => void = () => undefined;
+  let stopDailySync: () => Promise<void> = () => Promise.resolve();
+  let disconnecting = false;
   try {
     await client.login(token);
     await whenReady(client);
@@ -548,10 +552,38 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     openServices({ interviews, rankApprovals });
-    // The startup apply and the permission report run in the background, so login does not wait for them.
-    void nameAndRoles.atStartup().catch((error: unknown) => {
-      logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
-    });
+    // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
+    // starts once the startup apply has settled, so their Game API lookups do not overlap.
+    void nameAndRoles
+      .atStartup()
+      .catch((error: unknown) => {
+        logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
+      })
+      .then(() => {
+        if (disconnecting) return;
+        stopDailySync = startDailySync(
+          {
+            links: options.links,
+            applied: options.applied,
+            runs: options.dailySync,
+            members: serverMembersOf(guild),
+            gameApi: options.gameApi,
+            nameAndRoles,
+            share: options.syncShare,
+            quotaReserve: options.quotaReserve,
+            log: (message) => channels.log(message),
+            logError,
+            now,
+          },
+          options.syncHourUtc,
+          (run, everyMs) => {
+            const timer = setInterval(run, everyMs);
+            return () => {
+              clearInterval(timer);
+            };
+          },
+        );
+      });
     void reportServerPermissions(guild, (message) => channels.log(message), logError);
     const sweeper = createSweeper({
       interviews: options.interviews,
@@ -568,38 +600,19 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
-    stopDailySync = startDailySync(
-      {
-        links: options.links,
-        applied: options.applied,
-        runs: options.dailySync,
-        members: serverMembersOf(guild),
-        gameApi: options.gameApi,
-        nameAndRoles,
-        share: options.syncShare,
-        quotaReserve: options.quotaReserve,
-        log: (message) => channels.log(message),
-        logError,
-        now,
-      },
-      options.syncHourUtc,
-      (run, everyMs) => {
-        const timer = setInterval(run, everyMs);
-        return () => {
-          clearInterval(timer);
-        };
-      },
-    );
   } catch (error) {
+    disconnecting = true;
     stopSweeper();
-    stopDailySync();
+    await stopDailySync();
     await client.destroy();
     throw error;
   }
   return {
     disconnect: async () => {
+      disconnecting = true;
       stopSweeper();
-      stopDailySync();
+      // A run in progress ends before its next request and is awaited, so its record and summary are made before logout.
+      await stopDailySync();
       await client.destroy();
     },
   };

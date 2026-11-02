@@ -115,6 +115,7 @@ export async function start(deps: StartupDeps): Promise<void> {
     );
     connection = await deps.connect(config.discordToken, {
       buildInfo,
+      now: deps.now,
       startRecord,
       gameApi,
       quotaReserve: config.quotaReserve,

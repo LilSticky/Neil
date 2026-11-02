@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { applyNameAndRoles, type RolesGuild } from "./member-roles.js";
 import {
   FakeDiscordError,
@@ -45,6 +45,22 @@ describe("applyNameAndRoles", () => {
 
     expect(report.nickname).toBe("set");
     expect(alice.nickname).toBe("[NML] Rogue");
+  });
+
+  test("does not set a nickname that already matches, and skips nothing", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const alice = guild.member(ALICE);
+    alice.nickname = "[NML] Rogue";
+    const setNickname = vi.spyOn(alice, "setNickname");
+
+    const report = await applyNameAndRoles(guild, alice, {
+      nickname: "[NML] Rogue",
+      roles: [],
+      managedTags: ["NML"], officerRoleIds: [],
+    });
+
+    expect(setNickname).not.toHaveBeenCalled();
+    expect(report.skipped).toEqual([]);
   });
 
   test("adds a wanted role the Member does not hold and reports it as added", async () => {
