@@ -34,7 +34,7 @@ description: "Task list for slice 009, Keep roles in sync"
   line, not-on-server skipped, failed roster → uid lookups). Implement (name-and-roles gains a sync entry point).
 - [x] T007 Test scheduling: `startDailySync` runs at the hour, not twice a day, after a missed hour soon after start;
   wired in `connect`. Implement.
-- [ ] T008 Docs: HOSTING.md (variables), TEST-RUN.md §6e (collected), ADR 4 note (sync share now real), ROADMAP,
+- [x] T008 Docs: HOSTING.md (variables), TEST-RUN.md §6e (collected), ADR 4 note (sync share now real), ROADMAP,
   STATUS.
 - [ ] T009 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
 - [ ] T010 Manual check collected in TEST-RUN.md §6e, run later by the user.

@@ -25,6 +25,11 @@ Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, 
 the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
 table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests.
 
+Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`, stacked on 008: a Daily Sync at
+`SYNC_HOUR_UTC` re-reads each Alliance with Linked Members once (and looks up movers by uid) within a Sync Share of
+500 requests, and restores nicknames and Managed Roles; one log line per changed Member and a summary. Test cases
+collected in [TEST-RUN.md](TEST-RUN.md) §6e.
+
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
 **Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
