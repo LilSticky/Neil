@@ -61,6 +61,6 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   if it renders cards): full details → author, thumbnail, color, description, fields; roster rows with power; a
   25-row page of 100-character names with power stays ≤ 6,000 characters and every field ≤ 1,024; details missing →
   today's card; same values on every page.
-- [ ] **T005** Docs: TEST-RUN.md §6h (manual check: `/player DrLOL`, `/alliance NML`, pictures, a Player without
+- [x] **T005** Docs: TEST-RUN.md §6h (manual check: `/player DrLOL`, `/alliance NML`, pictures, a Player without
   alliance), ROADMAP row 012, STATUS.
 - [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.
