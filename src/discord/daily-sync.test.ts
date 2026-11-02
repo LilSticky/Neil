@@ -774,7 +774,7 @@ describe("runDailySync", () => {
 
     expect(h.gameApi.requests.filter((request) => request.kind === "roster")).toHaveLength(10);
     expect(h.gameApi.requests.length).toBeLessThanOrEqual(12);
-  });
+  }, 20_000); // 100 Members: slow under full-suite load on Windows
 });
 
 describe("startDailySync", () => {
