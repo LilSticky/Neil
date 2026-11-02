@@ -23,12 +23,12 @@ a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN
 
 Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, stacked on 007: an "Overview" button on
 the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
-table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d.
+table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests.
 
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
 **Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
-#16, #22 and #24 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
+#16, #22, #24 and #26 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
 next to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
