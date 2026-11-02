@@ -85,6 +85,23 @@ rank is unknown and needs approval by the alliance's R5 (see discovery).
 **Budget consequence**: one `/players/{uid}` call already returns the player, rank and whole alliance; one
 roster call returns a whole alliance. Bulk sync costs about one request per alliance.
 
+### Stability check (2026-11-02)
+
+Live sample: `/alliances/1/NML` and three of its members by uid (4 requests), compared with the fixtures.
+
+- **Stable** (always present, same type, clear meaning; shown on cards since slice 012): player `kills`, `vip`,
+  `likes`, `language`, `last_online_at` (equals the roster's value), `x`/`y`, `avatar_url`, `server_badge_url`,
+  `alliance_badge_url`; alliance `level`, `exp`, `gift_level`, `rank` (`{"rank":24,"score":"240337604"}`: the score
+  is a string and equals the alliance's power, so `rank` is its power rank in the kingdom), `join`
+  (`{"auto":true,"power":0,"castle_level":0}`), `language`, `badge_url`, `server_badge_url`; roster rows `power`.
+- **Not stable / unclear** (not used): `gender`, `skin_name`, `avatar_name` (often `""`), `shielding`/`shield_type`
+  (always 0), `power_breakdown` (always `[]`), `history` (only `change_flags: "power"` seen; empty for some players),
+  `bulletin`/`declaration` (always `""`), `live` (always `true`, meaning unknown), `first_seen_at`/`last_seen_at`
+  (the tracker's own times), `hq_skin`, `icon_id`, `frame_id`/`frame_url`.
+- **Pictures**: the `/static/…` paths load from `https://lastasylumtracker.com` (also `api.` and `www.`): 200
+  `image/png`, without a key and without using quota.
+- `/players/180/drlol` answered **404** `{"detail":"Not Found"}` (the kingdom-180 drlol of 2026-10-30 is gone or renamed).
+
 ## Errors
 
 Seen on real calls (2026-10-29): a 404 body `{"detail":"alliance_not_found"}` (JSON, at once); a

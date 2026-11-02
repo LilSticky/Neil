@@ -1,0 +1,66 @@
+---
+description: "Task list for slice 012, See a fuller card"
+---
+
+# Tasks: See a fuller card
+
+**Input**: [spec.md](spec.md), Game API stability check in [GAME-API.md](../../documentation/GAME-API.md). TDD per
+task (`test-first` → `implementer`). No new Game API request (FR-008).
+
+## Plan (short)
+
+- Domain `src/domain/player.ts` (types only, all new values `T | undefined` = the Game gave none readable):
+  - `PlayerProfile` gains `readonly details?: PlayerDetails` with `kills`, `vipLevel`, `likes`, `lastOnlineAt: Date`,
+    `language: string` (the code), `location: { x: number; y: number }`, `avatarPath`, `kingdomBadgePath`.
+    Optional, so Players built elsewhere (Daily Sync roster, Interview store, fixtures) need no change.
+  - `Alliance` gains `readonly details?: AllianceDetails` with `level`, `xp`, `giftLevel`, `kingdomPowerRank`,
+    `language`, `joinRequirements: { open: boolean; minimumPower: number; minimumSanctuaryLevel: number }`,
+    `badgePath`, `kingdomBadgePath`.
+  - `RosterEntry` gains `readonly power?: number`.
+- Game API `src/game-api/schemas.ts` + `client.ts`: read the new fields leniently (`.nullish().catch(undefined)` per
+  field; a bad value never fails the body). Numbers: non-negative integers (`x`, `y` too). `rank` is `{ rank: int ≥ 1 }`
+  (score ignored). `join` needs `auto: boolean`, `power` and `castle_level` non-negative integers, else
+  undefined. Language: non-empty string, else undefined. A picture path is kept only when it matches
+  `^/static/[A-Za-z0-9_\-/]+\.(png|jpe?g|webp|gif)$` (no `..`); else undefined. Player paths: `avatar_url`,
+  `server_badge_url`; Alliance: `badge_url`, `server_badge_url`. Roster rows: `power`.
+- Discord `src/discord/lookup-cards.ts`:
+  - Helpers (exported, tested): `timeAgo(moment, now)`: "just now" (< 1 min or in the future), "N min ago",
+    "N h ago", "1 day ago" / "N days ago" (≥ 24 h; days also beyond a year). `compactNumber(n)`: below 1,000 as is,
+    else K/M/B with at most one decimal, ".0" dropped, unit chosen after rounding (999,950 → "1M"; 27,626,362 →
+    "27.6M"; 1,000 → "1K"). `languageName(code)`: English name (`ja` → "Japanese") via `Intl.DisplayNames`; a code it
+    cannot name (throws or returns the code) → the code in capitals. `trackerPicture(path)`:
+    `https://lastasylumtracker.com` + path. `joinRequirementsText(j)`: "Open to all" / "By application", then
+    " · min. <compact> power" and " · min. sanctuary level N" for minimums above 0.
+  - Accent color `CARD_COLOR = 0xB33A3A` on both cards. `author: { name: "Kingdom #N", icon_url? }` replaces the
+    Kingdom field; `thumbnail` = avatar / badge when known.
+  - Player card: description `Last online <timeAgo>` when known. Fields, inline, in this order, each only when known:
+    Power · Kills · Likes / Sanctuary level · VIP Level · Language / Alliance · Alliance Rank · Location
+    (`X:807 Y:846`). Full numbers with thousands separators. Alliance and Alliance Rank as today.
+  - Alliance card: description = Join Requirements text when known. Fields, inline: Power · Kingdom Power Rank
+    (`#24 in Kingdom #1`) · Members / Leader · Alliance Level (`Level 4 · 8,881,750 XP`; `Level 4` without XP) ·
+    Gift Level / Language; then the roster section as today, with rows `Name · 27.6M` when the power is known.
+  - `embedCharacters` also counts the author name and the description (Discord counts both).
+
+## Tasks
+
+- [ ] **T001** Domain types and Game API reading (FR-005, FR-008). Tests in `src/game-api/schemas.test.ts` and
+  `client.test.ts`: the recorded `player-in-alliance.json` gives every Player detail (kills 4420, VIP 4, likes 110,
+  language `en`, location 807/846, last online 1793154302, avatar `/static/avatars/head_90002.png`, kingdom badge
+  `/static/kingdom/badge_1.png`); `alliance.json` gives level 4, XP 8,829,850, gift level 6, rank 25, language `ja`,
+  join open/0/0, badge `/static/alliance/badge_103.png`, and roster power per row. For each new field: missing, null,
+  wrong type or (paths) a non-`/static/` or `..` path → that value undefined, body still accepted, today's values
+  unchanged.
+- [ ] **T002** Card helpers (FR-003, FR-004, FR-006, edge cases). Tests in `src/discord/lookup-cards.test.ts`:
+  `timeAgo`, `compactNumber`, `languageName`, `trackerPicture`, `joinRequirementsText` as in the plan, with the
+  boundaries (59 s, 60 min, 24 h, future, 999, 1,000, 999,950, unknown code `xx`).
+- [ ] **T003** Player card (US1, FR-001, FR-004, FR-006, FR-007). Tests in `lookup-cards.test.ts`: full details →
+  author, thumbnail, color, description and fields in the plan's order; each detail missing → only it left off; no
+  `details` → today's values (Kingdom in the author line); no alliance → "No alliance", no Alliance Rank; escaped texts.
+  Update existing assertions on the Kingdom field.
+- [ ] **T004** Alliance card (US2, FR-002, FR-003, FR-007). Tests in `lookup-cards.test.ts` (and `recorded-cards.test.ts`
+  if it renders cards): full details → author, thumbnail, color, description, fields; roster rows with power; a
+  25-row page of 100-character names with power stays ≤ 6,000 characters and every field ≤ 1,024; details missing →
+  today's card; same values on every page.
+- [ ] **T005** Docs: TEST-RUN.md §6h (manual check: `/player DrLOL`, `/alliance NML`, pictures, a Player without
+  alliance), ROADMAP row 012, STATUS.
+- [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.
