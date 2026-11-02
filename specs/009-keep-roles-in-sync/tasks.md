@@ -27,12 +27,12 @@ description: "Task list for slice 009, Keep roles in sync"
 - [x] T003 [P] Test schemas/client: roster `kid`/`lv` → `kingdom`/`sanctuaryLevel` (recorded fixture). Implement.
 - [x] T004 Test `src/domain/daily-sync.test.ts`: planSync grouping and left-over first; playerFromRoster; rankAfterSync
   (every FR-004 case); isDue (before/after hour, already ran today, missed hour). Implement.
-- [ ] T005 Test storage: migration 7, v6 upgrade; applied keeps the last Alliance; `LinkStore.updateRank`; daily_sync
+- [x] T005 Test storage: migration 7, v6 upgrade; applied keeps the last Alliance; `LinkStore.updateRank`; daily_sync
   record and left-over round-trip. Implement.
-- [ ] T006 Test `src/discord/daily-sync.test.ts`: US1 1–7 and US2 1–2 with fakes (one roster request per Alliance,
+- [x] T006 Test `src/discord/daily-sync.test.ts`: US1 1–7 and US2 1–2 with fakes (one roster request per Alliance,
   uid lookups for movers, share stop with left-over, reserve stop, no change → no log, hand nickname restored, summary
   line, not-on-server skipped, failed roster → uid lookups). Implement (name-and-roles gains a sync entry point).
-- [ ] T007 Test scheduling: `startDailySync` runs at the hour, not twice a day, after a missed hour soon after start;
+- [x] T007 Test scheduling: `startDailySync` runs at the hour, not twice a day, after a missed hour soon after start;
   wired in `connect`. Implement.
 - [ ] T008 Docs: HOSTING.md (variables), TEST-RUN.md §6e (collected), ADR 4 note (sync share now real), ROADMAP,
   STATUS.

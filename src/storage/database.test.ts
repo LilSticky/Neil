@@ -27,6 +27,7 @@ describe("openDatabase", () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
+      { version: 7 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -45,6 +46,7 @@ describe("openDatabase", () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
+      { version: 7 },
     ]);
     db.close();
   });
@@ -54,7 +56,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 6");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 7");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -166,6 +168,7 @@ describe("openDatabase", () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
+      { version: 7 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -212,7 +215,7 @@ describe("openDatabase", () => {
         .prepare("SELECT name FROM pragma_table_info('applied')")
         .all()
         .map((row) => String(row.name));
-      expect(columns).toEqual(["member_id", "nickname", "roles_json", "applied_at", "complete"]);
+      expect(columns).toEqual(expect.arrayContaining(["member_id", "nickname", "roles_json", "applied_at", "complete"]));
     } finally {
       db.close();
     }
@@ -244,6 +247,73 @@ describe("openDatabase", () => {
     }
   });
 
+  test("migration 7 adds the last Alliance columns to applied", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('applied')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual([
+        "member_id",
+        "nickname",
+        "roles_json",
+        "applied_at",
+        "complete",
+        "alliance_kingdom",
+        "alliance_tag",
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 7 creates daily_sync with the day of the last run and the Members left over", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('daily_sync')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual(expect.arrayContaining(["day", "left_over_json"]));
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 6 database to 7 and keeps its Applied States, with no last Alliance", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v6.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source) VALUES (?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown");
+    legacy
+      .prepare("INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "DrLOL", "[]", "2026-10-30T12:00:00.000Z", 1);
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+        { version: 6 },
+        { version: 7 },
+      ]);
+      expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
+        [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
+      );
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'daily_sync'").get()).toEqual({
+        name: "daily_sync",
+      });
+    } finally {
+      db.close();
+    }
+  });
+
   test("upgrades a version 5 database to 6 and keeps its Links and Applied States", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
     legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v5.sql"), "utf8"));
@@ -264,6 +334,7 @@ describe("openDatabase", () => {
         { version: 4 },
         { version: 5 },
         { version: 6 },
+        { version: 7 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -296,6 +367,7 @@ describe("openDatabase", () => {
         { version: 4 },
         { version: 5 },
         { version: 6 },
+        { version: 7 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -358,6 +430,7 @@ describe("openDatabase", () => {
       { version: 4 },
       { version: 5 },
       { version: 6 },
+      { version: 7 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),

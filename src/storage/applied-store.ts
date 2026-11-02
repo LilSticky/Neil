@@ -1,16 +1,22 @@
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
+import type { AllianceRef } from "../domain/daily-sync.js";
 import type { Link } from "../domain/link.js";
+import { parseKingdom } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { linkOf } from "./link-store.js";
 
-/** What Neil last applied to a Linked Member: the nickname and Managed Roles set, when, and whether nothing was skipped. */
+/**
+ * What Neil last applied to a Linked Member: the nickname and Managed Roles set, when, whether nothing was skipped, and
+ * the Alliance the Member was in then (undefined in no Alliance).
+ */
 export interface AppliedState {
   readonly memberId: MemberId;
   readonly nickname: string;
   readonly roles: readonly string[];
   readonly appliedAt: Date;
   readonly complete: boolean;
+  readonly alliance?: AllianceRef | undefined;
 }
 
 const appliedRow = z.object({
@@ -24,6 +30,8 @@ const appliedRow = z.object({
   }),
   applied_at: z.iso.datetime().transform((value) => new Date(value)),
   complete: z.union([z.literal(0), z.literal(1)]),
+  alliance_kingdom: z.number().int().nullable(),
+  alliance_tag: z.string().nullable(),
 });
 
 /** Keeps the Applied State of each Link in neil.db; a corrupt row is an error, never a silent repair. */
@@ -32,7 +40,9 @@ export class AppliedStore {
 
   get(memberId: MemberId): AppliedState | undefined {
     const raw = this.db
-      .prepare("SELECT member_id, nickname, roles_json, applied_at, complete FROM applied WHERE member_id = ?")
+      .prepare(
+        "SELECT member_id, nickname, roles_json, applied_at, complete, alliance_kingdom, alliance_tag FROM applied WHERE member_id = ?",
+      )
       .get(memberId);
     return raw === undefined ? undefined : appliedOf(raw);
   }
@@ -41,9 +51,11 @@ export class AppliedStore {
   record(state: AppliedState): void {
     this.db
       .prepare(
-        `INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete) VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete, alliance_kingdom, alliance_tag)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (member_id) DO UPDATE SET nickname = excluded.nickname, roles_json = excluded.roles_json,
-           applied_at = excluded.applied_at, complete = excluded.complete`,
+           applied_at = excluded.applied_at, complete = excluded.complete,
+           alliance_kingdom = excluded.alliance_kingdom, alliance_tag = excluded.alliance_tag`,
       )
       .run(
         state.memberId,
@@ -51,6 +63,8 @@ export class AppliedStore {
         JSON.stringify(state.roles),
         state.appliedAt.toISOString(),
         state.complete ? 1 : 0,
+        state.alliance?.kingdom ?? null,
+        state.alliance?.tag ?? null,
       );
   }
 
@@ -70,12 +84,25 @@ export class AppliedStore {
 
 function appliedOf(raw: unknown): AppliedState {
   const parsed = appliedRow.safeParse(raw);
-  if (!parsed.success) throw new Error("an Applied State in neil.db is corrupt; fix or remove it by hand");
+  if (!parsed.success) throw corruptAppliedError();
   return {
     memberId: parsed.data.member_id,
     nickname: parsed.data.nickname,
     roles: parsed.data.roles_json,
     appliedAt: parsed.data.applied_at,
     complete: parsed.data.complete === 1,
+    alliance: allianceOf(parsed.data.alliance_kingdom, parsed.data.alliance_tag),
   };
+}
+
+/** The Alliance columns: both set (the Kingdom and tag) or both NULL (no Alliance). */
+function allianceOf(kingdom: number | null, tag: string | null): AllianceRef | undefined {
+  if (kingdom === null && tag === null) return undefined;
+  const parsed = kingdom === null ? undefined : parseKingdom(kingdom);
+  if (tag === null || parsed === undefined || !parsed.ok) throw corruptAppliedError();
+  return { kingdom: parsed.value, tag };
+}
+
+function corruptAppliedError(): Error {
+  return new Error("an Applied State in neil.db is corrupt; fix or remove it by hand");
 }

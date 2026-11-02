@@ -19,6 +19,7 @@ import type { GameApiClient } from "../game-api/client.js";
 import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { AppliedStore } from "../storage/applied-store.js";
+import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import type { LinkStore } from "../storage/link-store.js";
@@ -32,6 +33,7 @@ import {
   type LeftMember,
   type ModalInteractionLike,
 } from "./interview.js";
+import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
@@ -220,6 +222,12 @@ export interface ConnectOptions {
   readonly homeKingdom: KingdomNumber;
   /** The first level of each Troop Bracket from config, T1 first. */
   readonly troopBracketLevels: readonly number[];
+  /** The record of the last Daily Sync run: its day and the Members it left over. */
+  readonly dailySync: Pick<DailySyncStore, "load" | "save">;
+  /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
+  readonly syncHourUtc: number;
+  /** The most Game API requests one Daily Sync run may send, from SYNC_SHARE. */
+  readonly syncShare: number;
 }
 
 /** discord.js's code for a user who is not a member of the guild. */
@@ -264,6 +272,9 @@ function rolesGuildOf(guild: Guild, botTopRolePosition: number): RolesGuild {
 function rolesMemberOf(member: GuildMember): RolesMember {
   return {
     id: member.id,
+    get nickname() {
+      return member.nickname;
+    },
     get roles() {
       return [...member.roles.cache.values()].map(roleLikeOf);
     },
@@ -479,8 +490,9 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     },
     { guildId: options.guildId, logError },
   );
-  // The sweeper runs from the moment the channels are checked; stopped again on disconnect.
+  // The sweeper and the Daily Sync run from the moment the channels are checked; stopped again on disconnect.
   let stopSweeper: () => void = () => undefined;
+  let stopDailySync: () => void = () => undefined;
   try {
     await client.login(token);
     await whenReady(client);
@@ -556,14 +568,38 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
+    stopDailySync = startDailySync(
+      {
+        links: options.links,
+        applied: options.applied,
+        runs: options.dailySync,
+        members: serverMembersOf(guild),
+        gameApi: options.gameApi,
+        nameAndRoles,
+        share: options.syncShare,
+        quotaReserve: options.quotaReserve,
+        log: (message) => channels.log(message),
+        logError,
+        now,
+      },
+      options.syncHourUtc,
+      (run, everyMs) => {
+        const timer = setInterval(run, everyMs);
+        return () => {
+          clearInterval(timer);
+        };
+      },
+    );
   } catch (error) {
     stopSweeper();
+    stopDailySync();
     await client.destroy();
     throw error;
   }
   return {
     disconnect: async () => {
       stopSweeper();
+      stopDailySync();
       await client.destroy();
     },
   };

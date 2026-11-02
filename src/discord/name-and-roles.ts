@@ -1,5 +1,6 @@
 import type { BaseMessageOptions } from "discord.js";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { AllianceRef } from "../domain/daily-sync.js";
 import type { RankOnLink } from "../domain/link.js";
 import { nicknameFor } from "../domain/member-name.js";
 import type { KingdomNumber, Uid } from "../domain/lookup-input.js";
@@ -20,6 +21,7 @@ import {
   nameAndRolesLogLine,
   nameAndRolesNotAppliedLogLine,
   nameAndRolesQuotaLogLine,
+  RANK_CHECK_NOTE,
 } from "./name-and-roles-texts.js";
 
 /** A Member of the server as the apply reaches it: the guild, and the member in it. */
@@ -48,6 +50,16 @@ export interface NameAndRoles {
   atStartup(): Promise<void>;
 }
 
+/** The name and roles of the Daily Sync. */
+export interface SyncNameAndRoles {
+  /**
+   * The Member gets the name and roles of the Player with the rank given, the nickname always restored, and the rank and
+   * the Alliance are recorded. Resolves to whether anything changed (a line is logged then); false for a Member not on
+   * the server. Never throws: a failure is logged and changes nothing else.
+   */
+  syncMember(memberId: MemberId, player: Player, rank: RankOnLink): Promise<boolean>;
+}
+
 export interface NameAndRolesDeps {
   readonly members: ServerMembers;
   readonly applied: AppliedStore;
@@ -63,11 +75,12 @@ export interface NameAndRolesDeps {
 }
 
 /** Builds the name and roles service. Its methods never throw: a failure is logged with the Member and changes nothing else. */
-export function createNameAndRoles(deps: NameAndRolesDeps): NameAndRoles {
+export function createNameAndRoles(deps: NameAndRolesDeps): NameAndRoles & SyncNameAndRoles {
   return {
     onLinked: (memberId, player, rank) => guarded(deps, memberId, () => applyToMember(deps, memberId, player, rank)),
     onRankApproved: (memberId) => guarded(deps, memberId, () => approveRank(deps, memberId)),
     atStartup: () => startUp(deps),
+    syncMember: (memberId, player, rank) => syncGuarded(deps, memberId, player, rank),
   };
 }
 
@@ -80,6 +93,15 @@ async function guarded(deps: NameAndRolesDeps, memberId: MemberId, work: () => P
     await work();
   } catch (error) {
     deps.logError(`Giving ${memberId} their name and roles failed: ${reasonOf(error)}`);
+  }
+}
+
+async function syncGuarded(deps: NameAndRolesDeps, memberId: MemberId, player: Player, rank: RankOnLink): Promise<boolean> {
+  try {
+    return await syncTo(deps, memberId, player, rank);
+  } catch (error) {
+    deps.logError(`Syncing ${memberId}'s name and roles failed: ${reasonOf(error)}`);
+    return false;
   }
 }
 
@@ -143,6 +165,34 @@ async function approveRank(deps: NameAndRolesDeps, memberId: MemberId): Promise<
   await applyTo(deps, memberId, server, result.value, link.allianceRank);
 }
 
+/**
+ * The Daily Sync's apply: the nickname is set whatever it was, the Managed Roles are made to match, and the Applied State
+ * and the rank are recorded. A change, a restored nickname included, logs one line; false when the Member is not on the
+ * server.
+ */
+async function syncTo(deps: NameAndRolesDeps, memberId: MemberId, player: Player, rank: RankOnLink): Promise<boolean> {
+  const server = await deps.members.memberOf(memberId);
+  if (server === undefined) return false;
+  const previous = deps.applied.get(memberId);
+  const nickname = nicknameFor(player, rank, deps.homeKingdom);
+  const roles = rolesFor(player, rank, deps.homeKingdom, deps.troopBracketLevels);
+  // The nickname on the server before the apply: the Member may have changed it by hand since the last apply.
+  const currentNickname = server.member.nickname;
+  const report = await applyNameAndRoles(server.guild, server.member, {
+    nickname,
+    roles,
+    managedTags: [...(previous?.roles ?? []), ...roles],
+    officerRoleIds: deps.officerRoleIds,
+  });
+  deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
+  deps.links.updateRank(memberId, rank);
+  const nicknameChanged = report.nickname === "set" && currentNickname !== nickname;
+  if (!nicknameChanged && !rolesChanged(report) && report.skipped.length === 0) return false;
+  const note = rank.source === "unknown" && player.alliance !== undefined ? RANK_CHECK_NOTE : undefined;
+  await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? "", note));
+  return true;
+}
+
 /** Makes the Member match the Player: records the applied state, and logs one line when anything changed. */
 async function applyTo(
   deps: NameAndRolesDeps,
@@ -162,7 +212,7 @@ async function applyTo(
     managedTags,
     officerRoleIds: deps.officerRoleIds,
   });
-  deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now()));
+  deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
   if (!hasChange(report, previous, nickname)) return;
   await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? ""));
 }
@@ -174,6 +224,7 @@ function appliedStateOf(
   roles: readonly string[],
   report: ApplyReport,
   appliedAt: Date,
+  alliance: AllianceRef | undefined,
 ): AppliedState {
   return {
     memberId,
@@ -182,7 +233,18 @@ function appliedStateOf(
     roles,
     appliedAt,
     complete: report.skipped.every(isOwnerNicknameSkip),
+    alliance,
   };
+}
+
+/** The Alliance the Player is in, by Kingdom and tag; undefined in no Alliance. */
+function allianceRefOf(player: Player): AllianceRef | undefined {
+  return player.alliance === undefined ? undefined : { kingdom: player.kingdom, tag: player.alliance.tag };
+}
+
+/** Whether the apply created, added or removed a role. */
+function rolesChanged(report: ApplyReport): boolean {
+  return report.added.length + report.removed.length + report.created.length > 0;
 }
 
 /** The owner's nickname can never be set by Neil, so its skip is final: the apply is complete without it. */
@@ -193,6 +255,5 @@ function isOwnerNicknameSkip(skip: Skipped): boolean {
 /** Whether the apply changed anything worth a log line: a new nickname, a role changed or created, or a skipped step. */
 function hasChange(report: ApplyReport, previous: AppliedState | undefined, nickname: string | undefined): boolean {
   const nicknameChanged = report.nickname === "set" && previous?.nickname !== nickname;
-  const rolesChanged = report.added.length + report.removed.length + report.created.length > 0;
-  return nicknameChanged || rolesChanged || report.skipped.length > 0;
+  return nicknameChanged || rolesChanged(report) || report.skipped.length > 0;
 }

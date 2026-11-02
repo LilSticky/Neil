@@ -91,6 +91,7 @@ const APPROVAL_COLUMN_NAMES = [
   "asked_at",
   "ended_at",
 ] as const;
+const LINK_COLUMNS = "member_id, uid, linked_at, rank_source, alliance_rank, approved_by, approved_at";
 const APPROVAL_COLUMNS = APPROVAL_COLUMN_NAMES.join(", ");
 const APPROVAL_SELECT = `SELECT id, ${APPROVAL_COLUMNS} FROM rank_approval`;
 const APPROVAL_PLACEHOLDERS = "?, ?, ?, ?, ?, ?, ?, ?, ?";
@@ -100,8 +101,23 @@ export class LinkStore {
   constructor(private readonly db: DatabaseSync) {}
 
   linkFor(memberId: MemberId): Link | undefined {
-    const raw = this.db.prepare("SELECT member_id, uid, linked_at, rank_source, alliance_rank, approved_by, approved_at FROM link WHERE member_id = ?").get(memberId);
+    const raw = this.db.prepare(`SELECT ${LINK_COLUMNS} FROM link WHERE member_id = ?`).get(memberId);
     return raw === undefined ? undefined : linkOf(raw);
+  }
+
+  /** Every Link, in the order they were made. */
+  all(): Link[] {
+    return this.db
+      .prepare(`SELECT ${LINK_COLUMNS} FROM link ORDER BY rowid`)
+      .all()
+      .map(linkOf);
+  }
+
+  /** Replaces the rank on a Member's Link; the uid and the linked time stay. */
+  updateRank(memberId: MemberId, rank: RankOnLink): void {
+    this.db
+      .prepare("UPDATE link SET rank_source = ?, alliance_rank = ?, approved_by = ?, approved_at = ? WHERE member_id = ?")
+      .run(...rankColumnsOf(rank), memberId);
   }
 
   memberForUid(uid: Uid): MemberId | undefined {

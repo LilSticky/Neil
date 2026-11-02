@@ -38,6 +38,8 @@ export interface RolesGuild {
 /** The part of a guild member the apply uses. */
 export interface RolesMember {
   readonly id: string;
+  /** The server nickname; null or undefined when the Member has none. */
+  readonly nickname?: string | null | undefined;
   readonly roles: readonly RoleLike[];
   addRole(role: RoleLike): Promise<void>;
   removeRole(role: RoleLike): Promise<void>;

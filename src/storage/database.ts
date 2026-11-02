@@ -88,6 +88,15 @@ const migrations: readonly string[] = [
      last_seen TEXT NOT NULL,
      PRIMARY KEY (kingdom, tag)
    )`,
+  // Migration 7: the Alliance a Member was last applied in (slice 009, the Daily Sync), and the Daily Sync's record:
+  // the day of its last run and the Members it left over for the next day.
+  `ALTER TABLE applied ADD COLUMN alliance_kingdom INTEGER;
+   ALTER TABLE applied ADD COLUMN alliance_tag TEXT;
+   CREATE TABLE daily_sync (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     day TEXT NOT NULL,
+     left_over_json TEXT NOT NULL
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

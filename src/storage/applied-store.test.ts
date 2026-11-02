@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Link } from "../domain/link.js";
-import { parseUid, type Uid } from "../domain/lookup-input.js";
+import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import type { AllianceRef } from "../domain/daily-sync.js";
 import { openDatabase } from "./database.js";
 import { AppliedStore, type AppliedState } from "./applied-store.js";
 import { LinkStore } from "./link-store.js";
@@ -15,12 +16,20 @@ function uidOf(digits: string): Uid {
   return parsed.value;
 }
 
+function kingdomOf(number: number): KingdomNumber {
+  const parsed = parseKingdom(number);
+  if (!parsed.ok) throw new Error(`the test Kingdom ${number.toString()} is not a valid Kingdom`);
+  return parsed.value;
+}
+
 const ALICE = "111111111111111111";
 const BOB = "222222222222222222";
 const ALICE_UID = uidOf("145563254785");
 const BOB_UID = uidOf("145563254786");
 const LINKED_AT = new Date("2026-10-30T12:00:00Z");
 const APPLIED_AT = new Date("2026-10-30T12:01:00Z");
+const NML: AllianceRef = { kingdom: kingdomOf(330), tag: "NML" };
+const ABC: AllianceRef = { kingdom: kingdomOf(330), tag: "ABC" };
 
 function linkOf(memberId: string, uid: Uid): Link {
   return { memberId, uid, linkedAt: LINKED_AT, allianceRank: { source: "no-alliance" } };
@@ -33,6 +42,7 @@ function appliedOf(memberId: string, complete: boolean): AppliedState {
     roles: ["NML", "#331", "T3"],
     appliedAt: APPLIED_AT,
     complete,
+    alliance: undefined,
   };
 }
 
@@ -75,6 +85,35 @@ describe("AppliedStore", () => {
     store.record({ ...appliedOf(ALICE, true), nickname: "[NML|R4] Rogue", roles: ["NML", "R4"] });
 
     expect(store.get(ALICE)).toEqual({ ...appliedOf(ALICE, true), nickname: "[NML|R4] Rogue", roles: ["NML", "R4"] });
+  });
+
+  test("record then get keeps the last Alliance the Member was applied in", () => {
+    const store = new AppliedStore(db);
+    links.confirm({ link: linkOf(ALICE, ALICE_UID) }, () => undefined);
+
+    store.record({ ...appliedOf(ALICE, true), alliance: NML });
+
+    expect(store.get(ALICE)?.alliance).toEqual(NML);
+  });
+
+  test("record keeps the Alliance of the latest apply, replacing the earlier one", () => {
+    const store = new AppliedStore(db);
+    links.confirm({ link: linkOf(ALICE, ALICE_UID) }, () => undefined);
+    store.record({ ...appliedOf(ALICE, true), alliance: NML });
+
+    store.record({ ...appliedOf(ALICE, true), alliance: ABC });
+
+    expect(store.get(ALICE)?.alliance).toEqual(ABC);
+  });
+
+  test("record of a Player in no Alliance keeps no last Alliance", () => {
+    const store = new AppliedStore(db);
+    links.confirm({ link: linkOf(ALICE, ALICE_UID) }, () => undefined);
+    store.record({ ...appliedOf(ALICE, true), alliance: NML });
+
+    store.record({ ...appliedOf(ALICE, true), alliance: undefined });
+
+    expect(store.get(ALICE)?.alliance).toBeUndefined();
   });
 
   test("linkedWithoutCompleteApply lists a Link with no Applied State", () => {

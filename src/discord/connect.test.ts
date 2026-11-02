@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { todaysQuota, type RequestPurpose } from "../domain/daily-quota.js";
+import { todaysQuota, utcDayOf, type RequestPurpose } from "../domain/daily-quota.js";
 import { parseUid, parseKingdom, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
 import { recordStart } from "../domain/start-record.js";
 import { AppliedStore } from "../storage/applied-store.js";
+import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
@@ -102,6 +103,7 @@ describe("connect", () => {
   let links: LinkStore;
   let applied: AppliedStore;
   let interviews: InterviewStore;
+  let dailySync: DailySyncStore;
   let gameApi: FakeGameApi;
   let connection: { disconnect(): Promise<void> } | undefined;
 
@@ -111,6 +113,7 @@ describe("connect", () => {
     links = new LinkStore(db);
     applied = new AppliedStore(db);
     interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
+    dailySync = new DailySyncStore(db);
     gameApi = new FakeGameApi();
     connection = undefined;
     FakeClient.served = undefined;
@@ -130,6 +133,11 @@ describe("connect", () => {
     );
   }
 
+  /** Today's Daily Sync is recorded as run, so connect does not start one: the lookups of these tests are the startup apply's only. */
+  function recordDailySyncRunToday(): void {
+    dailySync.save({ day: utcDayOf(new Date()), leftOver: [] });
+  }
+
   function connectOptions(): ConnectOptions {
     return {
       buildInfo: "dev",
@@ -147,6 +155,9 @@ describe("connect", () => {
       knownAlliances: new KnownAllianceStore(db),
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
+      dailySync,
+      syncHourUtc: 3,
+      syncShare: 500,
     };
   }
 
@@ -155,6 +166,7 @@ describe("connect", () => {
     guild.join(ALICE);
     FakeClient.served = guild;
     linkAlice();
+    recordDailySyncRunToday();
 
     connection = await connect(TOKEN, connectOptions());
 
@@ -181,6 +193,7 @@ describe("connect", () => {
     FakeClient.served = guild;
     linkAlice();
     links.confirm({ link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+    recordDailySyncRunToday();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     try {
@@ -203,6 +216,16 @@ describe("connect", () => {
 
     await vi.waitFor(() => {
       expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toContain("Manage Roles");
+    });
+  });
+
+  test("runs the Daily Sync once the channels are checked, when the Sync hour has come and today's run is not recorded", async () => {
+    FakeClient.served = serverWith(SERVER_PERMISSIONS);
+
+    connection = await connect(TOKEN, { ...connectOptions(), syncHourUtc: 0 });
+
+    await vi.waitFor(() => {
+      expect(dailySync.load()?.day).toBe(utcDayOf(new Date()));
     });
   });
 });

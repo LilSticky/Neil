@@ -5,6 +5,7 @@ import { recordStart, type StartRecord } from "./domain/start-record.js";
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
 import type { AppliedStore } from "./storage/applied-store.js";
+import type { DailySyncStore } from "./storage/daily-sync-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
@@ -36,13 +37,14 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links, the Applied States and the Known Alliances, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links, the Applied States, the Known Alliances and the Daily Sync record, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
   readonly applied: AppliedStore;
   readonly knownAlliances: KnownAllianceStore;
+  readonly dailySync: DailySyncStore;
 }
 
 export interface Connection {
@@ -127,6 +129,9 @@ export async function start(deps: StartupDeps): Promise<void> {
       knownAlliances,
       homeKingdom: config.homeKingdom,
       troopBracketLevels: config.troopBracketLevels,
+      dailySync: store.dailySync,
+      syncHourUtc: config.syncHourUtc,
+      syncShare: config.syncShare,
     });
   } catch (error) {
     fail(error);
