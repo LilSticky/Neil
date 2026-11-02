@@ -410,15 +410,33 @@ function notLinkedToOther(deps: InterviewDeps, memberId: MemberId, match: Pickab
 
 /**
  * A Member who left: the open Interview is abandoned as left, the pending Rank Approval of their Link is cancelled, and
- * their Link is Unlinked as left.
+ * their Link is Unlinked as left. Each of the first two is guarded on its own, so a thread that is gone never keeps the
+ * Link.
  */
 async function leaveServer(deps: InterviewDeps, member: LeftMember): Promise<void> {
   const now = deps.now();
   const interview = deps.interviews.openFor(member.id);
-  if (interview !== undefined) await abandonOnLeave(deps, interview, member.username, now);
+  if (interview !== undefined) {
+    await leaveStep(deps, `Abandoning the Interview of ${member.id}`, () =>
+      abandonOnLeave(deps, interview, member.username, now),
+    );
+  }
   const approval = deps.links.pendingFor(member.id);
-  if (approval !== undefined) await cancelRankApproval(deps, approval, member.username, now);
+  if (approval !== undefined) {
+    await leaveStep(deps, `Cancelling the Rank Approval of ${member.id}`, () =>
+      cancelRankApproval(deps, approval, member.username, now),
+    );
+  }
   await deps.unlink.unlink({ id: member.id }, "left");
+}
+
+/** One step of a Member leaving; a failure is logged and the steps after it still run. */
+async function leaveStep(deps: InterviewDeps, label: string, work: () => Promise<void>): Promise<void> {
+  try {
+    await work();
+  } catch (error) {
+    deps.logError(`${label} failed when the Member left: ${errorText(error)}`);
+  }
 }
 
 async function abandonOnLeave(deps: InterviewDeps, interview: OpenInterview, username: string, now: Date): Promise<void> {

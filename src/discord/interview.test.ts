@@ -1700,6 +1700,38 @@ describe("createInterviews", () => {
       expect(stepAtUnlink).toBe("abandoned");
     });
 
+    test("Unlinks a Linked Member as left when the thread of their open Interview cannot be posted to", async () => {
+      await joinedMember(h);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } }, () => undefined);
+      h.channels.refusePosts = true;
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.unlink.calls).toEqual([{ memberId: MEMBER, reason: "left" }]);
+      expect(h.links.linkFor(MEMBER)).toBeUndefined();
+    });
+
+    test("Unlinks a Linked Member as left when the thread of their open Interview cannot be locked", async () => {
+      await joinedMember(h);
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } }, () => undefined);
+      h.channels.refuseLocks = true;
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.unlink.calls).toEqual([{ memberId: MEMBER, reason: "left" }]);
+      expect(h.links.linkFor(MEMBER)).toBeUndefined();
+    });
+
+    test("Unlinks a Linked Member as left when the thread of their Rank Approval cannot be posted to", async () => {
+      await pendingRankApprovalOfMember(h);
+      h.channels.refusePosts = true;
+
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+
+      expect(h.unlink.calls).toEqual([{ memberId: MEMBER, reason: "left" }]);
+      expect(h.links.linkFor(MEMBER)).toBeUndefined();
+    });
+
     test("a Member who left and was Unlinked joins again and starts a new Onboarding Interview", async () => {
       h.links.confirm(
         { link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" } } },

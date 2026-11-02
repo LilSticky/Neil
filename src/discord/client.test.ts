@@ -1,4 +1,4 @@
-import { Events, GatewayIntentBits, IntentsBitField } from "discord.js";
+import { Events, GatewayIntentBits, IntentsBitField, Partials } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { createClient, memberRoleIds } from "./client.js";
 
@@ -75,6 +75,12 @@ describe("createClient", () => {
 
     expect(new IntentsBitField(client.options.intents).toArray()).toEqual(["Guilds", "GuildMembers"]);
     expect(client.options.intents.bitfield).toBe(GatewayIntentBits.Guilds | GatewayIntentBits.GuildMembers);
+  });
+
+  test("enables the GuildMember and User partials, so a member who left uncached is still announced", () => {
+    const client = createClient(handlers(), { guildId: GUILD_ID });
+
+    expect(client.options.partials).toEqual(expect.arrayContaining([Partials.GuildMember, Partials.User]));
   });
 
   test("logs client errors instead of crashing", () => {

@@ -31,6 +31,6 @@ description: "Task list for slice 010, Say goodbye"
 - [x] T004 Test then implement wiring: leave event Unlinks after the Interview/Rank Approval handling (US1 4–5);
   startup sweep and Daily Sync Unlink missing Members, not on fetch failure (US3 1–3, US2 3); `sendPrivateMessage`
   in `client.ts`.
-- [ ] T005 Docs: TEST-RUN.md §6f (collected), 009 spec FR-007 note, ROADMAP, STATUS.
-- [ ] T006 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
+- [x] T005 Docs: TEST-RUN.md §6f (collected), 009 spec FR-007 note, ROADMAP, STATUS.
+- [x] T006 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
 - [ ] T007 Manual check collected in TEST-RUN.md §6f, run later by the user.

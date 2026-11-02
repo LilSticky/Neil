@@ -591,6 +591,44 @@ describe("createNameAndRoles", () => {
 
       expect(h.unlink.calls).toEqual([]);
     });
+
+    test("stops the sweep at the first fetch that fails: the later Linked Members are not fetched, and one error is logged", async () => {
+      const linked = [
+        [BOB, BOB_UID],
+        [ALICE, UID],
+        [CAROL, CAROL_UID],
+      ] as const;
+      for (const [memberId, uid] of linked) {
+        linkMember(h, memberId, uid);
+        h.applied.record({
+          memberId,
+          nickname: "[NML|R4] Rogue",
+          roles: ["NML", "R4", "#330", "T7"],
+          appliedAt: NOW,
+          complete: true,
+        });
+      }
+      h.server.failWith(new Error("Discord is unavailable"));
+
+      await h.service.atStartup();
+
+      expect(h.server.lookups).toEqual([BOB]);
+      expect(h.errors).toHaveLength(1);
+      expect(h.unlink.calls).toEqual([]);
+    });
+
+    test("the apply still tries each Linked Member without a complete apply after the sweep stops on an outage", async () => {
+      linkMember(h, BOB, BOB_UID);
+      linkMember(h, ALICE, UID);
+      h.server.failWith(new Error("Discord is unavailable"));
+
+      await h.service.atStartup();
+
+      // The sweep stops at its first Member; the apply then tries both, in the store's order.
+      expect(h.server.lookups[0]).toBe(BOB);
+      expect([...h.server.lookups.slice(1)].sort()).toEqual([ALICE, BOB].sort());
+      expect(h.unlink.calls).toEqual([]);
+    });
   });
 
   describe("syncMember", () => {

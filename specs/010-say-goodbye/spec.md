@@ -93,6 +93,8 @@ other is untouched; a Discord failure while fetching a Member Unlinks no one.
 - The log channel cannot be posted to: the Unlink still happens; the failure is logged to the console.
 - The Rank Approval thread is gone: the approver still changes to the Officers.
 - Kicked and banned Members leave like everyone else.
+- A leaving approver whose own Link is already gone: their pending Rank Approvals still go to the Officers (no log
+  line or private message for an Unlink, since there is none).
 
 ## Requirements *(mandatory)*
 

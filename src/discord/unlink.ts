@@ -1,5 +1,5 @@
-import type { BaseMessageOptions } from "discord.js";
-import { handToOfficers, type MemberId, type RankApproval } from "../domain/rank-approval.js";
+import { DiscordAPIError, RESTJSONErrorCodes, type BaseMessageOptions } from "discord.js";
+import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import type { AppliedStore } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { OfficerRoles } from "./interview-texts.js";
@@ -52,13 +52,19 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   await handOnRankApprovals(deps, memberId);
 }
 
-/** The private message to the Member; a refusal by Discord is expected (no shared server, DMs closed), so it is not logged. */
+/** The private message to the Member. Discord refuses it when the Member cannot be messaged: expected, so not logged. */
 async function tellMember(deps: UnlinkDeps, memberId: MemberId): Promise<void> {
   try {
     await deps.sendPrivateMessage(memberId, unlinkedPrivateMessage());
-  } catch {
-    // Discord refused the private message; the Unlink stands and nothing is logged.
+  } catch (error) {
+    if (isCannotBeMessaged(error)) return;
+    deps.logError(failureLine(memberId, "telling the Member", error));
   }
+}
+
+/** Discord's refusal to send a private message to a user who cannot be messaged (no shared server, DMs closed). */
+function isCannotBeMessaged(error: unknown): boolean {
+  return error instanceof DiscordAPIError && error.code === RESTJSONErrorCodes.CannotSendMessagesToThisUser;
 }
 
 /** Hands each pending Rank Approval the Member was to approve to the Officers, one at a time. */
@@ -71,18 +77,18 @@ async function handOnRankApprovals(deps: UnlinkDeps, memberId: MemberId): Promis
   }
 }
 
-/** Saves the Rank Approval with the Officers as approver, then posts in its thread; a thread that is gone is only logged. */
+/**
+ * Hands the Rank Approval to the Officers, then posts in its thread; a thread that is gone is only logged. The post
+ * follows only when this Unlink made the change: an Officer may have approved meanwhile, or another Unlink of the
+ * Member may have handed it on already.
+ */
 async function handOn(deps: UnlinkDeps, memberId: MemberId, approval: RankApproval): Promise<void> {
-  const change = handToOfficers(approval);
-  if (!change.ok) return;
-  const handed = change.approval;
-  // saveIfPending: an Officer may have approved meanwhile, and then the approval must stay as it is.
-  const saved = attempt(deps, memberId, `handing Rank Approval ${approval.id.toString()} to the Officers`, () =>
-    deps.links.saveIfPending(handed),
+  const handed = attempt(deps, memberId, `handing Rank Approval ${approval.id.toString()} to the Officers`, () =>
+    deps.links.handToOfficers(approval.id, memberId),
   );
-  if (saved !== true) return;
+  if (handed !== true) return;
   await attemptAsync(deps, memberId, `posting in the thread of Rank Approval ${approval.id.toString()}`, () =>
-    deps.channels.post(handed.threadId, rankHandedToOfficersMessage(deps.officerRoles)),
+    deps.channels.post(approval.threadId, rankHandedToOfficersMessage(deps.officerRoles)),
   );
 }
 

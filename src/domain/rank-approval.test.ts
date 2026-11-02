@@ -4,7 +4,6 @@ import {
   approve,
   cancel,
   chooseApprover,
-  handToOfficers,
   mayApprove,
   type MemberId,
   type RankApproval,
@@ -165,22 +164,5 @@ describe("cancel", () => {
     ["cancelled", cancelledRank()],
   ])("refuses to cancel a Rank Approval that is already %s", (_state, approval) => {
     expect(cancel(approval, NOW)).toEqual({ ok: false, reason: "ended" });
-  });
-});
-
-describe("handToOfficers", () => {
-  test("hands a pending Rank Approval that a Member approves over to the Officers, keeping the rest", () => {
-    expect(handToOfficers(pendingWithMember(LEADER))).toEqual({ ok: true, approval: pendingWithOfficers() });
-  });
-
-  test.each([
-    ["approved", approvedRank()],
-    ["cancelled", cancelledRank()],
-  ])("refuses to hand on a Rank Approval that is already %s", (_state, approval) => {
-    expect(handToOfficers(approval)).toEqual({ ok: false, reason: "ended" });
-  });
-
-  test("refuses to hand on a pending Rank Approval that already goes to the Officers", () => {
-    expect(handToOfficers(pendingWithOfficers())).toEqual({ ok: false, reason: "already-with-officers" });
   });
 });

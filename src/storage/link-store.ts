@@ -184,6 +184,19 @@ export class LinkStore {
     });
   }
 
+  /**
+   * Hands a pending Rank Approval to the Officers, when this Member is its approver. One UPDATE decides it, so two Unlinks
+   * of the same Member hand it on once. Returns false, and writes nothing, otherwise.
+   */
+  handToOfficers(approvalId: number, memberId: MemberId): boolean {
+    const result = this.db
+      .prepare(
+        "UPDATE rank_approval SET approver_kind = 'officers', approver_member_id = NULL WHERE id = ? AND state = 'pending' AND approver_kind = 'member' AND approver_member_id = ?",
+      )
+      .run(approvalId, memberId);
+    return Number(result.changes) > 0;
+  }
+
   /** Writes a Rank Approval; an approved one also writes its rank, approver and time onto the Link. */
   save(approval: RankApproval): void {
     this.inTransaction(() => {

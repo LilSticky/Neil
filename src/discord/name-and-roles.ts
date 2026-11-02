@@ -148,17 +148,20 @@ async function startUp(deps: NameAndRolesDeps): Promise<void> {
 }
 
 /**
- * Unlinks each Linked Member Discord reports as not on the server, as missing. A failure to reach Discord for one Member
- * is logged and that Member is left as they are, so the apply that follows still sees them.
+ * Unlinks each Linked Member Discord reports as not on the server, as missing. A failure to reach Discord stops the
+ * sweep: it is logged once, and the Members not yet checked are left as they are, so the apply that follows still sees
+ * them. Repeated failures in an outage would only repeat the same error.
  */
 async function unlinkMissing(deps: NameAndRolesDeps): Promise<void> {
   for (const link of deps.links.all()) {
+    let server: ServerMember | undefined;
     try {
-      const server = await deps.members.memberOf(link.memberId);
-      if (server === undefined) await deps.unlink.unlink({ id: link.memberId }, "missing");
+      server = await deps.members.memberOf(link.memberId);
     } catch (error) {
       deps.logError(`Checking ${link.memberId} is on the server at startup failed: ${reasonOf(error)}`);
+      return;
     }
+    if (server === undefined) await deps.unlink.unlink({ id: link.memberId }, "missing");
   }
 }
 
@@ -245,6 +248,7 @@ async function applyTo(
     managedTags,
     officerRoleIds: deps.officerRoleIds,
   });
+  // An Unlink may have removed the Link meanwhile: the foreign key rejects this record, and the caller logs the failure.
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
   if (!hasChange(report, previous, nickname)) return;
   await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? ""));

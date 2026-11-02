@@ -396,4 +396,60 @@ describe("LinkStore", () => {
     expect(store.get(pending.id)).toEqual(handedOn);
     expect(store.pendingFor(ALICE)).toEqual(handedOn);
   });
+
+  test("handToOfficers hands a pending Rank Approval of that Member to the Officers and returns true", () => {
+    const store = new LinkStore(db);
+    const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "member", memberId: LEADER });
+
+    const handed = store.handToOfficers(pending.id, LEADER);
+
+    expect(handed).toBe(true);
+    expect(store.get(pending.id)).toEqual({ ...pending, approver: { kind: "officers" } });
+  });
+
+  test("handToOfficers returns false the second time, so a Rank Approval is handed on once", () => {
+    const store = new LinkStore(db);
+    const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "member", memberId: LEADER });
+    store.handToOfficers(pending.id, LEADER);
+
+    expect(store.handToOfficers(pending.id, LEADER)).toBe(false);
+    expect(store.get(pending.id)).toEqual({ ...pending, approver: { kind: "officers" } });
+  });
+
+  test("handToOfficers returns false for a Member who is not the approver, and writes nothing", () => {
+    const store = new LinkStore(db);
+    const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "member", memberId: LEADER });
+
+    expect(store.handToOfficers(pending.id, BOB)).toBe(false);
+    expect(store.get(pending.id)).toEqual(pending);
+  });
+
+  test("handToOfficers returns false for a Rank Approval already with the Officers, and writes nothing", () => {
+    const store = new LinkStore(db);
+    const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "officers" });
+
+    expect(store.handToOfficers(pending.id, LEADER)).toBe(false);
+    expect(store.get(pending.id)).toEqual(pending);
+  });
+
+  test.each(["approved", "cancelled"] as const)(
+    "handToOfficers returns false for a Rank Approval that is %s, and leaves it as it was",
+    (ending) => {
+      const store = new LinkStore(db);
+      const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "member", memberId: LEADER });
+      const endedAt = new Date("2026-10-30T13:00:00Z");
+      const ended = ending === "approved" ? approved(pending, "R4", LEADER, endedAt) : cancelOf(pending, endedAt);
+      store.save(ended);
+
+      expect(store.handToOfficers(pending.id, LEADER)).toBe(false);
+      expect(store.get(pending.id)).toEqual(ended);
+    },
+  );
 });
+
+/** Cancels a pending Rank Approval; the test fails loudly when it is not pending. */
+function cancelOf(approval: RankApproval, at: Date): RankApproval {
+  const change = cancel(approval, at);
+  if (!change.ok) throw new Error("the test Rank Approval is not pending");
+  return change.approval;
+}

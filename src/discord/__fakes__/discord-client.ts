@@ -1,4 +1,4 @@
-import type { BaseMessageOptions } from "discord.js";
+import { DiscordAPIError, RESTJSONErrorCodes, type BaseMessageOptions } from "discord.js";
 import type { FakeConnectGuild } from "./connect-guild.js";
 
 /** A private message the client delivered: the user it reached and its text. */
@@ -34,7 +34,9 @@ export class FakeClient {
       Promise.resolve({
         send: (message: BaseMessageOptions): Promise<void> => {
           if (FakeClient.refuseDirectMessages) {
-            return Promise.reject(Object.assign(new Error("Cannot send messages to this user"), { code: 50007 }));
+            const code = RESTJSONErrorCodes.CannotSendMessagesToThisUser;
+            const refusal = { code, message: "Cannot send messages to this user" };
+            return Promise.reject(new DiscordAPIError(refusal, code, 403, "POST", "/users/@me/channels", {}));
           }
           FakeClient.directMessages.push({ userId, content: message.content });
           return Promise.resolve();

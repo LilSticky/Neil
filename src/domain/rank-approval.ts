@@ -108,13 +108,3 @@ export function cancel(approval: RankApproval, now: Date): RankApprovalChange {
     },
   };
 }
-
-/**
- * Hands a pending Rank Approval that a Member approves over to the Officers, keeping the rest. Refused when it has
- * ended, or when it already goes to the Officers.
- */
-export function handToOfficers(approval: RankApproval): RankApprovalChange {
-  if (approval.state !== "pending") return { ok: false, reason: "ended" };
-  if (approval.approver.kind === "officers") return { ok: false, reason: "already-with-officers" };
-  return { ok: true, approval: { ...approval, approver: { kind: "officers" } } };
-}

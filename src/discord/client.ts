@@ -5,6 +5,7 @@ import {
   type BaseMessageOptions,
   GatewayIntentBits,
   GuildMember,
+  Partials,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Guild,
@@ -128,7 +129,11 @@ export interface ClientOptions {
 /** A discord.js client with the Guilds and GuildMembers intents that routes each event to its handler. */
 export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
   const logError = options.logError ?? console.error;
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+  // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
+  const client = new Client({
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+    partials: [Partials.GuildMember, Partials.User],
+  });
   // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
   client.on(Events.Error, (error) => {
     logError(`Discord client error: ${error.message}`);
@@ -142,7 +147,7 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       bot: member.user.bot,
     });
   });
-  // The member may be partial when they left; their user is still there.
+  // The member may be partial when they left; the Discord event carries their user, with the username, so it is still there.
   client.on(Events.GuildMemberRemove, (member) => {
     if (member.guild.id !== options.guildId) return;
     void handlers.memberLeft({ id: member.id, username: member.user.username });

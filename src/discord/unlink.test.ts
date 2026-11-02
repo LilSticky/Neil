@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BaseMessageOptions } from "discord.js";
+import { DiscordAPIError, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
@@ -41,10 +41,39 @@ const BOB_UID = uidOf("145563254787");
 const CAROL_UID = uidOf("145563254788");
 const DAN_UID = uidOf("145563254789");
 
+/** Discord's codes: 50007 for a private message to a Member who cannot be messaged, 50001 for missing access. */
+const CANNOT_MESSAGE_USER = 50007;
+const MISSING_ACCESS = 50001;
+
+/** A refusal by Discord, as discord.js raises it: a DiscordAPIError carrying the given code. */
+function discordRefusal(code: number): DiscordAPIError {
+  return new DiscordAPIError({ code, message: `Discord refused with code ${code.toString()}` }, code, 403, "POST", "/users/@me/channels", {});
+}
+
 const THREAD_ALICE = "800000000000000001";
 const THREAD_BOB = "800000000000000002";
 const THREAD_CAROL = "800000000000000003";
 const THREAD_DAN = "800000000000000004";
+
+/** A promise the test resolves by hand. */
+interface Deferred {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+}
+
+function deferred(): Deferred {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+/** A post held back: `reached` resolves when Unlink asks to post, and the post lands only once `release` is called. */
+interface HeldPost {
+  readonly reached: Promise<void>;
+  readonly release: () => void;
+}
 
 /** The channels Unlink posts to: records every log line and thread post; a refused call rejects and records nothing. */
 class FakeChannels {
@@ -52,6 +81,7 @@ class FakeChannels {
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
   private logFailure: Error | undefined = undefined;
   private readonly postFailures = new Map<string, Error>();
+  private readonly holds = new Map<string, { readonly reached: Deferred; readonly released: Deferred }>();
 
   refuseLog(error: Error): void {
     this.logFailure = error;
@@ -59,6 +89,13 @@ class FakeChannels {
 
   refusePostsTo(threadId: string, error: Error): void {
     this.postFailures.set(threadId, error);
+  }
+
+  /** Holds the next post to the thread until the test releases it. */
+  holdNextPostTo(threadId: string): HeldPost {
+    const hold = { reached: deferred(), released: deferred() };
+    this.holds.set(threadId, hold);
+    return { reached: hold.reached.promise, release: hold.released.resolve };
   }
 
   log(message: BaseMessageOptions): Promise<void> {
@@ -70,8 +107,16 @@ class FakeChannels {
   post(threadId: string, message: BaseMessageOptions): Promise<string> {
     const failure = this.postFailures.get(threadId);
     if (failure !== undefined) return Promise.reject(failure);
+    const hold = this.holds.get(threadId);
+    if (hold === undefined) return Promise.resolve(this.record(threadId, message));
+    this.holds.delete(threadId);
+    hold.reached.resolve();
+    return hold.released.promise.then(() => this.record(threadId, message));
+  }
+
+  private record(threadId: string, message: BaseMessageOptions): string {
     this.posts.push({ threadId, message });
-    return Promise.resolve(`message-${this.posts.length.toString()}`);
+    return `message-${this.posts.length.toString()}`;
   }
 }
 
@@ -266,10 +311,10 @@ describe("createUnlink", () => {
       expect(h.privateMessages.attempts).toEqual([{ memberId: LEAVER_ID, message: unlinkedPrivateMessage() }]);
     });
 
-    test("keeps the Unlink and logs no error when Discord refuses the private message", async () => {
+    test("keeps the Unlink and logs no error when Discord refuses the private message because the Member cannot be messaged", async () => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
-      h.privateMessages.refuseWith(new Error("Cannot send messages to this user"));
+      h.privateMessages.refuseWith(discordRefusal(CANNOT_MESSAGE_USER));
 
       await expect(h.service.unlink(LEAVER, "left")).resolves.toBeUndefined();
 
@@ -277,6 +322,25 @@ describe("createUnlink", () => {
       expect(h.channels.logs).toHaveLength(1);
       expect(h.errors).toEqual([]);
     });
+
+    test.each([
+      ["another Discord error code", discordRefusal(MISSING_ACCESS)],
+      ["a failure that is not a Discord error", new Error("the network is down")],
+    ])(
+      "keeps the Unlink and logs one error when the private message fails with %s",
+      async (_description, failure) => {
+        linkMember(h, LEAVER_ID, LEAVER_UID);
+        applyNickname(h, LEAVER_ID, "NML Rogue");
+        h.privateMessages.refuseWith(failure);
+
+        await expect(h.service.unlink(LEAVER, "left")).resolves.toBeUndefined();
+
+        expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
+        expect(h.channels.logs).toHaveLength(1);
+        expect(h.errors).toHaveLength(1);
+        expect(h.errors[0]).toContain(LEAVER_ID);
+      },
+    );
   });
 
   describe("when the leaving Member approved pending Rank Approvals", () => {
@@ -304,6 +368,23 @@ describe("createUnlink", () => {
       for (const post of h.channels.posts) {
         expect(post.message).toEqual(rankHandedToOfficersMessage(OFFICERS));
       }
+    });
+
+    test("posts once in each thread when a second Unlink of the same Member runs while the first is posting", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      setUpLeaverApprovals(h);
+      // The first Unlink hands on Alice's approval and waits in her thread; the second finds Bob's approval still pending.
+      const alicePost = h.channels.holdNextPostTo(THREAD_ALICE);
+      const first = h.service.unlink(LEAVER, "left");
+      await alicePost.reached;
+
+      await h.service.unlink(LEAVER, "left");
+      alicePost.release();
+      await first;
+
+      expect(h.channels.posts.filter((post) => post.threadId === THREAD_ALICE)).toHaveLength(1);
+      expect(h.channels.posts.filter((post) => post.threadId === THREAD_BOB)).toHaveLength(1);
+      expect(h.channels.posts).toHaveLength(2);
     });
 
     test("leaves approved and cancelled Rank Approvals as they were", async () => {
