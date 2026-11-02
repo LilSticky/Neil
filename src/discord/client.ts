@@ -521,6 +521,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       applied: options.applied,
       channels,
+      members: serverMembersOf(guild),
+      now,
       sendPrivateMessage: async (memberId, message) => {
         const user = await client.users.fetch(memberId);
         await user.send(message);

@@ -3,16 +3,19 @@ import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DiscordAPIError, type BaseMessageOptions } from "discord.js";
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
 import { approve, cancel, type Approver, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
+import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
+import { FakeServerMembers } from "./__fakes__/server-members.js";
 import type { OfficerRoles } from "./interview-texts.js";
+import type { RoleLike } from "./member-roles.js";
 import { createUnlink } from "./unlink.js";
-import { rankHandedToOfficersMessage, unlinkedLogLine, unlinkedPrivateMessage } from "./unlink-texts.js";
+import { rankHandedToOfficersMessage, unlinkedLogLine, unlinkedPrivateMessage, type UnlinkReason } from "./unlink-texts.js";
 
 type PendingApproval = Extract<RankApproval, { readonly state: "pending" }>;
 
@@ -35,6 +38,11 @@ const DAN: MemberId = "555555555555555555";
 const STRANGER: MemberId = "666666666666666666";
 const OTHER: MemberId = "777777777777777777";
 
+/** The Officer who Unlinks a Member, and the owner of the guild (whose nickname Neil can never change). */
+const OFFICER_ID: MemberId = "888888888888888888";
+const OWNER_ID = "999999999999999999";
+const BY_OFFICER: UnlinkReason = { kind: "officer", officerId: OFFICER_ID };
+
 const LEAVER_UID = uidOf("145563254785");
 const ALICE_UID = uidOf("145563254786");
 const BOB_UID = uidOf("145563254787");
@@ -54,6 +62,7 @@ const THREAD_ALICE = "800000000000000001";
 const THREAD_BOB = "800000000000000002";
 const THREAD_CAROL = "800000000000000003";
 const THREAD_DAN = "800000000000000004";
+const THREAD_LEAVER = "800000000000000005";
 
 /** A promise the test resolves by hand. */
 interface Deferred {
@@ -141,6 +150,10 @@ interface Harness {
   readonly channels: FakeChannels;
   readonly privateMessages: FakePrivateMessages;
   readonly errors: string[];
+  /** The members of the server; a Member is on it only once joined. */
+  readonly members: FakeServerMembers;
+  /** The guild the Members are in, with the Managed Roles NML and R4 defined. */
+  readonly guild: FakeRolesGuild;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -153,6 +166,22 @@ function aLink(memberId: MemberId, uid: Uid): Link {
 function linkMember(h: Harness, memberId: MemberId, uid: Uid): void {
   const outcome = h.links.confirm({ link: aLink(memberId, uid) }, () => undefined);
   if (outcome.kind !== "linked") throw new Error("the test Link was not stored");
+}
+
+/**
+ * Puts the Member on the server holding the roles given, with the nickname given, and returns the member as Discord
+ * holds it, so a test can read the roles and nickname after the Unlink.
+ */
+function joinServer(
+  h: Harness,
+  memberId: MemberId,
+  roles: readonly (string | RoleLike)[],
+  nickname: string | undefined,
+): FakeRolesMember {
+  const member = h.guild.member(memberId, roles);
+  member.nickname = nickname;
+  h.members.join(memberId, h.guild, member);
+  return member;
 }
 
 /** Records the nickname Neil gave a Member, as the apply does. */
@@ -229,17 +258,23 @@ describe("createUnlink", () => {
     const channels = new FakeChannels();
     const privateMessages = new FakePrivateMessages();
     const errors: string[] = [];
+    const members = new FakeServerMembers();
+    const guild = new FakeRolesGuild(OWNER_ID);
+    guild.defineRole("NML");
+    guild.defineRole("R4");
     const service = createUnlink({
       links,
       applied,
       channels,
+      members,
+      now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
       logError: (line: string) => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, service };
   });
 
   afterEach(() => {
@@ -437,6 +472,159 @@ describe("createUnlink", () => {
       expect(h.links.get(alice.id)).toMatchObject({ state: "pending", approver: { kind: "officers" } });
       expect(h.channels.logs).toEqual([]);
       expect(h.privateMessages.attempts).toEqual([]);
+    });
+  });
+
+  describe("when a Member on the server is Unlinked by an Officer or by themselves", () => {
+    const CASES: [string, UnlinkReason][] = [
+      ["an Officer", BY_OFFICER],
+      ["the Member", "self"],
+    ];
+
+    test.each(CASES)("takes off the Managed Roles Neil applied when %s Unlinks, and keeps the other roles", async (_who, reason) => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      h.guild.defineRole("Friends");
+      const member = joinServer(h, LEAVER_ID, ["NML", "R4", "Friends"], "NML Rogue");
+
+      await h.service.unlink(LEAVER, reason);
+
+      expect(member.roles.map((role) => role.name)).toEqual(["Friends"]);
+    });
+
+    test.each(CASES)("clears the nickname Neil set when %s Unlinks", async (_who, reason) => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+
+      await h.service.unlink(LEAVER, reason);
+
+      expect(member.nickname ?? "").toBe("");
+    });
+
+    test.each(CASES)(
+      "leaves a nickname the Member changed by hand, and still takes off the Managed Roles, when %s Unlinks",
+      async (_who, reason) => {
+        linkMember(h, LEAVER_ID, LEAVER_UID);
+        applyNickname(h, LEAVER_ID, "NML Rogue");
+        const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "Changed by hand");
+
+        await h.service.unlink(LEAVER, reason);
+
+        expect(member.nickname).toBe("Changed by hand");
+        expect(member.roles).toEqual([]);
+      },
+    );
+
+    test.each(CASES)(
+      "ends the Link and the applied state only after the roles are taken off, when %s Unlinks",
+      async (_who, reason) => {
+        linkMember(h, LEAVER_ID, LEAVER_UID);
+        applyNickname(h, LEAVER_ID, "NML Rogue");
+        const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+        const stillLinkedAtRemoval: boolean[] = [];
+        const removeRole = member.removeRole.bind(member);
+        vi.spyOn(member, "removeRole").mockImplementation(async (role) => {
+          stillLinkedAtRemoval.push(h.links.linkFor(LEAVER_ID) !== undefined && h.applied.get(LEAVER_ID) !== undefined);
+          await removeRole(role);
+        });
+
+        await h.service.unlink(LEAVER, reason);
+
+        expect(stillLinkedAtRemoval).toEqual([true, true]);
+        expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
+        expect(h.applied.get(LEAVER_ID)).toBeUndefined();
+      },
+    );
+
+    test.each(CASES)(
+      "cancels the pending Rank Approval on the Member's own Link, with a message in its thread, when %s Unlinks",
+      async (_who, reason) => {
+        const approval = pendingApproval(h, LEAVER_ID, LEAVER_UID, THREAD_LEAVER, { kind: "officers" });
+        joinServer(h, LEAVER_ID, [], undefined);
+
+        await h.service.unlink(LEAVER, reason);
+
+        expect(h.links.get(approval.id)).toMatchObject({ state: "cancelled" });
+        expect(h.channels.posts.map((post) => post.threadId)).toContain(THREAD_LEAVER);
+      },
+    );
+
+    test("logs one line naming the Officer who Unlinked the Member", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+
+      await h.service.unlink(LEAVER, BY_OFFICER);
+
+      expect(h.channels.logs).toHaveLength(1);
+      expect(h.channels.logs[0]?.content ?? "").toContain(`<@${OFFICER_ID}>`);
+    });
+
+    test("logs one line saying the Member Unlinked themselves", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+
+      await h.service.unlink(LEAVER, "self");
+
+      expect(h.channels.logs).toHaveLength(1);
+      expect(h.channels.logs[0]?.content ?? "").toContain("themselves");
+    });
+
+    test("keeps the Unlink and names the role Discord would not let Neil remove in the log line", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      // An R4 above the bot's highest role: Neil cannot take it off.
+      const outOfReach = h.guild.defineRole("R4", { position: 12 });
+      const member = joinServer(h, LEAVER_ID, ["NML", outOfReach], "NML Rogue");
+
+      await h.service.unlink(LEAVER, BY_OFFICER);
+
+      expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
+      expect(member.roles.map((role) => role.name)).toEqual(["R4"]);
+      expect(h.channels.logs).toHaveLength(1);
+      expect(h.channels.logs[0]?.content ?? "").toContain("R4");
+    });
+
+    test("tells the Member privately to run /interview when an Officer Unlinks them", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+
+      await h.service.unlink(LEAVER, BY_OFFICER);
+
+      expect(h.privateMessages.attempts).toHaveLength(1);
+      expect(h.privateMessages.attempts[0]?.memberId).toBe(LEAVER_ID);
+      expect(h.privateMessages.attempts[0]?.message.content ?? "").toContain("/interview");
+    });
+
+    test("sends no private message when the Member Unlinks themselves, the reply carries the result", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+
+      await h.service.unlink(LEAVER, "self");
+
+      expect(h.privateMessages.attempts).toEqual([]);
+    });
+  });
+
+  describe("when a Member is not on the server", () => {
+    test.each<[string, UnlinkReason]>([
+      ["left", "left"],
+      ["missing", "missing"],
+      ["an Officer", BY_OFFICER],
+    ])("ends the Link without touching the roles or nickname on the server, for %s", async (_who, reason) => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      // Held by the guild but not joined to the server: Neil cannot reach it, so it must not change.
+      const member = h.guild.member(LEAVER_ID, ["NML", "R4"]);
+      member.nickname = "NML Rogue";
+
+      await h.service.unlink(LEAVER, reason);
+
+      expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
+      expect(member.roles.map((role) => role.name)).toEqual(["NML", "R4"]);
+      expect(member.nickname).toBe("NML Rogue");
     });
   });
 });

@@ -46,7 +46,7 @@ description: "Task list for slice 011, Correct a link"
 - [x] T003 Test then implement storage: migration and `madeBy` round-trip (old rows read as In-game Proof);
   `rankByOfficer` (rank replaced, pending approval settled by the Officer, no pending → undefined); Officer Link through
   `confirm` (uid taken → already-linked, Interview no longer handed off → nothing written).
-- [ ] T004 Test then implement `unlink.ts` reasons `officer` and `self`: Managed Roles removed, Neil's nickname cleared
+- [x] T004 Test then implement `unlink.ts` reasons `officer` and `self`: Managed Roles removed, Neil's nickname cleared
   only if unchanged, own pending Rank Approval cancelled with a thread message, waiting ones handed on, log line per
   reason with skipped removals, private message only for `officer`, Member not on the server → no role calls (US1
   AS1–3, AS6; US2 AS1; edge cases).
