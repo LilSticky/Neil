@@ -40,10 +40,13 @@ export type RankApproval =
       readonly cancelledAt: Date;
     };
 
-/** Outcome of approving or cancelling: the new state, or "ended" when the Rank Approval was already approved or cancelled. */
+/**
+ * Outcome of approving, cancelling or handing on: the new state, or why not. "ended" when the Rank Approval was already
+ * approved or cancelled; "already-with-officers" when a pending one already goes to the Officers.
+ */
 export type RankApprovalChange =
   | { readonly ok: true; readonly approval: RankApproval }
-  | { readonly ok: false; readonly reason: "ended" };
+  | { readonly ok: false; readonly reason: "ended" | "already-with-officers" };
 
 /**
  * Picks who approves a Rank Approval: the leader's Member when the leader has a Member on the server
@@ -104,4 +107,14 @@ export function cancel(approval: RankApproval, now: Date): RankApprovalChange {
       cancelledAt: now,
     },
   };
+}
+
+/**
+ * Hands a pending Rank Approval that a Member approves over to the Officers, keeping the rest. Refused when it has
+ * ended, or when it already goes to the Officers.
+ */
+export function handToOfficers(approval: RankApproval): RankApprovalChange {
+  if (approval.state !== "pending") return { ok: false, reason: "ended" };
+  if (approval.approver.kind === "officers") return { ok: false, reason: "already-with-officers" };
+  return { ok: true, approval: { ...approval, approver: { kind: "officers" } } };
 }

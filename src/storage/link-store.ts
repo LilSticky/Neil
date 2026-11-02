@@ -201,6 +201,28 @@ export class LinkStore {
       .run(cutoff.toISOString());
   }
 
+  /**
+   * Deletes a Member's Link and its Applied State in one transaction, and returns the removed Link; undefined when the
+   * Member had none. Their Rank Approvals are kept as history.
+   */
+  unlink(memberId: MemberId): Link | undefined {
+    return this.inTransaction(() => {
+      const link = this.linkFor(memberId);
+      if (link === undefined) return undefined;
+      this.db.prepare("DELETE FROM applied WHERE member_id = ?").run(memberId);
+      this.db.prepare("DELETE FROM link WHERE member_id = ?").run(memberId);
+      return link;
+    });
+  }
+
+  /** The pending Rank Approvals whose approver is this Member, in the order they were asked. */
+  pendingApprovedBy(memberId: MemberId): RankApproval[] {
+    return this.db
+      .prepare(`${APPROVAL_SELECT} WHERE approver_kind = 'member' AND approver_member_id = ? AND state = 'pending' ORDER BY id`)
+      .all(memberId)
+      .map(rankApprovalOf);
+  }
+
   private writeApprovedRank(approval: Extract<RankApproval, { readonly state: "approved" }>): void {
     this.db
       .prepare("UPDATE link SET rank_source = ?, alliance_rank = ?, approved_by = ?, approved_at = ? WHERE member_id = ?")

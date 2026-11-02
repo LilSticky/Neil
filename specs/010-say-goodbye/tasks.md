@@ -22,9 +22,9 @@ description: "Task list for slice 010, Say goodbye"
 
 ## Tasks
 
-- [ ] T001 Test then implement `handToOfficers` (`src/domain/rank-approval.test.ts`): pending/member → officers;
+- [x] T001 Test then implement `handToOfficers` (`src/domain/rank-approval.test.ts`): pending/member → officers;
   pending/officers, approved, cancelled → unchanged.
-- [ ] T002 Test then implement storage: `LinkStore.unlink` (Link and applied gone, uid re-linkable, second call
+- [x] T002 Test then implement storage: `LinkStore.unlink` (Link and applied gone, uid re-linkable, second call
   undefined, approval history kept); `pendingApprovedBy`; saving a handed-on approval.
 - [ ] T003 Test then implement `src/discord/unlink.ts` + texts: US1 1–3, US2 1–2, edge cases (log channel fails,
   thread gone, private message refused, no Link → nothing).
