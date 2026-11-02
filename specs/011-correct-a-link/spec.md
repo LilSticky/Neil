@@ -23,12 +23,20 @@ Scope decided in [discovery/011-correct-a-link.md](../../documentation/discovery
 - Q: May a Member end their own Link? → A: yes, with a command; then they may run `/interview`.
 - Q: Dictionary? → A: Officer Link added; Link, Unlink and Rank Approval amended (approved 2026-11-02).
 
+### Session 2026-11-02 (clarify)
+
+- Q: An Officer gives a rank the game already lists differently? → A: store and apply it anyway; the next Daily Sync
+  replaces it with the game's rank, and the Officer is told so.
+- Q: Confirmation before an Unlink? → A: none; Officer Unlinks and self-Unlinks happen at once.
+- Q: Which budget does an Officer Link's lookup use? → A: the Quota Reserve, like Interview lookups.
+- Q: May an Officer give a reason for an Unlink? → A: no.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - An Officer Unlinks a Member (Priority: P1)
 
 A Member was Linked to the wrong Player, holds someone else's uid, or their Player can no longer be found. An Officer
-Unlinks them with a command naming the Member. After a private confirmation, Neil ends the Link, removes the Managed
+Unlinks them with a command naming the Member. Neil ends the Link at once, removes the Managed
 Roles it gave the Member and the nickname it set, hands Rank Approvals waiting on the Member to the Officers, posts one
 log line naming the Officer, and sends the Member a private message that their Link was ended by an Officer and that
 they can run `/interview` to be Linked again.
@@ -42,27 +50,26 @@ then be Linked to that uid.
 
 **Acceptance Scenarios**:
 
-1. **Given** a Linked Member on the server, **When** an Officer Unlinks them and confirms, **Then** the Link ends, the
+1. **Given** a Linked Member on the server, **When** an Officer Unlinks them, **Then** the Link ends, the
    uid is free, the Managed Roles Neil gave them are removed and the nickname Neil set is cleared.
-2. **Given** the Officer did not confirm (cancelled or let the prompt expire), **Then** nothing changes.
-3. **Given** the Unlink, **Then** one log line names the Member, the uid, the nickname Neil had given them and the
+2. **Given** the Unlink, **Then** one log line names the Member, the uid, the nickname Neil had given them and the
    Officer; **and** Neil tries one private message to the Member; a refusal changes nothing else.
-4. **Given** pending Rank Approvals waiting on the Unlinked Member as approver, **Then** they go to the Officers (as in
+3. **Given** pending Rank Approvals waiting on the Unlinked Member as approver, **Then** they go to the Officers (as in
    slice 010); **given** a pending Rank Approval on the Unlinked Member's own Link, **Then** it is cancelled with a
    message in its thread.
-5. **Given** a Member without a Link, **When** an Officer tries to Unlink them, **Then** only the Officer sees "not
+4. **Given** a Member without a Link, **When** an Officer tries to Unlink them, **Then** only the Officer sees "not
    Linked" and nothing changes.
-6. **Given** a Member who is not an Officer, **When** they try to Unlink another Member, **Then** only they see that
+5. **Given** a Member who is not an Officer, **When** they try to Unlink another Member, **Then** only they see that
    only Officers may do that, and nothing changes.
-7. **Given** the Member has since changed the nickname themselves, **Then** Neil leaves that nickname alone (it only
+6. **Given** the Member has since changed the nickname themselves, **Then** Neil leaves that nickname alone (it only
    clears a nickname it set).
 
 ---
 
 ### User Story 2 - A Member Unlinks themselves (Priority: P2)
 
-A Member switched their main account or Linked the wrong Player. They Unlink themselves with a command and a private
-confirmation. The effects are the same as an Officer's Unlink; the log line says the Member did it themselves; the
+A Member switched their main account or Linked the wrong Player. They Unlink themselves with a command; it happens at
+once. The effects are the same as an Officer's Unlink; the log line says the Member did it themselves; the
 Member sees the result privately in the reply (no extra private message) and is told they can run `/interview`.
 
 **Why this priority**: saves an Officer's time for a rare but real case; builds on US1.
@@ -72,7 +79,7 @@ line "by themselves", private reply mentions `/interview`; a following `/intervi
 
 **Acceptance Scenarios**:
 
-1. **Given** a Linked Member, **When** they Unlink themselves and confirm, **Then** the same effects as US1 AS1 and AS4
+1. **Given** a Linked Member, **When** they Unlink themselves, **Then** the same effects as US1 AS1 and AS3
    happen, and the log line says the Member Unlinked themselves.
 2. **Given** a Member without a Link, **When** they try, **Then** only they see "not Linked".
 3. **Given** a Member Unlinked themselves, **When** they run `/interview`, **Then** a new Onboarding Interview starts.
@@ -81,8 +88,8 @@ line "by themselves", private reply mentions `/interview`; a following `/intervi
 
 ### User Story 3 - An Officer gives a Rank Approval at any time (Priority: P2)
 
-A Linked Player's rank is wrong or missing: an earlier Rank Approval was wrong, or the Player moved Alliance and the
-Game API lists no rank there (slice 009 then asks Officers to check). An Officer gives the Member's Alliance Rank
+A Linked Player's rank is wrong or missing: an earlier Rank Approval was wrong, the Player moved Alliance and the
+Game API lists no rank there (slice 009 then asks Officers to check), or the game is behind. An Officer gives the Member's Alliance Rank
 (R1–R5) with a command. Neil stores it on the Link as a Rank Approval by that Officer, replaces any earlier approved
 rank, re-applies the nickname and Managed Roles, and posts one log line. The Daily Sync keeps it while the Player stays
 in that Alliance with no rank in the Game API (slice 009 FR-004).
@@ -91,17 +98,17 @@ in that Alliance with no rank in the Game API (slice 009 FR-004).
 
 **Independent Test**: automated: Linked Member with unknown rank, an Officer gives R4 → Link carries R4 approved by that
 Officer, rank role and nickname updated, one log line; a following Daily Sync with the rank still unknown keeps R4, one
-with R3 in the Game API uses R3.
+with R3 in the Game API uses R3; an Officer giving R2 while the game lists R3 → R2 applied now, R3 after the next sync.
 
 **Acceptance Scenarios**:
 
-1. **Given** a Linked Player in an Alliance whose rank the Game API does not list (as Neil last saw it), **When** an
-   Officer gives a rank, **Then** it is stored as a Rank Approval by that Officer, any earlier approved rank is
+1. **Given** a Linked Player in an Alliance, **When** an Officer gives a rank, **Then** it is stored as a Rank Approval by that Officer, any earlier approved rank is
    replaced, name and roles are re-applied, and one log line names Member, rank and Officer.
 2. **Given** a pending Rank Approval on that Link, **When** the Officer gives a rank, **Then** that Rank Approval is
    settled with the Officer's rank (approved by that Officer) and its thread says so.
-3. **Given** the Game API lists the Player's rank (as Neil last saw it), **When** an Officer gives a rank, **Then** only
-   the Officer sees that the game lists rank X and Neil follows the game; nothing changes.
+3. **Given** the Game API lists a different rank for the Player (as Neil last saw it), **When** an Officer gives a
+   rank, **Then** it is stored and applied as in AS1, and only the Officer sees that the game lists rank X, which the
+   next Daily Sync will use.
 4. **Given** the Player is in no Alliance, **When** an Officer gives a rank, **Then** only the Officer sees that a rank
    needs an Alliance; nothing changes.
 5. **Given** the Officer names their own Linked Member, **Then** they are refused (never by the Linked Member
@@ -143,8 +150,8 @@ off → refused.
 
 ### Edge Cases
 
-- The Member left between the command and the confirmation: an Unlink then finds no Link (slice 010 did it) and the
-  Officer sees "not Linked"; an Officer Link is refused (Member not on the server).
+- The Member is no longer on the server: an Unlink finds no Link (slice 010 did it) and the Officer sees "not
+  Linked"; an Officer Link is refused (Member not on the server), also when they left before the Officer confirmed.
 - Neil cannot remove a role or clear the nickname (role above Neil's, server owner): the Unlink still happens; the log
   line says what could not be removed.
 - The log channel cannot be posted to: the correction still happens; the failure is logged to the console.
@@ -159,7 +166,7 @@ off → refused.
 ### Functional Requirements
 
 - **FR-001**: An Officer MUST be able to Unlink any Linked Member on the server; a Member MUST be able to Unlink
-  themselves; both after a private confirmation.
+  themselves; both happen at once, without a confirmation and without a reason.
 - **FR-002**: An Unlink of a Member on the server MUST end the Link, remove the Managed Roles Neil gave them, clear the
   nickname only if it is still the one Neil set, forget the applied state, cancel a pending Rank Approval on their own
   Link and hand Rank Approvals waiting on them to the Officers (slice 010 FR-004).
@@ -168,10 +175,10 @@ off → refused.
 - **FR-004**: An Officer's Unlink MUST try one private message to the Member mentioning `/interview`; a refusal MUST NOT
   fail the Unlink. A Member's own Unlink answers in the private reply.
 - **FR-005**: No Interview MUST start because of an Unlink.
-- **FR-006**: An Officer MUST be able to give a Rank Approval (R1–R5) for a Linked Player in an Alliance whose rank
-  Neil last saw as unknown in the Game API; it MUST replace any earlier approved rank, settle a pending Rank Approval on
-  that Link, and re-apply name and roles. It MUST be refused on the Officer's own Link, without an Alliance, or when the
-  Game API lists the rank.
+- **FR-006**: An Officer MUST be able to give a Rank Approval (R1–R5) for a Linked Player in an Alliance; it MUST
+  replace any earlier approved rank, settle a pending Rank Approval on that Link, and re-apply name and roles. When the
+  Game API (as Neil last saw it) lists a different rank, the Officer MUST be told the next Daily Sync uses the game's
+  rank. It MUST be refused on the Officer's own Link or without an Alliance.
 - **FR-007**: An Officer MUST be able to make an Officer Link only for a Member whose latest Onboarding Interview is
   handed off, from a uid, after confirming the Player shown; never for themselves.
 - **FR-008**: An Officer Link MUST keep the Link rules (one per Member, one per Player), apply name, roles and a Rank
@@ -205,6 +212,8 @@ off → refused.
 - Commands: `/unlink` (no option: yourself; `member`: an Officer Unlinks that Member), `/rank member rank` and
   `/link member uid` for Officers; final names are settled in the plan. `npm run commands:register` is needed again.
 - "Officer" is the existing check (Moderator or King role).
-- "Rank unknown" is judged from what Neil last saw (stored Link and applied state); no Game API request is made for it.
-- The confirmation is a private button prompt that expires after a few minutes.
+- "The game lists rank X" is judged from what Neil last saw (stored Link and applied state); no Game API request is
+  made for it.
+- Only the Officer Link shows a confirmation (the Player found for the uid, private buttons that expire after a few
+  minutes), so a mistyped uid is caught.
 - The manual check is collected in TEST-RUN.md and run later by the user.
