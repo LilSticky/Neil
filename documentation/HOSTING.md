@@ -119,7 +119,8 @@ packages, and starts Neil. `/ping` then shows the new version. Restarts can't be
 Wispbyte's restart needs a browser login behind a bot check, not an API key.
 
 Slash commands are registered from a developer machine with `npm run commands:register` (settings from
-the local `.env`), and only when the command list changes; Neil never registers them itself.
+the local `.env`), and only when the command list changes; Neil never registers them itself. Slice 011
+(`/unlink`, `/rank`, `/link`) needs `npm run commands:register` again, before or with the deploy of that slice.
 
 **Data**: Neil keeps `data/neil.db` in the server folder (`DATA_DIR=./data`). `git pull` leaves it
 alone because it is untracked. If the database is corrupt, Neil refuses to start and says so rather

@@ -37,11 +37,19 @@ New dictionary term Unlink. discord.js partials (GuildMember, User) are now on, 
 Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6f. Reviewed (1 must, 3 should, 2 could fixed), audited; PR
 [#30](https://github.com/LilSticky/Neil/pull/30) (issue #29), 1639 tests.
 
+Slice 011 "Correct a link" is implemented on branch `011-correct-a-link`, stacked on 010: an Officer can Unlink any Linked
+Member (`/unlink member:`), a Member can Unlink themselves (`/unlink`), an Officer can give a Rank Approval at any time
+(`/rank`, stored with the Officer; the Daily Sync keeps it while the game lists no rank) and can Link a Member whose
+Interview was handed off, from a uid after confirming the Player (`/link`, an Officer Link). Each correction posts one
+log line naming who made it. The Member re-check was cut (the Daily Sync covers it). New commands: `npm run commands:register`
+is needed again ([HOSTING.md](HOSTING.md)). Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6g. Review (T009) and
+audit are pending; the PR is to come.
+
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
-**Next step (2026-11-02):** the last slice from ROADMAP "Later", "Correct a link", if the user wants it.
-#16, #22, #24, #26, #28 and #30 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
-next to `main`, and so on).
+**Next step (2026-11-02):** the user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b to 6g). The roadmap is empty after
+slice 011. #16, #22, #24, #26, #28, #30 and the 011 pull request stay open until then; then merge in order (#16, retarget
+and merge the next to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
