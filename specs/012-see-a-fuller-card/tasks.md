@@ -50,14 +50,14 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   join open/0/0, badge `/static/alliance/badge_103.png`, and roster power per row. For each new field: missing, null,
   wrong type or (paths) a non-`/static/` or `..` path → that value undefined, body still accepted, today's values
   unchanged.
-- [ ] **T002** Card helpers (FR-003, FR-004, FR-006, edge cases). Tests in `src/discord/lookup-cards.test.ts`:
+- [x] **T002** Card helpers (FR-003, FR-004, FR-006, edge cases). Tests in `src/discord/lookup-cards.test.ts`:
   `timeAgo`, `compactNumber`, `languageName`, `trackerPicture`, `joinRequirementsText` as in the plan, with the
   boundaries (59 s, 60 min, 24 h, future, 999, 1,000, 999,950, unknown code `xx`).
-- [ ] **T003** Player card (US1, FR-001, FR-004, FR-006, FR-007). Tests in `lookup-cards.test.ts`: full details →
+- [x] **T003** Player card (US1, FR-001, FR-004, FR-006, FR-007). Tests in `lookup-cards.test.ts`: full details →
   author, thumbnail, color, description and fields in the plan's order; each detail missing → only it left off; no
   `details` → today's values (Kingdom in the author line); no alliance → "No alliance", no Alliance Rank; escaped texts.
   Update existing assertions on the Kingdom field.
-- [ ] **T004** Alliance card (US2, FR-002, FR-003, FR-007). Tests in `lookup-cards.test.ts` (and `recorded-cards.test.ts`
+- [x] **T004** Alliance card (US2, FR-002, FR-003, FR-007). Tests in `lookup-cards.test.ts` (and `recorded-cards.test.ts`
   if it renders cards): full details → author, thumbnail, color, description, fields; roster rows with power; a
   25-row page of 100-character names with power stays ≤ 6,000 characters and every field ≤ 1,024; details missing →
   today's card; same values on every page.
