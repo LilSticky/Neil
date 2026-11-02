@@ -42,6 +42,7 @@ const ANA: MemberId = "111111111111111111";
 const BEN: MemberId = "222222222222222222";
 const CAL: MemberId = "333333333333333333";
 const LEADER: MemberId = "444444444444444444";
+const OFFICER: MemberId = "555555555555555555";
 const ANA_UID = uidOf("145563254785");
 const BEN_UID = uidOf("145563254786");
 const CAL_UID = uidOf("145563254787");
@@ -412,6 +413,29 @@ describe("runDailySync", () => {
   test("uses the rank the Game API now gives in place of an approved rank", async () => {
     linkMember(h, ANA, ANA_UID, { rank: APPROVED_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
     joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+
+    await runDailySync(h.deps);
+
+    expect(h.links.linkFor(ANA)?.allianceRank).toEqual(GAME_R4);
+  });
+
+  test("keeps a rank an Officer gave while the Player stays in that Alliance and the Game API still gives no rank (SC-004)", async () => {
+    const byOfficer: RankOnLink = { source: "rank-approval", rank: "R2", approvedBy: OFFICER, approvedAt: NOW };
+    linkMember(h, ANA, ANA_UID, { rank: byOfficer, alliance: NML, nickname: "[NML|R2] Rogue", roles: ["NML", "R2", "#330", "T7"] });
+    const member = joinMember(h, ANA, ["NML", "R2", "#330", "T7"], "[NML|R2] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
+
+    await runDailySync(h.deps);
+
+    expect(h.links.linkFor(ANA)?.allianceRank).toEqual(byOfficer);
+    expect(heldNames(member)).toContain("R2");
+  });
+
+  test("replaces a rank an Officer gave with the rank the Game API now lists (SC-004)", async () => {
+    const byOfficer: RankOnLink = { source: "rank-approval", rank: "R2", approvedBy: OFFICER, approvedAt: NOW };
+    linkMember(h, ANA, ANA_UID, { rank: byOfficer, alliance: NML, nickname: "[NML|R2] Rogue", roles: ["NML", "R2", "#330", "T7"] });
+    joinMember(h, ANA, ["NML", "R2", "#330", "T7"], "[NML|R2] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
 
     await runDailySync(h.deps);

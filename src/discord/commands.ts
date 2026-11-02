@@ -72,5 +72,40 @@ export const interview = new SlashCommandBuilder()
   .setDescription("Start your Onboarding Interview")
   .setContexts(InteractionContextType.Guild);
 
+export const unlink = new SlashCommandBuilder()
+  .setName("unlink")
+  .setDescription("End a Link: your own, or another Member's (Officers)")
+  .setContexts(InteractionContextType.Guild)
+  .addUserOption((option) =>
+    option.setName("member").setDescription("The Member to Unlink; Officers only. Leave out for yourself").setRequired(false),
+  );
+
+export const rank = new SlashCommandBuilder()
+  .setName("rank")
+  .setDescription("Give a Linked Member their Alliance Rank (Officers)")
+  .setContexts(InteractionContextType.Guild)
+  .addUserOption((option) => option.setName("member").setDescription("The Linked Member").setRequired(true))
+  .addStringOption((option) =>
+    option
+      .setName("rank")
+      .setDescription("The Alliance Rank, R1 to R5")
+      .setRequired(true)
+      .addChoices(
+        { name: "R1", value: "R1" },
+        { name: "R2", value: "R2" },
+        { name: "R3", value: "R3" },
+        { name: "R4", value: "R4" },
+        { name: "R5", value: "R5" },
+      ),
+  );
+
 /** Everything registered for the configured server, as REST payloads. */
-export const commands = [ping.toJSON(), player.toJSON(), alliance.toJSON(), quota.toJSON(), interview.toJSON()];
+export const commands = [
+  ping.toJSON(),
+  player.toJSON(),
+  alliance.toJSON(),
+  quota.toJSON(),
+  interview.toJSON(),
+  unlink.toJSON(),
+  rank.toJSON(),
+];

@@ -58,6 +58,8 @@ function handlers() {
     alliance: vi.fn(() => Promise.resolve()),
     allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
+    unlink: vi.fn(() => Promise.resolve()),
+    rank: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
@@ -154,6 +156,32 @@ describe("createClient", () => {
     expect(routed.ping).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
     expect(routed.alliance).not.toHaveBeenCalled();
+  });
+
+  test("hands /unlink to the unlink handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("unlink");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.unlink).toHaveBeenCalledWith(interaction);
+    expect(routed.rank).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /rank to the rank handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("rank");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.rank).toHaveBeenCalledWith(interaction);
+    expect(routed.unlink).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
   });
 
   test("ignores other commands and other interaction kinds", () => {

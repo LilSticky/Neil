@@ -158,7 +158,7 @@ export function parseInterviewCustomId(
   return { action, interviewId };
 }
 
-function asApprovableRank(text: string): ApprovableRank | undefined {
+export function asApprovableRank(text: string): ApprovableRank | undefined {
   return APPROVABLE_RANKS.find((rank) => rank === text);
 }
 

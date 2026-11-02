@@ -50,9 +50,9 @@ description: "Task list for slice 011, Correct a link"
   only if unchanged, own pending Rank Approval cancelled with a thread message, waiting ones handed on, log line per
   reason with skipped removals, private message only for `officer`, Member not on the server → no role calls (US1
   AS1–3, AS6; US2 AS1; edge cases).
-- [ ] T005 Test then implement `/unlink` (corrections handler, command, routing): self and Officer, not Linked, not an
+- [x] T005 Test then implement `/unlink` (corrections handler, command, routing): self and Officer, not Linked, not an
   Officer, no Interview starts, `/interview` afterwards starts one (US1 AS4–5, US2 AS2–3, FR-005).
-- [ ] T006 Test then implement `/rank`: stores and re-applies, settles a pending Rank Approval with a thread message,
+- [x] T006 Test then implement `/rank`: stores and re-applies, settles a pending Rank Approval with a thread message,
   game-rank note, refusals (US3 AS1–6); Daily Sync keeps an Officer's rank while the game lists none and uses a game
   rank (SC-004).
 - [ ] T007 Test then implement `/link` and its buttons: lookup with the Interview purpose, confirm/cancel/expiry, stored

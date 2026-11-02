@@ -42,6 +42,7 @@ import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { createUnlink } from "./unlink.js";
+import { handleRank, handleUnlink, type CorrectionInteraction } from "./corrections.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import {
   answer,
@@ -88,12 +89,21 @@ export interface CommandHandlers {
   readonly interviewModal: (modal: ModalSubmitInteraction) => Promise<void>;
   /** A button whose custom id starts with `rank:`, the Rank Approval buttons. */
   readonly rankButton: (button: ButtonInteraction) => Promise<void>;
+  /** The /unlink command: a Member ends their own Link, or an Officer ends another Member's. */
+  readonly unlink: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /rank command: an Officer gives a Linked Member their Alliance Rank. */
+  readonly rank: (interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
 interface Services {
   readonly interviews: Interviews;
   readonly rankApprovals: RankApprovals;
+  /** /unlink and /rank, as the Discord client routes them. */
+  readonly corrections: {
+    readonly unlink: (interaction: CorrectionInteraction) => Promise<void>;
+    readonly rank: (interaction: CorrectionInteraction) => Promise<void>;
+  };
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -104,6 +114,9 @@ const OVERVIEW_PREFIX = "overview:";
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
 const RANK_PREFIX = "rank:";
+
+/** A user id picked in a command option: digits only, as every Discord snowflake is. */
+const memberIdSchema = z.string().regex(/^\d+$/);
 
 /** A guild member's roles, from the discord.js cache (a GuildMemberRoleManager) or from an API member (a string array). */
 const memberSchema = z.union([
@@ -169,6 +182,12 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
           break;
         case "interview":
           void handlers.interview(interaction);
+          break;
+        case "unlink":
+          void handlers.unlink(interaction);
+          break;
+        case "rank":
+          void handlers.rank(interaction);
           break;
       }
       return;
@@ -377,6 +396,26 @@ function rankButtonLike(button: ButtonInteraction): RankButtonLike {
   };
 }
 
+/** The discord.js chat-input command as the corrections read it: the caller, their roles, and the options given. */
+function correctionLike(command: ChatInputCommandInteraction): CorrectionInteraction {
+  return {
+    callerId: command.user.id,
+    memberRoleIds: () => memberRoleIds(command.member),
+    memberOption: () => {
+      const parsed = memberIdSchema.safeParse(command.options.getUser("member")?.id);
+      return parsed.success ? parsed.data : undefined;
+    },
+    rankOption: () => command.options.getString("rank") ?? undefined,
+    deferReply: async (options) => {
+      await command.deferReply(options);
+    },
+    // The deferral already made the answer private; editReply takes no flags.
+    editReply: async (message) => {
+      await command.editReply({ content: message.content, allowedMentions: message.allowedMentions });
+    },
+  };
+}
+
 /** The discord.js chat-input command as the Interview reads it; see buttonLike for why each method is passed on. */
 function commandLike(command: ChatInputCommandInteraction): CommandLike {
   return {
@@ -488,6 +527,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
       memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
       interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
+      unlink: async (interaction) => (await services).corrections.unlink(correctionLike(interaction)),
+      rank: async (interaction) => (await services).corrections.rank(correctionLike(interaction)),
       interviewButton: async (button) => (await services).interviews.onButton(buttonLike(button)),
       interviewModal: async (modal) => (await services).interviews.onModalSubmit(modalLike(modal)),
       rankButton: (button) =>
@@ -572,7 +613,13 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
-    openServices({ interviews, rankApprovals });
+    const corrections = {
+      unlink: (interaction: CorrectionInteraction) =>
+        handleUnlink(interaction, { links: options.links, unlink, officerRoles, logError }),
+      rank: (interaction: CorrectionInteraction) =>
+        handleRank(interaction, { links: options.links, channels, nameAndRoles, officerRoles, now, logError }),
+    };
+    openServices({ interviews, rankApprovals, corrections });
     // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
     // starts once the startup apply has settled, so their Game API lookups do not overlap.
     void nameAndRoles

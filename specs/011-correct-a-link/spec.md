@@ -186,8 +186,9 @@ off → refused.
   Officer Link with the Officer.
 - **FR-009**: Only Officers MAY Unlink another Member, give a Rank Approval this way, or make an Officer Link; every
   refusal MUST be visible only to the caller.
-- **FR-010**: Unlinks and Rank Approvals given this way MUST NOT use the Game API; an Officer Link MUST use at most one
-  Game API request through the rate-limited, caching client, from the Quota Reserve (it finishes an Interview).
+- **FR-010**: Unlinks MUST NOT use the Game API. A Rank Approval given this way re-applies name and roles like any Rank
+  Approval (slice 006): at most one lookup from the lookup share. An Officer Link MUST use at most one Game API request
+  through the rate-limited, caching client, from the Quota Reserve (it finishes an Interview).
 - **FR-011**: Slice 005 FR-008 ("Officers MUST NOT be able to Link a Member by hand") is narrowed: allowed as an Officer
   Link after a hand-off.
 
