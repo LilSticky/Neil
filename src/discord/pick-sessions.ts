@@ -30,6 +30,7 @@ const MAX_SESSIONS = 500;
 const PAGE_SIZE = 25;
 
 const CUSTOM_ID_PATTERN = /^pick:([^:]+):(?:select(?::(\d+))?|page:(\d+))$/;
+const OVERVIEW_CUSTOM_ID_PATTERN = /^pick:([^:]+):overview:(\d+):(.+)$/;
 
 /** Memory-only pick lists: a restart ends them, and the oldest is dropped beyond 500. */
 export class PickSessions {
@@ -89,14 +90,22 @@ export function pageCount(entries: readonly unknown[]): number {
 
 /**
  * What a component interaction asks for, read back from `pick:{sessionId}:select`, `pick:{sessionId}:select:{page}`
- * (a roster menu, with the page it shows) or `pick:{sessionId}:page:{n}`.
+ * (a roster menu, with the page it shows), `pick:{sessionId}:page:{n}` or the Overview button of an Alliance card,
+ * `pick:{sessionId}:overview:{kingdom}:{tag}`. The Kingdom and tag are as typed in the id, not yet validated.
  */
 export type ParsedCustomId =
   | { readonly sessionId: string; readonly action: "select"; readonly page?: number }
-  | { readonly sessionId: string; readonly action: "page"; readonly page: number };
+  | { readonly sessionId: string; readonly action: "page"; readonly page: number }
+  | { readonly sessionId: string; readonly action: "overview"; readonly kingdom: string; readonly tag: string };
 
 /** Reads a pick list's custom id; anything else, including a malformed `pick:` id, gives undefined. */
 export function parseCustomId(customId: string): ParsedCustomId | undefined {
+  const overview = OVERVIEW_CUSTOM_ID_PATTERN.exec(customId);
+  if (overview !== null) {
+    const [, overviewSessionId, kingdom, tag] = overview;
+    if (overviewSessionId === undefined || kingdom === undefined || tag === undefined) return undefined;
+    return { sessionId: overviewSessionId, action: "overview", kingdom, tag };
+  }
   const match = CUSTOM_ID_PATTERN.exec(customId);
   if (match === null) return undefined;
   const [, sessionId, selectPage, page] = match;

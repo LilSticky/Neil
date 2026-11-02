@@ -1,5 +1,6 @@
 import {
   MessageFlags,
+  type InteractionDeferReplyOptions,
   type InteractionEditReplyOptions,
   type InteractionReplyOptions,
   type MessageMentionOptions,
@@ -29,11 +30,11 @@ import {
 import {
   lookupMessages,
   renderAllianceCard,
+  renderAllianceComponents,
   renderAlliancePickList,
   renderCloseAlliancePickList,
   renderPlayerCard,
   renderPlayerPickList,
-  renderRosterComponents,
 } from "./lookup-cards.js";
 import type { PickSessions } from "./pick-sessions.js";
 
@@ -42,7 +43,7 @@ export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAll
 
 /** The part of a discord.js interaction that shows a thinking placeholder, then a card or a private follow-up. */
 export interface PlaceholderInteraction {
-  deferReply(): Promise<unknown>;
+  deferReply(options?: InteractionDeferReplyOptions): Promise<unknown>;
   editReply(options: InteractionEditReplyOptions): Promise<unknown>;
   deleteReply(): Promise<unknown>;
   followUp(options: InteractionReplyOptions): Promise<unknown>;
@@ -228,7 +229,7 @@ export function allianceCardMessage(
   if (alliance.roster.length === 0) return { embeds };
   const entries = sortRoster(alliance.roster);
   const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, fetchedAt }, now);
-  return { embeds, components: renderRosterComponents(entries, 0, sessionId) };
+  return { embeds, components: renderAllianceComponents(alliance, 0, sessionId) };
 }
 
 /** The text of a thrown value, for a log line. */
@@ -266,7 +267,7 @@ async function removePlaceholderAndTell(interaction: PlaceholderInteraction, mes
 /**
  * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
  * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
- * that throws is logged and told as unavailable.
+ * that throws is logged and told as unavailable. `placeholder` gives the placeholder's options, such as privacy.
  */
 export async function showLookup<T>(
   interaction: PlaceholderInteraction,
@@ -274,8 +275,9 @@ export async function showLookup<T>(
   ask: () => Promise<LookupResult<T>>,
   card: (value: T, fetchedAt: Date, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
+  placeholder?: InteractionDeferReplyOptions,
 ): Promise<void> {
-  await interaction.deferReply();
+  await interaction.deferReply(placeholder);
   let result: LookupResult<T>;
   try {
     result = await ask();

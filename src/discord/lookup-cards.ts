@@ -6,11 +6,12 @@ import {
   type APIComponentInMessageActionRow,
   type APIEmbed,
   type APIEmbedField,
+  type APIButtonComponentWithCustomId,
   type APIStringSelectComponent,
 } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { utcDayOf } from "../domain/daily-quota.js";
-import type { AllianceKey, KingdomNumber, PlayerName } from "../domain/lookup-input.js";
+import { parseAllianceKey, type AllianceKey, type KingdomNumber, type PlayerName } from "../domain/lookup-input.js";
 import {
   listedAllianceMatches,
   listedPlayerMatches,
@@ -416,4 +417,26 @@ export function renderRosterComponents(
     });
   }
   return rows;
+}
+
+/**
+ * The components under an Alliance card: the roster menu and its page buttons, then an "Overview" button for any Member.
+ * The button's custom id names the pick session, the Kingdom and the tag, so a press can find the Alliance again. An
+ * empty roster has no components at all, and neither has an Alliance whose tag cannot be named in a custom id.
+ */
+export function renderAllianceComponents(
+  alliance: Alliance,
+  page: number,
+  sessionId: string,
+): APIActionRowComponent<APIComponentInMessageActionRow>[] {
+  const rows = renderRosterComponents(alliance.roster, page, sessionId);
+  const key = parseAllianceKey(alliance.tag);
+  if (rows.length === 0 || !key.ok) return rows;
+  const overview: APIButtonComponentWithCustomId = {
+    type: ComponentType.Button,
+    style: ButtonStyle.Secondary,
+    label: "Overview",
+    custom_id: `pick:${sessionId}:overview:${alliance.kingdom.toString()}:${key.value}`,
+  };
+  return [...rows, { type: ComponentType.ActionRow, components: [overview] }];
 }

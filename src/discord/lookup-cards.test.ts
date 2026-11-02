@@ -1,4 +1,10 @@
-import { ComponentType, type APIActionRowComponent, type APIComponentInMessageActionRow, type APIEmbed } from "discord.js";
+import {
+  ComponentType,
+  type APIActionRowComponent,
+  type APIButtonComponentWithCustomId,
+  type APIComponentInMessageActionRow,
+  type APIEmbed,
+} from "discord.js";
 import { describe, expect, test } from "vitest";
 import {
   parseAllianceKey,
@@ -14,6 +20,7 @@ import type { Alliance, Match, Player, RosterEntry } from "../domain/player.js";
 import {
   lookupMessages,
   renderAllianceCard,
+  renderAllianceComponents,
   renderAlliancePickList,
   renderCloseAlliancePickList,
   renderPlayerCard,
@@ -933,5 +940,33 @@ describe("select menu option labels stay within 100 characters", () => {
     const roster = [rosterEntry("145563254785", longName, "R4")];
 
     expect(optionLabelsOf(renderRosterComponents(roster, 0, "a1b2c3d4"))).toEqual([`${"A".repeat(99)}…`]);
+  });
+});
+
+/** The buttons of the rows, the ones with a custom id (the Overview button and the page buttons). */
+function buttonsWithCustomIdOf(
+  rows: readonly APIActionRowComponent<APIComponentInMessageActionRow>[],
+): APIButtonComponentWithCustomId[] {
+  return rows.flatMap((row) =>
+    row.components.filter(
+      (component): component is APIButtonComponentWithCustomId =>
+        component.type === ComponentType.Button && "custom_id" in component,
+    ),
+  );
+}
+
+describe("renderAllianceComponents", () => {
+  const SESSION_ID = "a1b2c3d4";
+
+  test("puts an Overview button in a row after the roster menu, its custom id starting with the pick session, for any Member", () => {
+    const rows = renderAllianceComponents({ ...alliance, roster: rosterMembers(3) }, 0, SESSION_ID);
+
+    expect(rows[0]).toMatchObject({ components: [{ type: ComponentType.StringSelect }] });
+    expect(buttonsWithCustomIdOf(rows.slice(1))).toEqual([
+      expect.objectContaining({
+        label: "Overview",
+        custom_id: expect.stringMatching(new RegExp(`^pick:${SESSION_ID}:overview`)) as unknown,
+      }) as unknown,
+    ]);
   });
 });

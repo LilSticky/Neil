@@ -1,4 +1,4 @@
-import { MessageFlags, type InteractionReplyOptions } from "discord.js";
+import { ComponentType, MessageFlags, type APIButtonComponentWithCustomId, type InteractionReplyOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { sortRoster } from "../domain/alliance-rank.js";
 import type { RequestPurpose } from "../domain/daily-quota.js";
@@ -11,9 +11,10 @@ import {
   type Uid,
 } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
-import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
-import { renderRosterComponents } from "./lookup-cards.js";
-import { handlePick } from "./pick.js";
+import { FakePickInteraction, type PickCall } from "./__fakes__/pick-interaction.js";
+import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
+import { renderOverview } from "./overview-texts.js";
+import { handleOverview, handlePick, type PickContext } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 
 const OWNER_ID = "310000000000000001";
@@ -307,7 +308,7 @@ describe("handlePick page buttons of a roster", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          components: renderRosterComponents(ROSTER, 1, pickId),
+          components: renderAllianceComponents(allianceNmx, 1, pickId),
         }) as unknown,
       },
     ]);
@@ -498,7 +499,7 @@ describe("handlePick for the owner choosing an Alliance match", () => {
       method: "followUp",
       options: expect.objectContaining({
         embeds: [expect.objectContaining({ title: "[NMX] No Man's Land" })],
-        components: renderRosterComponents(sortRoster(ROSTER), 0, NEW_PICK_ID),
+        components: renderAllianceComponents(allianceNmx, 0, NEW_PICK_ID),
       }) as unknown,
     });
     const followUp = interaction.calls[1];
@@ -690,5 +691,157 @@ describe("handlePick when the public card cannot be posted after the menu said w
       },
     });
     expect(logged.some((line) => line.includes("Discord refused the card"))).toBe(true);
+  });
+});
+
+const THIRD_MEMBER_ID = "310000000000000003";
+const UNKNOWN_SESSION_ID = "deadbeef";
+
+/** The Overview button of an Alliance card under a pick session; its custom id is what a press carries. */
+function overviewButtonOf(sessionId: string, alliance: Alliance): APIButtonComponentWithCustomId {
+  const button = renderAllianceComponents(alliance, 0, sessionId)
+    .flatMap((row) => row.components)
+    .find(
+      (component): component is APIButtonComponentWithCustomId =>
+        component.type === ComponentType.Button && "custom_id" in component && component.label === "Overview",
+    );
+  if (button === undefined) throw new Error("the Alliance card has no Overview button");
+  return button;
+}
+
+/** The id of the Alliance Overview a private reply opened, read from the page 2 button it carries. */
+function overviewIdIn(calls: readonly PickCall[]): string {
+  const match = /overview:([0-9a-f]+):1"/.exec(JSON.stringify(calls));
+  if (match?.[1] === undefined) throw new Error("the reply carries no Overview page button");
+  return match[1];
+}
+
+/** A Member presses the Overview button of the card under the pick session, and the overview's id is returned. */
+async function pressOverview(context: PickContext, pickId: string, userId: string): Promise<string> {
+  const press = new FakePickInteraction({ customId: overviewButtonOf(pickId, allianceNmx).custom_id, userId });
+  await handlePick(press, context);
+  return overviewIdIn(press.calls);
+}
+
+describe("handlePick for the Overview button of an Alliance card while its pick session holds the Alliance", () => {
+  test("replies privately with the Alliance Overview to any Member, asking the Game API for nothing", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({
+      customId: overviewButtonOf(pickId, allianceNmx).custom_id,
+      userId: OTHER_MEMBER_ID,
+    });
+    const { context, getAlliance, getPlayer } = contextWith(sessions, { kind: "not-found" });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "reply",
+        options: expect.objectContaining({
+          embeds: renderOverview(allianceNmx, pickId, 0, NOW).embeds,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        }) as unknown,
+      },
+    ]);
+    expect(getAlliance).not.toHaveBeenCalled();
+    expect(getPlayer).not.toHaveBeenCalled();
+  });
+});
+
+describe("handlePick for the Overview button of an Alliance card whose pick session is gone", () => {
+  test("looks the Alliance up again by its Kingdom and tag, for the lookup, then replies privately with the Alliance Overview", async () => {
+    const sessions = new PickSessions();
+    const interaction = new FakePickInteraction({
+      customId: overviewButtonOf(UNKNOWN_SESSION_ID, allianceNmx).custom_id,
+      userId: OTHER_MEMBER_ID,
+    });
+    const { context, getAlliance, getPlayer } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "found",
+      value: allianceNmx,
+      fetchedAt: NOW,
+    });
+
+    await handlePick(interaction, context);
+
+    expect(getAlliance).toHaveBeenCalledTimes(1);
+    expect(getAlliance).toHaveBeenCalledWith(kingdomNumber(2), allianceKey("NMX"), "lookup");
+    expect(getPlayer).not.toHaveBeenCalled();
+    expect(interaction.calls).toEqual([
+      {
+        method: "deferReply",
+        options: expect.objectContaining({ flags: MessageFlags.Ephemeral }) as unknown,
+      },
+      {
+        method: "editReply",
+        options: expect.objectContaining({
+          embeds: renderOverview(allianceNmx, UNKNOWN_SESSION_ID, 0, NOW).embeds,
+        }) as unknown,
+      },
+    ]);
+  });
+
+  test("tells the Member privately to try again, and shows no overview, when the lookup gives try-again", async () => {
+    const sessions = new PickSessions();
+    const interaction = new FakePickInteraction({
+      customId: overviewButtonOf(UNKNOWN_SESSION_ID, allianceNmx).custom_id,
+      userId: OTHER_MEMBER_ID,
+    });
+    const { context } = contextWith(sessions, { kind: "not-found" }, NOW, { kind: "try-again" });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: lookupMessages.tryAgain,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(interaction.calls.filter((call) => call.method === "editReply")).toEqual([]);
+  });
+});
+
+describe("handleOverview page buttons of an Alliance Overview", () => {
+  test("turns the private overview to the page pressed, for the Member who opened it", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+    const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:1`, userId: OTHER_MEMBER_ID });
+
+    await handleOverview(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "update",
+        options: expect.objectContaining({
+          embeds: renderOverview(allianceNmx, overviewId, 1, NOW).embeds,
+        }) as unknown,
+      },
+    ]);
+  });
+
+  test("tells another Member privately that the page is not theirs, and changes nothing", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+    const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:1`, userId: THIRD_MEMBER_ID });
+
+    await handleOverview(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "reply",
+        options: {
+          content: NOT_OWNER_TEXT,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
   });
 });

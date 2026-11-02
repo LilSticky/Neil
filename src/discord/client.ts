@@ -47,7 +47,7 @@ import {
   type LookupApi,
   type LookupInteraction,
 } from "./lookup.js";
-import { handlePick, type PickInteraction } from "./pick.js";
+import { handleOverview, handlePick, type PickInteraction } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 import { handleQuota } from "./quota.js";
 
@@ -70,6 +70,8 @@ export interface CommandHandlers {
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
   readonly pick: (interaction: PickInteraction) => Promise<void>;
+  /** A button whose custom id starts with `overview:`, the page buttons of an Alliance Overview. */
+  readonly overview: (interaction: PickInteraction) => Promise<void>;
   /** A guild member joined the server; the Interview may start for them. */
   readonly memberJoined: (member: JoinedMember) => Promise<void>;
   /** A guild member left the server; their open Interview and pending Rank Approval end. */
@@ -92,6 +94,8 @@ interface Services {
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
 const PICK_PREFIX = "pick:";
+/** The custom id prefix of every Alliance Overview page button. */
+const OVERVIEW_PREFIX = "overview:";
 /** The custom id prefix of every Onboarding Interview button and modal. */
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
@@ -176,6 +180,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.rankButton(interaction);
       } else if (interaction.customId.startsWith(PICK_PREFIX)) {
         void handlers.pick(interaction);
+      } else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
+        void handlers.overview(interaction);
       }
       return;
     }
@@ -445,6 +451,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError }),
         ),
       pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+      overview: (interaction) => handleOverview(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
       quota: (interaction) =>
         handleQuota(
           {

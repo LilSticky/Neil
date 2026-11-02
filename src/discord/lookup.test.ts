@@ -15,7 +15,7 @@ import {
 } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
-import { lookupMessages, renderRosterComponents } from "./lookup-cards.js";
+import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
@@ -833,7 +833,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderRosterComponents(sortedMembers, 0, PICK_ID),
+          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID),
           allowedMentions: { parse: [] },
         },
       },
@@ -889,7 +889,7 @@ describe("handleAlliance by the Alliance's full name", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderRosterComponents(sortedMembers, 0, PICK_ID),
+          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID),
           allowedMentions: { parse: [] },
         },
       },

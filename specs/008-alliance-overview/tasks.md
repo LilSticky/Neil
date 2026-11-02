@@ -27,7 +27,7 @@ description: "Task list for slice 008, Alliance overview"
   exclusion, online now / 24 h, table paging and sort. Implement.
 - [x] T003 Test `src/discord/overview-texts.test.ts`: embed content per FR-002/FR-006, table page with buttons,
   limits, escaping. Implement.
-- [ ] T004 Test `src/discord/lookup-cards.test.ts` + `pick.test.ts` (+ client routing): "Overview" button on the
+- [x] T004 Test `src/discord/lookup-cards.test.ts` + `pick.test.ts` (+ client routing): "Overview" button on the
   Alliance card; press → private overview with no Game API call while the session holds the Alliance; session gone →
   one lookup (lookup purpose); failure → private try-again; page buttons only for the asker. Implement.
 - [ ] T005 Docs: TEST-RUN.md §6d (collected), GAME-API.md (fields used), ROADMAP, STATUS.
