@@ -41,9 +41,9 @@ description: "Task list for slice 011, Correct a link"
 
 - [x] T001 Test then implement domain: `Link.madeBy`; `officerRank` (own Link, no Alliance, unknown, approved earlier,
   game-api same rank, game-api different rank → `gameRank`); who may correct (US1 AS5, US3 AS5–6, US4 AS5).
-- [ ] T002 Test then implement domain `linkByOfficer` (handed-off → linked with the Officer; every other step not
+- [x] T002 Test then implement domain `linkByOfficer` (handed-off → linked with the Officer; every other step not
   applicable) (US4 AS1–2).
-- [ ] T003 Test then implement storage: migration and `madeBy` round-trip (old rows read as In-game Proof);
+- [x] T003 Test then implement storage: migration and `madeBy` round-trip (old rows read as In-game Proof);
   `rankByOfficer` (rank replaced, pending approval settled by the Officer, no pending → undefined); Officer Link through
   `confirm` (uid taken → already-linked, Interview no longer handed off → nothing written).
 - [ ] T004 Test then implement `unlink.ts` reasons `officer` and `self`: Managed Roles removed, Neil's nickname cleared

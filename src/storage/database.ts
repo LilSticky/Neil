@@ -101,6 +101,9 @@ const migrations: readonly string[] = [
   // columns, which is not the same as no Alliance; the rows that already name an Alliance are recorded.
   `ALTER TABLE applied ADD COLUMN alliance_recorded INTEGER NOT NULL DEFAULT 0 CHECK (alliance_recorded IN (0, 1));
    UPDATE applied SET alliance_recorded = 1 WHERE alliance_kingdom IS NOT NULL`,
+  // Migration 9: who made a Link (slice 011). NULL is In-game Proof, as every Link before it; an Officer Link names its
+  // Officer.
+  `ALTER TABLE link ADD COLUMN linked_by TEXT`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

@@ -81,6 +81,8 @@ const uidColumn = z.string().transform((value, ctx): Uid => {
 });
 
 const openFailedAttemptsColumn = z.literal([0, 1, 2, 3, 4]);
+/** A linked Interview may carry the five attempts of a hand-off, when an Officer Linked the Member. */
+const linkedFailedAttemptsColumn = z.union([openFailedAttemptsColumn, z.literal(MAX_FAILED_ATTEMPTS)]);
 const abandonReasonColumn = z.enum(["left", "timed-out"]);
 
 const interviewRowBase = {
@@ -151,7 +153,7 @@ const interviewRow = z.discriminatedUnion("step", [
   z.object({
     ...interviewRowBase,
     step: z.literal("linked"),
-    failed_attempts: openFailedAttemptsColumn,
+    failed_attempts: linkedFailedAttemptsColumn,
     uid: uidColumn,
     ended_at: isoDateColumn,
   }),
