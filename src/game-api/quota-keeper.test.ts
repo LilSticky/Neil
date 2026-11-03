@@ -166,6 +166,24 @@ describe("QuotaKeeper.tryCount with the Quota Reserve", () => {
   });
 });
 
+describe("QuotaKeeper.tryCount for the Daily Sync", () => {
+  test("refuses a sync request with exactly the Quota Reserve left, with reason reserve, and saves nothing", () => {
+    const store = new FakeQuotaStore(usedToday(900));
+    const keeper = new QuotaKeeper({ store, now, reserve: QUOTA_RESERVE });
+
+    expect(keeper.tryCount("sync")).toEqual({ ok: false, reason: "reserve" });
+    expect(store.saves).toHaveLength(0);
+  });
+
+  test("counts a sync request with one request more than the Quota Reserve left", () => {
+    const store = new FakeQuotaStore(usedToday(899));
+    const keeper = new QuotaKeeper({ store, now, reserve: QUOTA_RESERVE });
+
+    expect(keeper.tryCount("sync")).toEqual({ ok: true, day: "2026-10-30" });
+    expect(store.current?.used).toBe(900);
+  });
+});
+
 describe("QuotaKeeper.settle", () => {
   test("with figures, adopts them plus the requests still in flight, and saves", () => {
     const store = new FakeQuotaStore(undefined);

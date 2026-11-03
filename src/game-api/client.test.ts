@@ -507,6 +507,8 @@ describe("GameApiClient.getAlliance result", () => {
           uid: parsedUid("179060285441"),
           name: "etranger",
           allianceRank: "R4",
+          kingdom: parsedKingdom(1),
+          sanctuaryLevel: 22,
           weeklyActivity: 490,
           dailyHonor: 40,
           dailyTech: 4600,
@@ -517,6 +519,8 @@ describe("GameApiClient.getAlliance result", () => {
           uid: parsedUid("93159425"),
           name: "Benedict",
           allianceRank: "R3",
+          kingdom: parsedKingdom(1),
+          sanctuaryLevel: 26,
           weeklyActivity: undefined,
           dailyHonor: undefined,
           dailyTech: undefined,
@@ -527,6 +531,8 @@ describe("GameApiClient.getAlliance result", () => {
           uid: parsedUid("147744374785"),
           name: "Settong",
           allianceRank: "R1",
+          kingdom: parsedKingdom(1),
+          sanctuaryLevel: 21,
           weeklyActivity: undefined,
           dailyHonor: undefined,
           dailyTech: undefined,
@@ -609,6 +615,44 @@ describe("GameApiClient.getAlliance result", () => {
         ],
       },
     });
+  });
+
+  test("maps each roster member's kid to its kingdom and lv to its sanctuaryLevel", async () => {
+    const body = {
+      ...alliance,
+      members: [
+        { uid: 179060285441, nick_name: "etranger", rank_label: "R4", kid: 330, lv: 22 },
+        { uid: 93159425, nick_name: "Benedict", rank_label: "R3", kid: 1, lv: 26 },
+      ],
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: {
+        roster: [
+          { uid: "179060285441", kingdom: parsedKingdom(330), sanctuaryLevel: 22 },
+          { uid: "93159425", kingdom: parsedKingdom(1), sanctuaryLevel: 26 },
+        ],
+      },
+    });
+  });
+
+  test("a roster member without kid or lv reads its kingdom and sanctuaryLevel as undefined", async () => {
+    const [first, ...others] = alliance.members;
+    if (first === undefined) throw new Error("the recorded alliance has no members");
+    const withoutFigures = Object.fromEntries(Object.entries(first).filter(([key]) => key !== "kid" && key !== "lv"));
+    const body = { ...alliance, members: [withoutFigures, ...others] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
+    expect(result.value.roster[0]?.uid).toBe("179060285441");
+    expect(result.value.roster[0]?.kingdom).toBeUndefined();
+    expect(result.value.roster[0]?.sanctuaryLevel).toBeUndefined();
   });
 
   test("a null leader_name gives an Alliance without a leader name", async () => {

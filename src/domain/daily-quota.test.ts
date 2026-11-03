@@ -18,7 +18,7 @@ const today = new Date("2026-10-30T10:15:00Z");
 const yesterday = new Date("2026-10-29T12:00:00Z");
 const reported = new Date("2026-10-30T09:00:00Z");
 const QUOTA_RESERVE = 100;
-const purposes: readonly RequestPurpose[] = ["lookup", "onboarding-interview"];
+const purposes: readonly RequestPurpose[] = ["lookup", "onboarding-interview", "sync"];
 
 function quotaWith(used: number, limit: number, limitReached = false): DailyQuota {
   return { day: utcDayOf(today), used, limit, limitReached, confirmedAt: undefined };
@@ -172,6 +172,20 @@ describe("canSendFor an onboarding interview", () => {
 
   test("is false when the day is marked limit reached, the same as canSend", () => {
     expect(canSendFor(quotaWith(5, 1000, true), "onboarding-interview", QUOTA_RESERVE)).toBe(false);
+  });
+});
+
+describe("canSendFor a sync", () => {
+  test("is true while more than the Quota Reserve is left, at 101 remaining", () => {
+    expect(canSendFor(quotaWith(899, 1000), "sync", QUOTA_RESERVE)).toBe(true);
+  });
+
+  test("is false at exactly the Quota Reserve, at 100 remaining: the Daily Sync never uses the reserve", () => {
+    expect(canSendFor(quotaWith(900, 1000), "sync", QUOTA_RESERVE)).toBe(false);
+  });
+
+  test("is false when the day is marked limit reached, even with more than the reserve left", () => {
+    expect(canSendFor(quotaWith(5, 1000, true), "sync", QUOTA_RESERVE)).toBe(false);
   });
 });
 

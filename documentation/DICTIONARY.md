@@ -86,6 +86,13 @@ discovery.
 ## Quota Reserve
 * The part of the Daily Quota that only Onboarding Interviews may use (from slice 004)
 
+## Daily Sync
+* Neil's once-a-day re-check of every Linked Member against the Game API, which updates their nickname and Managed Roles
+* Uses only the Sync Share
+
+## Sync Share
+* The part of the Daily Quota the Daily Sync may use (500, configuration); lookups and the Quota Reserve are never used by it
+
 # Onboarding
 
 ## Onboarding Interview

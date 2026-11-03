@@ -14,7 +14,8 @@ import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { ApplyReport } from "./member-roles.js";
 import { FakeDiscordError, FakeRolesGuild, type FakeRolesMember, MISSING_PERMISSIONS } from "./__fakes__/roles-guild.js";
-import { createNameAndRoles, type ServerMember, type ServerMembers } from "./name-and-roles.js";
+import { FakeServerMembers } from "./__fakes__/server-members.js";
+import { createNameAndRoles } from "./name-and-roles.js";
 import { nameAndRolesLogLine } from "./name-and-roles-texts.js";
 
 function uidOf(digits: string): Uid {
@@ -100,33 +101,6 @@ class FakeGameApi {
   getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     this.lookups.push({ uid, purpose });
     return Promise.resolve(this.answers.get(String(uid)) ?? this.answer);
-  }
-}
-
-/** The members of the server as the name and roles reach them: a member is on the server only when joined. */
-class FakeServerMembers implements ServerMembers {
-  private readonly members = new Map<MemberId, ServerMember>();
-  private readonly failures = new Map<MemberId, Error>();
-  private failure: Error | undefined = undefined;
-
-  join(memberId: MemberId, guild: FakeRolesGuild, member: FakeRolesMember): void {
-    this.members.set(memberId, { guild, member });
-  }
-
-  failWith(error: Error): void {
-    this.failure = error;
-  }
-
-  /** Makes the lookup of this one Member fail; the other Members are reached as usual. */
-  failFor(memberId: MemberId, error: Error): void {
-    this.failures.set(memberId, error);
-  }
-
-  memberOf(memberId: MemberId): Promise<ServerMember | undefined> {
-    if (this.failure !== undefined) return Promise.reject(this.failure);
-    const failure = this.failures.get(memberId);
-    if (failure !== undefined) return Promise.reject(failure);
-    return Promise.resolve(this.members.get(memberId));
   }
 }
 
@@ -295,7 +269,17 @@ describe("createNameAndRoles", () => {
         roles: ["NML", "R4", "#330", "T7"],
         appliedAt: NOW,
         complete: true,
+        alliance: { kingdom: HOME_KINGDOM, tag: "NML" },
       });
+    });
+
+    test("records the Alliance of the Player by Kingdom and tag, so the Daily Sync needs no uid lookup for them", async () => {
+      joinAlice(h);
+      linkAlice(h, { source: "game-api", rank: "R5" });
+
+      await h.service.onLinked(ALICE, ROGUE_GUEST, { source: "game-api", rank: "R5" });
+
+      expect(h.applied.get(ALICE)?.alliance).toEqual({ kingdom: kingdomOf(12), tag: "ABC" });
     });
 
     test("records the applied state as not complete when a step was skipped", async () => {
@@ -431,6 +415,16 @@ describe("createNameAndRoles", () => {
       expect(bob.nickname).toBe("[NML|R4] Rogue");
     });
 
+    test("records the Alliance of each Linked Member it applies to, so the Daily Sync needs no uid lookup for them", async () => {
+      joinMember(h, ALICE);
+      linkMember(h, ALICE, UID);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.applied.get(ALICE)?.alliance).toEqual({ kingdom: HOME_KINGDOM, tag: "NML" });
+    });
+
     test("skips a Linked Member who is not on the server, with no lookup", async () => {
       joinMember(h, BOB);
       linkMember(h, ALICE, UID);
@@ -525,6 +519,20 @@ describe("createNameAndRoles", () => {
 
       expect(h.errors.length).toBeGreaterThan(0);
       expect(h.applied.get(ALICE)).toBeUndefined();
+    });
+  });
+
+  describe("syncMember", () => {
+    test("logs nothing for the owner, whose nickname is always skipped, when nothing else changed", async () => {
+      joinMember(h, OWNER, ["#330", "NML", "R4", "T7"]);
+      linkMember(h, OWNER, UID);
+      await h.service.syncMember(OWNER, ROGUE_R4, GAME_RANK_R4);
+      h.logs.splice(0);
+
+      const changed = await h.service.syncMember(OWNER, ROGUE_R4, GAME_RANK_R4);
+
+      expect(changed).toBe(false);
+      expect(h.logs).toEqual([]);
     });
   });
 

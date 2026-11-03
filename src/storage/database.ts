@@ -88,6 +88,19 @@ const migrations: readonly string[] = [
      last_seen TEXT NOT NULL,
      PRIMARY KEY (kingdom, tag)
    )`,
+  // Migration 7: the Alliance a Member was last applied in (slice 009, the Daily Sync), and the Daily Sync's record:
+  // the day of its last run and the Members it left over for the next day.
+  `ALTER TABLE applied ADD COLUMN alliance_kingdom INTEGER;
+   ALTER TABLE applied ADD COLUMN alliance_tag TEXT;
+   CREATE TABLE daily_sync (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     day TEXT NOT NULL,
+     left_over_json TEXT NOT NULL
+   )`,
+  // Migration 8: whether the Alliance of an Applied State was recorded. A row from before migration 7 has no Alliance
+  // columns, which is not the same as no Alliance; the rows that already name an Alliance are recorded.
+  `ALTER TABLE applied ADD COLUMN alliance_recorded INTEGER NOT NULL DEFAULT 0 CHECK (alliance_recorded IN (0, 1));
+   UPDATE applied SET alliance_recorded = 1 WHERE alliance_kingdom IS NOT NULL`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

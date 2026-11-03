@@ -47,6 +47,8 @@ Neil's values; names exactly as written):
 | `DISCORD_LOG_CHANNEL_ID` | ID of `#neil-log` (from slice 005; required) |
 | `INTERVIEW_TIMEOUT_MINUTES` | optional; minutes an Onboarding Interview may stay silent (whole number, at least 1, default 1440) |
 | `HOME_KINGDOM` | the Home Kingdom's number, `330` (from slice 006; required) |
+| `SYNC_HOUR_UTC` | optional; UTC hour of the Daily Sync, 0–23 (default `3`, slice 009) |
+| `SYNC_SHARE` | optional; most Game API requests one Daily Sync may use (default `500`) |
 | `TROOP_BRACKET_LEVELS` | optional; first sanctuary level of T1…T10, comma-separated (default `1,3,6,10,14,17,20,24,27,30`) |
 
 Until the two channel IDs are set and Server Members Intent is on, a deploy of `main` with slice 005 will

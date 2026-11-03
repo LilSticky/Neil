@@ -135,6 +135,18 @@ Branch `008-alliance-overview`.
 | 6d.5 | Wait > 10 minutes, press `Overview` on the old card | Overview still comes (one lookup) or a clear "try again" | | |
 | 6d.6 | Do the numbers match the tracker's website? | — | | |
 
+## 6e. Keep roles in sync (slice 009, collected 2026-11-02)
+
+Branch `009-keep-roles-in-sync`. Set `SYNC_HOUR_UTC` to the current UTC hour to see a run right after start.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6e.1 | Start Neil after the sync hour (no run yet today) | Within ~10 min one summary line in `#neil-log` (checked, changed, skipped, requests); `/quota` shows about one request per Alliance with Linked Members | | |
+| 6e.2 | Change your own nickname, wait for the next day's run (or delete today's `daily_sync` row and restart) | Nickname restored; one log line | | |
+| 6e.3 | Restart Neil the same day | No second run | | |
+| 6e.4 | A Linked Player changed rank/alliance in game | New rank/alliance roles and nickname after the run; log line names the change | | |
+| 6e.5 | `SYNC_SHARE=1` with Members in 2 Alliances | Summary says "1 left"; next run does the rest first | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

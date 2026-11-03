@@ -86,6 +86,8 @@ describe("allianceBodySchema roster", () => {
         uid: "179060285441",
         nick_name: "etranger",
         rank_label: "R4",
+        kid: 1,
+        lv: 22,
         active: 490,
         daily_honor: 40,
         daily_tech: 4600,
@@ -96,6 +98,8 @@ describe("allianceBodySchema roster", () => {
         uid: "93159425",
         nick_name: "Benedict",
         rank_label: "R3",
+        kid: 1,
+        lv: 26,
         active: null,
         daily_honor: null,
         daily_tech: null,
@@ -106,6 +110,8 @@ describe("allianceBodySchema roster", () => {
         uid: "147744374785",
         nick_name: "Settong",
         rank_label: "R1",
+        kid: 1,
+        lv: 21,
         active: null,
         daily_honor: null,
         daily_tech: null,
@@ -113,6 +119,29 @@ describe("allianceBodySchema roster", () => {
         last_online_at: 1792878480,
       },
     ]);
+  });
+
+  test("reads the Kingdom (kid) and sanctuary level (lv) of each recorded member as whole numbers", () => {
+    const parsed = allianceBodySchema.parse(alliance);
+
+    expect(parsed.members.map((member) => [member.kid, member.lv])).toEqual([
+      [1, 22],
+      [1, 26],
+      [1, 21],
+    ]);
+  });
+
+  test("keeps a member whose kid or lv is not a whole number, and reads that figure as absent", () => {
+    const body = {
+      ...alliance,
+      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", kid: "1", lv: 22.5 }],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toHaveLength(1);
+    expect(parsed.members[0]?.kid).toBeUndefined();
+    expect(parsed.members[0]?.lv).toBeUndefined();
   });
 
   test("reads the activity figures and online fields of a recorded member, null included", () => {

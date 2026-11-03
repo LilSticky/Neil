@@ -19,11 +19,10 @@ States: `planned` · `in progress` · `in review` · `done`
 | 006 | Give a member their name and roles | an approved Member get their nickname (`[TAG\|R5] Nick \| #331`) and alliance, rank, kingdom and bracket roles | nickname format, role mapping, Managed Roles | role/nickname changes, role hierarchy checks, log channel | in review |
 | 007 | Find an alliance by approximate name | any Member find a Home Kingdom Alliance by part of its name or tag or a near spelling: suggestions while typing `/alliance`, and a pick list when the exact name finds nothing | Known Alliance, approximate matching | autocomplete, storage of seen Alliances, Game API client hook | in progress |
 | 008 | Alliance overview | any Member see an Alliance's activity from the Alliance card: totals, top contributors, Least Active members and a paged per-member table | Alliance Overview, Weekly Activity, Daily Honor, Daily Tech, Least Active | roster fields, button, private paged reply | in progress |
+| 009 | Keep roles in sync | Linked Members' nicknames and Managed Roles follow the game: a Daily Sync re-reads rosters within its Sync Share | Daily Sync, Sync Share | scheduler, roster re-reads, sync purpose in the quota | in progress |
 
 ## Later (unordered)
 
-- **Keep roles in sync**: re-read alliance rosters within the budget and update roles and nicknames when a
-  Player changes alliance, rank or kingdom.
 - **Correct a link**: Officers relink, unlink or override a Member; a Member asks for a re-check.
 - **Say goodbye**: clean up Links and roles when a Member leaves.
 

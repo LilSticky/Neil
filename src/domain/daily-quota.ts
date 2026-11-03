@@ -38,8 +38,11 @@ export function canSend(q: DailyQuota): boolean {
   return !q.limitReached && q.used < q.limit;
 }
 
-/** What a Game API request is for: a Member's lookup, or an Onboarding Interview that must not be starved. */
-export type RequestPurpose = "lookup" | "onboarding-interview";
+/**
+ * What a Game API request is for: a Member's lookup, an Onboarding Interview that must not be starved, or a Daily
+ * Sync request, which stops at the Quota Reserve like a lookup.
+ */
+export type RequestPurpose = "lookup" | "onboarding-interview" | "sync";
 
 /** Counts one request sent today. Call only when canSend is true. */
 export function countRequest(q: DailyQuota): DailyQuota {

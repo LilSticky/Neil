@@ -805,9 +805,9 @@ function allianceKey(text: string): AllianceKey {
 
 /** Members of the Alliance, in the order the tracker lists them; the card and the menu show them by rank. */
 const rosterMembers: readonly RosterEntry[] = [
-  { uid: uid("93159425"), name: "Benedict", allianceRank: "R3", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
-  { uid: uid("179060285441"), name: "etranger", allianceRank: "R4", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
-  { uid: uid("147744374785"), name: "Settong", allianceRank: "R1", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
+  { uid: uid("93159425"), name: "Benedict", allianceRank: "R3", kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
+  { uid: uid("179060285441"), name: "etranger", allianceRank: "R4", kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
+  { uid: uid("147744374785"), name: "Settong", allianceRank: "R1", kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
 ];
 const allianceWithRoster: Alliance = { ...alliance, roster: rosterMembers };
 const sortedMembers = sortRoster(rosterMembers);

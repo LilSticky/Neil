@@ -10,6 +10,7 @@ import type { Alliance } from "./domain/player.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
+import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { openDatabase } from "./storage/database.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
@@ -91,8 +92,10 @@ function stubStores(): {
   readonly links: LinkStore;
   readonly applied: AppliedStore;
   readonly knownAlliances: KnownAllianceStore;
+  readonly dailySync: DailySyncStore;
 } {
   return {
+    dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
     links: new LinkStore(new DatabaseSync(":memory:")),
     applied: new AppliedStore(new DatabaseSync(":memory:")),
@@ -183,6 +186,25 @@ describe("start", () => {
     await start(fake.deps);
 
     expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "2f7a537" }]);
+  });
+
+  test("passes the Daily Sync hour, share and store from configuration to connect", async () => {
+    const seen: ConnectOptions[] = [];
+    const fake = fakeDeps({
+      env: { ...VALID_ENV, SYNC_HOUR_UTC: "4", SYNC_SHARE: "250" },
+      connect: (_token, options) => {
+        seen.push(options);
+        return Promise.resolve({ disconnect: () => Promise.resolve() });
+      },
+    });
+
+    await start(fake.deps);
+
+    expect(seen).toHaveLength(1);
+    const [options] = seen;
+    expect(options?.syncHourUtc).toBe(4);
+    expect(options?.syncShare).toBe(250);
+    expect(options?.dailySync).toBe(fake.stores.dailySync);
   });
 
   test("passes the channel IDs, the Interview timeout and the Interview and Link stores to connect", async () => {

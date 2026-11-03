@@ -13,7 +13,7 @@ function uidOf(digits: string): Uid {
 }
 
 function entry(name: string, allianceRank: AllianceRank, digits: string): RosterEntry {
-  return { uid: uidOf(digits), name, allianceRank, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
+  return { uid: uidOf(digits), name, allianceRank, kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
 }
 
 describe("rankFromRoster", () => {

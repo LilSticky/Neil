@@ -4,11 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { todaysQuota, type RequestPurpose } from "../domain/daily-quota.js";
+import { todaysQuota, utcDayOf, type RequestPurpose } from "../domain/daily-quota.js";
 import { parseUid, parseKingdom, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
 import { recordStart } from "../domain/start-record.js";
 import { AppliedStore } from "../storage/applied-store.js";
+import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
@@ -65,10 +66,26 @@ const HOME_KINGDOM = kingdomOf(330);
 /** The Game API as connect uses it: records each Player lookup and finds no Player. */
 class FakeGameApi {
   readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  private gate: Promise<void> | undefined = undefined;
+  private openGate: (() => void) | undefined = undefined;
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
+  /** Makes every Player lookup wait, once recorded, until release is called. */
+  hold(): void {
+    this.gate = new Promise<void>((resolve) => {
+      this.openGate = resolve;
+    });
+  }
+
+  release(): void {
+    this.openGate?.();
+    this.gate = undefined;
+    this.openGate = undefined;
+  }
+
+  async getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     this.lookups.push({ uid, purpose });
-    return Promise.resolve({ kind: "not-found" });
+    if (this.gate !== undefined) await this.gate;
+    return { kind: "not-found" };
   }
 
   findPlayer(): Promise<LookupResult<Player>> {
@@ -102,6 +119,7 @@ describe("connect", () => {
   let links: LinkStore;
   let applied: AppliedStore;
   let interviews: InterviewStore;
+  let dailySync: DailySyncStore;
   let gameApi: FakeGameApi;
   let connection: { disconnect(): Promise<void> } | undefined;
 
@@ -111,12 +129,14 @@ describe("connect", () => {
     links = new LinkStore(db);
     applied = new AppliedStore(db);
     interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
+    dailySync = new DailySyncStore(db);
     gameApi = new FakeGameApi();
     connection = undefined;
     FakeClient.served = undefined;
   });
 
   afterEach(async () => {
+    gameApi.release();
     await connection?.disconnect();
     db.close();
     rmSync(dataDir, { recursive: true, force: true });
@@ -130,9 +150,15 @@ describe("connect", () => {
     );
   }
 
+  /** Today's Daily Sync is recorded as run, so connect does not start one: the lookups of these tests are the startup apply's only. */
+  function recordDailySyncRunToday(): void {
+    dailySync.save({ day: utcDayOf(NOW), leftOver: [] });
+  }
+
   function connectOptions(): ConnectOptions {
     return {
       buildInfo: "dev",
+      now: () => NOW,
       startRecord: recordStart(undefined, NOW),
       gameApi,
       quotaReserve: 50,
@@ -147,6 +173,9 @@ describe("connect", () => {
       knownAlliances: new KnownAllianceStore(db),
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
+      dailySync,
+      syncHourUtc: 3,
+      syncShare: 500,
     };
   }
 
@@ -155,6 +184,7 @@ describe("connect", () => {
     guild.join(ALICE);
     FakeClient.served = guild;
     linkAlice();
+    recordDailySyncRunToday();
 
     connection = await connect(TOKEN, connectOptions());
 
@@ -181,6 +211,7 @@ describe("connect", () => {
     FakeClient.served = guild;
     linkAlice();
     links.confirm({ link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+    recordDailySyncRunToday();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     try {
@@ -204,5 +235,67 @@ describe("connect", () => {
     await vi.waitFor(() => {
       expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toContain("Manage Roles");
     });
+  });
+
+  test("runs the Daily Sync once the channels are checked, when the Sync hour has come and today's run is not recorded", async () => {
+    FakeClient.served = serverWith(SERVER_PERMISSIONS);
+    const injected = new Date("2026-10-31T10:00:00Z");
+
+    connection = await connect(TOKEN, { ...connectOptions(), now: () => injected, syncHourUtc: 0 });
+
+    await vi.waitFor(() => {
+      expect(dailySync.load()?.day).toBe(utcDayOf(injected));
+    });
+  });
+
+  test("starts the Daily Sync only after the startup apply has settled, so their lookups do not overlap", async () => {
+    const guild = serverWith(SERVER_PERMISSIONS);
+    guild.join(ALICE);
+    FakeClient.served = guild;
+    linkAlice();
+    gameApi.hold();
+
+    connection = await connect(TOKEN, connectOptions());
+
+    await vi.waitFor(() => {
+      expect(gameApi.lookups.some((lookup) => lookup.purpose === "lookup")).toBe(true);
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toEqual([]);
+
+    gameApi.release();
+    await vi.waitFor(() => {
+      expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
+    });
+  });
+
+  test("disconnect stops a Daily Sync run in progress before its next request, and resolves once the run has ended", async () => {
+    const guild = serverWith(SERVER_PERMISSIONS);
+    guild.join(ALICE);
+    guild.join(BOB);
+    FakeClient.served = guild;
+    linkAlice();
+    links.confirm(
+      { link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } },
+      () => undefined,
+    );
+    // Both have a complete apply, so the startup apply has nothing to do and the Daily Sync is the only one looking up.
+    for (const memberId of [ALICE, BOB]) {
+      applied.record({ memberId, nickname: "Rogue", roles: [], appliedAt: NOW, complete: true, alliance: undefined });
+    }
+    gameApi.hold();
+
+    const connected = await connect(TOKEN, connectOptions());
+    connection = connected;
+    await vi.waitFor(() => {
+      expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
+    });
+
+    const ending = connected.disconnect();
+    gameApi.release();
+    await ending;
+
+    expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
+    expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toMatch(/Daily Sync/);
   });
 });

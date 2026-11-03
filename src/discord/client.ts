@@ -19,6 +19,7 @@ import type { GameApiClient } from "../game-api/client.js";
 import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { AppliedStore } from "../storage/applied-store.js";
+import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import type { LinkStore } from "../storage/link-store.js";
@@ -32,6 +33,7 @@ import {
   type LeftMember,
   type ModalInteractionLike,
 } from "./interview.js";
+import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
@@ -198,6 +200,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
 
 export interface ConnectOptions {
   readonly buildInfo: BuildInfo;
+  /** The clock: the time of each Daily Quota check, apply and run record. */
+  readonly now: () => Date;
   readonly startRecord: StartRecord;
   readonly gameApi: GameApi;
   /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
@@ -220,6 +224,12 @@ export interface ConnectOptions {
   readonly homeKingdom: KingdomNumber;
   /** The first level of each Troop Bracket from config, T1 first. */
   readonly troopBracketLevels: readonly number[];
+  /** The record of the last Daily Sync run: its day and the Members it left over. */
+  readonly dailySync: Pick<DailySyncStore, "load" | "save">;
+  /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
+  readonly syncHourUtc: number;
+  /** The most Game API requests one Daily Sync run may send, from SYNC_SHARE. */
+  readonly syncShare: number;
 }
 
 /** discord.js's code for a user who is not a member of the guild. */
@@ -264,6 +274,9 @@ function rolesGuildOf(guild: Guild, botTopRolePosition: number): RolesGuild {
 function rolesMemberOf(member: GuildMember): RolesMember {
   return {
     id: member.id,
+    get nickname() {
+      return member.nickname;
+    },
     get roles() {
       return [...member.roles.cache.values()].map(roleLikeOf);
     },
@@ -419,7 +432,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   };
   // One store for every pick list: the lookups open them, the pick handler answers them.
   const pickSessions = new PickSessions();
-  const now = (): Date => new Date();
+  const now = options.now;
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,
     pickSessions,
@@ -479,8 +492,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     },
     { guildId: options.guildId, logError },
   );
-  // The sweeper runs from the moment the channels are checked; stopped again on disconnect.
+  // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
+  // apply); both are stopped again on disconnect.
   let stopSweeper: () => void = () => undefined;
+  let stopDailySync: () => Promise<void> = () => Promise.resolve();
+  let disconnecting = false;
   try {
     await client.login(token);
     await whenReady(client);
@@ -536,10 +552,38 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     openServices({ interviews, rankApprovals });
-    // The startup apply and the permission report run in the background, so login does not wait for them.
-    void nameAndRoles.atStartup().catch((error: unknown) => {
-      logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
-    });
+    // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
+    // starts once the startup apply has settled, so their Game API lookups do not overlap.
+    void nameAndRoles
+      .atStartup()
+      .catch((error: unknown) => {
+        logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
+      })
+      .then(() => {
+        if (disconnecting) return;
+        stopDailySync = startDailySync(
+          {
+            links: options.links,
+            applied: options.applied,
+            runs: options.dailySync,
+            members: serverMembersOf(guild),
+            gameApi: options.gameApi,
+            nameAndRoles,
+            share: options.syncShare,
+            quotaReserve: options.quotaReserve,
+            log: (message) => channels.log(message),
+            logError,
+            now,
+          },
+          options.syncHourUtc,
+          (run, everyMs) => {
+            const timer = setInterval(run, everyMs);
+            return () => {
+              clearInterval(timer);
+            };
+          },
+        );
+      });
     void reportServerPermissions(guild, (message) => channels.log(message), logError);
     const sweeper = createSweeper({
       interviews: options.interviews,
@@ -557,13 +601,18 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       };
     });
   } catch (error) {
+    disconnecting = true;
     stopSweeper();
+    await stopDailySync();
     await client.destroy();
     throw error;
   }
   return {
     disconnect: async () => {
+      disconnecting = true;
       stopSweeper();
+      // A run in progress ends before its next request and is awaited, so its record and summary are made before logout.
+      await stopDailySync();
       await client.destroy();
     },
   };

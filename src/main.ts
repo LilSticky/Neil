@@ -8,6 +8,7 @@ import { AppliedStore } from "./storage/applied-store.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
+import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
@@ -34,6 +35,7 @@ await start({
       links: new LinkStore(db),
       applied: new AppliedStore(db),
       knownAlliances: new KnownAllianceStore(db),
+      dailySync: new DailySyncStore(db),
     };
   },
   createGameApi: (apiKey, version, cacheTtlMs, quota, onAllianceSeen) =>

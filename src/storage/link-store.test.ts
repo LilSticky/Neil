@@ -253,4 +253,39 @@ describe("LinkStore", () => {
     expect(store.pendingFor(CAROL)).toEqual(pendingOutcome.rankApproval);
     expect(store.linkFor(ALICE)).toBeDefined();
   });
+  test("all lists every Link, in the order they were made", () => {
+    const store = new LinkStore(db);
+    const alice = linkOf(ALICE, ALICE_UID, { source: "game-api", rank: "R4" });
+    const bob = linkOf(BOB, BOB_UID, { source: "unknown" });
+    store.confirm({ link: alice }, () => undefined);
+    store.confirm({ link: bob }, () => undefined);
+
+    expect(store.all()).toEqual([alice, bob]);
+  });
+
+  test("updateRank replaces the rank on the Link and keeps its uid and linked time", () => {
+    const store = new LinkStore(db);
+    const alice = linkOf(ALICE, ALICE_UID, { source: "unknown" });
+    store.confirm({ link: alice }, () => undefined);
+
+    store.updateRank(ALICE, { source: "game-api", rank: "R4" });
+
+    expect(store.linkFor(ALICE)).toEqual({ ...alice, allianceRank: { source: "game-api", rank: "R4" } });
+  });
+
+  test("updateRank drops an approved rank to unknown when the Player is no longer in that Alliance", () => {
+    const store = new LinkStore(db);
+    const outcome = store.confirm(
+      { link: linkOf(ALICE, ALICE_UID, { source: "unknown" }), rankApproval: pendingDraft(ALICE) },
+      () => undefined,
+    );
+    if (outcome.kind !== "linked" || outcome.rankApproval === undefined) {
+      throw new Error("the Link with a Rank Approval was not confirmed");
+    }
+    store.save(approved(outcome.rankApproval, "R3", LEADER, new Date("2026-10-31T10:00:00Z")));
+
+    store.updateRank(ALICE, { source: "unknown" });
+
+    expect(store.linkFor(ALICE)?.allianceRank).toEqual({ source: "unknown" });
+  });
 });
