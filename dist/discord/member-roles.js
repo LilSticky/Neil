@@ -15,7 +15,8 @@ export async function applyNameAndRoles(guild, member, wanted) {
     const created = [];
     const skipped = [];
     let nickname = "untouched";
-    if (wanted.nickname !== undefined) {
+    // A nickname that already matches is not set again: the Daily Sync would otherwise PATCH every Member every day.
+    if (wanted.nickname !== undefined && member.nickname !== wanted.nickname) {
         const nicknameSkip = await setNickname(guild, member, wanted.nickname);
         nickname = nicknameSkip === undefined ? "set" : "skipped";
         if (nicknameSkip !== undefined)

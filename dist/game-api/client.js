@@ -441,6 +441,13 @@ function allianceFrom(body, kingdom) {
         roster: body.members.flatMap(rosterEntryFrom),
     };
 }
+/** The Kingdom of a roster row (`kid`); undefined when it is missing or not a Kingdom number. */
+function kingdomFromRoster(kid) {
+    if (kid === null || kid === undefined)
+        return undefined;
+    const parsed = parseKingdom(kid);
+    return parsed.ok ? parsed.value : undefined;
+}
 /** One roster row as an entry: a row without a readable uid is left out; a missing name reads Unknown. */
 function rosterEntryFrom(member) {
     const uid = parseUid(member.uid);
@@ -452,6 +459,8 @@ function rosterEntryFrom(member) {
             uid: uid.value,
             name: name === "" ? "Unknown" : name,
             allianceRank: rankFromLabel(member.rank_label ?? null),
+            kingdom: kingdomFromRoster(member.kid),
+            sanctuaryLevel: member.lv ?? undefined,
             weeklyActivity: member.active ?? undefined,
             dailyHonor: member.daily_honor ?? undefined,
             dailyTech: member.daily_tech ?? undefined,

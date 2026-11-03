@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits, GuildMember, } from "discord.js";
 import { z } from "zod";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createInterviews, } from "./interview.js";
+import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
 import { createNameAndRoles } from "./name-and-roles.js";
@@ -152,6 +153,9 @@ function rolesGuildOf(guild, botTopRolePosition) {
 function rolesMemberOf(member) {
     return {
         id: member.id,
+        get nickname() {
+            return member.nickname;
+        },
         get roles() {
             return [...member.roles.cache.values()].map(roleLikeOf);
         },
@@ -298,7 +302,7 @@ export async function connect(token, options) {
     };
     // One store for every pick list: the lookups open them, the pick handler answers them.
     const pickSessions = new PickSessions();
-    const now = () => new Date();
+    const now = options.now;
     const allianceContext = {
         gameApi: options.gameApi,
         pickSessions,
@@ -345,8 +349,11 @@ export async function connect(token, options) {
             await rankApprovals.onButton(rankButtonLike(button));
         }),
     }, { guildId: options.guildId, logError });
-    // The sweeper runs from the moment the channels are checked; stopped again on disconnect.
+    // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
+    // apply); both are stopped again on disconnect.
     let stopSweeper = () => undefined;
+    let stopDailySync = () => Promise.resolve();
+    let disconnecting = false;
     try {
         await client.login(token);
         await whenReady(client);
@@ -393,9 +400,34 @@ export async function connect(token, options) {
             logError,
         });
         openServices({ interviews, rankApprovals });
-        // The startup apply and the permission report run in the background, so login does not wait for them.
-        void nameAndRoles.atStartup().catch((error) => {
+        // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
+        // starts once the startup apply has settled, so their Game API lookups do not overlap.
+        void nameAndRoles
+            .atStartup()
+            .catch((error) => {
             logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
+        })
+            .then(() => {
+            if (disconnecting)
+                return;
+            stopDailySync = startDailySync({
+                links: options.links,
+                applied: options.applied,
+                runs: options.dailySync,
+                members: serverMembersOf(guild),
+                gameApi: options.gameApi,
+                nameAndRoles,
+                share: options.syncShare,
+                quotaReserve: options.quotaReserve,
+                log: (message) => channels.log(message),
+                logError,
+                now,
+            }, options.syncHourUtc, (run, everyMs) => {
+                const timer = setInterval(run, everyMs);
+                return () => {
+                    clearInterval(timer);
+                };
+            });
         });
         void reportServerPermissions(guild, (message) => channels.log(message), logError);
         const sweeper = createSweeper({
@@ -415,13 +447,18 @@ export async function connect(token, options) {
         });
     }
     catch (error) {
+        disconnecting = true;
         stopSweeper();
+        await stopDailySync();
         await client.destroy();
         throw error;
     }
     return {
         disconnect: async () => {
+            disconnecting = true;
             stopSweeper();
+            // A run in progress ends before its next request and is awaited, so its record and summary are made before logout.
+            await stopDailySync();
             await client.destroy();
         },
     };

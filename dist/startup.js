@@ -49,6 +49,7 @@ export async function start(deps) {
         const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota, onAllianceSeen);
         connection = await deps.connect(config.discordToken, {
             buildInfo,
+            now: deps.now,
             startRecord,
             gameApi,
             quotaReserve: config.quotaReserve,
@@ -63,6 +64,9 @@ export async function start(deps) {
             knownAlliances,
             homeKingdom: config.homeKingdom,
             troopBracketLevels: config.troopBracketLevels,
+            dailySync: store.dailySync,
+            syncHourUtc: config.syncHourUtc,
+            syncShare: config.syncShare,
         });
     }
     catch (error) {

@@ -34,6 +34,10 @@ function parseTroopBracketLevels(value) {
     const increasing = levels.every((level, index) => level >= 1 && (index === 0 || level > (levels[index - 1] ?? 0)));
     return increasing ? levels : undefined;
 }
+const DEFAULT_SYNC_HOUR_UTC = 3;
+const syncHourRule = "must be a whole number from 0 to 23";
+const DEFAULT_SYNC_SHARE = 500;
+const syncShareRule = "must be a whole number of at least 1";
 const schema = z.object({
     DISCORD_TOKEN: z.string(required).min(1, required),
     DISCORD_APPLICATION_ID: snowflake,
@@ -82,6 +86,18 @@ const schema = z.object({
         .refine((value) => Number(value) <= Number.MAX_SAFE_INTEGER, quotaReserveRule)
         .transform(Number)
         .optional(),
+    SYNC_HOUR_UTC: z
+        .string()
+        .regex(/^\d+$/, syncHourRule)
+        .refine((value) => Number(value) <= 23, syncHourRule)
+        .transform(Number)
+        .optional(),
+    SYNC_SHARE: z
+        .string()
+        .regex(/^\d+$/, syncShareRule)
+        .refine((value) => Number(value) >= 1 && Number(value) <= Number.MAX_SAFE_INTEGER, syncShareRule)
+        .transform(Number)
+        .optional(),
     DATA_DIR: z.string().min(1).default("./data"),
 });
 /** Validates the environment; collects every problem and never echoes a value. */
@@ -111,6 +127,8 @@ export function loadConfig(env) {
         dataDir: result.data.DATA_DIR,
         homeKingdom: result.data.HOME_KINGDOM,
         troopBracketLevels: result.data.TROOP_BRACKET_LEVELS ?? DEFAULT_TROOP_BRACKET_LEVELS,
+        syncHourUtc: result.data.SYNC_HOUR_UTC ?? DEFAULT_SYNC_HOUR_UTC,
+        syncShare: result.data.SYNC_SHARE ?? DEFAULT_SYNC_SHARE,
     };
 }
 //# sourceMappingURL=config.js.map

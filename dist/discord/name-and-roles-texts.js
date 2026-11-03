@@ -7,8 +7,13 @@ const SKIP_REASON_TEXT = {
     "missing-permissions": "missing permissions",
     error: "error",
 };
-/** The log line of one apply: the nickname, then the roles added, removed and created, then every skipped step. */
-export function nameAndRolesLogLine(memberId, report, nickname) {
+/** The note a Daily Sync log line ends with when the Member's Alliance Rank is unknown in an Alliance. */
+export const RANK_CHECK_NOTE = "Alliance Rank unknown: Officers should check it.";
+/**
+ * The log line of one apply: the nickname, then the roles added, removed and created, then every skipped step. A note,
+ * when given, follows the line.
+ */
+export function nameAndRolesLogLine(memberId, report, nickname, note) {
     const parts = [nicknamePart(report, nickname)];
     if (report.added.length > 0)
         parts.push(`added ${namesText(report.added)}`);
@@ -18,7 +23,8 @@ export function nameAndRolesLogLine(memberId, report, nickname) {
         parts.push(`created ${namesText(report.created)}`);
     if (report.skipped.length > 0)
         parts.push(`skipped ${report.skipped.map(skippedText).join(", ")}`);
-    return { content: `🏷️ <@${memberId}>: ${parts.join("; ")}.`, allowedMentions: { parse: [] } };
+    const line = `🏷️ <@${memberId}>: ${parts.join("; ")}.`;
+    return { content: note === undefined ? line : `${line} ${note}`, allowedMentions: { parse: [] } };
 }
 /** The log line when the Game API gives no Player for a Member whose Rank Approval was given: nothing is applied. */
 export function nameAndRolesNotAppliedLogLine(memberId) {

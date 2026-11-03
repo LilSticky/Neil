@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseKingdom } from "../domain/lookup-input.js";
 import { linkOf } from "./link-store.js";
 const appliedRow = z.object({
     member_id: z.string().regex(/^\d+$/),
@@ -12,6 +13,9 @@ const appliedRow = z.object({
     }),
     applied_at: z.iso.datetime().transform((value) => new Date(value)),
     complete: z.union([z.literal(0), z.literal(1)]),
+    alliance_recorded: z.union([z.literal(0), z.literal(1)]),
+    alliance_kingdom: z.number().int().nullable(),
+    alliance_tag: z.string().nullable(),
 });
 /** Keeps the Applied State of each Link in neil.db; a corrupt row is an error, never a silent repair. */
 export class AppliedStore {
@@ -21,17 +25,22 @@ export class AppliedStore {
     }
     get(memberId) {
         const raw = this.db
-            .prepare("SELECT member_id, nickname, roles_json, applied_at, complete FROM applied WHERE member_id = ?")
+            .prepare(`SELECT member_id, nickname, roles_json, applied_at, complete, alliance_recorded, alliance_kingdom, alliance_tag
+         FROM applied WHERE member_id = ?`)
             .get(memberId);
         return raw === undefined ? undefined : appliedOf(raw);
     }
     /** Stores the Applied State, replacing the Member's previous one. */
     record(state) {
+        const alliance = allianceColumnsOf(state.alliance);
         this.db
-            .prepare(`INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete) VALUES (?, ?, ?, ?, ?)
+            .prepare(`INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete, alliance_recorded, alliance_kingdom,
+           alliance_tag)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (member_id) DO UPDATE SET nickname = excluded.nickname, roles_json = excluded.roles_json,
-           applied_at = excluded.applied_at, complete = excluded.complete`)
-            .run(state.memberId, state.nickname, JSON.stringify(state.roles), state.appliedAt.toISOString(), state.complete ? 1 : 0);
+           applied_at = excluded.applied_at, complete = excluded.complete, alliance_recorded = excluded.alliance_recorded,
+           alliance_kingdom = excluded.alliance_kingdom, alliance_tag = excluded.alliance_tag`)
+            .run(state.memberId, state.nickname, JSON.stringify(state.roles), state.appliedAt.toISOString(), state.complete ? 1 : 0, alliance.recorded, alliance.kingdom, alliance.tag);
     }
     /** The Links whose Member has no Applied State yet, or one that is not complete (the startup apply's work list). */
     linkedWithoutCompleteApply() {
@@ -47,13 +56,36 @@ export class AppliedStore {
 function appliedOf(raw) {
     const parsed = appliedRow.safeParse(raw);
     if (!parsed.success)
-        throw new Error("an Applied State in neil.db is corrupt; fix or remove it by hand");
+        throw corruptAppliedError();
     return {
         memberId: parsed.data.member_id,
         nickname: parsed.data.nickname,
         roles: parsed.data.roles_json,
         appliedAt: parsed.data.applied_at,
         complete: parsed.data.complete === 1,
+        alliance: allianceOf(parsed.data),
     };
+}
+/** The columns for the Alliance: "unrecorded" leaves them empty and unrecorded; no Alliance is recorded with both NULL. */
+function allianceColumnsOf(alliance) {
+    if (alliance === "unrecorded")
+        return { recorded: 0, kingdom: null, tag: null };
+    if (alliance === undefined)
+        return { recorded: 1, kingdom: null, tag: null };
+    return { recorded: 1, kingdom: alliance.kingdom, tag: alliance.tag };
+}
+/** The Alliance of a row: unrecorded when its marker says so, else both columns set (an Alliance) or both NULL (none). */
+function allianceOf(row) {
+    if (row.alliance_recorded === 0)
+        return "unrecorded";
+    if (row.alliance_kingdom === null && row.alliance_tag === null)
+        return undefined;
+    const parsed = row.alliance_kingdom === null ? undefined : parseKingdom(row.alliance_kingdom);
+    if (row.alliance_tag === null || parsed === undefined || !parsed.ok)
+        throw corruptAppliedError();
+    return { kingdom: parsed.value, tag: row.alliance_tag };
+}
+function corruptAppliedError() {
+    return new Error("an Applied State in neil.db is corrupt; fix or remove it by hand");
 }
 //# sourceMappingURL=applied-store.js.map
