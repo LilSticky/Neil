@@ -32,6 +32,9 @@ the card visually pleasing and easy to read." Field selection and pictures appro
 - Q: The Alliance Overview's look? → A: like the Alliance card (user, 2026-11-03): accent color, Kingdom author line
   with badge, Alliance badge, totals and online counts as a 3-column grid, the Top lists side by side, Might in the
   member table rows. It was out of scope before; now US3.
+- Q: The Overview's member table? → A: sorted by Might, with buttons to sort by the other columns, as a card with real
+  columns (user, 2026-11-03): a monospace table in a code block (US4). "Power" is renamed Might everywhere (dictionary,
+  2026-11-03).
 - The "Unknown interaction" on the roster's Next button came from two Neils (local and Wispbyte) answering one press;
   no change (TEST-RUN.md 0.6 already says to stop Neil on Wispbyte).
 
@@ -111,6 +114,25 @@ fields and Might on rows, and stays within Discord's limits on every page.
 
 ---
 
+### User Story 4 - A Member sorts the Alliance Overview's member table (Priority: P2)
+
+The member table is a card of its own under the overview: the card's color, the Kingdom author line, the title
+"Members · sorted by <column>", and one monospace table with real columns: #, Name, Might, Weekly, Honor, Tech, Last
+Online. It is sorted by Might first. A row of buttons sorts it by Might, Weekly Activity, Daily Honor, Daily Tech or Last
+Online; the page buttons keep the sort.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Overview is opened, **Then** the table is sorted by Might, highest first, members without Might last.
+2. **Given** the Member presses "Daily Honor", **Then** the table shows page 1 sorted by Daily Honor (highest first, no
+   data last), the pressed button is highlighted, and Previous/Next keep that sort.
+3. **Given** "Last Online", **Then** members online now come first, then the most recently online.
+4. **Given** a name with a backtick, a long name or a missing value, **Then** the columns stay aligned (names cut to a
+   fixed width, "–" for a missing value) and the code block is never broken.
+5. **Given** a page button sent before this change (no sort in its id), **Then** it still turns the page, sorted by Might.
+
+---
+
 ### Edge Cases
 
 - A picture path that is missing, empty or not a tracker `/static/` path: that picture is left out; Neil never puts
@@ -145,6 +167,9 @@ fields and Might on rows, and stays within Discord's limits on every page.
 - **FR-008**: The slice MUST NOT add any Game API request; all values come from answers Neil already gets.
 - **FR-009**: A Player or roster member without a Last Online MUST be treated as online now: "Online now" on the
   Player card; "online" in the Alliance Overview table and counted in its online counts.
+- **FR-011**: The Alliance Overview's member table MUST be a monospace table (one code block) with the columns #, Name,
+  Might, Weekly, Honor, Tech, Last Online, sorted by Might by default, with buttons to sort by each figure column; only
+  the Member who pressed Overview may sort it, and sorting asks the Game API nothing.
 - **FR-010**: The Alliance Overview MUST use the Alliance card's look (FR-004, FR-006) and show Might in short form on
   each member table row, within Discord's limits (FR-007).
 

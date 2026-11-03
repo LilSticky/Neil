@@ -75,4 +75,21 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   Least Active (not inline). Table embed: same color; rows `Name · 27.6M · figures · seen` (power left out when
   unknown). Tests in `overview-texts.test.ts`; existing limit tests still pass with power on 25 rows of long names.
 - [x] **T009** Docs: TEST-RUN.md §6h rows for the Overview look and Online now; STATUS.
+- [ ] **T010** Sorted member table (US4, FR-011).
+  - Domain `alliance-overview.ts`: `type TableSort = "might" | "weeklyActivity" | "dailyHonor" | "dailyTech" |
+    "lastOnline"`; `tablePage(roster, sort, page)`. Figures: highest first, no value last, ties by name. Last Online:
+    `lastSeen` online first, then most recent `at` first, ties by name.
+  - `overview-texts.ts`: custom id `overview:{session}:{sort}:{page}` (sort as a short key: `m`, `w`, `h`, `t`, `l`);
+    the old `overview:{session}:{page}` still parses (sort Might); `overview:{session}:label` stays the disabled label.
+    `renderOverview(alliance, fetchedAt, now, sessionId, page, sort = "might")`. Table embed: color, Kingdom author (no
+    thumbnail: it would narrow the table), title `Members · sorted by <Might|Weekly Activity|Daily Honor|Daily Tech|Last
+    Online>`, description = one ```` ``` ```` code block: header `#  Name           Might  Weekly  Honor   Tech  Last`
+    and rows right-aligned: rank (place in the sorted roster), name cut to 14 characters (with "…") padded, Might /
+    figures via `compactNumber` ("–" when missing), Last Online `online` / `5m` / `3h` / `2d`. Backticks in names are
+    replaced with `ˋ` so the block cannot break; no markdown escaping inside the block. Footer `Page N of M`.
+    Components: row 1 five sort buttons (the active one Primary, others Secondary; ids `overview:{session}:{sort}:0`),
+    row 2 Previous / label / Next (only when more than one page). Rows still cut to Discord's limits.
+  - `pick.ts` `handleOverview` passes the parsed sort. Tests: `alliance-overview.test.ts`, `overview-texts.test.ts`,
+    `pick.test.ts` (a sort press updates in place, owner only).
+- [ ] **T011** Docs: TEST-RUN.md §6h rows for sorting and the table; STATUS.
 - [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.
