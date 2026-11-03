@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest";
 import { ConfigError } from "./config.js";
 import { utcDayOf, type DailyQuota } from "./domain/daily-quota.js";
 import { startCount, type StartRecord } from "./domain/start-record.js";
+import { AppliedStore } from "./storage/applied-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
@@ -62,15 +63,17 @@ const VALID_ENV = {
   DISCORD_KING_ROLE_ID: "323456789012345678",
   DISCORD_ONBOARDING_CHANNEL_ID: "423456789012345678",
   DISCORD_LOG_CHANNEL_ID: "523456789012345678",
+  HOME_KINGDOM: "330",
   LAP_TRACKER_API_KEY: FAKE_API_KEY,
   DATA_DIR: "./data",
 };
 
 /** Stores that are never queried: start() only hands them on to connect, which these tests fake. */
-function stubStores(): { readonly interviews: InterviewStore; readonly links: LinkStore } {
+function stubStores(): { readonly interviews: InterviewStore; readonly links: LinkStore; readonly applied: AppliedStore } {
   return {
     interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
     links: new LinkStore(new DatabaseSync(":memory:")),
+    applied: new AppliedStore(new DatabaseSync(":memory:")),
   };
 }
 
@@ -186,7 +189,7 @@ describe("start", () => {
     await start(deps);
 
     expect(calls).toEqual([
-      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- DISCORD_MODERATOR_ROLE_ID: required\n- DISCORD_KING_ROLE_ID: required\n- DISCORD_ONBOARDING_CHANNEL_ID: required\n- DISCORD_LOG_CHANNEL_ID: required\n- LAP_TRACKER_API_KEY: required",
+      "stderr Neil cannot start, configuration is invalid:\n- DISCORD_APPLICATION_ID: required\n- DISCORD_GUILD_ID: required\n- DISCORD_MODERATOR_ROLE_ID: required\n- DISCORD_KING_ROLE_ID: required\n- DISCORD_ONBOARDING_CHANNEL_ID: required\n- DISCORD_LOG_CHANNEL_ID: required\n- HOME_KINGDOM: required\n- LAP_TRACKER_API_KEY: required",
       "exit 1",
     ]);
   });

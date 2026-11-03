@@ -1,18 +1,23 @@
 import {
   Client,
   Events,
+  type BaseMessageOptions,
   GatewayIntentBits,
   GuildMember,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type Guild,
   type InteractionReplyOptions,
   type ModalSubmitInteraction,
+  type Role,
   type StringSelectMenuInteraction,
 } from "discord.js";
 import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
 import type { GameApiClient } from "../game-api/client.js";
+import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { StartRecord } from "../domain/start-record.js";
+import type { AppliedStore } from "../storage/applied-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import {
@@ -26,6 +31,9 @@ import {
 } from "./interview.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
+import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
+import { reportRolePermissions } from "./role-permissions.js";
+import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import { answer, handleAlliance, handlePlayer, type LookupApi, type LookupInteraction } from "./lookup.js";
@@ -182,6 +190,109 @@ export interface ConnectOptions {
   readonly interviewTimeoutMs: number;
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
+  /** The Applied State of each Linked Member: what the name and roles last set. */
+  readonly applied: AppliedStore;
+  /** The Home Kingdom from config: members of it are Home Kingdom Players. */
+  readonly homeKingdom: KingdomNumber;
+  /** The first level of each Troop Bracket from config, T1 first. */
+  readonly troopBracketLevels: readonly number[];
+}
+
+/** discord.js's code for a user who is not a member of the guild. */
+const UNKNOWN_MEMBER = 10007;
+/** Discord's code for an unknown user: a user who is no longer a member is answered the same way. */
+const UNKNOWN_USER = 10013;
+const unknownMemberError = z.object({ code: z.union([z.literal(UNKNOWN_MEMBER), z.literal(UNKNOWN_USER)]) });
+
+/** A role of the guild as the name and roles apply reads it. */
+function roleLikeOf(role: Role): RoleLike {
+  return {
+    id: role.id,
+    name: role.name,
+    managed: role.managed,
+    permissions: { bitfield: role.permissions.bitfield },
+    position: role.position,
+  };
+}
+
+/** The guild as the name and roles apply reads it; the bot's highest role places the bot among the roles. */
+function rolesGuildOf(guild: Guild, botTopRolePosition: number): RolesGuild {
+  return {
+    id: guild.id,
+    ownerId: guild.ownerId,
+    botTopRolePosition,
+    get roles() {
+      return [...guild.roles.cache.values()].map(roleLikeOf);
+    },
+    createRole: async (options) => {
+      const role = await guild.roles.create({
+        name: options.name,
+        permissions: options.permissions,
+        hoist: options.hoist,
+        mentionable: options.mentionable,
+      });
+      return roleLikeOf(role);
+    },
+  };
+}
+
+/** A guild member as the name and roles apply reads and changes it. */
+function rolesMemberOf(member: GuildMember): RolesMember {
+  return {
+    id: member.id,
+    get roles() {
+      return [...member.roles.cache.values()].map(roleLikeOf);
+    },
+    addRole: async (role) => {
+      await member.roles.add(role.id);
+    },
+    removeRole: async (role) => {
+      await member.roles.remove(role.id);
+    },
+    setNickname: async (nickname) => {
+      await member.setNickname(nickname);
+    },
+  };
+}
+
+/** The member, or undefined when the user is not on the guild; any other failure is thrown. */
+async function fetchMember(guild: Guild, memberId: string): Promise<GuildMember | undefined> {
+  try {
+    return await guild.members.fetch(memberId);
+  } catch (error) {
+    if (unknownMemberError.safeParse(error).success) return undefined;
+    throw error;
+  }
+}
+
+/**
+ * Posts the server permissions Neil lacks to the log, at startup. Runs in the background: a failure to read the bot's
+ * member or post the line is logged, never thrown.
+ */
+async function reportServerPermissions(
+  guild: Guild,
+  log: (message: BaseMessageOptions) => Promise<void>,
+  logError: (message: string) => void,
+): Promise<void> {
+  try {
+    const me = guild.members.me ?? (await guild.members.fetchMe());
+    await reportRolePermissions({ members: { me } }, log, logError);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    logError(`Checking the server permissions failed: ${reason}`);
+  }
+}
+
+/** The members of the guild for the name and roles; undefined for a user who is not on the guild. */
+function serverMembersOf(guild: Guild): ServerMembers {
+  return {
+    memberOf: async (memberId) => {
+      const member = await fetchMember(guild, memberId);
+      if (member === undefined) return undefined;
+      const me = guild.members.me ?? (await guild.members.fetchMe());
+      return { guild: rolesGuildOf(guild, me.roles.highest.position), member: rolesMemberOf(member) };
+    },
+  };
 }
 
 /**
@@ -348,9 +459,22 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    const nameAndRoles = createNameAndRoles({
+      members: serverMembersOf(guild),
+      applied: options.applied,
+      links: options.links,
+      gameApi: options.gameApi,
+      homeKingdom: options.homeKingdom,
+      troopBracketLevels: options.troopBracketLevels,
+      officerRoleIds: options.officerRoleIds,
+      log: (message) => channels.log(message),
+      now,
+      logError,
+    });
     const rankApprovals = createRankApprovals({
       links: options.links,
       channels,
+      nameAndRoles,
       officerRoles,
       memberRoleIdsOf: (memberId) =>
         guild.members.fetch(memberId).then(
@@ -367,6 +491,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       gameApi: options.gameApi,
       officerRoles,
       rankApprovals,
+      nameAndRoles,
       isOnServer: (memberId) => guild.members.fetch(memberId).then(
         () => true,
         () => false,
@@ -375,6 +500,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     openServices({ interviews, rankApprovals });
+    // The startup apply and the permission report run in the background, so login does not wait for them.
+    void nameAndRoles.atStartup().catch((error: unknown) => {
+      logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
+    });
+    void reportServerPermissions(guild, (message) => channels.log(message), logError);
     const sweeper = createSweeper({
       interviews: options.interviews,
       links: options.links,

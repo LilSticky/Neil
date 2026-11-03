@@ -7,6 +7,18 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 006 "Give a member their name and roles" is implemented on branch `006-give-a-member-their-name-and-roles`,
+**stacked on 005** (its PR targets the 005 branch until #16 is merged): on every Link, Rank Approval and at startup
+Neil sets the nickname `[TAG|R4] Name | #331` and the Managed Roles (Alliance for Home Kingdom Alliances, R1–R5,
+`#<kingdom>`, T1–T10), creating missing roles without permissions ([ADR 8](adr/0008-neil-creates-managed-roles.md)).
+New required variable `HOME_KINGDOM`; Neil needs Manage Roles and Manage Nicknames ([HOSTING.md](HOSTING.md)).
+The user decided (2026-11-02) to test later: manual test cases are **collected** in [TEST-RUN.md](TEST-RUN.md)
+(sections 2b and 6b), not run. PR [#22](https://github.com/LilSticky/Neil/pull/22) (issue #21) is open against the 005
+branch; bot review (3 must, 4 should) fixed, spec audit done; 1334 tests.
+
+**Next step (2026-11-02):** pick the next slice from ROADMAP "Later" (the user's choice); #16 and #22 stay open until the
+user has run TEST-RUN.md, then merge #16, retarget #22 to `main`, merge it.
+
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
 `/interview`, timeouts, leaving and the Daily Quota pause are handled. All automated tasks are green; the bot review's 12 findings and the spec audit's gaps are fixed (1032 tests). Feedback from the test run (2026-11-01) added to the slice: the Interview now starts with a Recommended Player (the Member's cleaned server display name looked up as a Player Name; one match "Is this you?", several a pick list; the uid is still asked as In-game Proof), and `/player`/`/alliance` search by name or tag first and no longer show uids (`/alliance` option `alliance` renamed `tag`, so `npm run commands:register` is needed again). Tasks T025–T034 done, reviewed (2 should, 4 could, fixed) and audited; 1159 tests. The user chose automated

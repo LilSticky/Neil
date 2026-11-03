@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -25,6 +25,7 @@ describe("openDatabase", () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
+      { version: 5 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -41,6 +42,7 @@ describe("openDatabase", () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
+      { version: 5 },
     ]);
     db.close();
   });
@@ -50,7 +52,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 4");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 5");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -160,6 +162,7 @@ describe("openDatabase", () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
+      { version: 5 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -198,6 +201,47 @@ describe("openDatabase", () => {
       db.close();
     },
   );
+
+  test("migration 5 creates applied with the columns of the Applied State", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('applied')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual(["member_id", "nickname", "roles_json", "applied_at", "complete"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 4 database to 5 and keeps its Links", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v4.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source) VALUES (?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+      ]);
+      expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
+        { member_id: "member-1", uid: "145563254785" },
+      ]);
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'applied'").get()).toEqual({
+        name: "applied",
+      });
+    } finally {
+      db.close();
+    }
+  });
 
   test("upgrades a version 3 database and keeps its Interviews", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
@@ -247,6 +291,7 @@ describe("openDatabase", () => {
       { version: 2 },
       { version: 3 },
       { version: 4 },
+      { version: 5 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),

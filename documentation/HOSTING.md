@@ -46,6 +46,8 @@ Neil's values; names exactly as written):
 | `DISCORD_ONBOARDING_CHANNEL_ID` | ID of `#onboarding` (from slice 005; required) |
 | `DISCORD_LOG_CHANNEL_ID` | ID of `#neil-log` (from slice 005; required) |
 | `INTERVIEW_TIMEOUT_MINUTES` | optional; minutes an Onboarding Interview may stay silent (whole number, at least 1, default 1440) |
+| `HOME_KINGDOM` | the Home Kingdom's number, `330` (from slice 006; required) |
+| `TROOP_BRACKET_LEVELS` | optional; first sanctuary level of T1…T10, comma-separated (default `1,3,6,10,14,17,20,24,27,30`) |
 
 Until the two channel IDs are set and Server Members Intent is on, a deploy of `main` with slice 005 will
 not start: Neil refuses the configuration or cannot log in. Set these before the first Restart after the
@@ -56,6 +58,11 @@ deploy.
 - `#onboarding`: Neil needs View Channel, Send Messages in Threads, Create Private Threads and Manage
   Threads. Give the Moderator and King roles Manage Threads.
 - `#neil-log`: Neil needs View Channel and Send Messages.
+
+**Roles for slice 006** ([ADR 8](adr/0008-neil-creates-managed-roles.md)): Neil's role needs **Manage Roles** and
+**Manage Nicknames**, and must sit **above** the Managed Roles (Alliance tags, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`)
+and **below** the Moderator and King roles. Neil creates missing Managed Roles itself, without permissions; never
+give a role with such a name any permissions (Neil then refuses to use it). Neil cannot rename the server owner.
 
 Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
 startup. Don't delete `.env` in the file manager.

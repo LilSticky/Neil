@@ -27,6 +27,7 @@ import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { CreateOutcome, InterviewStore } from "../storage/interview-store.js";
 import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
+import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { RankApprovals } from "./rank-approval.js";
 import {
@@ -135,6 +136,7 @@ export interface InterviewDeps {
   readonly links: LinkStore;
   readonly channels: OnboardingChannels;
   readonly rankApprovals: RankApprovals;
+  readonly nameAndRoles: NameAndRoles;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -588,7 +590,7 @@ async function linkConfirmed(deps: InterviewDeps, interview: AwaitingConfirmatio
     deps.interviews.saveIfStep(linked.interview, "awaiting-confirmation");
     return "ended";
   }
-  await finishLink(deps, interview, leaderMemberId, outcome.rankApproval);
+  await finishLink(deps, interview, leaderMemberId, link, outcome.rankApproval);
   return "done";
 }
 
@@ -655,19 +657,31 @@ async function refuseConfirmation(
 }
 
 /**
- * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The thread
- * closes, unless a Rank Approval is asked in it: then the thread is archived when the approval ends.
+ * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The Member's
+ * name and roles follow, without touching the Link or the thread. The thread closes, unless a Rank Approval is asked in
+ * it: then the thread is archived when the approval ends.
  */
 async function finishLink(
   deps: InterviewDeps,
   interview: AwaitingConfirmation,
   leaderMemberId: MemberId | undefined,
+  link: Link,
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
   await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
+  await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
   if (rankApproval?.state === "pending") return deps.rankApprovals.announce(rankApproval, interview.player);
   await deps.channels.archive(interview.threadId);
+}
+
+/** Gives the Linked Member their name and roles; a failure is logged, never thrown, so the Link stands. */
+async function nameAndRolesAfterLink(deps: InterviewDeps, memberId: MemberId, player: Player, link: Link): Promise<void> {
+  try {
+    await deps.nameAndRoles.onLinked(memberId, player, link.allianceRank);
+  } catch (error) {
+    deps.logError(`Giving the name and roles after a Link failed: ${errorText(error)}`);
+  }
 }
 
 function linkFor(interview: AwaitingConfirmation, now: Date): Link {

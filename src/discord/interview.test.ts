@@ -48,6 +48,7 @@ import {
   type PrivateReply,
 } from "./interview-texts.js";
 import { createSweeper } from "./interview-sweeper.js";
+import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import {
   createInterviews,
   type ButtonInteractionLike,
@@ -435,6 +436,7 @@ interface Harness {
   readonly channels: FakeChannels;
   readonly gameApi: FakeGameApi;
   readonly rankApprovals: FakeRankApprovals;
+  readonly nameAndRoles: FakeNameAndRoles;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
@@ -523,6 +525,7 @@ describe("createInterviews", () => {
     const channels = new FakeChannels();
     const gameApi = new FakeGameApi();
     const rankApprovals = new FakeRankApprovals();
+    const nameAndRoles = new FakeNameAndRoles();
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const deps: InterviewDeps = {
@@ -531,6 +534,7 @@ describe("createInterviews", () => {
       channels,
       gameApi,
       rankApprovals,
+      nameAndRoles,
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
@@ -539,7 +543,7 @@ describe("createInterviews", () => {
       },
     };
     const service = createInterviews(deps);
-    h = { interviews, links, channels, gameApi, rankApprovals, onServer, errors, service, deps };
+    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, onServer, errors, service, deps };
   });
 
   afterEach(() => {
@@ -1664,6 +1668,51 @@ describe("createInterviews", () => {
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off" });
       expect(h.channels.logs).toHaveLength(logsBefore);
       expect(h.channels.lockedAndArchived).toEqual([]);
+    });
+  });
+
+  describe("the Member's name and roles after a Link", () => {
+    test("a card the Member confirms gives the Player and the rank on the Link to the name and roles", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.nameAndRoles.linked).toEqual([{ memberId: MEMBER, player: PLAYER, rank: { source: "game-api", rank: "R4" } }]);
+    });
+
+    test("a Link with an unknown Alliance Rank gives the unknown rank to the name and roles", async () => {
+      const interviewId = await confirmationShown(h, PLAYER_WITH_LEADER_UNKNOWN_RANK);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.nameAndRoles.linked).toEqual([
+        { memberId: MEMBER, player: PLAYER_WITH_LEADER_UNKNOWN_RANK, rank: { source: "unknown" } },
+      ]);
+    });
+
+    test("a Player the Member chose with That's me is linked at once, and the name and roles get that Player", async () => {
+      const interviewId = await recommendationAccepted(h, PLAYER);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
+      expect(h.nameAndRoles.linked).toEqual([{ memberId: MEMBER, player: PLAYER, rank: { source: "game-api", rank: "R4" } }]);
+    });
+
+    test("a failing apply leaves the Link and the thread messages as they are", async () => {
+      h.nameAndRoles.failWith(new Error("Discord refused the role change"));
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await expect(
+        h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER })),
+      ).resolves.toBeUndefined();
+
+      expect(h.nameAndRoles.linked).toHaveLength(1);
+      expect(linkOfMember(h)).toEqual({ memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" } });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
     });
   });
 });
