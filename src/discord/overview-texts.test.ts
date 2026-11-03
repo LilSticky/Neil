@@ -1,7 +1,7 @@
 import { ButtonStyle, ComponentType, type APIActionRowComponent, type APIButtonComponentWithCustomId, type APIEmbed } from "discord.js";
 import { describe, expect, test } from "vitest";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { Alliance, RosterEntry } from "../domain/player.js";
+import type { Alliance, AllianceDetails, RosterEntry } from "../domain/player.js";
 import { overviewCustomId, parseOverviewCustomId, renderOverview, type OverviewReply } from "./overview-texts.js";
 
 const NOW = new Date("2026-11-02T12:00:00Z");
@@ -11,6 +11,9 @@ const DESCRIPTION_MAX_LENGTH = 4096;
 const FIELD_VALUE_MAX_LENGTH = 1024;
 const MESSAGE_MAX_LENGTH = 6000;
 const TITLE_MAX_LENGTH = 256;
+/** The accent color the Player and Alliance cards share. */
+const ACCENT_COLOR = 0xb33a3a;
+const TRACKER = "https://lastasylumtracker.com";
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -25,6 +28,7 @@ function kingdom(number: number): KingdomNumber {
 }
 
 interface Figures {
+  readonly power?: number;
   readonly weeklyActivity?: number;
   readonly dailyHonor?: number;
   readonly dailyTech?: number;
@@ -45,8 +49,20 @@ function member(uidText: string, name: string, figures: Figures = {}): RosterEnt
     dailyTech: figures.dailyTech,
     online: figures.online,
     lastOnlineAt: figures.lastOnlineAt,
+    ...(figures.power === undefined ? {} : { power: figures.power }),
   };
 }
+
+const allianceDetails: AllianceDetails = {
+  level: 4,
+  xp: 8_829_850,
+  giftLevel: 6,
+  kingdomPowerRank: 25,
+  language: "ja",
+  joinRequirements: { open: true, minimumPower: 0, minimumSanctuaryLevel: 0 },
+  badgePath: "/static/alliance/badge_103.png",
+  kingdomBadgePath: "/static/kingdom/badge_1.png",
+};
 
 function allianceWith(roster: readonly RosterEntry[]): Alliance {
   return {
@@ -91,6 +107,7 @@ function totalCharacters(embeds: readonly APIEmbed[]): number {
   return embeds.reduce((total, embed) => {
     const texts = [
       embed.title ?? "",
+      embed.author?.name ?? "",
       embed.description ?? "",
       embed.footer?.text ?? "",
       ...(embed.fields ?? []).flatMap((field) => [field.name, field.value]),
@@ -296,6 +313,94 @@ describe("renderOverview: the table page", () => {
       }
     }
     expect(totalCharacters(reply.embeds)).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
+  });
+});
+
+describe("renderOverview: the Alliance card's look", () => {
+  test("gives the overview and the table the accent color of the cards", () => {
+    const reply = overviewOf([alpha]);
+
+    expect(reply.embeds[0]?.color).toBe(ACCENT_COLOR);
+    expect(reply.embeds[1]?.color).toBe(ACCENT_COLOR);
+  });
+
+  test("shows the Kingdom in the author line with the Kingdom badge beside it, and the Alliance badge as the thumbnail", () => {
+    const reply = renderOverview({ ...allianceWith([alpha]), details: allianceDetails }, FETCHED_AT, NOW, SESSION, 0);
+
+    expect(reply.embeds[0]).toMatchObject({
+      author: { name: "Kingdom #1", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
+      thumbnail: { url: `${TRACKER}/static/alliance/badge_103.png` },
+    });
+  });
+
+  test("shows the Kingdom in the author line alone, with no thumbnail, when the details are missing", () => {
+    const overview = overviewOf([alpha]).embeds[0];
+
+    expect(overview?.author).toEqual({ name: "Kingdom #1" });
+    expect(overview?.thumbnail).toBeUndefined();
+  });
+
+  test("lists the overview fields in rows of three, with Least Active on a row of its own, not inline", () => {
+    const fields = overviewOf([alpha, beta, gamma, delta]).embeds[0]?.fields ?? [];
+
+    expect(fields.map(({ name, inline }) => ({ name, inline }))).toEqual([
+      { name: "Weekly Activity", inline: true },
+      { name: "Daily Honor", inline: true },
+      { name: "Daily Tech", inline: true },
+      { name: "Online now", inline: true },
+      { name: "Online in the last 24 hours", inline: true },
+      { name: "No data", inline: true },
+      { name: "Top Weekly Activity", inline: true },
+      { name: "Top Daily Honor", inline: true },
+      { name: "Top Daily Tech", inline: true },
+      { name: "Least Active", inline: false },
+    ]);
+  });
+});
+
+describe("renderOverview: power in the table", () => {
+  test("shows each member's power in short form after the name, and leaves it out when unknown", () => {
+    const powered = member("179060285441", "Alpha", {
+      power: 27_626_362,
+      weeklyActivity: 490,
+      dailyHonor: 40,
+      dailyTech: 4600,
+      online: false,
+      lastOnlineAt: new Date(1793285439 * 1000),
+    });
+
+    const description = overviewOf([powered, beta]).embeds[1]?.description ?? "";
+
+    expect(description).toContain("Alpha · 27.6M · 490 · 40 · 4,600 · <t:1793285439:R>");
+    expect(description).toContain("Beta · 10 · 60 · 400 · online");
+  });
+
+  test("shows the power in place of no data for a member with power and no figures", () => {
+    const description = overviewOf([member("300000000001", "Delta", { power: 5_000 })]).embeds[1]?.description ?? "";
+
+    expect(description).toBe("Delta · 5K · no data · online");
+  });
+
+  test("keeps 25 rows of 100-character names with power within the description and message limits", () => {
+    const longName = "N".repeat(100);
+    const roster = Array.from({ length: 25 }, (_, index) =>
+      member(String(100_000_000_000 + index), `${longName}${index.toString()}`, {
+        power: 27_626_362,
+        weeklyActivity: index + 1,
+        dailyHonor: index + 1,
+        dailyTech: index + 1,
+        online: false,
+        lastOnlineAt: NOW,
+      }),
+    );
+
+    const reply = overviewOf(roster);
+    const table = reply.embeds[1];
+
+    expect(table?.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX_LENGTH);
+    expect(totalCharacters(reply.embeds)).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
+    expect(table?.description?.split("\n")).toHaveLength(25);
+    expect(table?.description).toContain(" · 27.6M · ");
   });
 });
 

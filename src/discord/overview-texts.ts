@@ -18,7 +18,16 @@ import {
   type TablePage,
 } from "../domain/alliance-overview.js";
 import type { Alliance, RosterEntry } from "../domain/player.js";
-import { embedCharacters, escapeText, fitTitle, footerFor } from "./lookup-cards.js";
+import {
+  CARD_COLOR,
+  compactNumber,
+  embedCharacters,
+  escapeText,
+  fitTitle,
+  footerFor,
+  kingdomAuthor,
+  thumbnailOf,
+} from "./lookup-cards.js";
 
 /** The Alliance Overview: the overview embed, the table page embed and the page buttons under them. */
 export interface OverviewReply {
@@ -77,8 +86,13 @@ export function renderOverview(
   page: number,
 ): OverviewReply {
   const table = tablePage(alliance.roster, page);
+  const details = alliance.details;
+  const thumbnail = thumbnailOf(details?.badgePath);
   const overview: APIEmbed = {
     title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)} · Overview`),
+    color: CARD_COLOR,
+    author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
+    ...(thumbnail === undefined ? {} : { thumbnail }),
     fields: overviewFields(alliance.roster, now),
     footer: footerFor(fetchedAt, now),
   };
@@ -86,18 +100,23 @@ export function renderOverview(
   return { embeds, components: pageButtons(sessionId, table.page, table.pageCount) };
 }
 
+/** A field of the overview that sits in a row of three with its neighbours. */
+function inlineField(name: string, value: string): APIEmbedField {
+  return { name, value, inline: true };
+}
+
+/** The overview's fields in rows of three, except Least Active, which has a row of its own. */
 function overviewFields(roster: readonly RosterEntry[], now: Date): APIEmbedField[] {
   const overview = overviewOf(roster, now);
   return [
-    ...ACTIVITY_KINDS.map((kind) => ({ name: ACTIVITY_LABELS[kind], value: totalText(overview.totals[kind]) })),
-    { name: "Online now", value: numbers.format(overview.onlineNow) },
-    { name: "Online in the last 24 hours", value: numbers.format(overview.onlineLast24h) },
-    { name: "No data", value: memberCountText(overview.noData) },
-    ...ACTIVITY_KINDS.map((kind) => ({
-      name: `Top ${ACTIVITY_LABELS[kind]}`,
-      value: listText(topBy(roster, kind, LIST_LENGTH), kind),
-    })),
-    { name: "Least Active", value: listText(leastActive(roster, LIST_LENGTH), "weeklyActivity") },
+    ...ACTIVITY_KINDS.map((kind) => inlineField(ACTIVITY_LABELS[kind], totalText(overview.totals[kind]))),
+    inlineField("Online now", numbers.format(overview.onlineNow)),
+    inlineField("Online in the last 24 hours", numbers.format(overview.onlineLast24h)),
+    inlineField("No data", memberCountText(overview.noData)),
+    ...ACTIVITY_KINDS.map((kind) =>
+      inlineField(`Top ${ACTIVITY_LABELS[kind]}`, listText(topBy(roster, kind, LIST_LENGTH), kind)),
+    ),
+    { name: "Least Active", value: listText(leastActive(roster, LIST_LENGTH), "weeklyActivity"), inline: false },
   ];
 }
 
@@ -125,6 +144,7 @@ function listText(entries: readonly RosterEntry[], kind: ActivityKind): string {
 function tableEmbed(table: TablePage, otherCharacters: number): APIEmbed {
   const embed: APIEmbed = {
     title: `Members · page ${(table.page + 1).toString()} of ${table.pageCount.toString()}`,
+    color: CARD_COLOR,
   };
   const room = Math.min(DESCRIPTION_MAX_LENGTH, MESSAGE_MAX_LENGTH - otherCharacters - embedCharacters(embed));
   const lines = linesWithin(table.rows.map(tableRow), room);
@@ -145,13 +165,18 @@ function linesWithin(lines: readonly string[], limit: number): string[] {
   return kept;
 }
 
-/** One member of the table: name, the three figures (or "no data") and the last online time. */
+/**
+ * One member of the table: name (with the power in short form when the Game gave it), the three figures (or "no data")
+ * and the last online time.
+ */
 function tableRow(entry: RosterEntry): string {
   const hasAnyFigure = ACTIVITY_KINDS.some((kind) => figureOf(entry, kind) !== undefined);
   const figures = hasAnyFigure
     ? ACTIVITY_KINDS.map((kind) => figureText(entry, kind)).join(SECTION_SEPARATOR)
     : NO_DATA;
-  return [displayName(entry.name), figures, seenText(entry)].join(SECTION_SEPARATOR);
+  const name = displayName(entry.name);
+  const named = entry.power === undefined ? name : `${name}${SECTION_SEPARATOR}${compactNumber(entry.power)}`;
+  return [named, figures, seenText(entry)].join(SECTION_SEPARATOR);
 }
 
 function figureText(entry: RosterEntry, kind: ActivityKind): string {

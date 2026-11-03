@@ -43,7 +43,7 @@ const OPTION_LABEL_MAX_LENGTH = 100;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 /** The accent color both cards use. */
-const CARD_COLOR = 0xb33a3a;
+export const CARD_COLOR = 0xb33a3a;
 const TRACKER_ORIGIN = "https://lastasylumtracker.com";
 
 const MINUTE_MS = 60_000;
@@ -190,14 +190,14 @@ function shownWhenKnown<T>(value: T | undefined, text: (known: T) => string): st
 }
 
 /** The author line: the Kingdom, with its badge as the icon when the Game gave a usable picture path. */
-function kingdomAuthor(kingdom: KingdomNumber, badgePath: string | undefined): APIEmbedAuthor {
+export function kingdomAuthor(kingdom: KingdomNumber, badgePath: string | undefined): APIEmbedAuthor {
   const name = `Kingdom #${kingdom.toString()}`;
   const icon = trackerPicture(badgePath);
   return icon === undefined ? { name } : { name, icon_url: icon };
 }
 
 /** The picture beside a card, when the Game gave a usable picture path. */
-function thumbnailOf(path: string | undefined): APIEmbedImage | undefined {
+export function thumbnailOf(path: string | undefined): APIEmbedImage | undefined {
   const url = trackerPicture(path);
   return url === undefined ? undefined : { url };
 }

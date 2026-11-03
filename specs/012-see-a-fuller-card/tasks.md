@@ -68,7 +68,7 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   Tests in `alliance-overview.test.ts` (online flag false/undefined with no time → online; with a time → as before)
   and `lookup-cards.test.ts`: Player card with `details` but no `lastOnlineAt` → description "Online now"; without
   `details` → no description. `overview-texts.test.ts`: such a row reads "online".
-- [ ] **T008** Alliance Overview with the card's look (US3, FR-010). `overview-texts.ts` reuses `CARD_COLOR`,
+- [x] **T008** Alliance Overview with the card's look (US3, FR-010). `overview-texts.ts` reuses `CARD_COLOR`,
   `kingdomAuthor`, `thumbnailOf`, `compactNumber` (export what is needed from `lookup-cards.ts`). Overview embed:
   color, author, thumbnail; fields inline in rows of three: Weekly Activity · Daily Honor · Daily Tech /
   Online now · Online in the last 24 hours · No data / Top Weekly Activity · Top Daily Honor · Top Daily Tech /
