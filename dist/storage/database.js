@@ -1,6 +1,14 @@
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-/** Ordered schema changes; index + 1 is the version. Never edit an applied one, append a new one. */
+/**
+ * Ordered schema changes; index + 1 is the version. Never edit an applied one, append a new one.
+ *
+ * Foreign keys are on, and a migration runs inside its transaction, where `PRAGMA foreign_keys` cannot be changed. So a
+ * future migration that rebuilds a parent table (create the new one, copy, drop the old, rename) would cascade: `DROP
+ * TABLE` deletes the child rows of an `ON DELETE CASCADE` reference first, and `link` rows would take their `applied`
+ * rows with them. A rebuild of `link` must turn `foreign_keys` off before its transaction starts (in a separate step
+ * of `openDatabase`), and check with `PRAGMA foreign_key_check` before it is turned back on.
+ */
 const migrations = [
     `CREATE TABLE start_record (
      id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -63,11 +71,20 @@ const migrations = [
    CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
      WHERE step IN ('recommending', 'awaiting-recommendation', 'awaiting-pick', 'awaiting-uid', 'checking',
        'awaiting-confirmation', 'paused-for-quota')`,
+    // Migration 5: the Applied State of each Link (slice 006, ADR 8). Its row goes with its Link (foreign keys are on).
+    `CREATE TABLE applied (
+     member_id TEXT PRIMARY KEY REFERENCES link (member_id) ON DELETE CASCADE,
+     nickname TEXT NOT NULL,
+     roles_json TEXT NOT NULL,
+     applied_at TEXT NOT NULL,
+     complete INTEGER NOT NULL CHECK (complete IN (0, 1))
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {
     const db = new DatabaseSync(join(dataDir, "neil.db"));
     try {
+        db.exec("PRAGMA foreign_keys = ON");
         db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)");
         const row = db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get();
         const applied = typeof row?.version === "number" ? row.version : 0;

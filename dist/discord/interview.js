@@ -440,7 +440,7 @@ async function linkConfirmed(deps, interview) {
         deps.interviews.saveIfStep(linked.interview, "awaiting-confirmation");
         return "ended";
     }
-    await finishLink(deps, interview, leaderMemberId, outcome.rankApproval);
+    await finishLink(deps, interview, leaderMemberId, link, outcome.rankApproval);
     return "done";
 }
 /**
@@ -496,15 +496,26 @@ async function refuseConfirmation(deps, interview, now) {
     return "done";
 }
 /**
- * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The thread
- * closes, unless a Rank Approval is asked in it: then the thread is archived when the approval ends.
+ * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The Member's
+ * name and roles follow, without touching the Link or the thread. The thread closes, unless a Rank Approval is asked in
+ * it: then the thread is archived when the approval ends.
  */
-async function finishLink(deps, interview, leaderMemberId, rankApproval) {
+async function finishLink(deps, interview, leaderMemberId, link, rankApproval) {
     await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
     await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
+    await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
     if (rankApproval?.state === "pending")
         return deps.rankApprovals.announce(rankApproval, interview.player);
     await deps.channels.archive(interview.threadId);
+}
+/** Gives the Linked Member their name and roles; a failure is logged, never thrown, so the Link stands. */
+async function nameAndRolesAfterLink(deps, memberId, player, link) {
+    try {
+        await deps.nameAndRoles.onLinked(memberId, player, link.allianceRank);
+    }
+    catch (error) {
+        deps.logError(`Giving the name and roles after a Link failed: ${errorText(error)}`);
+    }
 }
 function linkFor(interview, now) {
     return {

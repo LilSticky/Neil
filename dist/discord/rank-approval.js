@@ -38,5 +38,15 @@ async function pressRankButton(deps, button) {
     await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
     await deps.channels.post(approved.threadId, rankApprovedMessage(approved));
     await deps.channels.archive(approved.threadId);
+    await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
+}
+/** Gives the Member their name and roles with the approved rank; a failure is logged, the approval stands. */
+async function nameAndRolesAfterApproval(deps, memberId) {
+    try {
+        await deps.nameAndRoles.onRankApproved(memberId);
+    }
+    catch (error) {
+        deps.logError(`Giving the name and roles after a Rank Approval failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
 }
 //# sourceMappingURL=rank-approval.js.map

@@ -198,7 +198,8 @@ export class LinkStore {
 function corruptLinkError() {
     return new Error("a Link in neil.db is corrupt; fix or remove it by hand");
 }
-function linkOf(raw) {
+/** Parses a row of `link` selected with its six columns (member_id, uid, linked_at and the rank columns). */
+export function linkOf(raw) {
     const parsed = linkRow.safeParse(raw);
     if (!parsed.success)
         throw corruptLinkError();

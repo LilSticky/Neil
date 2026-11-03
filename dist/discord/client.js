@@ -3,6 +3,8 @@ import { z } from "zod";
 import { createInterviews, } from "./interview.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
+import { createNameAndRoles } from "./name-and-roles.js";
+import { reportRolePermissions } from "./role-permissions.js";
 import { createRankApprovals } from "./rank-approval.js";
 import { handlePing } from "./ping.js";
 import { answer, handleAlliance, handlePlayer } from "./lookup.js";
@@ -99,6 +101,96 @@ export function createClient(handlers, options) {
         }
     });
     return client;
+}
+/** discord.js's code for a user who is not a member of the guild. */
+const UNKNOWN_MEMBER = 10007;
+/** Discord's code for an unknown user: a user who is no longer a member is answered the same way. */
+const UNKNOWN_USER = 10013;
+const unknownMemberError = z.object({ code: z.union([z.literal(UNKNOWN_MEMBER), z.literal(UNKNOWN_USER)]) });
+/** A role of the guild as the name and roles apply reads it. */
+function roleLikeOf(role) {
+    return {
+        id: role.id,
+        name: role.name,
+        managed: role.managed,
+        permissions: { bitfield: role.permissions.bitfield },
+        position: role.position,
+    };
+}
+/** The guild as the name and roles apply reads it; the bot's highest role places the bot among the roles. */
+function rolesGuildOf(guild, botTopRolePosition) {
+    return {
+        id: guild.id,
+        ownerId: guild.ownerId,
+        botTopRolePosition,
+        get roles() {
+            return [...guild.roles.cache.values()].map(roleLikeOf);
+        },
+        createRole: async (options) => {
+            const role = await guild.roles.create({
+                name: options.name,
+                permissions: options.permissions,
+                hoist: options.hoist,
+                mentionable: options.mentionable,
+            });
+            return roleLikeOf(role);
+        },
+    };
+}
+/** A guild member as the name and roles apply reads and changes it. */
+function rolesMemberOf(member) {
+    return {
+        id: member.id,
+        get roles() {
+            return [...member.roles.cache.values()].map(roleLikeOf);
+        },
+        addRole: async (role) => {
+            await member.roles.add(role.id);
+        },
+        removeRole: async (role) => {
+            await member.roles.remove(role.id);
+        },
+        setNickname: async (nickname) => {
+            await member.setNickname(nickname);
+        },
+    };
+}
+/** The member, or undefined when the user is not on the guild; any other failure is thrown. */
+async function fetchMember(guild, memberId) {
+    try {
+        return await guild.members.fetch(memberId);
+    }
+    catch (error) {
+        if (unknownMemberError.safeParse(error).success)
+            return undefined;
+        throw error;
+    }
+}
+/**
+ * Posts the server permissions Neil lacks to the log, at startup. Runs in the background: a failure to read the bot's
+ * member or post the line is logged, never thrown.
+ */
+async function reportServerPermissions(guild, log, logError) {
+    try {
+        const me = guild.members.me ?? (await guild.members.fetchMe());
+        await reportRolePermissions({ members: { me } }, log, logError);
+    }
+    catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        logError(`Checking the server permissions failed: ${reason}`);
+    }
+}
+/** The members of the guild for the name and roles; undefined for a user who is not on the guild. */
+function serverMembersOf(guild) {
+    return {
+        memberOf: async (memberId) => {
+            const member = await fetchMember(guild, memberId);
+            if (member === undefined)
+                return undefined;
+            const me = guild.members.me ?? (await guild.members.fetchMe());
+            return { guild: rolesGuildOf(guild, me.roles.highest.position), member: rolesMemberOf(member) };
+        },
+    };
 }
 /**
  * The discord.js button press or string select menu press as the Interview reads it. discord.js types reply with
@@ -246,9 +338,22 @@ export async function connect(token, options) {
         const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
         const officerRoles = { moderatorRoleId, kingRoleId };
         const channels = createOnboardingChannels(guild, channelIds);
+        const nameAndRoles = createNameAndRoles({
+            members: serverMembersOf(guild),
+            applied: options.applied,
+            links: options.links,
+            gameApi: options.gameApi,
+            homeKingdom: options.homeKingdom,
+            troopBracketLevels: options.troopBracketLevels,
+            officerRoleIds: options.officerRoleIds,
+            log: (message) => channels.log(message),
+            now,
+            logError,
+        });
         const rankApprovals = createRankApprovals({
             links: options.links,
             channels,
+            nameAndRoles,
             officerRoles,
             memberRoleIdsOf: (memberId) => guild.members.fetch(memberId).then((member) => memberRoleIds(member), () => []),
             now,
@@ -261,11 +366,17 @@ export async function connect(token, options) {
             gameApi: options.gameApi,
             officerRoles,
             rankApprovals,
+            nameAndRoles,
             isOnServer: (memberId) => guild.members.fetch(memberId).then(() => true, () => false),
             now,
             logError,
         });
         openServices({ interviews, rankApprovals });
+        // The startup apply and the permission report run in the background, so login does not wait for them.
+        void nameAndRoles.atStartup().catch((error) => {
+            logError(`Giving the Linked Members their name and roles at startup failed: ${String(error)}`);
+        });
+        void reportServerPermissions(guild, (message) => channels.log(message), logError);
         const sweeper = createSweeper({
             interviews: options.interviews,
             links: options.links,

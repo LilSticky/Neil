@@ -50,6 +50,9 @@ export async function start(deps) {
             interviewTimeoutMs: config.interviewTimeoutMs,
             interviews: store.interviews,
             links: store.links,
+            applied: store.applied,
+            homeKingdom: config.homeKingdom,
+            troopBracketLevels: config.troopBracketLevels,
         });
     }
     catch (error) {
