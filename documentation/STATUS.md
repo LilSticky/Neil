@@ -30,10 +30,17 @@ Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`
 500 requests, and restores nicknames and Managed Roles; one log line per changed Member and a summary. Test cases
 collected in [TEST-RUN.md](TEST-RUN.md) §6e. Reviewed (3 must, 6 should fixed), audited; PR [#28](https://github.com/LilSticky/Neil/pull/28) (issue #27), 1581 tests.
 
+Slice 010 "Say goodbye" is implemented on branch `010-say-goodbye`, stacked on 009: when a Linked Member leaves, Neil
+Unlinks them (Link and applied state removed, `🔓` log line, a private message if Discord allows it); pending Rank
+Approvals waiting on them go to the Officers; leaves missed while offline are caught at startup and in the Daily Sync.
+New dictionary term Unlink. discord.js partials (GuildMember, User) are now on, so leaves of uncached Members arrive.
+Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6f. Reviewed (1 must, 3 should, 2 could fixed), audited; PR
+[#30](https://github.com/LilSticky/Neil/pull/30) (issue #29), 1639 tests.
+
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
-**Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
-#16, #22, #24, #26 and #28 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
+**Next step (2026-11-02):** the last slice from ROADMAP "Later", "Correct a link", if the user wants it.
+#16, #22, #24, #26, #28 and #30 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
 next to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private

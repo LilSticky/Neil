@@ -19,6 +19,7 @@ import type { LinkStore } from "../storage/link-store.js";
 import type { ServerMember, ServerMembers, SyncNameAndRoles } from "./name-and-roles.js";
 import { nameAndRolesNotAppliedLogLine } from "./name-and-roles-texts.js";
 import type { Schedule } from "./interview-sweeper.js";
+import type { Unlink } from "./unlink.js";
 
 /** How often the Daily Sync checks whether it is due: a run missed at its hour starts at the next check. */
 const CHECK_EVERY_MS = 10 * 60_000;
@@ -38,6 +39,8 @@ export interface DailySyncDeps {
   readonly members: ServerMembers;
   readonly gameApi: DailySyncGameApi;
   readonly nameAndRoles: SyncNameAndRoles;
+  /** Ends the Link of a Linked Member who is not on the server any more, as missing. */
+  readonly unlink: Unlink;
   /** The most Game API requests one run may send, retries included; from SYNC_SHARE. */
   readonly share: number;
   /** Requests kept back for Onboarding Interviews; the Daily Sync stops at this reserve like a lookup does. */
@@ -100,10 +103,11 @@ export async function runDailySync(deps: DailySyncDeps): Promise<void> {
     pending.delete(link.memberId);
   };
 
-  /** Fetches the Member, who leaves the run when they are not on the server. */
+  /** Fetches the Member; one who is not on the server is Unlinked as missing and leaves the run. */
   const present = async (link: SyncLink): Promise<PresentMember | undefined> => {
     const server = await deps.members.memberOf(link.memberId);
     if (server !== undefined) return { link, server };
+    await deps.unlink.unlink({ id: link.memberId }, "missing");
     counts.skipped += 1;
     pending.delete(link.memberId);
     return undefined;

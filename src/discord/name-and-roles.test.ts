@@ -15,6 +15,7 @@ import { LinkStore } from "../storage/link-store.js";
 import type { ApplyReport } from "./member-roles.js";
 import { FakeDiscordError, FakeRolesGuild, type FakeRolesMember, MISSING_PERMISSIONS } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
+import { FakeUnlink } from "./__fakes__/unlink.js";
 import { createNameAndRoles } from "./name-and-roles.js";
 import { nameAndRolesLogLine } from "./name-and-roles-texts.js";
 
@@ -110,6 +111,7 @@ interface Harness {
   readonly applied: AppliedStore;
   readonly links: LinkStore;
   readonly gameApi: FakeGameApi;
+  readonly unlink: FakeUnlink;
   readonly logs: BaseMessageOptions[];
   readonly errors: string[];
   readonly service: ReturnType<typeof createNameAndRoles>;
@@ -163,6 +165,7 @@ describe("createNameAndRoles", () => {
     const applied = new AppliedStore(db);
     const links = new LinkStore(db);
     const gameApi = new FakeGameApi();
+    const unlink = new FakeUnlink();
     const logs: BaseMessageOptions[] = [];
     const errors: string[] = [];
     const service = createNameAndRoles({
@@ -170,6 +173,7 @@ describe("createNameAndRoles", () => {
       applied,
       links,
       gameApi,
+      unlink,
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: TROOP_BRACKET_LEVELS,
       officerRoleIds: [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID],
@@ -182,7 +186,7 @@ describe("createNameAndRoles", () => {
         errors.push(line);
       },
     });
-    h = { guild, server, applied, links, gameApi, logs, errors, service };
+    h = { guild, server, applied, links, gameApi, unlink, logs, errors, service };
   });
 
   afterEach(() => {
@@ -519,6 +523,111 @@ describe("createNameAndRoles", () => {
 
       expect(h.errors.length).toBeGreaterThan(0);
       expect(h.applied.get(ALICE)).toBeUndefined();
+    });
+  });
+
+  describe("the startup sweep of Linked Members who left", () => {
+    test("Unlinks a Linked Member Discord reports as not on the server, as missing, with no Game API request for them", async () => {
+      joinAlice(h);
+      linkAlice(h);
+      h.applied.record({
+        memberId: ALICE,
+        nickname: "[NML|R4] Rogue",
+        roles: ["NML", "R4", "#330", "T7"],
+        appliedAt: NOW,
+        complete: true,
+      });
+      linkMember(h, BOB, BOB_UID);
+
+      await h.service.atStartup();
+
+      expect(h.unlink.calls).toEqual([{ memberId: BOB, reason: "missing" }]);
+      expect(h.gameApi.lookups).toEqual([]);
+    });
+
+    test("Unlinks a missing Linked Member whose apply is already complete, not only one still to apply", async () => {
+      linkMember(h, BOB, BOB_UID);
+      h.applied.record({
+        memberId: BOB,
+        nickname: "[NML|R4] Rogue",
+        roles: ["NML", "R4", "#330", "T7"],
+        appliedAt: NOW,
+        complete: true,
+      });
+
+      await h.service.atStartup();
+
+      expect(h.unlink.calls).toEqual([{ memberId: BOB, reason: "missing" }]);
+    });
+
+    test("leaves the Linked Members who are on the server alone, and the apply goes on for them", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.unlink.calls).toEqual([]);
+      expect(alice.nickname).toBe("[NML|R4] Rogue");
+    });
+
+    test("does not Unlink a Linked Member whose fetch fails for another reason, and logs the failure", async () => {
+      linkMember(h, BOB, BOB_UID);
+      h.server.failFor(BOB, new Error("Discord is unavailable"));
+
+      await h.service.atStartup();
+
+      expect(h.unlink.calls).toEqual([]);
+      expect(h.links.linkFor(BOB)).toBeDefined();
+      expect(h.errors.some((line) => line.includes(BOB))).toBe(true);
+    });
+
+    test("Unlinks no one when Discord cannot be reached at all", async () => {
+      linkMember(h, BOB, BOB_UID);
+      linkMember(h, ALICE, UID);
+      h.server.failWith(new Error("Discord is unavailable"));
+
+      await h.service.atStartup();
+
+      expect(h.unlink.calls).toEqual([]);
+    });
+
+    test("stops the sweep at the first fetch that fails: the later Linked Members are not fetched, and one error is logged", async () => {
+      const linked = [
+        [BOB, BOB_UID],
+        [ALICE, UID],
+        [CAROL, CAROL_UID],
+      ] as const;
+      for (const [memberId, uid] of linked) {
+        linkMember(h, memberId, uid);
+        h.applied.record({
+          memberId,
+          nickname: "[NML|R4] Rogue",
+          roles: ["NML", "R4", "#330", "T7"],
+          appliedAt: NOW,
+          complete: true,
+        });
+      }
+      h.server.failWith(new Error("Discord is unavailable"));
+
+      await h.service.atStartup();
+
+      expect(h.server.lookups).toEqual([BOB]);
+      expect(h.errors).toHaveLength(1);
+      expect(h.unlink.calls).toEqual([]);
+    });
+
+    test("the apply still tries each Linked Member without a complete apply after the sweep stops on an outage", async () => {
+      linkMember(h, BOB, BOB_UID);
+      linkMember(h, ALICE, UID);
+      h.server.failWith(new Error("Discord is unavailable"));
+
+      await h.service.atStartup();
+
+      // The sweep stops at its first Member; the apply then tries both, in the store's order.
+      expect(h.server.lookups[0]).toBe(BOB);
+      expect([...h.server.lookups.slice(1)].sort()).toEqual([ALICE, BOB].sort());
+      expect(h.unlink.calls).toEqual([]);
     });
   });
 

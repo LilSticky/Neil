@@ -184,6 +184,19 @@ export class LinkStore {
     });
   }
 
+  /**
+   * Hands a pending Rank Approval to the Officers, when this Member is its approver. One UPDATE decides it, so two Unlinks
+   * of the same Member hand it on once. Returns false, and writes nothing, otherwise.
+   */
+  handToOfficers(approvalId: number, memberId: MemberId): boolean {
+    const result = this.db
+      .prepare(
+        "UPDATE rank_approval SET approver_kind = 'officers', approver_member_id = NULL WHERE id = ? AND state = 'pending' AND approver_kind = 'member' AND approver_member_id = ?",
+      )
+      .run(approvalId, memberId);
+    return Number(result.changes) > 0;
+  }
+
   /** Writes a Rank Approval; an approved one also writes its rank, approver and time onto the Link. */
   save(approval: RankApproval): void {
     this.inTransaction(() => {
@@ -199,6 +212,28 @@ export class LinkStore {
     this.db
       .prepare("DELETE FROM rank_approval WHERE state <> 'pending' AND ended_at < ?")
       .run(cutoff.toISOString());
+  }
+
+  /**
+   * Deletes a Member's Link and its Applied State in one transaction, and returns the removed Link; undefined when the
+   * Member had none. Their Rank Approvals are kept as history.
+   */
+  unlink(memberId: MemberId): Link | undefined {
+    return this.inTransaction(() => {
+      const link = this.linkFor(memberId);
+      if (link === undefined) return undefined;
+      this.db.prepare("DELETE FROM applied WHERE member_id = ?").run(memberId);
+      this.db.prepare("DELETE FROM link WHERE member_id = ?").run(memberId);
+      return link;
+    });
+  }
+
+  /** The pending Rank Approvals whose approver is this Member, in the order they were asked. */
+  pendingApprovedBy(memberId: MemberId): RankApproval[] {
+    return this.db
+      .prepare(`${APPROVAL_SELECT} WHERE approver_kind = 'member' AND approver_member_id = ? AND state = 'pending' ORDER BY id`)
+      .all(memberId)
+      .map(rankApprovalOf);
   }
 
   private writeApprovedRank(approval: Extract<RankApproval, { readonly state: "approved" }>): void {

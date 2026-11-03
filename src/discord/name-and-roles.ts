@@ -9,6 +9,7 @@ import type { LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { AppliedStore, AppliedState } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { Unlink } from "./unlink.js";
 import {
   applyNameAndRoles,
   type ApplyReport,
@@ -66,6 +67,7 @@ export interface NameAndRolesDeps {
   readonly applied: AppliedStore;
   readonly links: LinkStore;
   readonly gameApi: NameAndRolesGameApi;
+  readonly unlink: Unlink;
   readonly homeKingdom: KingdomNumber;
   readonly troopBracketLevels: readonly number[];
   /** The Moderator and King role IDs from config: Neil never gives or takes these roles as Managed Roles. */
@@ -114,11 +116,12 @@ async function syncGuarded(
 
 /**
  * Looks up each Linked Member without a complete apply, in the order of their Links. A Member not on the server is
- * skipped with no lookup; a failure for one Member is logged and the next one follows; a quota stop ends the run and
- * the rest wait for the next start. Never throws.
+ * Unlinked first, so is skipped with no lookup; a failure for one Member is logged and the next one follows; a quota stop
+ * ends the run and the rest wait for the next start. Never throws.
  */
 async function startUp(deps: NameAndRolesDeps): Promise<void> {
   try {
+    await unlinkMissing(deps);
     const pending = deps.applied.linkedWithoutCompleteApply();
     for (const [index, link] of pending.entries()) {
       try {
@@ -141,6 +144,24 @@ async function startUp(deps: NameAndRolesDeps): Promise<void> {
     }
   } catch (error) {
     deps.logError(`Giving the Linked Members their name and roles at startup failed: ${reasonOf(error)}`);
+  }
+}
+
+/**
+ * Unlinks each Linked Member Discord reports as not on the server, as missing. A failure to reach Discord stops the
+ * sweep: it is logged once, and the Members not yet checked are left as they are, so the apply that follows still sees
+ * them. Repeated failures in an outage would only repeat the same error.
+ */
+async function unlinkMissing(deps: NameAndRolesDeps): Promise<void> {
+  for (const link of deps.links.all()) {
+    let server: ServerMember | undefined;
+    try {
+      server = await deps.members.memberOf(link.memberId);
+    } catch (error) {
+      deps.logError(`Checking ${link.memberId} is on the server at startup failed: ${reasonOf(error)}`);
+      return;
+    }
+    if (server === undefined) await deps.unlink.unlink({ id: link.memberId }, "missing");
   }
 }
 
@@ -227,6 +248,7 @@ async function applyTo(
     managedTags,
     officerRoleIds: deps.officerRoleIds,
   });
+  // An Unlink may have removed the Link meanwhile: the foreign key rejects this record, and the caller logs the failure.
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
   if (!hasChange(report, previous, nickname)) return;
   await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? ""));

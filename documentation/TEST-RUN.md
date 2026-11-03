@@ -147,6 +147,17 @@ Branch `009-keep-roles-in-sync`. Set `SYNC_HOUR_UTC` to the current UTC hour to 
 | 6e.4 | A Linked Player changed rank/alliance in game | New rank/alliance roles and nickname after the run; log line names the change | | |
 | 6e.5 | `SYNC_SHARE=1` with Members in 2 Alliances | Summary says "1 left"; next run does the rest first | | |
 
+## 6f. Say goodbye (slice 010, collected 2026-11-02)
+
+Branch `010-say-goodbye`. Needs a second Discord account that is Linked (an alt).
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6f.1 | The Linked alt leaves the server | One `🔓` line in `#neil-log` with the alt, uid and nickname; the alt gets a private message if it shares another server with Neil | | |
+| 6f.2 | The alt rejoins | A new Onboarding Interview starts; the same uid can be Linked again | | |
+| 6f.3 | Alt is the Linked R5 and approver of a pending Rank Approval, then leaves | The Rank Approval's thread says the Officers approve now (Officer roles pinged); an Officer's button press approves | | |
+| 6f.4 | Stop Neil, let the Linked alt leave, start Neil | The alt is Unlinked at startup (`🔓 … is not on the server`) | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

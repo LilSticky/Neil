@@ -5,6 +5,7 @@ import {
   type BaseMessageOptions,
   GatewayIntentBits,
   GuildMember,
+  Partials,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Guild,
@@ -40,6 +41,7 @@ import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
+import { createUnlink } from "./unlink.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import {
   answer,
@@ -127,7 +129,11 @@ export interface ClientOptions {
 /** A discord.js client with the Guilds and GuildMembers intents that routes each event to its handler. */
 export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
   const logError = options.logError ?? console.error;
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
+  // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
+  const client = new Client({
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+    partials: [Partials.GuildMember, Partials.User],
+  });
   // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
   client.on(Events.Error, (error) => {
     logError(`Discord client error: ${error.message}`);
@@ -141,7 +147,7 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       bot: member.user.bot,
     });
   });
-  // The member may be partial when they left; their user is still there.
+  // The member may be partial when they left; the Discord event carries their user, with the username, so it is still there.
   client.on(Events.GuildMemberRemove, (member) => {
     if (member.guild.id !== options.guildId) return;
     void handlers.memberLeft({ id: member.id, username: member.user.username });
@@ -511,11 +517,23 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    const unlink = createUnlink({
+      links: options.links,
+      applied: options.applied,
+      channels,
+      sendPrivateMessage: async (memberId, message) => {
+        const user = await client.users.fetch(memberId);
+        await user.send(message);
+      },
+      officerRoles,
+      logError,
+    });
     const nameAndRoles = createNameAndRoles({
       members: serverMembersOf(guild),
       applied: options.applied,
       links: options.links,
       gameApi: options.gameApi,
+      unlink,
       homeKingdom: options.homeKingdom,
       troopBracketLevels: options.troopBracketLevels,
       officerRoleIds: options.officerRoleIds,
@@ -544,6 +562,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       officerRoles,
       rankApprovals,
       nameAndRoles,
+      unlink,
       isOnServer: (memberId) => guild.members.fetch(memberId).then(
         () => true,
         () => false,
@@ -569,6 +588,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
             members: serverMembersOf(guild),
             gameApi: options.gameApi,
             nameAndRoles,
+            unlink,
             share: options.syncShare,
             quotaReserve: options.quotaReserve,
             log: (message) => channels.log(message),

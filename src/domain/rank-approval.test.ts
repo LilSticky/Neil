@@ -1,6 +1,13 @@
 import { describe, expect, test } from "vitest";
 import type { AllianceRank } from "./player.js";
-import { approve, cancel, chooseApprover, mayApprove, type MemberId, type RankApproval } from "./rank-approval.js";
+import {
+  approve,
+  cancel,
+  chooseApprover,
+  mayApprove,
+  type MemberId,
+  type RankApproval,
+} from "./rank-approval.js";
 
 const LEADER: MemberId = "member-leader";
 const LINKED: MemberId = "member-linked";

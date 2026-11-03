@@ -17,14 +17,14 @@ States: `planned` · `in progress` · `in review` · `done`
 | 004 | Find a player by name or alliance | any Member run `/player` by name (with a pick list when the name matches Players in several kingdoms; the kingdom narrows it) and see an Alliance's members with their uids on `/alliance`, to look up any of them; lookups stop short of the Quota Reserve, which is kept for Onboarding Interviews | Player name, Alliance roster, Quota Reserve | `/players/name/{name}`, `/players/{kingdom}/{name}`, `/alliances/name/{name}` (exact full name), 409 match list, select menu or buttons | done |
 | 005 | Interview a new member | a Member who joins be walked through giving their player uid in a private thread, confirm the Player Neil found, and get Linked (an already linked uid is refused; an unknown rank goes to the Alliance's R5); it starts by recommending the Player whose name matches the Member's Discord name, and lookups search by name or tag without showing uids | Onboarding Interview (state machine), In-game Proof (uid), Link, Rank Approval, use of the Quota Reserve | `guildMemberAdd`, private thread, buttons/modals, storage | in review |
 | 006 | Give a member their name and roles | an approved Member get their nickname (`[TAG\|R5] Nick \| #331`) and alliance, rank, kingdom and bracket roles | nickname format, role mapping, Managed Roles | role/nickname changes, role hierarchy checks, log channel | in review |
-| 007 | Find an alliance by approximate name | any Member find a Home Kingdom Alliance by part of its name or tag or a near spelling: suggestions while typing `/alliance`, and a pick list when the exact name finds nothing | Known Alliance, approximate matching | autocomplete, storage of seen Alliances, Game API client hook | in progress |
-| 008 | Alliance overview | any Member see an Alliance's activity from the Alliance card: totals, top contributors, Least Active members and a paged per-member table | Alliance Overview, Weekly Activity, Daily Honor, Daily Tech, Least Active | roster fields, button, private paged reply | in progress |
-| 009 | Keep roles in sync | Linked Members' nicknames and Managed Roles follow the game: a Daily Sync re-reads rosters within its Sync Share | Daily Sync, Sync Share | scheduler, roster re-reads, sync purpose in the quota | in progress |
+| 007 | Find an alliance by approximate name | any Member find a Home Kingdom Alliance by part of its name or tag or a near spelling: suggestions while typing `/alliance`, and a pick list when the exact name finds nothing | Known Alliance, approximate matching | autocomplete, storage of seen Alliances, Game API client hook | in review |
+| 008 | Alliance overview | any Member see an Alliance's activity from the Alliance card: totals, top contributors, Least Active members and a paged per-member table | Alliance Overview, Weekly Activity, Daily Honor, Daily Tech, Least Active | roster fields, button, private paged reply | in review |
+| 009 | Keep roles in sync | Linked Members' nicknames and Managed Roles follow the game: a Daily Sync re-reads rosters within its Sync Share | Daily Sync, Sync Share | scheduler, roster re-reads, sync purpose in the quota | in review |
+| 010 | Say goodbye | a Linked Member who leaves be Unlinked at once (log line, private message, their pending Rank Approvals go to the Officers), also when Neil missed the leave | Unlink | `guildMemberRemove`, startup and Daily Sync sweep, private message | in progress |
 
 ## Later (unordered)
 
 - **Correct a link**: Officers relink, unlink or override a Member; a Member asks for a re-check.
-- **Say goodbye**: clean up Links and roles when a Member leaves.
 
 ## Project infrastructure (not slices)
 

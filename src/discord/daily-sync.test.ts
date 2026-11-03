@@ -17,6 +17,7 @@ import { LinkStore } from "../storage/link-store.js";
 import type { DailySyncRecord } from "../storage/daily-sync-store.js";
 import { FakeDailySyncGameApi } from "./__fakes__/daily-sync-game-api.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
+import { FakeUnlink } from "./__fakes__/unlink.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { runDailySync, startDailySync, type DailySyncDeps } from "./daily-sync.js";
 import { createNameAndRoles } from "./name-and-roles.js";
@@ -151,6 +152,7 @@ interface Harness {
   readonly links: LinkStore;
   readonly runs: DailySyncStore;
   readonly gameApi: FakeDailySyncGameApi;
+  readonly unlink: FakeUnlink;
   readonly logs: BaseMessageOptions[];
   readonly errors: string[];
   readonly clock: { now: Date };
@@ -170,6 +172,7 @@ function makeHarness(): Harness {
   const links = new LinkStore(db);
   const runs = new DailySyncStore(db);
   const gameApi = new FakeDailySyncGameApi(now);
+  const unlink = new FakeUnlink();
   const logs: BaseMessageOptions[] = [];
   const errors: string[] = [];
   const log = (message: BaseMessageOptions): Promise<void> => {
@@ -184,6 +187,7 @@ function makeHarness(): Harness {
     applied,
     links,
     gameApi,
+    unlink,
     homeKingdom: HOME,
     troopBracketLevels: TROOP_BRACKET_LEVELS,
     officerRoleIds: [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID],
@@ -198,6 +202,7 @@ function makeHarness(): Harness {
     members: server,
     gameApi,
     nameAndRoles,
+    unlink,
     share: 500,
     quotaReserve: QUOTA_RESERVE,
     log,
@@ -211,6 +216,7 @@ function makeHarness(): Harness {
     links,
     runs,
     gameApi,
+    unlink,
     logs,
     errors,
     clock,
@@ -440,6 +446,44 @@ describe("runDailySync", () => {
     await runDailySync(h.deps);
 
     expect(h.gameApi.requests).toEqual([{ kind: "roster", kingdom: 330, tag: "NML", purpose: "sync" }]);
+  });
+
+  test("Unlinks a Linked Member who is not on the server as missing, with no request for them", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    joinMember(h, BEN, []);
+    h.gameApi.answerRoster(
+      HOME,
+      "NML",
+      found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4"), rosterRow(BEN_UID, "Lupa", "R4")])),
+    );
+
+    await runDailySync(h.deps);
+
+    expect(h.unlink.calls).toEqual([{ memberId: ANA, reason: "missing" }]);
+    expect(h.gameApi.requests).toEqual([{ kind: "roster", kingdom: 330, tag: "NML", purpose: "sync" }]);
+  });
+
+  test("counts a Member Unlinked as missing as skipped, and does not leave them over for the next day", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    joinMember(h, BEN, []);
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R4")])));
+
+    await runDailySync(h.deps);
+
+    expect(summaryOf(h)).toMatch(/\b1 skipped\b/);
+    expect(h.runs.load()?.leftOver).not.toContain(ANA);
+  });
+
+  test("does not Unlink a Linked Member whose fetch fails for another reason, and the run ends with that failure", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
+    h.server.failFor(ANA, new Error("Discord is unavailable"));
+
+    await expect(runDailySync(h.deps)).rejects.toThrow("Discord is unavailable");
+
+    expect(h.unlink.calls).toEqual([]);
+    expect(h.links.linkFor(ANA)).toBeDefined();
   });
 
   test("looks up by uid each Member of an Alliance whose roster the Game API does not find", async () => {

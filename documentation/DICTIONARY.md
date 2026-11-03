@@ -113,7 +113,13 @@ discovery.
 ## Link
 * The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me")
 * A Member has at most one Link, and a Player at most one
+* Ends with the Member's Unlink; the Player can then be Linked again
+
+## Unlink
+* What Neil does when a Linked Member leaves the server, seen live or found missing at startup or in the Daily Sync
+* Ends the Link, logs it for Officers, sends the Member a private message if Discord allows it, and hands Rank Approvals waiting on them to the Officers
 
 ## Rank Approval
 * The confirmation of a Linked Player's Alliance Rank by hand, when the Game API lists no rank for them
 * Given by the Member Linked to the Alliance's R5; if there is none, by an Officer; never by the Linked Member themselves
+* Goes to the Officers when the chosen Member leaves
