@@ -107,6 +107,21 @@ the new roles will appear, below Moderator and King. Branch `006-give-a-member-t
 | 6b.8 | Rank Approval (section 4) for an R4 | Rank role `R4` given, nickname gains `\|R4` | | |
 | 6b.9 | Give an existing role named like a Managed Role (e.g. `R5`) a permission, then Link an R5 | Role not given; log says it has permissions | | |
 
+## 6c. Find an alliance by approximate name (slice 007, collected 2026-11-02)
+
+Branch `007-find-an-alliance-by-approximate-name`; run `npm run commands:register` first (autocomplete). Known
+Alliances fill up from lookups: do a few `/player` and `/alliance tag:` lookups of Kingdom 330 first.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6c.1 | Type `/alliance name:` and wait | Up to 25 recently seen Kingdom 330 Alliances as `[TAG] Name`; no quota used (`/quota` unchanged) | | |
+| 6c.2 | Type a part of a known name (3+ letters) | That Alliance among the first suggestions | | |
+| 6c.3 | Type it with one letter wrong or swapped | Still suggested | | |
+| 6c.4 | Pick a suggestion and send | The Alliance card | | |
+| 6c.5 | Send `/alliance name:` with a misspelt name without picking | Private "Did you mean…" pick list; picking shows the card | | |
+| 6c.6 | `/alliance tag:NML` without kingdom | Kingdom 330's NML (or not found) | | |
+| 6c.7 | An Alliance of another Kingdom looked up | Never suggested | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

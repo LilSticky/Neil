@@ -19,7 +19,7 @@ import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { typ
 import playerByName from "./__fixtures__/player-by-name.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
 import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
-import { type FetchLike, GameApiClient } from "./client.js";
+import { type AllianceSeenHook, type FetchLike, GameApiClient } from "./client.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./quota-keeper.js";
 
 const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
@@ -145,6 +145,7 @@ function clientWith(
   now: () => Date = () => FIXED_NOW,
   quota: QuotaKeeper = quotaOn(new FakeQuotaStore(), now),
   sleep: (ms: number) => Promise<void> = noPause,
+  hooks: { readonly onAllianceSeen?: AllianceSeenHook } = {},
 ) {
   return new GameApiClient({
     apiKey: FAKE_API_KEY,
@@ -156,6 +157,7 @@ function clientWith(
     random: () => JITTER,
     cacheTtlMs: CACHE_TTL_MS,
     logError: vi.fn<(line: string) => void>(),
+    ...hooks,
   });
 }
 
@@ -1471,4 +1473,105 @@ describe("GameApiClient in-flight requests per purpose", () => {
       expect(interviewResult).toMatchObject({ kind: "found" });
     },
   );
+});
+
+describe("GameApiClient onAllianceSeen hook", () => {
+  test.each([
+    [
+      "a Player with an Alliance",
+      playerInAlliance,
+      (client: GameApiClient) => client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup"),
+    ],
+    [
+      "a Player found by name",
+      playerByName,
+      (client: GameApiClient) => client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup"),
+    ],
+    [
+      "an Alliance looked up by tag",
+      alliance,
+      (client: GameApiClient) => client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup"),
+    ],
+    [
+      "an Alliance found by full name",
+      allianceByName,
+      (client: GameApiClient) => client.findAlliance(parsedAllianceKey("No Man's Land"), "lookup"),
+    ],
+  ])("is called once with the Kingdom, tag and full name of a fresh answer holding %s", async (_label, body, ask) => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+
+    await ask(clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }));
+
+    expect(onAllianceSeen).toHaveBeenCalledTimes(1);
+    expect(onAllianceSeen).toHaveBeenCalledWith(1, "NML", "No Man's Land");
+  });
+
+  test("is called with the Kingdom the answer names, whichever Kingdom that is", async () => {
+    const body = { ...playerInAlliance, kid: 2 };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+
+    await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).getPlayer(
+      parsedUid(PLAYER_UID_TEXT),
+      "lookup",
+    );
+
+    expect(onAllianceSeen).toHaveBeenCalledWith(2, "NML", "No Man's Land");
+  });
+
+  test("is not called for a Player without an Alliance", async () => {
+    const body = { ...playerInAlliance, aid: 0, alliance_members: [] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+
+    await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).getPlayer(
+      parsedUid(PLAYER_UID_TEXT),
+      "lookup",
+    );
+
+    expect(onAllianceSeen).not.toHaveBeenCalled();
+  });
+
+  test("is not called again for an answer served from the cache", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+    const client = clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen });
+
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+    await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(sent).toHaveLength(1);
+    expect(onAllianceSeen).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    ["not found", 404, allianceNotFound],
+    ["ambiguous", 409, alliancesAmbiguous],
+  ])("is not called for an Alliance name that is %s", async (_label, status, body) => {
+    const { fetch } = fakeFetch(() => jsonResponse(status, body));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+
+    await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).findAlliance(
+      parsedAllianceKey("No Such Land"),
+      "lookup",
+    );
+
+    expect(onAllianceSeen).not.toHaveBeenCalled();
+  });
+
+  test("a hook that throws does not fail the lookup, which is still found", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>(() => {
+      throw new Error("the store is full");
+    });
+
+    const result = await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).getPlayer(
+      parsedUid(PLAYER_UID_TEXT),
+      "lookup",
+    );
+
+    expect(onAllianceSeen).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ kind: "found", value: { uid: "145563254785", alliance: { tag: "NML" } } });
+  });
 });

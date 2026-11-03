@@ -26,6 +26,7 @@ describe("openDatabase", () => {
       { version: 3 },
       { version: 4 },
       { version: 5 },
+      { version: 6 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -43,6 +44,7 @@ describe("openDatabase", () => {
       { version: 3 },
       { version: 4 },
       { version: 5 },
+      { version: 6 },
     ]);
     db.close();
   });
@@ -52,7 +54,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 5");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 6");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -163,6 +165,7 @@ describe("openDatabase", () => {
       { version: 3 },
       { version: 4 },
       { version: 5 },
+      { version: 6 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -215,6 +218,67 @@ describe("openDatabase", () => {
     }
   });
 
+  test("migration 6 creates known_alliance with the columns of a Known Alliance", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('known_alliance')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual(["kingdom", "tag", "name", "last_seen"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("known_alliance allows one row per Kingdom and tag", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare("INSERT INTO known_alliance (kingdom, tag, name, last_seen) VALUES (?, ?, ?, ?)");
+
+      insert.run(330, "NML", "No Man's Land", "2026-11-02T12:00:00.000Z");
+      expect(() => insert.run(330, "NML", "No Mans Land", "2026-11-02T13:00:00.000Z")).toThrow(/UNIQUE/);
+      expect(() => insert.run(1, "NML", "No Man's Land", "2026-11-02T13:00:00.000Z")).not.toThrow();
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 5 database to 6 and keeps its Links and Applied States", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v5.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source) VALUES (?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown");
+    legacy
+      .prepare("INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "DrLOL", "[]", "2026-10-30T12:00:00.000Z", 1);
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+        { version: 6 },
+      ]);
+      expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
+        { member_id: "member-1", uid: "145563254785" },
+      ]);
+      expect(db.prepare("SELECT member_id, nickname, complete FROM applied").all()).toEqual([
+        { member_id: "member-1", nickname: "DrLOL", complete: 1 },
+      ]);
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'known_alliance'").get()).toEqual(
+        { name: "known_alliance" },
+      );
+    } finally {
+      db.close();
+    }
+  });
+
   test("upgrades a version 4 database to 5 and keeps its Links", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
     legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v4.sql"), "utf8"));
@@ -231,6 +295,7 @@ describe("openDatabase", () => {
         { version: 3 },
         { version: 4 },
         { version: 5 },
+        { version: 6 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -292,6 +357,7 @@ describe("openDatabase", () => {
       { version: 3 },
       { version: 4 },
       { version: 5 },
+      { version: 6 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),

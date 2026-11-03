@@ -15,6 +15,7 @@ import {
   lookupMessages,
   renderAllianceCard,
   renderAlliancePickList,
+  renderCloseAlliancePickList,
   renderPlayerCard,
   renderPlayerPickList,
   renderRosterComponents,
@@ -790,6 +791,53 @@ describe("renderAlliancePickList", () => {
   });
 });
 
+describe("renderCloseAlliancePickList", () => {
+  test("labels each close Known Alliance as plain [TAG] Name, without escaping its markdown characters", () => {
+    const pickList = renderCloseAlliancePickList(
+      allianceKey("no mans"),
+      [{ tag: "NML", name: "No_Man's *Land*", kingdom: 330 }],
+      "a1b2c3d4",
+    );
+
+    expect(optionLabelsOf(pickList.components)).toEqual(["[NML] No_Man's *Land*"]);
+  });
+
+  test("escapes the typed name in the question, not in the labels", () => {
+    const pickList = renderCloseAlliancePickList(
+      allianceKey("no_mans*"),
+      [{ tag: "NML", name: "No_Man's *Land*", kingdom: 330 }],
+      "a1b2c3d4",
+    );
+
+    expect(pickList.content).toBe('No alliance is named "no\\_mans\\*". Did you mean one of these?');
+    expect(optionLabelsOf(pickList.components)).toEqual(["[NML] No_Man's *Land*"]);
+  });
+
+  test("lists the matches in the order given, valued by index in that order, not sorted by name", () => {
+    const pickList = renderCloseAlliancePickList(
+      allianceKey("wolf"),
+      [
+        { tag: "WLF", name: "Wolfpack", kingdom: 330 },
+        { tag: "BWC", name: "Big Wolf Clan", kingdom: 330 },
+      ],
+      "a1b2c3d4",
+    );
+
+    expect(pickList.components).toMatchObject([
+      {
+        components: [
+          {
+            options: [
+              { label: "[WLF] Wolfpack", value: "0" },
+              { label: "[BWC] Big Wolf Clan", value: "1" },
+            ],
+          },
+        ],
+      },
+    ]);
+  });
+});
+
 describe("lookupMessages for /alliance by name", () => {
   test("giveKingdomAndTagOrName gives the contract's text", () => {
     expect(lookupMessages.giveKingdomAndTagOrName).toBe(
@@ -797,15 +845,15 @@ describe("lookupMessages for /alliance by name", () => {
     );
   });
 
-  test("allianceNameNotFound names the name and says approximate names are not supported", () => {
+  test("allianceNameNotFound names the name, says none is close and points to the tag or a suggestion", () => {
     expect(lookupMessages.allianceNameNotFound(allianceKey("No Such Land"))).toBe(
-      'No alliance is named exactly "No Such Land". Use the full name, or the kingdom and tag; approximate names are not supported.',
+      'No alliance is named "No Such Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
     );
   });
 
   test("allianceNameNotFound escapes the name as typed", () => {
     expect(lookupMessages.allianceNameNotFound(allianceKey("N_M*"))).toBe(
-      'No alliance is named exactly "N\\_M\\*". Use the full name, or the kingdom and tag; approximate names are not supported.',
+      'No alliance is named "N\\_M\\*", and none I know is close. Try the tag, or start typing and pick a suggestion.',
     );
   });
 });

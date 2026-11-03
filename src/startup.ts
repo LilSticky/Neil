@@ -2,9 +2,11 @@ import type { BuildInfo } from "./build-info.js";
 import { ConfigError, loadConfig } from "./config.js";
 import type { ConnectOptions, GameApi } from "./discord/client.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
+import type { AllianceSeenHook } from "./game-api/client.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
 import type { AppliedStore } from "./storage/applied-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
+import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
@@ -34,12 +36,13 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links and the Applied States, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links, the Applied States and the Known Alliances, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
   readonly applied: AppliedStore;
+  readonly knownAlliances: KnownAllianceStore;
 }
 
 export interface Connection {
@@ -53,7 +56,13 @@ export interface StartupDeps {
   readonly readBuildInfo: () => BuildInfo;
   readonly prepareDataDir: (dataDir: string) => void;
   readonly openStore: (dataDir: string, interviewTimeoutMs: number) => StartupStorage;
-  readonly createGameApi: (apiKey: string, version: string, cacheTtlMs: number, quota: QuotaKeeper) => GameApi;
+  readonly createGameApi: (
+    apiKey: string,
+    version: string,
+    cacheTtlMs: number,
+    quota: QuotaKeeper,
+    onAllianceSeen: AllianceSeenHook,
+  ) => GameApi;
   readonly connect: (token: string, options: ConnectOptions) => Promise<Connection>;
   readonly onStopSignal: (handler: () => Promise<void>) => void;
   readonly writeError: (text: string) => void;
@@ -79,6 +88,9 @@ export async function start(deps: StartupDeps): Promise<void> {
     store = deps.openStore(config.dataDir, config.interviewTimeoutMs);
     const startRecord = recordStart(store.load(), deps.now());
     store.save(startRecord);
+    const { knownAlliances } = store;
+    // Known Alliances not seen for 30 days are forgotten at each start (FR-006).
+    knownAlliances.forget(deps.now());
     const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now, reserve: config.quotaReserve });
     // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
     const today = quota.today();
@@ -87,11 +99,17 @@ export async function start(deps: StartupDeps): Promise<void> {
         `Warning: GAME_API_QUOTA_RESERVE (${config.quotaReserve.toString()}) is at or above the Daily Quota limit (${today.limit.toString()}); lookups will never ask the Game API.`,
       );
     }
+    // Only the Home Kingdom's Alliances are kept: they are the ones /alliance suggests by name and tag.
+    const onAllianceSeen: AllianceSeenHook = (kingdom, tag, name) => {
+      if (kingdom !== config.homeKingdom || tag.trim() === "" || name.trim() === "") return;
+      knownAlliances.seen({ kingdom, tag, name }, deps.now());
+    };
     const gameApi = deps.createGameApi(
       config.gameApiKey,
       buildInfo === "dev" ? "dev" : buildInfo.version,
       config.cacheTtlMs,
       quota,
+      onAllianceSeen,
     );
     connection = await deps.connect(config.discordToken, {
       buildInfo,
@@ -106,6 +124,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       interviews: store.interviews,
       links: store.links,
       applied: store.applied,
+      knownAlliances,
       homeKingdom: config.homeKingdom,
       troopBracketLevels: config.troopBracketLevels,
     });

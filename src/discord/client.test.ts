@@ -3,13 +3,26 @@ import { describe, expect, test, vi } from "vitest";
 import { createClient, memberRoleIds } from "./client.js";
 
 function chatInput(commandName: string) {
-  return { isChatInputCommand: () => true, commandName };
+  return { isChatInputCommand: () => true, isAutocomplete: () => false, commandName };
+}
+
+/** An autocomplete request for a command, on one of its options. */
+function autocomplete(commandName: string) {
+  return {
+    isChatInputCommand: () => false,
+    isAutocomplete: () => true,
+    isStringSelectMenu: () => false,
+    isButton: () => false,
+    isModalSubmit: () => false,
+    commandName,
+  };
 }
 
 /** A select menu or button interaction; the custom id decides where it goes. */
 function component(kind: "select" | "button", customId: string) {
   return {
     isChatInputCommand: () => false,
+    isAutocomplete: () => false,
     isStringSelectMenu: () => kind === "select",
     isButton: () => kind === "button",
     isModalSubmit: () => false,
@@ -21,6 +34,7 @@ function component(kind: "select" | "button", customId: string) {
 function modal(customId: string) {
   return {
     isChatInputCommand: () => false,
+    isAutocomplete: () => false,
     isStringSelectMenu: () => false,
     isButton: () => false,
     isModalSubmit: () => true,
@@ -42,6 +56,7 @@ function handlers() {
     ping: vi.fn(() => Promise.resolve()),
     player: vi.fn(() => Promise.resolve()),
     alliance: vi.fn(() => Promise.resolve()),
+    allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
@@ -109,6 +124,18 @@ describe("createClient", () => {
     expect(routed.player).not.toHaveBeenCalled();
   });
 
+  test("hands an autocomplete request of /alliance to the alliance autocomplete handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = autocomplete("alliance");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.allianceAutocomplete).toHaveBeenCalledWith(interaction);
+    expect(routed.alliance).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
   test("hands /quota to the quota handler and nothing else", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });
@@ -129,7 +156,7 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, chatInput("other") as never);
     client.emit(
       Events.InteractionCreate,
-      { isChatInputCommand: () => false, isStringSelectMenu: () => false, isButton: () => false, isModalSubmit: () => false } as never,
+      { isChatInputCommand: () => false, isAutocomplete: () => false, isStringSelectMenu: () => false, isButton: () => false, isModalSubmit: () => false } as never,
     );
 
     expect(routed.ping).not.toHaveBeenCalled();

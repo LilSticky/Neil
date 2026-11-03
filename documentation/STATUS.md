@@ -16,8 +16,16 @@ The user decided (2026-11-02) to test later: manual test cases are **collected**
 (sections 2b and 6b), not run. PR [#22](https://github.com/LilSticky/Neil/pull/22) (issue #21) is open against the 005
 branch; bot review (3 must, 4 should) fixed, spec audit done; 1334 tests.
 
-**Next step (2026-11-02):** pick the next slice from ROADMAP "Later" (the user's choice); #16 and #22 stay open until the
-user has run TEST-RUN.md, then merge #16, retarget #22 to `main`, merge it.
+Slice 007 "Find an alliance by approximate name" is implemented on branch `007-find-an-alliance-by-approximate-name`,
+stacked on 006: Neil remembers Home Kingdom Alliances it sees (Known Alliances, forgotten after 30 days), `/alliance`
+suggests them while typing, and a full name the Game API does not know gets a "Did you mean" pick list; `tag:` without
+a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6c.
+
+007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
+
+**Next step (2026-11-02):** the next slice from ROADMAP "Later" (the user's choice).
+#16, #22 and #24 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
+next to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);

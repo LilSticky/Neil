@@ -42,14 +42,16 @@ export const alliance = new SlashCommandBuilder()
       .setName("name")
       .setDescription("The alliance's exact full name, alone")
       .setRequired(false)
-      .setMaxLength(40),
+      .setMaxLength(40)
+      .setAutocomplete(true),
   )
   .addStringOption((option) =>
     option
       .setName("tag")
       .setDescription("The alliance tag, e.g. NML")
       .setRequired(false)
-      .setMaxLength(40),
+      .setMaxLength(40)
+      .setAutocomplete(true),
   )
   .addIntegerOption((option) =>
     option

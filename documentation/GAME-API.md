@@ -50,7 +50,7 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
 [discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004), and the Onboarding Interview's Recommended Player (slice 005: one `/players/name/{name}` per Interview, Quota Reserve). There is
-no approximate (fuzzy) name search in the API.
+no approximate (fuzzy) name search in the API; Neil matches Known Alliances itself (slice 007), recorded from every fresh answer that shows a Home Kingdom Alliance.
 
 ### Player (`/players/{uid}`), verified fields
 

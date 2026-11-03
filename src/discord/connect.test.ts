@@ -11,6 +11,7 @@ import { recordStart } from "../domain/start-record.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
+import { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeConnectGuild } from "./__fakes__/connect-guild.js";
 import { FakeClient } from "./__fakes__/discord-client.js";
@@ -143,6 +144,7 @@ describe("connect", () => {
       interviews,
       links,
       applied,
+      knownAlliances: new KnownAllianceStore(db),
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
     };

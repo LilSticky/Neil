@@ -1,6 +1,7 @@
 import {
   Client,
   Events,
+  type AutocompleteInteraction,
   type BaseMessageOptions,
   GatewayIntentBits,
   GuildMember,
@@ -19,7 +20,9 @@ import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { AppliedStore } from "../storage/applied-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
+import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import {
   createInterviews,
   type ButtonInteractionLike,
@@ -36,7 +39,14 @@ import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { handlePing, type PingInteraction } from "./ping.js";
-import { answer, handleAlliance, handlePlayer, type LookupApi, type LookupInteraction } from "./lookup.js";
+import {
+  answer,
+  handleAlliance,
+  handlePlayer,
+  type AllianceLookupContext,
+  type LookupApi,
+  type LookupInteraction,
+} from "./lookup.js";
 import { handlePick, type PickInteraction } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 import { handleQuota } from "./quota.js";
@@ -55,6 +65,8 @@ export interface CommandHandlers {
   readonly ping: (interaction: PingInteraction) => Promise<void>;
   readonly player: (interaction: LookupInteraction) => Promise<void>;
   readonly alliance: (interaction: LookupInteraction) => Promise<void>;
+  /** An autocomplete request of /alliance, for its name or tag option. */
+  readonly allianceAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
   readonly pick: (interaction: PickInteraction) => Promise<void>;
@@ -149,6 +161,10 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       }
       return;
     }
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === "alliance") void handlers.allianceAutocomplete(interaction);
+      return;
+    }
     if (interaction.isModalSubmit()) {
       if (interaction.customId.startsWith(INTERVIEW_PREFIX)) void handlers.interviewModal(interaction);
       return;
@@ -192,6 +208,8 @@ export interface ConnectOptions {
   readonly links: LinkStore;
   /** The Applied State of each Linked Member: what the name and roles last set. */
   readonly applied: AppliedStore;
+  /** The Known Alliances of the Home Kingdom, for the name and tag suggestions and the close names of /alliance. */
+  readonly knownAlliances: Pick<KnownAllianceStore, "all">;
   /** The Home Kingdom from config: members of it are Home Kingdom Players. */
   readonly homeKingdom: KingdomNumber;
   /** The first level of each Troop Bracket from config, T1 first. */
@@ -396,6 +414,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   // One store for every pick list: the lookups open them, the pick handler answers them.
   const pickSessions = new PickSessions();
   const now = (): Date => new Date();
+  const allianceContext: AllianceLookupContext = {
+    gameApi: options.gameApi,
+    pickSessions,
+    now,
+    logError,
+    homeKingdom: options.homeKingdom,
+    knownAlliances: options.knownAlliances,
+  };
   // Interview and Rank Approval events wait here until ready and the channel check have passed; then they reach the services.
   let openServices: (services: Services) => void = () => undefined;
   const services = new Promise<Services>((resolve) => {
@@ -413,8 +439,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         }),
       player: (interaction) =>
         handlePlayer(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
-      alliance: (interaction) =>
-        handleAlliance(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+      alliance: (interaction) => handleAlliance(interaction, allianceContext),
+      allianceAutocomplete: (interaction) =>
+        answer("/alliance autocomplete", { logError }, () =>
+          handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError }),
+        ),
       pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
       quota: (interaction) =>
         handleQuota(
