@@ -190,10 +190,10 @@ Branch `012-see-a-fuller-card`. No new commands, no `commands:register` needed.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 6h.1 | `/player name:DrLOL` | Red accent; "Kingdom #1" with the kingdom badge on top; avatar at the right; "Last online … ago"; grid Power · Kills · Likes / Sanctuary level · VIP Level · Language / Alliance · Alliance Rank · Location | | |
-| 6h.2 | Read the card from 6h.1 | Power, Alliance and Last Online found in under 5 seconds (SC-004); nothing looks cramped or misaligned on desktop and phone | | |
-| 6h.3 | `/alliance tag:NML kingdom:1` | Alliance badge at the right; "**Join Requirements:** …" line; Power · Kingdom Power Rank · Members / Leader · Alliance Level · Gift Level / Language; roster rows `Name · 27.6M` | | |
-| 6h.4 | Turn the roster menu to page 2 (an Alliance with more than 25 members) | Same top part; roster rows with power; no Discord error | | |
+| 6h.1 | `/player name:DrLOL` | Red accent; "Kingdom #1" with the kingdom badge on top; avatar at the right; "Last online … ago"; grid Might · Kills · Likes / Sanctuary level · VIP Level · Language / Alliance · Alliance Rank · Location | | |
+| 6h.2 | Read the card from 6h.1 | Might, Alliance and Last Online found in under 5 seconds (SC-004); nothing looks cramped or misaligned on desktop and phone | | |
+| 6h.3 | `/alliance tag:NML kingdom:1` | Alliance badge at the right; "**Join Requirements:** …" line; Might · Kingdom Might Rank · Members / Leader · Alliance Level · Gift Level / Language; roster rows `Name · 27.6M` | | |
+| 6h.4 | Turn the roster menu to page 2 (an Alliance with more than 25 members) | Same top part; roster rows with Might; no Discord error | | |
 | 6h.5 | `/player` on a Player without an Alliance | "No alliance", no Alliance Rank; other values as in 6h.1 | | |
 | 6h.6 | `/quota` before and after 6h.1–6h.5 | Same number of requests as before this slice (one per uncached lookup) | | |
 | 6h.7 | `/player` on a Player the Game gives no Last Online for (often one online right now) | "Online now" under the name | | |

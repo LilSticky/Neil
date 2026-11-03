@@ -52,12 +52,12 @@ waits for the user.
 Slice 012 "See a fuller card" is implemented on branch `012-see-a-fuller-card`, stacked on 011 (user request,
 2026-11-02: "include whatever is confirmed and stable", and make the card pleasing and easy to read). `/player` and
 `/alliance` cards show the Game API fields judged stable in a live check (GAME-API.md, "Stability check"), the
-tracker's avatar and badges, an accent color and a grouped grid; roster rows show power. No extra request. Ten new
+tracker's avatar and badges, an accent color and a grouped grid; roster rows show Might. No extra request. Ten new
 dictionary terms (approved). Reviewed (1 must, 1 should, 2 could fixed; C2 kept), audited; test cases in
 [TEST-RUN.md](TEST-RUN.md) §6h; 1979 tests.
 
 Test run feedback (2026-11-03), added to 012: the Alliance Overview gets the Alliance card's look (accent color,
-Kingdom author line, badge, fields in rows of three, power on table rows), and a Player without a Last Online counts as
+Kingdom author line, badge, fields in rows of three, Might on table rows), and a Player without a Last Online counts as
 online now (Player card "Online now"; Overview table and counts). The "Unknown interaction" on the roster's Next button
 came from Neil running locally and on Wispbyte at once (TEST-RUN.md 0.6); no change. Tasks T007–T009 done, reviewed
 (S2, C4 fixed; C5 kept for the manual check); 2000 tests. New test cases: TEST-RUN.md §6h.7–6h.9.

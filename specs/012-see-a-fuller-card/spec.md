@@ -19,18 +19,18 @@ the card visually pleasing and easy to read." Field selection and pictures appro
   history (only power changes seen), the always-empty `ranks`, bulletin and declaration (always empty), `live`
   (meaning unknown), and the tracker's own first/last seen times.
 - Q: Which groups go on the cards? → A: all four (user, 2026-11-02): Player stats (Kills, VIP Level, Likes, Last Online,
-  Language), Player Location, Alliance stats (Alliance Level with XP, Gift Level, Kingdom Power Rank, Language) and
+  Language), Player Location, Alliance stats (Alliance Level with XP, Gift Level, Kingdom Might Rank, Language) and
   Join Requirements.
 - Q: Pictures from the tracker? → A: yes: the Player's avatar, the Alliance badge and the Kingdom badge.
 - Q: Dictionary? → A: Kills, VIP Level, Likes, Last Online, Language, Location, Alliance Level, Gift Level, Kingdom
-  Power Rank and Join Requirements are added (approved with the field groups, 2026-11-02).
+  Might Rank and Join Requirements are added (approved with the field groups, 2026-11-02).
 
 ### Session 2026-11-03 (test run feedback)
 
 - Q: A Player without a Last Online? → A: is online now (user, 2026-11-03): the Player card reads "Online now", and
   the Alliance Overview counts and shows such a member as online.
 - Q: The Alliance Overview's look? → A: like the Alliance card (user, 2026-11-03): accent color, Kingdom author line
-  with badge, Alliance badge, totals and online counts as a 3-column grid, the Top lists side by side, power in the
+  with badge, Alliance badge, totals and online counts as a 3-column grid, the Top lists side by side, Might in the
   member table rows. It was out of scope before; now US3.
 - The "Unknown interaction" on the roster's Next button came from two Neils (local and Wispbyte) answering one press;
   no change (TEST-RUN.md 0.6 already says to stop Neil on Wispbyte).
@@ -40,7 +40,7 @@ the card visually pleasing and easy to read." Field selection and pictures appro
 ### User Story 1 - A Member sees a fuller Player card (Priority: P1)
 
 A Member runs `/player` (by name or uid, or picks one from a pick list). The card shows, besides what it shows today
-(name, Kingdom, Power, sanctuary level, Alliance, Alliance Rank), the Player's Kills, VIP Level, Likes, Last Online,
+(name, Kingdom, Might, sanctuary level, Alliance, Alliance Rank), the Player's Kills, VIP Level, Likes, Last Online,
 Language and Location, with the Player's avatar as a picture and the Kingdom's badge beside the Kingdom. Related
 values sit together in a clear grid, so the card reads at a glance.
 
@@ -66,14 +66,14 @@ pictures and the accent color, within Discord's limits; an answer missing any ne
 ### User Story 2 - A Member sees a fuller Alliance card (Priority: P1)
 
 A Member runs `/alliance` (by tag, name, suggestion or pick list). The card shows, besides today's values (tag, name,
-Kingdom, Power, Members, Leader, roster), the Alliance Level with its XP, the Gift Level, the Kingdom Power Rank, the
+Kingdom, Might, Members, Leader, roster), the Alliance Level with its XP, the Gift Level, the Kingdom Might Rank, the
 Language and the Join Requirements, with the Alliance badge as a picture and the Kingdom badge beside the Kingdom.
-Each roster row also shows the member's power in short form (27.6M), so the strongest members stand out.
+Each roster row also shows the member's Might in short form (27.6M), so the strongest members stand out.
 
 **Why this priority**: as US1; the Alliance card is what Officers and recruits look at to judge an Alliance.
 
 **Independent Test**: automated: the Alliance card built from the recorded Alliance answer shows the new values, the
-pictures and the power on each roster row, stays within Discord's limits on every roster page, and an answer missing
+pictures and the Might on each roster row, stays within Discord's limits on every roster page, and an answer missing
 any new field still gives a card.
 
 **Acceptance Scenarios**:
@@ -81,9 +81,9 @@ any new field still gives a card.
 1. **Given** an Alliance answer with all new fields, **When** the card is built, **Then** it shows "Level 4 · 8,881,750
    XP", Gift Level 6, "#24 in Kingdom #1", "Japanese" and the Join Requirements, and the badge as the card's picture.
 2. **Given** Join Requirements that let anyone join with no minimum, **Then** they read "Open to all"; **given** joining
-   needs an application, **Then** "By application"; **given** a minimum power or sanctuary level above 0, **Then**
-   each minimum is added ("min. 10M power", "min. sanctuary level 15"); a minimum of 0 is not shown.
-3. **Given** a roster row with a power, **Then** the row reads "Name · 27.6M"; **given** none, **Then** just the name.
+   needs an application, **Then** "By application"; **given** a minimum Might or sanctuary level above 0, **Then**
+   each minimum is added ("min. 10M Might", "min. sanctuary level 15"); a minimum of 0 is not shown.
+3. **Given** a roster row with a Might, **Then** the row reads "Name · 27.6M"; **given** none, **Then** just the name.
 4. **Given** an Alliance answer where a new field is missing or unreadable, **Then** that value is left off and the
    card shows as before; the lookup never fails because of it.
 5. **Given** the roster page turns with the roster menu (slice 004, fix #19), **Then** the new values stay the same on
@@ -95,16 +95,16 @@ any new field still gives a card.
 
 A Member presses Overview on an Alliance card. The private Alliance Overview carries the card's look: accent color,
 "Kingdom #N" with the Kingdom badge, the Alliance badge as the picture, the totals and online counts in a 3-column grid,
-the three Top lists side by side, and each member table row with the member's power in short form.
+the three Top lists side by side, and each member table row with the member's Might in short form.
 
 **Independent Test**: automated: the Overview built from a roster with details shows color, author, thumbnail, inline
-fields and power on rows, and stays within Discord's limits on every page.
+fields and Might on rows, and stays within Discord's limits on every page.
 
 **Acceptance Scenarios**:
 
 1. **Given** an Alliance with details, **When** the Overview is built, **Then** it has the card's color, author line and
    badge thumbnail, and the totals, online counts and Top lists are inline fields.
-2. **Given** a member with a power, **Then** the table row reads `Name · 27.6M · …`; **given** none, the power is left out.
+2. **Given** a member with a Might, **Then** the table row reads `Name · 27.6M · …`; **given** none, the Might is left out.
 3. **Given** an Alliance without details, **Then** the Overview still shows, with "Kingdom #N" and no pictures.
 4. **Given** a member without a Last Online, **Then** the table shows them "online" and they count in Online now and
    Online in the last 24 hours.
@@ -120,7 +120,7 @@ fields and power on rows, and stays within Discord's limits on every page.
 - An unknown Language code: shown as the code in capitals ("XX"); an empty one is left out.
 - No Last Online (missing, 0 or unreadable): the Player is online now ("Online now" on the Player card).
 - Location 0:0 is shown as given (its meaning is not known).
-- Long names with power added to roster rows: the roster section still keeps to Discord's field and card limits (rows
+- Long names with Might added to roster rows: the roster section still keeps to Discord's field and card limits (rows
   that do not fit are counted in the "and N more" note, as today).
 
 ## Requirements *(mandatory)*
@@ -130,8 +130,8 @@ fields and power on rows, and stays within Discord's limits on every page.
 - **FR-001**: The Player card MUST show, when the Game API gives them: Kills, VIP Level, Likes, Last Online (time ago),
   Language (language name) and Location (`X:<x> Y:<y>`), next to today's values.
 - **FR-002**: The Alliance card MUST show, when the Game API gives them: Alliance Level with XP, Gift Level, Kingdom
-  Power Rank, Language and Join Requirements, next to today's values.
-- **FR-003**: Each Alliance card roster row MUST show the member's power in short form (K, M, B, one decimal at most)
+  Might Rank, Language and Join Requirements, next to today's values.
+- **FR-003**: Each Alliance card roster row MUST show the member's Might in short form (K, M, B, one decimal at most)
   when the Game API gives it.
 - **FR-004**: Cards MUST show the Player's avatar (Player card) or the Alliance badge (Alliance card) as the picture,
   and the Kingdom badge beside the Kingdom, built only from the tracker's own address and a `/static/` path from the
@@ -145,25 +145,25 @@ fields and power on rows, and stays within Discord's limits on every page.
 - **FR-008**: The slice MUST NOT add any Game API request; all values come from answers Neil already gets.
 - **FR-009**: A Player or roster member without a Last Online MUST be treated as online now: "Online now" on the
   Player card; "online" in the Alliance Overview table and counted in its online counts.
-- **FR-010**: The Alliance Overview MUST use the Alliance card's look (FR-004, FR-006) and show power in short form on
+- **FR-010**: The Alliance Overview MUST use the Alliance card's look (FR-004, FR-006) and show Might in short form on
   each member table row, within Discord's limits (FR-007).
 
 ### Key Entities
 
 - **Player** (extended): Kills, VIP Level, Likes, Last Online, Language, Location, avatar and Kingdom badge pictures.
-- **Alliance** (extended): Alliance Level and XP, Gift Level, Kingdom Power Rank, Language, Join Requirements, badge
+- **Alliance** (extended): Alliance Level and XP, Gift Level, Kingdom Might Rank, Language, Join Requirements, badge
   and Kingdom badge pictures.
-- **Alliance Roster** entry (extended): the member's power.
+- **Alliance Roster** entry (extended): the member's Might.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
 - **SC-001**: A Player card built from a full answer shows all 6 new Player values and both pictures; an Alliance card
-  shows all 5 new Alliance values, both pictures and a power on every roster row.
+  shows all 5 new Alliance values, both pictures and a Might on every roster row.
 - **SC-002**: 0 lookups fail because a new field is missing or malformed (tested for each new field).
 - **SC-003**: The daily Game API request count for the same lookups is unchanged.
-- **SC-004**: On the test server, a Member reads a Player's power, Alliance and Last Online from the card in under 5
+- **SC-004**: On the test server, a Member reads a Player's Might, Alliance and Last Online from the card in under 5
   seconds (manual check, TEST-RUN.md).
 
 ## Assumptions
