@@ -333,6 +333,19 @@ describe("renderOverview: page buttons", () => {
     expect(previous).toMatchObject({ custom_id: `overview:${SESSION}:0`, disabled: false });
     expect(next).toMatchObject({ disabled: true });
   });
+
+  test.each([0, 1])("on page %i, every button has its own custom id, as Discord requires", (page) => {
+    const ids = buttonsOf(overviewOf(thirty, page).components).map((button) => button.custom_id);
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test("the page label is no page button: its id reads back as no Overview page", () => {
+    const [, label] = buttonsOf(overviewOf(thirty, 0).components);
+
+    expect(label).toMatchObject({ label: "1 / 2", disabled: true });
+    expect(parseOverviewCustomId(label?.custom_id ?? "")).toBeUndefined();
+  });
 });
 
 describe("overviewCustomId and parseOverviewCustomId", () => {
