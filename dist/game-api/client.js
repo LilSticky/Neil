@@ -187,8 +187,9 @@ export class GameApiClient {
             uid: uid.value,
             name: body.nick,
             kingdom: kingdom.value,
-            power: body.power,
+            might: body.power,
             sanctuaryLevel: body.lv,
+            details: playerDetailsFrom(body),
         };
         if (body.aid === null || body.aid === 0) {
             return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, fetchedAt };
@@ -428,17 +429,46 @@ function leaderUidFrom(alliance) {
     const uid = parseUid(leaderId);
     return uid.ok ? uid.value : undefined;
 }
+/** The details of a Player from a 200 body; each one is undefined when the body gives none readable. */
+function playerDetailsFrom(body) {
+    return {
+        kills: body.kills,
+        vipLevel: body.vip,
+        likes: body.likes,
+        lastOnlineAt: dateFromSeconds(body.last_online_at),
+        language: body.language,
+        location: body.x === undefined || body.y === undefined ? undefined : { x: body.x, y: body.y },
+        avatarPath: body.avatar_url,
+        kingdomBadgePath: body.server_badge_url,
+    };
+}
+/** The details of an Alliance from a 200 body; each one is undefined when the body gives none readable. */
+function allianceDetailsFrom(body) {
+    return {
+        level: body.level,
+        xp: body.exp,
+        giftLevel: body.gift_level,
+        kingdomMightRank: body.rank?.rank,
+        language: body.language,
+        joinRequirements: body.join === undefined
+            ? undefined
+            : { open: body.join.auto, minimumMight: body.join.power, minimumSanctuaryLevel: body.join.castle_level },
+        badgePath: body.badge_url,
+        kingdomBadgePath: body.server_badge_url,
+    };
+}
 /** An Alliance from a 200 body, in the Kingdom the body names. */
 function allianceFrom(body, kingdom) {
     return {
         tag: body.abbr,
         name: body.name,
         kingdom,
-        power: body.power,
+        might: body.power,
         memberCount: body.member_count,
         capacity: body.capacity,
         leaderName: body.leader_name ?? undefined,
         roster: body.members.flatMap(rosterEntryFrom),
+        details: allianceDetailsFrom(body),
     };
 }
 /** The Kingdom of a roster row (`kid`); undefined when it is missing or not a Kingdom number. */
@@ -458,6 +488,7 @@ function rosterEntryFrom(member) {
         {
             uid: uid.value,
             name: name === "" ? "Unknown" : name,
+            ...(member.power === undefined ? {} : { might: member.power }),
             allianceRank: rankFromLabel(member.rank_label ?? null),
             kingdom: kingdomFromRoster(member.kid),
             sanctuaryLevel: member.lv ?? undefined,
@@ -465,12 +496,12 @@ function rosterEntryFrom(member) {
             dailyHonor: member.daily_honor ?? undefined,
             dailyTech: member.daily_tech ?? undefined,
             online: member.online ?? undefined,
-            lastOnlineAt: lastOnlineFrom(member.last_online_at),
+            lastOnlineAt: dateFromSeconds(member.last_online_at),
         },
     ];
 }
 /** A Game API Unix time in seconds as a Date; undefined when the Game gave none or the time is not one a Date holds. */
-function lastOnlineFrom(seconds) {
+function dateFromSeconds(seconds) {
     if (seconds === null || seconds === undefined)
         return undefined;
     const moment = new Date(seconds * 1000);

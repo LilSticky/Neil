@@ -228,7 +228,7 @@ export async function handleOverview(interaction, context) {
             return;
         }
         const { alliance, fetchedAt } = session.choice;
-        await sendOverview(interaction, context, () => interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page)));
+        await sendOverview(interaction, context, () => interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort)));
     });
 }
 //# sourceMappingURL=pick.js.map

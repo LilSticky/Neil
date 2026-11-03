@@ -1,12 +1,35 @@
 import { z } from "zod";
+import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 /** A Game API id: a JSON number in the recordings, or a string of digits. Always read back as a string. */
 const idSchema = z.union([z.number().int().nonnegative(), z.string().regex(/^\d+$/)]).transform((id) => String(id));
+/** A whole number that cannot be negative; any other value reads as undefined (the body is still valid). */
+const wholeCountSchema = z.number().int().nonnegative().optional().catch(undefined);
+/**
+ * A language tag such as `ja`, `en`, `zh-Hans` or `pt-BR`: two or three letters, then up to three subtags of letters
+ * and digits. Any other text, or one too long to be a tag, reads as undefined.
+ */
+const languageSchema = z
+    .string()
+    .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/)
+    .optional()
+    .catch(undefined);
+/** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
+const MAX_DATE_SECONDS = 8_640_000_000_000;
+/** A Unix time in seconds a Date holds, above the Unix epoch; 0 and any other value reads as undefined (unknown). */
+const unixSecondsSchema = z.number().int().positive().max(MAX_DATE_SECONDS).optional().catch(undefined);
+/**
+ * A picture path under /static/, of a picture extension (see PICTURE_PATH_PATTERN); any other value reads as undefined.
+ */
+const picturePathSchema = z.string().regex(PICTURE_PATH_PATTERN).optional().catch(undefined);
 const rosterRowSchema = z.object({
     uid: idSchema,
     /** Missing or not text (some answers omit it) reads as null: the rank is then unknown, the body still valid. */
     rank_label: z.string().nullable().catch(null),
 });
-/** The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us. */
+/**
+ * The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us.
+ * The Player details (`kills` to `server_badge_url`) each read as undefined when unreadable; the body is still accepted.
+ */
 export const playerBodySchema = z.object({
     uid: idSchema,
     nick: z.string().min(1),
@@ -22,26 +45,35 @@ export const playerBodySchema = z.object({
         .object({ leader_id: idSchema.optional().catch(undefined) })
         .nullish()
         .catch(undefined),
+    kills: wholeCountSchema,
+    vip: wholeCountSchema,
+    likes: wholeCountSchema,
+    last_online_at: unixSecondsSchema,
+    language: languageSchema,
+    x: wholeCountSchema,
+    y: wholeCountSchema,
+    avatar_url: picturePathSchema,
+    server_badge_url: picturePathSchema,
 });
 /**
  * One row of an Alliance's `members`; the name and the rank label may be null. The Kingdom (`kid`) and sanctuary level
  * (`lv`) read as absent when they are not whole numbers. The activity figures (`active`, `daily_honor`, `daily_tech`)
  * are null when the Game has no data, and read as absent when they are not whole numbers.
- * `last_online_at` is a Unix time in seconds, read as absent beyond the range a Date holds.
+ * `last_online_at` is a Unix time in seconds, read as absent when it is 0 or beyond the range a Date holds. `power` reads as absent
+ * when it is not a whole number that cannot be negative.
  */
-/** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
-const MAX_DATE_SECONDS = 8_640_000_000_000;
 const rosterMemberSchema = z.object({
     uid: idSchema,
     nick_name: z.string().nullish(),
     rank_label: z.string().nullish(),
+    power: wholeCountSchema,
     kid: z.number().int().nullish().catch(undefined),
     lv: z.number().int().nullish().catch(undefined),
     active: z.number().int().nullish().catch(undefined),
     daily_honor: z.number().int().nullish().catch(undefined),
     daily_tech: z.number().int().nullish().catch(undefined),
     online: z.boolean().nullish().catch(undefined),
-    last_online_at: z.number().int().nonnegative().max(MAX_DATE_SECONDS).nullish().catch(undefined),
+    last_online_at: z.number().int().positive().max(MAX_DATE_SECONDS).nullish().catch(undefined),
 });
 /**
  * The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. A member row without a
@@ -66,6 +98,27 @@ export const allianceBodySchema = z.object({
         const member = rosterMemberSchema.safeParse(row);
         return member.success ? [member.data] : [];
     })),
+    /** The Alliance details (`level` to `server_badge_url`) each read as undefined when unreadable; the body is still accepted. */
+    level: wholeCountSchema,
+    exp: wholeCountSchema,
+    gift_level: wholeCountSchema,
+    language: languageSchema,
+    /** Only `rank.rank` is read, a whole number of at least 1; the score is not read. */
+    rank: z
+        .object({ rank: z.number().int().min(1) })
+        .optional()
+        .catch(undefined),
+    /** The Join Requirements: `auto` is whether the Alliance is open; `power` and `castle_level` are the minimums. */
+    join: z
+        .object({
+        auto: z.boolean(),
+        power: z.number().int().nonnegative(),
+        castle_level: z.number().int().nonnegative(),
+    })
+        .optional()
+        .catch(undefined),
+    badge_url: picturePathSchema,
+    server_badge_url: picturePathSchema,
 });
 const matchSchema = z.object({
     tag: z.string().optional(),

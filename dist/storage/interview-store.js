@@ -383,6 +383,18 @@ function interviewOf(raw) {
             };
     }
 }
+/** A Player as its JSON column keeps it: the playerRecord fields only, never the details the Interview does not read back. */
+function playerJson(player) {
+    return JSON.stringify({
+        uid: player.uid,
+        name: player.name,
+        kingdom: player.kingdom,
+        power: player.might,
+        sanctuaryLevel: player.sanctuaryLevel,
+        alliance: player.alliance,
+        allianceRank: player.allianceRank,
+    });
+}
 /** The chosen uid and its Player, when the Member chose one; undefined when the columns do not fit together. */
 function chosenOf(uid, playerJson) {
     if (uid === null)
@@ -417,7 +429,7 @@ function playerOf(text) {
         uid: uid.value,
         name: record.name,
         kingdom: kingdom.value,
-        power: record.power,
+        might: record.power,
         sanctuaryLevel: record.sanctuaryLevel,
     };
     if (record.alliance === undefined) {
@@ -463,7 +475,7 @@ function chosenColumnsOf(chosen) {
         return { chosen_uid: null, chosen_player_json: null };
     return {
         chosen_uid: chosen.uid,
-        chosen_player_json: chosen.player === undefined ? null : JSON.stringify(chosen.player),
+        chosen_player_json: chosen.player === undefined ? null : playerJson(chosen.player),
     };
 }
 /** The row of an Interview: its step's columns filled, the others NULL. */
@@ -483,7 +495,7 @@ function rowOf(interview, timeoutMs) {
             return {
                 ...common,
                 ...NO_STEP_FIELDS,
-                player_json: JSON.stringify(interview.recommended),
+                player_json: playerJson(interview.recommended),
                 last_asked_at: interview.lastAskedAt.toISOString(),
             };
         case "awaiting-pick":
@@ -513,7 +525,7 @@ function rowOf(interview, timeoutMs) {
                 ...common,
                 ...NO_STEP_FIELDS,
                 uid: interview.player.uid,
-                player_json: JSON.stringify(interview.player),
+                player_json: playerJson(interview.player),
                 chosen_uid: interview.confirmedByChoice === true ? interview.player.uid : null,
                 last_asked_at: interview.lastAskedAt.toISOString(),
             };
