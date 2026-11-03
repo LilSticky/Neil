@@ -30,6 +30,10 @@ discovery.
 * A Player's in-game nickname
 * Not unique: several Players, also in different Kingdoms, can share one; matched exactly, ignoring letter case
 
+## Might
+* The strength of a Player, or the sum of its members' for an Alliance, as the game shows it (Game API `power`)
+* Not "power": the game and the server say Might
+
 ## Kills
 * The number of enemy troops a Player has defeated (Game API `kills`)
 
@@ -76,11 +80,11 @@ discovery.
 ## Gift Level
 * The level of an Alliance's gifts (Game API `gift_level`)
 
-## Kingdom Power Rank
-* An Alliance's place among its Kingdom's Alliances by power (Game API `rank.rank`)
+## Kingdom Might Rank
+* An Alliance's place among its Kingdom's Alliances by Might (Game API `rank.rank`)
 
 ## Join Requirements
-* What a Player needs to join an Alliance: open to all or by application, and a minimum power and sanctuary level
+* What a Player needs to join an Alliance: open to all or by application, and a minimum Might and sanctuary level
   (Game API `join`; a minimum of 0 means none)
 
 ## Known Alliance
