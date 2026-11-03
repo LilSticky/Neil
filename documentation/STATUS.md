@@ -23,7 +23,7 @@ a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN
 
 Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, stacked on 007: an "Overview" button on
 the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
-table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests. Fix (2026-11-03, issue #36): the page label no longer shares a custom id with Previous/Next (Discord refused the Overview with COMPONENT_CUSTOM_ID_DUPLICATED); merged forward into 009–011.
+table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests. Fix (2026-11-03, issue #36): the page label no longer shares a custom id with Previous/Next (Discord refused the Overview with COMPONENT_CUSTOM_ID_DUPLICATED); merged forward into 009–012.
 
 Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`, stacked on 008: a Daily Sync at
 `SYNC_HOUR_UTC` re-reads each Alliance with Linked Members once (and looks up movers by uid) within a Sync Share of
@@ -57,7 +57,7 @@ dictionary terms (approved). Reviewed (1 must, 1 should, 2 could fixed; C2 kept)
 [TEST-RUN.md](TEST-RUN.md) §6h; 1979 tests.
 
 **Next step (2026-11-03):** the roadmap has no slices left after 012. The user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b
-to 6h). The stack #16, #22, #24, #26, #28, #30, #32 and 012's PR stays open until then; then merge in order (#16 first, retarget
+to 6h). The stack #16, #22, #24, #26, #28, #30, #32 and #34 stays open until then; then merge in order (#16 first, retarget
 each next pull request to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
