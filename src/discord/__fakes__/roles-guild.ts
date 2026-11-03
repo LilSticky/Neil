@@ -175,12 +175,12 @@ export class FakeRolesMember implements RolesMember {
     this.held = this.held.filter((held) => held.id !== role.id);
   }
 
-  async setNickname(nickname: string): Promise<void> {
+  async setNickname(nickname: string | null): Promise<void> {
     await Promise.resolve();
     this.guild.throwIfFailing("setNickname");
     if (this.id === this.guild.ownerId) {
       throw new FakeDiscordError(MISSING_PERMISSIONS, "Missing Permissions: the owner's nickname cannot be changed");
     }
-    this.nickname = nickname;
+    this.nickname = nickname ?? undefined;
   }
 }

@@ -302,7 +302,7 @@ uid; the commands list the name options first.
 - **FR-007**: A uid already Linked to another Member MUST be refused with an error naming no one.
 - **FR-008**: "Already Linked", "no such Player" and "That's not me" MUST each count as a failed attempt;
   at the 5th failed attempt the Interview MUST be handed off: Officers mentioned in the thread, the Member
-  told, no more questions. Officers MUST NOT be able to Link a Member by hand in this slice.
+  told, no more questions. Officers MUST NOT be able to Link a Member by hand in this slice. *(Narrowed by slice 011: an Officer may make an Officer Link after a hand-off.)*
 - **FR-009**: When the Game API is unavailable, Neil MUST ask the Member to try again shortly and MUST NOT
   count a failed attempt.
 - **FR-010**: When the Daily Quota is spent, the Interview MUST pause until 00:00 UTC, tell the Member when

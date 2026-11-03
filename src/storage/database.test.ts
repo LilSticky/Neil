@@ -29,6 +29,8 @@ describe("openDatabase", () => {
       { version: 6 },
       { version: 7 },
       { version: 8 },
+      { version: 9 },
+      { version: 10 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -49,6 +51,8 @@ describe("openDatabase", () => {
       { version: 6 },
       { version: 7 },
       { version: 8 },
+      { version: 9 },
+      { version: 10 },
     ]);
     db.close();
   });
@@ -58,7 +62,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 8");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 10");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -172,6 +176,8 @@ describe("openDatabase", () => {
       { version: 6 },
       { version: 7 },
       { version: 8 },
+      { version: 9 },
+      { version: 10 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -297,6 +303,71 @@ describe("openDatabase", () => {
     }
   });
 
+  test("migration 9 adds a nullable linked_by to link, the Officer of an Officer Link", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const column = db
+        .prepare("SELECT name, type, \"notnull\" AS not_null FROM pragma_table_info('link') WHERE name = 'linked_by'")
+        .get();
+      expect(column).toEqual({ name: "linked_by", type: "TEXT", not_null: 0 });
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 10 lets linked_by be NULL or digits only, on insert and on update", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, linked_by) VALUES (?, ?, ?, ?, ?)");
+      const linkedAt = "2026-10-29T12:00:00.000Z";
+
+      expect(() => insert.run("member-1", "uid-1", linkedAt, "unknown", "officer-1")).toThrow();
+      expect(() => insert.run("member-2", "uid-2", linkedAt, "unknown", "")).toThrow();
+      expect(() => insert.run("member-3", "uid-3", linkedAt, "unknown", "12a")).toThrow();
+      insert.run("member-4", "uid-4", linkedAt, "unknown", "888888888888888888");
+      insert.run("member-5", "uid-5", linkedAt, "unknown", null);
+
+      const update = db.prepare("UPDATE link SET linked_by = ? WHERE member_id = ?");
+      expect(() => update.run("officer-1", "member-5")).toThrow();
+      update.run("888888888888888888", "member-5");
+      expect(db.prepare("SELECT linked_by FROM link WHERE member_id = 'member-5'").get()).toEqual({
+        linked_by: "888888888888888888",
+      });
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 8 database and keeps its Links, which read as made from In-game Proof", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v8.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source) VALUES (?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+        { version: 6 },
+        { version: 7 },
+        { version: 8 },
+        { version: 9 },
+        { version: 10 },
+      ]);
+      expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
+        { member_id: "member-1", uid: "145563254785", linked_by: null },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
   test("upgrades a version 6 database to 7 and keeps its Applied States, with no last Alliance", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
     legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v6.sql"), "utf8"));
@@ -319,6 +390,8 @@ describe("openDatabase", () => {
         { version: 6 },
         { version: 7 },
         { version: 8 },
+        { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -353,6 +426,8 @@ describe("openDatabase", () => {
         { version: 6 },
         { version: 7 },
         { version: 8 },
+        { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -387,6 +462,8 @@ describe("openDatabase", () => {
         { version: 6 },
         { version: 7 },
         { version: 8 },
+        { version: 9 },
+        { version: 10 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -420,6 +497,16 @@ describe("openDatabase", () => {
     legacy.exec("CREATE INDEX onboarding_interview_due ON onboarding_interview (due_at)");
     legacy.exec(`CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
       WHERE step IN ('awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota')`);
+    // Migration 3 also creates link, which later migrations alter.
+    legacy.exec(`CREATE TABLE link (
+      member_id TEXT PRIMARY KEY,
+      uid TEXT NOT NULL UNIQUE,
+      linked_at TEXT NOT NULL,
+      rank_source TEXT NOT NULL,
+      alliance_rank TEXT,
+      approved_by TEXT,
+      approved_at TEXT
+    )`);
     const record = legacy.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)");
     record.run(1, "2026-10-28T12:00:00.000Z");
     record.run(2, "2026-10-28T12:00:00.000Z");
@@ -451,6 +538,8 @@ describe("openDatabase", () => {
       { version: 6 },
       { version: 7 },
       { version: 8 },
+      { version: 9 },
+      { version: 10 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),

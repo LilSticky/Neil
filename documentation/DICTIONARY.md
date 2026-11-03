@@ -111,15 +111,21 @@ discovery.
 * Not In-game Proof: a Member who says "that's me" still gives the uid, which must be that Player's
 
 ## Link
-* The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me")
+* The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me"), or as an Officer Link
 * A Member has at most one Link, and a Player at most one
-* Ends with the Member's Unlink; the Player can then be Linked again
+* Ends with an Unlink; the Player can then be Linked again
+
+## Officer Link
+* A Link an Officer makes by hand from a uid, for a Member whose Onboarding Interview was handed off to the Officers
+* Made without In-game Proof; logged with the Officer who made it
 
 ## Unlink
-* What Neil does when a Linked Member leaves the server, seen live or found missing at startup or in the Daily Sync
-* Ends the Link, logs it for Officers, sends the Member a private message if Discord allows it, and hands Rank Approvals waiting on them to the Officers
+* Ends a Link: when the Linked Member leaves the server (seen live, at startup or in the Daily Sync), when an Officer Unlinks them, or when the Member Unlinks themselves
+* Logs it for Officers, sends the Member a private message if Discord allows it, and hands Rank Approvals waiting on them to the Officers
+* A Member still on the server also loses their Managed Roles and the nickname Neil gave them
 
 ## Rank Approval
 * The confirmation of a Linked Player's Alliance Rank by hand, when the Game API lists no rank for them
 * Given by the Member Linked to the Alliance's R5; if there is none, by an Officer; never by the Linked Member themselves
+* An Officer may also give one at any time for a Linked Player in an Alliance; it replaces an earlier approved rank, and a rank from the Game API still replaces it
 * Goes to the Officers when the chosen Member leaves

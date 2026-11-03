@@ -54,6 +54,7 @@ const LINKED_UNKNOWN: Link = {
   uid: UID,
   linkedAt: NOW,
   allianceRank: { source: "unknown" },
+  madeBy: { kind: "in-game-proof" },
 };
 
 const PLAYER_UNKNOWN: Player = {

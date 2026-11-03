@@ -119,7 +119,88 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota and /interview", () => {
-    expect(commands.map((command) => command.name).sort()).toEqual(["alliance", "interview", "ping", "player", "quota"]);
+  test("hold /unlink, open to anyone, guild only, with one optional user option member; Neil checks who may Unlink whom", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "unlink",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.User,
+            name: "member",
+            required: false,
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold /rank, open to anyone, guild only, with a required user option member first, then a required rank from R1 to R5", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "rank",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.User,
+            name: "member",
+            required: true,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "rank",
+            required: true,
+            choices: [
+              { name: "R1", value: "R1" },
+              { name: "R2", value: "R2" },
+              { name: "R3", value: "R3" },
+              { name: "R4", value: "R4" },
+              { name: "R5", value: "R5" },
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold /link, open to anyone, guild only, with a required user option member first, then a required uid of at most 32 characters, as /player has", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "link",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.User,
+            name: "member",
+            required: true,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "uid",
+            required: true,
+            max_length: 32,
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /interview, /unlink, /rank and /link", () => {
+    expect(commands.map((command) => command.name).sort()).toEqual([
+      "alliance",
+      "interview",
+      "link",
+      "ping",
+      "player",
+      "quota",
+      "rank",
+      "unlink",
+    ]);
   });
 });

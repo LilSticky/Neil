@@ -1,7 +1,8 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, expectTypeOf, test } from "vitest";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "./lookup-input.js";
-import { needsRankApproval, rankOnLink } from "./link.js";
+import { needsRankApproval, officerRank, rankOnLink, type Link, type RankOnLink } from "./link.js";
 import type { AllianceRank, Player } from "./player.js";
+import type { MemberId } from "./rank-approval.js";
 
 function uidOf(digits: string): Uid {
   const parsed = parseUid(digits);
@@ -16,6 +17,11 @@ function kingdomOf(number: number): KingdomNumber {
 }
 
 const PLAYER_UID = uidOf("145563254785");
+const MEMBER: MemberId = "member-linked";
+const OFFICER: MemberId = "member-officer";
+const OTHER_OFFICER: MemberId = "member-earlier-officer";
+const NOW = new Date("2026-11-02T10:00:00Z");
+const EARLIER = new Date("2026-10-30T08:00:00Z");
 
 /** A Player in an Alliance, with the Alliance Rank the Game API gave (or unknown). */
 function playerInAlliance(allianceRank: AllianceRank): Player {
@@ -40,6 +46,17 @@ function playerWithoutAlliance(): Player {
     sanctuaryLevel: 10,
     alliance: undefined,
     allianceRank: undefined,
+  };
+}
+
+/** A Link of a Member to the test Player, made from In-game Proof, carrying the given Alliance Rank. */
+function linkWith(allianceRank: RankOnLink, memberId: MemberId = MEMBER): Link {
+  return {
+    memberId,
+    uid: PLAYER_UID,
+    linkedAt: EARLIER,
+    allianceRank,
+    madeBy: { kind: "in-game-proof" },
   };
 }
 
@@ -71,5 +88,80 @@ describe("needsRankApproval", () => {
 
   test("is false when the Player is in no Alliance", () => {
     expect(needsRankApproval(rankOnLink(playerWithoutAlliance()))).toBe(false);
+  });
+});
+
+describe("Link.madeBy", () => {
+  test("records an In-game Proof Link as made by In-game Proof", () => {
+    const link = linkWith({ source: "unknown" });
+    expect(link.madeBy).toEqual({ kind: "in-game-proof" });
+  });
+
+  test("records an Officer Link with the Officer who made it", () => {
+    const link: Link = {
+      memberId: MEMBER,
+      uid: PLAYER_UID,
+      linkedAt: NOW,
+      allianceRank: { source: "unknown" },
+      madeBy: { kind: "officer-link", officerId: OFFICER },
+    };
+    expect(link.madeBy).toEqual({ kind: "officer-link", officerId: OFFICER });
+    expectTypeOf<Link["madeBy"]>().toEqualTypeOf<
+      { readonly kind: "in-game-proof" } | { readonly kind: "officer-link"; readonly officerId: MemberId }
+    >();
+  });
+});
+
+describe("officerRank", () => {
+  test("gives a Rank Approval by the Officer when the Link's rank is unknown", () => {
+    const result = officerRank(linkWith({ source: "unknown" }), "R4", OFFICER, NOW);
+    expect(result).toEqual({
+      ok: true,
+      allianceRank: { source: "rank-approval", rank: "R4", approvedBy: OFFICER, approvedAt: NOW },
+      gameRank: undefined,
+    });
+  });
+
+  test("replaces an earlier approved rank with the Officer's rank", () => {
+    const earlier: RankOnLink = {
+      source: "rank-approval",
+      rank: "R3",
+      approvedBy: OTHER_OFFICER,
+      approvedAt: EARLIER,
+    };
+    const result = officerRank(linkWith(earlier), "R2", OFFICER, NOW);
+    expect(result).toEqual({
+      ok: true,
+      allianceRank: { source: "rank-approval", rank: "R2", approvedBy: OFFICER, approvedAt: NOW },
+      gameRank: undefined,
+    });
+  });
+
+  test("gives no game rank note when the Game API already lists the same rank", () => {
+    const result = officerRank(linkWith({ source: "game-api", rank: "R4" }), "R4", OFFICER, NOW);
+    expect(result).toEqual({
+      ok: true,
+      allianceRank: { source: "rank-approval", rank: "R4", approvedBy: OFFICER, approvedAt: NOW },
+      gameRank: undefined,
+    });
+  });
+
+  test("gives the Game API's rank as gameRank when the Officer gives a different rank", () => {
+    const result = officerRank(linkWith({ source: "game-api", rank: "R3" }), "R2", OFFICER, NOW);
+    expect(result).toEqual({
+      ok: true,
+      allianceRank: { source: "rank-approval", rank: "R2", approvedBy: OFFICER, approvedAt: NOW },
+      gameRank: "R3",
+    });
+  });
+
+  test("refuses the Officer's own Link with own-link", () => {
+    const result = officerRank(linkWith({ source: "unknown" }, OFFICER), "R4", OFFICER, NOW);
+    expect(result).toEqual({ ok: false, reason: "own-link" });
+  });
+
+  test("refuses a Link of a Player in no Alliance with no-alliance", () => {
+    const result = officerRank(linkWith({ source: "no-alliance" }), "R4", OFFICER, NOW);
+    expect(result).toEqual({ ok: false, reason: "no-alliance" });
   });
 });

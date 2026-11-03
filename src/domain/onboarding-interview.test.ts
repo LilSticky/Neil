@@ -8,6 +8,7 @@ import {
   declineRecommendation,
   dueAt,
   giveUid,
+  linkByOfficer,
   memberLeft,
   pickMatch,
   quotaReset,
@@ -435,6 +436,54 @@ describe("confirm", () => {
         lastAskedAt: LATER,
       },
       event: { kind: "failed", reason: "already-linked", attemptsLeft: MAX_FAILED_ATTEMPTS - 1 },
+    });
+  });
+});
+
+const OFFICER_ID = "555555555555555555";
+
+describe("linkByOfficer", () => {
+  test("a handed-off Interview ends as linked with the uid at now, keeping its failed attempts; the event names the Officer", () => {
+    expect(linkByOfficer(handedOff(), UID, OFFICER_ID, LATER)).toEqual({
+      interview: {
+        step: "linked",
+        id: 1,
+        memberId: MEMBER_ID,
+        threadId: THREAD_ID,
+        failedAttempts: MAX_FAILED_ATTEMPTS,
+        startedAt: NOW,
+        endedAt: LATER,
+        uid: UID,
+      },
+      event: { kind: "officer-link", uid: UID, officerId: OFFICER_ID },
+    });
+  });
+
+  test.each([
+    ["looking up the Recommended Player", recommending],
+    ["awaiting the uid", open],
+    ["awaiting a Recommended Player's answer", awaitingRecommendation],
+    ["awaiting a pick", awaitingPick],
+    ["checking", checking],
+    ["awaiting confirmation", inConfirmation],
+    ["paused for the quota", paused],
+  ])("an Interview %s is not handed off, so an Officer Link does not apply and nothing changes", (_label, build) => {
+    const interview = build();
+    expect(linkByOfficer(interview, UID, OFFICER_ID, LATER)).toEqual({
+      interview,
+      event: { kind: "ignored" },
+    });
+  });
+
+  test.each([
+    ["linked", linked],
+    ["abandoned as timed out", () => timeOut(open(), LATER).interview],
+    ["abandoned as left", () => memberLeft(open(), LATER).interview],
+  ])("an Interview that is %s is ended and refuses the Officer Link", (_label, build) => {
+    const interview = build();
+    expect(linkByOfficer(interview, UID, OFFICER_ID, LATER)).toEqual({
+      interview,
+      event: { kind: "ended" },
     });
   });
 });

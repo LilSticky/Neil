@@ -148,7 +148,7 @@ describe("connect", () => {
   /** Alice is Linked and has no applied name and roles: the startup apply has work to do. */
   function linkAlice(): void {
     links.confirm(
-      { link: { memberId: ALICE, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" } } },
+      { link: { memberId: ALICE, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" }, madeBy: { kind: "in-game-proof" } } },
       () => undefined,
     );
   }
@@ -231,7 +231,7 @@ describe("connect", () => {
     guild.failFetch(ALICE, UNKNOWN_USER);
     FakeClient.served = guild;
     linkAlice();
-    links.confirm({ link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } }, () => undefined);
+    links.confirm({ link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
     recordDailySyncRunToday();
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
@@ -350,7 +350,7 @@ describe("connect", () => {
     const guild = serverWith(SERVER_PERMISSIONS);
     FakeClient.served = guild;
     links.confirm(
-      { link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } },
+      { link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } },
       () => undefined,
     );
     applied.record({ memberId: BOB, nickname: "Lupa", roles: [], appliedAt: NOW, complete: true, alliance: undefined });
@@ -371,7 +371,7 @@ describe("connect", () => {
     FakeClient.served = guild;
     linkAlice();
     links.confirm(
-      { link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" } } },
+      { link: { memberId: BOB, uid: BOB_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } },
       () => undefined,
     );
     // Both have a complete apply, so the startup apply has nothing to do and the Daily Sync is the only one looking up.

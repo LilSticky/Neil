@@ -21,10 +21,11 @@ States: `planned` · `in progress` · `in review` · `done`
 | 008 | Alliance overview | any Member see an Alliance's activity from the Alliance card: totals, top contributors, Least Active members and a paged per-member table | Alliance Overview, Weekly Activity, Daily Honor, Daily Tech, Least Active | roster fields, button, private paged reply | in review |
 | 009 | Keep roles in sync | Linked Members' nicknames and Managed Roles follow the game: a Daily Sync re-reads rosters within its Sync Share | Daily Sync, Sync Share | scheduler, roster re-reads, sync purpose in the quota | in review |
 | 010 | Say goodbye | a Linked Member who leaves be Unlinked at once (log line, private message, their pending Rank Approvals go to the Officers), also when Neil missed the leave | Unlink | `guildMemberRemove`, startup and Daily Sync sweep, private message | in progress |
+| 011 | Correct a link | Officers Unlink any Linked Member, give a Rank Approval at any time and Link a handed-off Member by hand (Officer Link); a Member Unlinks themselves (`/unlink`, `/rank`, `/link`). Scope cut: the Member re-check (the Daily Sync covers it) | Officer Link, Rank Approval by an Officer, Unlink by an Officer or the Member | slash commands, Link confirmation buttons, storage migration for who made a Link | in review |
 
 ## Later (unordered)
 
-- **Correct a link**: Officers relink, unlink or override a Member; a Member asks for a re-check.
+- None.
 
 ## Project infrastructure (not slices)
 

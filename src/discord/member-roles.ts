@@ -43,15 +43,17 @@ export interface RolesMember {
   readonly roles: readonly RoleLike[];
   addRole(role: RoleLike): Promise<void>;
   removeRole(role: RoleLike): Promise<void>;
-  setNickname(nickname: string): Promise<void>;
+  /** null takes the nickname off, so the Member's name is their username again. */
+  setNickname(nickname: string | null): Promise<void>;
 }
 
 /**
- * What the Member should look like: the nickname (undefined when the Player Name is empty), the Managed Roles wanted,
+ * What the Member should look like: the nickname (undefined when the Player Name is empty, untouched; null to clear it), the
+ * Managed Roles wanted,
  * the Alliance tags Neil manages, and the IDs of the Officer roles, which Neil never gives or takes.
  */
 export interface NameAndRolesWanted {
-  readonly nickname: string | undefined;
+  readonly nickname: string | null | undefined;
   readonly roles: readonly string[];
   readonly managedTags: readonly string[];
   readonly officerRoleIds: readonly string[];
@@ -99,7 +101,7 @@ export async function applyNameAndRoles(
 
   let nickname: ApplyReport["nickname"] = "untouched";
   // A nickname that already matches is not set again: the Daily Sync would otherwise PATCH every Member every day.
-  if (wanted.nickname !== undefined && member.nickname !== wanted.nickname) {
+  if (wanted.nickname !== undefined && (member.nickname ?? null) !== wanted.nickname) {
     const nicknameSkip = await setNickname(guild, member, wanted.nickname);
     nickname = nicknameSkip === undefined ? "set" : "skipped";
     if (nicknameSkip !== undefined) skipped.push(nicknameSkip);
@@ -133,7 +135,7 @@ function isGivable(guild: RolesGuild, role: RoleLike, officerRoleIds: readonly s
   return role.id !== guild.id && !role.managed && !officerRoleIds.includes(role.id);
 }
 
-async function setNickname(guild: RolesGuild, member: RolesMember, nickname: string): Promise<Skipped | undefined> {
+async function setNickname(guild: RolesGuild, member: RolesMember, nickname: string | null): Promise<Skipped | undefined> {
   if (member.id === guild.ownerId) return { what: "nickname", reason: "owner" };
   try {
     await member.setNickname(nickname);

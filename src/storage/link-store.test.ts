@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Link, RankOnLink } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
+import { MAX_FAILED_ATTEMPTS, type HandedOff, type OnboardingInterview } from "../domain/onboarding-interview.js";
 import {
   approve,
   cancel,
@@ -15,6 +16,7 @@ import {
 } from "../domain/rank-approval.js";
 import { AppliedStore, type AppliedState } from "./applied-store.js";
 import { openDatabase } from "./database.js";
+import { InterviewStore } from "./interview-store.js";
 import { LinkStore } from "./link-store.js";
 
 type PendingRankApprovalDraft = Omit<Extract<RankApproval, { readonly state: "pending" }>, "id">;
@@ -29,14 +31,50 @@ const ALICE = "111111111111111111";
 const BOB = "222222222222222222";
 const CAROL = "333333333333333333";
 const LEADER = "444444444444444444";
+const OFFICER = "555555555555555555";
 const ALICE_UID = uidOf("145563254785");
 const BOB_UID = uidOf("145563254786");
 const CAROL_UID = uidOf("145563254787");
 const LINKED_AT = new Date("2026-10-30T12:00:00Z");
 const ASKED_AT = new Date("2026-10-30T12:05:00Z");
+const SETTLED_AT = new Date("2026-10-30T13:00:00Z");
+const INTERVIEW_TIMEOUT_MS = 1440 * 60 * 1000;
 
 function linkOf(memberId: MemberId, uid: Uid, allianceRank: RankOnLink = { source: "no-alliance" }): Link {
-  return { memberId, uid, linkedAt: LINKED_AT, allianceRank };
+  return { memberId, uid, linkedAt: LINKED_AT, allianceRank, madeBy: { kind: "in-game-proof" } };
+}
+
+/** An Officer Link: made by an Officer from a uid, with no In-game Proof. */
+function officerLinkOf(memberId: MemberId, uid: Uid): Link {
+  return {
+    memberId,
+    uid,
+    linkedAt: LINKED_AT,
+    allianceRank: { source: "no-alliance" },
+    madeBy: { kind: "officer-link", officerId: OFFICER },
+  };
+}
+
+/** The Officer's Rank Approval on a Link, as the domain gives it: the rank, approved by the Officer at SETTLED_AT. */
+function officerRankOf(rank: ApprovableRank): Extract<RankOnLink, { readonly source: "rank-approval" }> {
+  return { source: "rank-approval", rank, approvedBy: OFFICER, approvedAt: SETTLED_AT };
+}
+
+/** Creates an open Interview for the Member and moves it to handed-off, as after five failed attempts. */
+function storeHandedOff(interviews: InterviewStore, memberId: MemberId): HandedOff {
+  const created = interviews.create({ memberId, threadId: `thread-of-${memberId}` }, ASKED_AT);
+  if (created.kind !== "created") throw new Error("the test Interview was not created");
+  const handedOff: HandedOff = {
+    step: "handed-off",
+    id: created.interview.id,
+    memberId,
+    threadId: created.interview.threadId,
+    failedAttempts: MAX_FAILED_ATTEMPTS,
+    startedAt: created.interview.startedAt,
+    endedAt: ASKED_AT,
+  };
+  interviews.save(handedOff);
+  return handedOff;
 }
 
 function pendingDraft(linkedMemberId: MemberId): PendingRankApprovalDraft {
@@ -303,7 +341,7 @@ describe("LinkStore", () => {
 
     store.updateRank(ALICE, { source: "game-api", rank: "R4" });
 
-    expect(store.linkFor(ALICE)).toEqual({ ...alice, allianceRank: { source: "game-api", rank: "R4" } });
+    expect(store.linkFor(ALICE)).toEqual({ ...alice, allianceRank: { source: "game-api", rank: "R4" }, madeBy: { kind: "in-game-proof" } });
   });
 
   test("updateRank drops an approved rank to unknown when the Player is no longer in that Alliance", () => {
@@ -445,6 +483,141 @@ describe("LinkStore", () => {
       expect(store.get(pending.id)).toEqual(ended);
     },
   );
+
+  test("an Officer Link is stored with its Officer and reads back as made by that Officer", () => {
+    const store = new LinkStore(db);
+    const link = officerLinkOf(ALICE, ALICE_UID);
+
+    store.confirm({ link }, () => undefined);
+
+    expect(store.linkFor(ALICE)).toEqual(link);
+    expect(store.linkFor(ALICE)?.madeBy).toEqual({ kind: "officer-link", officerId: OFFICER });
+  });
+
+  test("a Link whose linked_by is NULL, as every Link before the migration, reads as made from In-game Proof", () => {
+    const store = new LinkStore(db);
+    db.prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, linked_by) VALUES (?, ?, ?, ?, ?)").run(
+      ALICE,
+      ALICE_UID,
+      LINKED_AT.toISOString(),
+      "no-alliance",
+      null,
+    );
+
+    expect(store.linkFor(ALICE)?.madeBy).toEqual({ kind: "in-game-proof" });
+  });
+
+  test("rankByOfficer replaces the rank with the Officer's and settles the pending Rank Approval as approved by the Officer", () => {
+    const store = new LinkStore(db);
+    const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "member", memberId: LEADER });
+
+    const settled = store.rankByOfficer(ALICE, officerRankOf("R3"), SETTLED_AT);
+
+    expect(settled).toEqual(approved(pending, "R3", OFFICER, SETTLED_AT));
+    expect(store.get(pending.id)).toEqual(settled);
+    expect(store.linkFor(ALICE)?.allianceRank).toEqual({
+      source: "rank-approval",
+      rank: "R3",
+      approvedBy: OFFICER,
+      approvedAt: SETTLED_AT,
+    });
+    expect(store.pendingFor(ALICE)).toBeUndefined();
+  });
+
+  test("rankByOfficer returns undefined when no Rank Approval is pending, and still replaces an earlier approved rank", () => {
+    const store = new LinkStore(db);
+    const pending = confirmPending(store, ALICE, ALICE_UID, { kind: "officers" });
+    store.save(approved(pending, "R4", LEADER, new Date("2026-10-30T12:30:00Z")));
+
+    expect(store.rankByOfficer(ALICE, officerRankOf("R2"), SETTLED_AT)).toBeUndefined();
+
+    expect(store.linkFor(ALICE)?.allianceRank).toEqual({
+      source: "rank-approval",
+      rank: "R2",
+      approvedBy: OFFICER,
+      approvedAt: SETTLED_AT,
+    });
+  });
+
+  test("rankByOfficer settles only the pending Rank Approval of that Link", () => {
+    const store = new LinkStore(db);
+    confirmPending(store, ALICE, ALICE_UID, { kind: "officers" });
+    const other = confirmPending(store, BOB, BOB_UID, { kind: "officers" });
+
+    store.rankByOfficer(ALICE, officerRankOf("R3"), SETTLED_AT);
+
+    expect(store.pendingFor(BOB)).toEqual(other);
+  });
+
+  test("confirm of an Officer Link stores it and saves its handed-off Interview as linked, in one transaction", () => {
+    const store = new LinkStore(db);
+    const interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
+    const handedOff = storeHandedOff(interviews, BOB);
+    const linkedInterview: OnboardingInterview = {
+      step: "linked",
+      id: handedOff.id,
+      memberId: BOB,
+      threadId: handedOff.threadId,
+      failedAttempts: 0,
+      startedAt: handedOff.startedAt,
+      endedAt: SETTLED_AT,
+      uid: BOB_UID,
+    };
+    const link = officerLinkOf(BOB, BOB_UID);
+
+    const outcome = store.confirm({ link }, () => {
+      if (!interviews.saveIfStep(linkedInterview, "handed-off")) throw new Error("the Interview moved on");
+    });
+
+    expect(outcome).toEqual({ kind: "linked" });
+    expect(store.linkFor(BOB)).toEqual(link);
+    expect(interviews.get(handedOff.id)?.step).toBe("linked");
+  });
+
+  test("confirm of an Officer Link whose Interview is no longer handed off stores nothing", () => {
+    const store = new LinkStore(db);
+    const interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
+    const created = interviews.create({ memberId: BOB, threadId: "thread-of-bob" }, ASKED_AT);
+    if (created.kind !== "created") throw new Error("the test Interview was not created");
+    const stillOpen = created.interview;
+    const linkedInterview: OnboardingInterview = {
+      step: "linked",
+      id: stillOpen.id,
+      memberId: BOB,
+      threadId: stillOpen.threadId,
+      failedAttempts: 0,
+      startedAt: stillOpen.startedAt,
+      endedAt: SETTLED_AT,
+      uid: BOB_UID,
+    };
+
+    expect(() =>
+      store.confirm({ link: officerLinkOf(BOB, BOB_UID) }, () => {
+        if (!interviews.saveIfStep(linkedInterview, "handed-off")) throw new Error("the Interview moved on");
+      }),
+    ).toThrow("the Interview moved on");
+
+    expect(store.linkFor(BOB)).toBeUndefined();
+    expect(store.memberForUid(BOB_UID)).toBeUndefined();
+    expect(interviews.get(stillOpen.id)?.step).toBe("recommending");
+  });
+
+  test("confirm of an Officer Link for a uid already Linked to another Member gives already-linked and writes nothing", () => {
+    const store = new LinkStore(db);
+    const interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
+    store.confirm({ link: linkOf(ALICE, ALICE_UID) }, () => undefined);
+    const handedOff = storeHandedOff(interviews, BOB);
+    let saves = 0;
+
+    const outcome = store.confirm({ link: officerLinkOf(BOB, ALICE_UID) }, () => {
+      saves += 1;
+    });
+
+    expect(outcome).toEqual({ kind: "already-linked" });
+    expect(saves).toBe(0);
+    expect(store.linkFor(BOB)).toBeUndefined();
+    expect(interviews.get(handedOff.id)).toEqual(handedOff);
+  });
 });
 
 /** Cancels a pending Rank Approval; the test fails loudly when it is not pending. */

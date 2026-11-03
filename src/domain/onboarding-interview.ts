@@ -119,10 +119,10 @@ export interface PausedForQuota extends OpenBase {
   readonly resumesAt: Date;
 }
 
-/** Ended with a Link for the Member. */
+/** Ended with a Link for the Member: by the Member, or by an Officer after a hand-off (which keeps its five attempts). */
 export interface Linked extends InterviewBase {
   readonly step: "linked";
-  readonly failedAttempts: OpenFailedAttempts;
+  readonly failedAttempts: OpenFailedAttempts | typeof MAX_FAILED_ATTEMPTS;
   readonly endedAt: Date;
   readonly uid: Uid;
 }
@@ -174,6 +174,7 @@ export type InterviewEvent =
   | { readonly kind: "paused"; readonly resumesAt: Date }
   | { readonly kind: "resumed" }
   | { readonly kind: "linked"; readonly uid: Uid }
+  | { readonly kind: "officer-link"; readonly uid: Uid; readonly officerId: MemberId }
   | { readonly kind: "abandoned"; readonly reason: AbandonReason }
   | { readonly kind: "ended" }
   | { readonly kind: "ignored" };
@@ -423,6 +424,32 @@ export function confirm(
     },
     event: { kind: "linked", uid: interview.player.uid },
   };
+}
+
+/**
+ * An Officer Links the Member to the uid of the Player the Officer confirmed, after the Interview was handed off. Only a
+ * handed-off Interview ends as linked, and it keeps its five failed attempts; the Officer is named in the event, and the
+ * Link names them as its madeBy. An open Interview is not handed off, so nothing changes; an ended one refuses.
+ */
+export function linkByOfficer(
+  interview: OnboardingInterview,
+  uid: Uid,
+  officerId: MemberId,
+  now: Date,
+): InterviewTransition {
+  if (interview.step === "handed-off") {
+    return {
+      interview: {
+        step: "linked",
+        ...fieldsOf(interview),
+        failedAttempts: interview.failedAttempts,
+        endedAt: now,
+        uid,
+      },
+      event: { kind: "officer-link", uid, officerId },
+    };
+  }
+  return isOpen(interview) ? ignore(interview) : refuse(interview);
 }
 
 /** The Member pressed "That's not me": a failed attempt. */

@@ -23,7 +23,7 @@ a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN
 
 Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, stacked on 007: an "Overview" button on
 the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
-table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests.
+table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests. Fix (2026-11-03, issue #36): the page label no longer shares a custom id with Previous/Next (Discord refused the Overview with COMPONENT_CUSTOM_ID_DUPLICATED); merged forward into 009–011.
 
 Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`, stacked on 008: a Daily Sync at
 `SYNC_HOUR_UTC` re-reads each Alliance with Linked Members once (and looks up movers by uid) within a Sync Share of
@@ -37,11 +37,21 @@ New dictionary term Unlink. discord.js partials (GuildMember, User) are now on, 
 Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6f. Reviewed (1 must, 3 should, 2 could fixed), audited; PR
 [#30](https://github.com/LilSticky/Neil/pull/30) (issue #29), 1639 tests.
 
+Slice 011 "Correct a link" is implemented on branch `011-correct-a-link`, stacked on 010: an Officer can Unlink any Linked
+Member (`/unlink member:`), a Member can Unlink themselves (`/unlink`), an Officer can give a Rank Approval at any time
+(`/rank`, stored with the Officer; the Daily Sync keeps it while the game lists no rank) and can Link a Member whose
+Interview was handed off, from a uid after confirming the Player (`/link`, an Officer Link). Each correction posts one
+log line naming who made it. The Member re-check was cut (the Daily Sync covers it). New commands: `npm run commands:register`
+is needed for /unlink, /rank and /link ([HOSTING.md](HOSTING.md)). Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6g.
+Reviewed (1 must, 3 should, 3 could fixed; C3, hiding Officer commands, left open), audited; PR
+[#32](https://github.com/LilSticky/Neil/pull/32) (issue #31), 1766 tests. T001–T009 done; T010 (manual check, TEST-RUN.md §6g)
+waits for the user.
+
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
-**Next step (2026-11-02):** the last slice from ROADMAP "Later", "Correct a link", if the user wants it.
-#16, #22, #24, #26, #28 and #30 stay open until the user has run TEST-RUN.md; then merge in order (#16, retarget and merge the
-next to `main`, and so on).
+**Next step (2026-11-02):** the roadmap has no slices left after 011. The user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b
+to 6g). The stack #16, #22, #24, #26, #28, #30 and #32 stays open until then; then merge in order (#16 first, retarget
+each next pull request to `main`, and so on).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);

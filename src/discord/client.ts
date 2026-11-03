@@ -42,6 +42,16 @@ import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { createUnlink } from "./unlink.js";
+import {
+  handleLink,
+  handleLinkButton,
+  handleRank,
+  handleUnlink,
+  PendingLinkConfirmations,
+  type CorrectionInteraction,
+  type LinkButtonInteraction,
+  type LinkInteraction,
+} from "./corrections.js";
 import { handlePing, type PingInteraction } from "./ping.js";
 import {
   answer,
@@ -88,12 +98,27 @@ export interface CommandHandlers {
   readonly interviewModal: (modal: ModalSubmitInteraction) => Promise<void>;
   /** A button whose custom id starts with `rank:`, the Rank Approval buttons. */
   readonly rankButton: (button: ButtonInteraction) => Promise<void>;
+  /** The /unlink command: a Member ends their own Link, or an Officer ends another Member's. */
+  readonly unlink: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /rank command: an Officer gives a Linked Member their Alliance Rank. */
+  readonly rank: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /link command: an Officer links a handed-off Member to a uid, after confirming the Player shown. */
+  readonly link: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** A button whose custom id starts with `link:`, the Confirm and Cancel buttons of an Officer Link. */
+  readonly linkButton: (button: ButtonInteraction) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
 interface Services {
   readonly interviews: Interviews;
   readonly rankApprovals: RankApprovals;
+  /** /unlink, /rank and /link, and the Officer Link buttons, as the Discord client routes them. */
+  readonly corrections: {
+    readonly unlink: (interaction: CorrectionInteraction) => Promise<void>;
+    readonly rank: (interaction: CorrectionInteraction) => Promise<void>;
+    readonly link: (interaction: LinkInteraction) => Promise<void>;
+    readonly linkButton: (button: LinkButtonInteraction) => Promise<void>;
+  };
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -104,6 +129,11 @@ const OVERVIEW_PREFIX = "overview:";
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
 const RANK_PREFIX = "rank:";
+/** The custom id prefix of every Officer Link button. */
+const LINK_PREFIX = "link:";
+
+/** A user id picked in a command option: digits only, as every Discord snowflake is. */
+const memberIdSchema = z.string().regex(/^\d+$/);
 
 /** A guild member's roles, from the discord.js cache (a GuildMemberRoleManager) or from an API member (a string array). */
 const memberSchema = z.union([
@@ -170,6 +200,15 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "interview":
           void handlers.interview(interaction);
           break;
+        case "unlink":
+          void handlers.unlink(interaction);
+          break;
+        case "rank":
+          void handlers.rank(interaction);
+          break;
+        case "link":
+          void handlers.link(interaction);
+          break;
       }
       return;
     }
@@ -186,6 +225,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.interviewButton(interaction);
       } else if (interaction.customId.startsWith(RANK_PREFIX)) {
         void handlers.rankButton(interaction);
+      } else if (interaction.customId.startsWith(LINK_PREFIX)) {
+        void handlers.linkButton(interaction);
       } else if (interaction.customId.startsWith(PICK_PREFIX)) {
         void handlers.pick(interaction);
       } else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
@@ -377,6 +418,54 @@ function rankButtonLike(button: ButtonInteraction): RankButtonLike {
   };
 }
 
+/**
+ * The discord.js chat-input command as the corrections read it: the caller, their roles, and the options given. A message
+ * with buttons keeps them; the deferral already made the answer private, so editReply takes no flags.
+ */
+function correctionLike(command: ChatInputCommandInteraction): CorrectionInteraction & LinkInteraction {
+  return {
+    callerId: command.user.id,
+    memberRoleIds: () => memberRoleIds(command.member),
+    memberOption: () => {
+      const parsed = memberIdSchema.safeParse(command.options.getUser("member")?.id);
+      return parsed.success ? parsed.data : undefined;
+    },
+    rankOption: () => command.options.getString("rank") ?? undefined,
+    uidOption: () => command.options.getString("uid") ?? undefined,
+    deferReply: async (options) => {
+      await command.deferReply(options);
+    },
+    editReply: async (message) => {
+      await command.editReply({
+        content: message.content,
+        allowedMentions: message.allowedMentions,
+        ...("components" in message ? { components: message.components } : {}),
+      });
+    },
+  };
+}
+
+/**
+ * The discord.js button press as an Officer Link reads it. The press is acknowledged with deferUpdate, so the card is then
+ * edited (not updated) and every answer is a follow-up.
+ */
+function linkButtonLike(button: ButtonInteraction): LinkButtonInteraction {
+  return {
+    customId: button.customId,
+    user: button.user,
+    memberRoleIds: () => memberRoleIds(button.member),
+    deferUpdate: async () => {
+      await button.deferUpdate();
+    },
+    followUp: async (message) => {
+      await button.followUp(message);
+    },
+    update: async (message) => {
+      await button.editReply({ ...message, components: [] });
+    },
+  };
+}
+
 /** The discord.js chat-input command as the Interview reads it; see buttonLike for why each method is passed on. */
 function commandLike(command: ChatInputCommandInteraction): CommandLike {
   return {
@@ -438,6 +527,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   };
   // One store for every pick list: the lookups open them, the pick handler answers them.
   const pickSessions = new PickSessions();
+  // The Officer Link confirmations waiting for their Officer's button press.
+  const linkConfirmations = new PendingLinkConfirmations();
   const now = options.now;
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,
@@ -488,6 +579,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
       memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
       interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
+      unlink: async (interaction) => (await services).corrections.unlink(correctionLike(interaction)),
+      rank: async (interaction) => (await services).corrections.rank(correctionLike(interaction)),
+      link: async (interaction) => (await services).corrections.link(correctionLike(interaction)),
+      linkButton: (button) =>
+        answer("link button", { logError }, async () => {
+          const { corrections } = await services;
+          await corrections.linkButton(linkButtonLike(button));
+        }),
       interviewButton: async (button) => (await services).interviews.onButton(buttonLike(button)),
       interviewModal: async (modal) => (await services).interviews.onModalSubmit(modalLike(modal)),
       rankButton: (button) =>
@@ -521,6 +620,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       applied: options.applied,
       channels,
+      members: serverMembersOf(guild),
+      now,
       sendPrivateMessage: async (memberId, message) => {
         const user = await client.users.fetch(memberId);
         await user.send(message);
@@ -554,6 +655,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    const isOnServer = (memberId: string): Promise<boolean> =>
+      guild.members.fetch(memberId).then(
+        () => true,
+        () => false,
+      );
     const interviews = createInterviews({
       interviews: options.interviews,
       links: options.links,
@@ -563,14 +669,40 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       rankApprovals,
       nameAndRoles,
       unlink,
-      isOnServer: (memberId) => guild.members.fetch(memberId).then(
-        () => true,
-        () => false,
-      ),
+      isOnServer,
       now,
       logError,
     });
-    openServices({ interviews, rankApprovals });
+    const corrections = {
+      unlink: (interaction: CorrectionInteraction) =>
+        handleUnlink(interaction, { links: options.links, unlink, officerRoles, logError }),
+      rank: (interaction: CorrectionInteraction) =>
+        handleRank(interaction, { links: options.links, channels, nameAndRoles, officerRoles, now, logError }),
+      link: (interaction: LinkInteraction) =>
+        handleLink(interaction, {
+          links: options.links,
+          interviews: options.interviews,
+          gameApi: options.gameApi,
+          isOnServer,
+          officerRoles,
+          confirmations: linkConfirmations,
+          now,
+          logError,
+        }),
+      linkButton: (button: LinkButtonInteraction) =>
+        handleLinkButton(button, {
+          links: options.links,
+          interviews: options.interviews,
+          channels,
+          rankApprovals,
+          nameAndRoles,
+          isOnServer,
+          confirmations: linkConfirmations,
+          now,
+          logError,
+        }),
+    };
+    openServices({ interviews, rankApprovals, corrections });
     // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
     // starts once the startup apply has settled, so their Game API lookups do not overlap.
     void nameAndRoles

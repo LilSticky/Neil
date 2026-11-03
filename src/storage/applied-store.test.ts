@@ -32,7 +32,7 @@ const NML: AllianceRef = { kingdom: kingdomOf(330), tag: "NML" };
 const ABC: AllianceRef = { kingdom: kingdomOf(330), tag: "ABC" };
 
 function linkOf(memberId: string, uid: Uid): Link {
-  return { memberId, uid, linkedAt: LINKED_AT, allianceRank: { source: "no-alliance" } };
+  return { memberId, uid, linkedAt: LINKED_AT, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } };
 }
 
 function appliedOf(memberId: string, complete: boolean): AppliedState {

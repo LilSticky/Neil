@@ -158,6 +158,32 @@ Branch `010-say-goodbye`. Needs a second Discord account that is Linked (an alt)
 | 6f.3 | Alt is the Linked R5 and approver of a pending Rank Approval, then leaves | The Rank Approval's thread says the Officers approve now (Officer roles pinged); an Officer's button press approves | | |
 | 6f.4 | Stop Neil, let the Linked alt leave, start Neil | The alt is Unlinked at startup (`🔓 … is not on the server`) | | |
 
+## 6g. Correct a link (slice 011, collected 2026-11-02)
+
+Branch `011-correct-a-link`. Run `npm run commands:register` first (`/unlink`, `/rank`, `/link`). Needs an Officer
+account, a Linked alt (not an Officer), and a Member whose Interview was handed off (5 failed uids, section 3.6).
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6g.1 | Officer: `/unlink member:<alt>` | Only the Officer sees "unlinked"; alt's Managed Roles and Neil's nickname gone; `#neil-log` one line naming the Officer, uid and nickname; alt gets a private message mentioning `/interview` (if it shares a server with Neil) | | |
+| 6g.2 | Give the uid of 6g.1 to the joiner (section 2) | Linked at once: the uid is free again | | |
+| 6g.3 | Officer: `/unlink member:<alt>` again | Only the Officer sees "not Linked"; nothing changes | | |
+| 6g.4 | Normal account (not an Officer): `/unlink member:<someone else>` | Only that account sees that only Officers may do that; nothing changes | | |
+| 6g.5 | Alt (Linked, has a nickname it changed itself): `/unlink` | Private reply in the command, mentions `/interview`; roles removed; the changed nickname left alone; `#neil-log` says the Member unlinked themselves | | |
+| 6g.6 | Alt: `/unlink` again | Only the alt sees "not Linked" | | |
+| 6g.7 | Alt: `/interview` | A new Onboarding Interview starts (thread in `#onboarding`) | | |
+| 6g.8 | Officer: `/rank member:<Linked alt with unknown rank> rank:R3` | Only the Officer sees the result; rank role R3 and nickname `\|R3` applied; `#neil-log` one line naming the Officer; a pending Rank Approval on that Link is settled and its thread says so | | |
+| 6g.9 | Officer: `/rank` on a Linked Member whose Game API rank is R4, give R2 | Officer is told the next Daily Sync uses R4; R2 applied now | | |
+| 6g.10 | Officer: `/rank` on a Member not in an Alliance | Only the Officer sees "a rank needs an Alliance"; nothing changes | | |
+| 6g.11 | Officer: `/rank member:<self>` | Refused; nothing changes | | |
+| 6g.12 | Start Neil, then wait for the Daily Sync (or set `SYNC_HOUR_UTC` to the current hour) with the rank still unknown in the game | The rank given in 6g.8 is kept | | |
+| 6g.13 | Officer: `/link member:<handed-off Member> uid:<real uid>` → press Confirm on the Player shown | Member Linked; Interview ends in its thread (locked, archived); name and roles applied; `#neil-log` one line marking an Officer Link with the Officer | | |
+| 6g.14 | Officer: `/link` on a Member whose Interview is not handed off | Only the Officer sees "needs a handed-off Interview"; nothing changes | | |
+| 6g.15 | Officer: `/link` with a uid already Linked to another Member | Refused "already Linked to …" (Officer only); the Officer may `/unlink` that Member first | | |
+| 6g.16 | Officer: `/link` with an unknown uid (e.g. `1`), and press Cancel on a shown Player | Officer sees why / nothing linked; no Interview change | | |
+| 6g.17 | Officer: `/link` with a uid and let the confirmation expire (a few minutes) | Buttons stop working; nothing changes | | |
+| 6g.18 | Non-Officer: `/rank` and `/link` | Only they see that only Officers may do that | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
