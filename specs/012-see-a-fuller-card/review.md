@@ -27,3 +27,26 @@ Reviewer: `bot-reviewer` (2026-11-02), diff `011-correct-a-link...012-see-a-full
 Pictures only from `https://lastasylumtracker.com` + a `/static/` path (no dots before the extension, so no `..`,
 host or query); every Game API text escaped; `embedCharacters` counts author name and description; each new field
 fails alone; domain types only, no new Game API calls, nothing logged.
+
+## Review: T007–T008 (bot-reviewer, 2026-11-03), diff `7dfb436..8537449`
+
+### Must
+
+None.
+
+### Should
+
+- [x] S2 FR-009 was decided twice (`isOnlineNow` in the domain, `onlineText` in the card adapter). Fixed: one domain
+  function `lastSeen` in `src/domain/alliance-overview.ts`; both adapters only format its result.
+
+### Could
+
+- [x] C4 `seenText` re-checked `lastOnlineAt` only for type narrowing. Fixed with `lastSeen`'s union.
+- [ ] C5 The inline Top lists (5 lines, names up to 32 characters) may wrap hard in thirds on desktop. Kept: check in
+  TEST-RUN.md §6h.8; fallback is `inline: false` for the Top fields.
+
+### Checked and clean
+
+- Both embeds stay within 6,000 characters (the author name is counted); fields stay under 1,024.
+- Names are escaped; pictures come only through `trackerPicture`; the domain stays pure.
+- "Online now without a Last Online" does not leak: `leastActive`, the Daily Sync and the Interview store never read it.

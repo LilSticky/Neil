@@ -196,6 +196,9 @@ Branch `012-see-a-fuller-card`. No new commands, no `commands:register` needed.
 | 6h.4 | Turn the roster menu to page 2 (an Alliance with more than 25 members) | Same top part; roster rows with power; no Discord error | | |
 | 6h.5 | `/player` on a Player without an Alliance | "No alliance", no Alliance Rank; other values as in 6h.1 | | |
 | 6h.6 | `/quota` before and after 6h.1–6h.5 | Same number of requests as before this slice (one per uncached lookup) | | |
+| 6h.7 | `/player` on a Player the Game gives no Last Online for (often one online right now) | "Online now" under the name | | |
+| 6h.8 | Press Overview on the card from 6h.3 | Same red accent, "Kingdom #1" with badge, Alliance badge at the right; totals, online counts and Top lists in rows of three (check they read well on desktop and phone); Least Active full width; table rows `Name · 27.6M · …`; members without a Last Online read "online" | | |
+| 6h.9 | Turn the Overview's table to page 2 | Same look; no Discord error | | |
 
 ## 7. Afterwards
 

@@ -74,5 +74,5 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   Online now · Online in the last 24 hours · No data / Top Weekly Activity · Top Daily Honor · Top Daily Tech /
   Least Active (not inline). Table embed: same color; rows `Name · 27.6M · figures · seen` (power left out when
   unknown). Tests in `overview-texts.test.ts`; existing limit tests still pass with power on 25 rows of long names.
-- [ ] **T009** Docs: TEST-RUN.md §6h rows for the Overview look and Online now; STATUS.
+- [x] **T009** Docs: TEST-RUN.md §6h rows for the Overview look and Online now; STATUS.
 - [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.
