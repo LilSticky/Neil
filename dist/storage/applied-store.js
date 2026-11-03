@@ -45,7 +45,7 @@ export class AppliedStore {
     /** The Links whose Member has no Applied State yet, or one that is not complete (the startup apply's work list). */
     linkedWithoutCompleteApply() {
         const rows = this.db
-            .prepare(`SELECT l.member_id, l.uid, l.linked_at, l.rank_source, l.alliance_rank, l.approved_by, l.approved_at
+            .prepare(`SELECT l.member_id, l.uid, l.linked_at, l.rank_source, l.alliance_rank, l.approved_by, l.approved_at, l.linked_by
          FROM link l LEFT JOIN applied a ON a.member_id = l.member_id
          WHERE a.member_id IS NULL OR a.complete = 0
          ORDER BY l.linked_at, l.member_id`)

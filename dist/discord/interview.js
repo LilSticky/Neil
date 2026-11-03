@@ -460,13 +460,13 @@ async function linkConfirmed(deps, interview) {
     return "done";
 }
 /**
- * Stores the Link and the Interview as linked, in one transaction. Undefined when the Interview is no longer awaiting
- * its confirmation: then nothing is stored.
+ * Stores the Link and the Interview as linked, in one transaction. Undefined when the stored Interview is no longer on
+ * expectedStep: then nothing is stored. Shared with /link, which expects a handed-off Interview.
  */
-function storeLink(deps, linked, input) {
+export function storeLinkIfStep(deps, linked, expectedStep, input) {
     try {
         return deps.links.confirm(input, () => {
-            if (!deps.interviews.saveIfStep(linked, "awaiting-confirmation"))
+            if (!deps.interviews.saveIfStep(linked, expectedStep))
                 throw new InterviewMovedOn();
         });
     }
@@ -476,8 +476,11 @@ function storeLink(deps, linked, input) {
         throw error;
     }
 }
+function storeLink(deps, linked, input) {
+    return storeLinkIfStep(deps, linked, "awaiting-confirmation", input);
+}
 /** A Link with an unknown rank waits for a Rank Approval, asked of the leader's Member when present, else the Officers. */
-function pendingApprovalFor(link, interview, leaderMemberId, now) {
+export function pendingApprovalFor(link, interview, leaderMemberId, now) {
     if (!needsRankApproval(link.allianceRank))
         return undefined;
     return {
@@ -539,10 +542,11 @@ function linkFor(interview, now) {
         uid: interview.player.uid,
         linkedAt: now,
         allianceRank: rankOnLink(interview.player),
+        madeBy: { kind: "in-game-proof" },
     };
 }
 /** The Member of the Alliance's leader, when that Member is Linked and on the server; otherwise nobody is pinged. */
-async function leaderPing(deps, player) {
+export async function leaderPing(deps, player) {
     const leaderUid = player.alliance?.leaderUid;
     if (leaderUid === undefined)
         return undefined;

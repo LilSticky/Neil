@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseUid } from "../domain/lookup-input.js";
+import { approve, } from "../domain/rank-approval.js";
 const LINK_CONFLICT_PATTERN = /^UNIQUE constraint failed: link\.(member_id|uid)$/;
 const memberIdColumn = z.string().regex(/^\d+$/);
 const isoDateColumn = z.iso.datetime().transform((value) => new Date(value));
@@ -33,7 +34,11 @@ const rankColumns = z.discriminatedUnion("rank_source", [
         approved_at: z.null(),
     }),
 ]);
-const linkRow = z.object({ member_id: memberIdColumn, uid: uidColumn, linked_at: isoDateColumn }).and(rankColumns);
+/** NULL for a Link made from In-game Proof; an Officer Link names its Officer. */
+const linkedByColumn = memberIdColumn.nullable();
+const linkRow = z
+    .object({ member_id: memberIdColumn, uid: uidColumn, linked_at: isoDateColumn, linked_by: linkedByColumn })
+    .and(rankColumns);
 const approverColumns = z.discriminatedUnion("approver_kind", [
     z.object({ approver_kind: z.literal("member"), approver_member_id: memberIdColumn }),
     z.object({ approver_kind: z.literal("officers"), approver_member_id: z.null() }),
@@ -69,7 +74,7 @@ const APPROVAL_COLUMN_NAMES = [
     "asked_at",
     "ended_at",
 ];
-const LINK_COLUMNS = "member_id, uid, linked_at, rank_source, alliance_rank, approved_by, approved_at";
+const LINK_COLUMNS = "member_id, uid, linked_at, rank_source, alliance_rank, approved_by, approved_at, linked_by";
 const APPROVAL_COLUMNS = APPROVAL_COLUMN_NAMES.join(", ");
 const APPROVAL_SELECT = `SELECT id, ${APPROVAL_COLUMNS} FROM rank_approval`;
 const APPROVAL_PLACEHOLDERS = "?, ?, ?, ?, ?, ?, ?, ?, ?";
@@ -147,15 +152,23 @@ export class LinkStore {
      * onto the Link, in one transaction. Returns false, and writes nothing, when the Rank Approval has already ended.
      */
     saveIfPending(approval) {
+        return this.inTransaction(() => this.writeIfPending(approval));
+    }
+    /**
+     * An Officer gives the Link its rank (slice 011). In one transaction: the pending Rank Approval of the Link, if any, is
+     * approved by the Officer, and the Link takes the rank; otherwise only the rank changes, and the result is undefined.
+     * Returns the approved Rank Approval, for its thread.
+     */
+    rankByOfficer(memberId, officer, now) {
         return this.inTransaction(() => {
-            const result = this.db
-                .prepare(`UPDATE rank_approval SET ${APPROVAL_COLUMN_NAMES.map((column) => `${column} = ?`).join(", ")} WHERE id = ? AND state = 'pending'`)
-                .run(...approvalColumnsOf(approval), approval.id);
-            if (Number(result.changes) === 0)
-                return false;
-            if (approval.state === "approved")
-                this.writeApprovedRank(approval);
-            return true;
+            const pending = this.pendingFor(memberId);
+            const change = pending === undefined ? undefined : approve(pending, officer.rank, officer.approvedBy, now);
+            if (change === undefined || !change.ok) {
+                this.updateRank(memberId, { source: "rank-approval", rank: officer.rank, approvedBy: officer.approvedBy, approvedAt: now });
+                return undefined;
+            }
+            this.writeIfPending(change.approval);
+            return change.approval;
         });
     }
     /**
@@ -205,6 +218,17 @@ export class LinkStore {
             .all(memberId)
             .map(rankApprovalOf);
     }
+    /** Writes the approval only while it is pending, and an approved one writes its rank onto the Link. Not transactional. */
+    writeIfPending(approval) {
+        const result = this.db
+            .prepare(`UPDATE rank_approval SET ${APPROVAL_COLUMN_NAMES.map((column) => `${column} = ?`).join(", ")} WHERE id = ? AND state = 'pending'`)
+            .run(...approvalColumnsOf(approval), approval.id);
+        if (Number(result.changes) === 0)
+            return false;
+        if (approval.state === "approved")
+            this.writeApprovedRank(approval);
+        return true;
+    }
     writeApprovedRank(approval) {
         this.db
             .prepare("UPDATE link SET rank_source = ?, alliance_rank = ?, approved_by = ?, approved_at = ? WHERE member_id = ?")
@@ -217,8 +241,8 @@ export class LinkStore {
     }
     insertLink(link) {
         this.db
-            .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, alliance_rank, approved_by, approved_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
-            .run(link.memberId, link.uid, link.linkedAt.toISOString(), ...rankColumnsOf(link.allianceRank));
+            .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, alliance_rank, approved_by, approved_at, linked_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+            .run(link.memberId, link.uid, link.linkedAt.toISOString(), ...rankColumnsOf(link.allianceRank), linkedByOf(link.madeBy));
     }
     insertRankApproval(draft) {
         const result = this.db
@@ -243,7 +267,7 @@ export class LinkStore {
 function corruptLinkError() {
     return new Error("a Link in neil.db is corrupt; fix or remove it by hand");
 }
-/** Parses a row of `link` selected with its six columns (member_id, uid, linked_at and the rank columns). */
+/** Parses a row of `link` selected with LINK_COLUMNS (member_id, uid, linked_at, the rank columns and linked_by). */
 export function linkOf(raw) {
     const parsed = linkRow.safeParse(raw);
     if (!parsed.success)
@@ -253,7 +277,15 @@ export function linkOf(raw) {
         uid: parsed.data.uid,
         linkedAt: parsed.data.linked_at,
         allianceRank: rankOnLinkOf(parsed.data),
+        madeBy: madeByOf(parsed.data.linked_by),
     };
+}
+function madeByOf(linkedBy) {
+    return linkedBy === null ? { kind: "in-game-proof" } : { kind: "officer-link", officerId: linkedBy };
+}
+/** The linked_by column of a Link: NULL for In-game Proof, the Officer's id for an Officer Link. */
+function linkedByOf(madeBy) {
+    return madeBy.kind === "in-game-proof" ? null : madeBy.officerId;
 }
 function rankOnLinkOf(columns) {
     switch (columns.rank_source) {

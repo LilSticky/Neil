@@ -1,32 +1,94 @@
 import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
-import { rankHandedToOfficersMessage, unlinkedLogLine, unlinkedPrivateMessage, } from "./unlink-texts.js";
+import { cancel } from "../domain/rank-approval.js";
+import { applyNameAndRoles } from "./member-roles.js";
+import { rankCancelledByUnlinkMessage, rankHandedToOfficersMessage, unlinkedByOfficerPrivateMessage, unlinkedLogLine, unlinkedPrivateMessage, } from "./unlink-texts.js";
 export function createUnlink(deps) {
     return { unlink: (member, reason) => unlinkMember(deps, member.id, reason) };
 }
 /**
- * Ends a Member's Link: reads the nickname Neil gave them, removes the Link and its applied state, then logs, tells the
- * Member privately, and hands on the Rank Approvals they were to approve. Each step is guarded, so a failure is logged
- * and the next step still runs.
+ * Ends a Member's Link. The Link and its applied state are removed first. For a Member on the server, Neil then takes off
+ * the Managed Roles and the nickname it set, and cancels the Member's own pending Rank Approval. The Member is logged and
+ * told privately (not when they Unlinked themselves), and the Rank Approvals waiting on them are handed on. Each step is
+ * guarded, so a failure is logged and the next step still runs.
  */
 async function unlinkMember(deps, memberId, reason) {
-    const nickname = attempt(deps, memberId, "reading the nickname", () => deps.applied.get(memberId)?.nickname);
+    const applied = attempt(deps, memberId, "reading the applied state", () => deps.applied.get(memberId));
+    // The Link goes first, so an apply that is under way finds no Link and gives the Member nothing more.
     const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
+    let notChanged = [];
+    if (!removedByDiscord(reason)) {
+        notChanged = await takeOffOnServer(deps, memberId, applied);
+        await cancelOwnApproval(deps, memberId);
+    }
     if (removed !== undefined) {
-        await attemptAsync(deps, memberId, "logging the Unlink", () => deps.channels.log(unlinkedLogLine(memberId, removed.uid, nickname, reason)));
-        await tellMember(deps, memberId);
+        await attemptAsync(deps, memberId, "logging the Unlink", () => deps.channels.log(unlinkedLogLine(memberId, removed.uid, applied?.nickname, reason, notChanged)));
+        await tellMember(deps, memberId, reason);
     }
     await handOnRankApprovals(deps, memberId);
 }
-/** The private message to the Member. Discord refuses it when the Member cannot be messaged: expected, so not logged. */
-async function tellMember(deps, memberId) {
+/** A Member who left or was found missing is already off the server: Discord took their roles, so Neil changes nothing. */
+function removedByDiscord(reason) {
+    return reason === "left" || reason === "missing";
+}
+/**
+ * Takes off the Managed Roles Neil applied, and clears the nickname only while it is still the one Neil set. A Member not
+ * on the server is left alone. Resolves to the steps Discord did not let Neil take; never throws.
+ */
+async function takeOffOnServer(deps, memberId, applied) {
     try {
-        await deps.sendPrivateMessage(memberId, unlinkedPrivateMessage());
+        const server = await deps.members.memberOf(memberId);
+        if (server === undefined)
+            return [];
+        const report = await applyNameAndRoles(server.guild, server.member, {
+            nickname: applied !== undefined && server.member.nickname === applied.nickname ? null : undefined,
+            roles: [],
+            managedTags: applied?.roles ?? [],
+            officerRoleIds: [deps.officerRoles.moderatorRoleId, deps.officerRoles.kingRoleId],
+        });
+        return report.skipped.map((skip) => skip.what);
+    }
+    catch (error) {
+        deps.logError(failureLine(memberId, "taking off the roles", error));
+        return [];
+    }
+}
+/** Cancels the Member's own pending Rank Approval and posts in its thread; a Member without one changes nothing else. */
+async function cancelOwnApproval(deps, memberId) {
+    const pending = attempt(deps, memberId, "reading the pending Rank Approval", () => deps.links.pendingFor(memberId));
+    if (pending === undefined)
+        return;
+    const change = cancel(pending, deps.now());
+    if (!change.ok)
+        return;
+    const cancelled = change.approval;
+    const saved = attempt(deps, memberId, `cancelling Rank Approval ${pending.id.toString()}`, () => deps.links.saveIfPending(cancelled));
+    if (saved !== true)
+        return;
+    await attemptAsync(deps, memberId, `posting in the thread of Rank Approval ${pending.id.toString()}`, () => deps.channels.post(pending.threadId, rankCancelledByUnlinkMessage()));
+}
+/**
+ * The private message to the Member: an Officer's Unlink tells them to run /interview, a leave or a missing Member gets
+ * the leave message, and a Member who Unlinked themselves gets none (the reply carries the result).
+ */
+async function tellMember(deps, memberId, reason) {
+    const message = privateMessageOf(reason);
+    if (message === undefined)
+        return;
+    try {
+        await deps.sendPrivateMessage(memberId, message);
     }
     catch (error) {
         if (isCannotBeMessaged(error))
             return;
         deps.logError(failureLine(memberId, "telling the Member", error));
     }
+}
+function privateMessageOf(reason) {
+    if (reason === "self")
+        return undefined;
+    if (typeof reason === "object")
+        return unlinkedByOfficerPrivateMessage();
+    return unlinkedPrivateMessage();
 }
 /** Discord's refusal to send a private message to a user who cannot be messaged (no shared server, DMs closed). */
 function isCannotBeMessaged(error) {

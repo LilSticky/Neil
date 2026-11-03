@@ -126,6 +126,9 @@ async function syncTo(deps, memberId, player, rank, fetched) {
     const previous = deps.applied.get(memberId);
     const nickname = nicknameFor(player, rank, deps.homeKingdom);
     const roles = rolesFor(player, rank, deps.homeKingdom, deps.troopBracketLevels);
+    // An Unlink may have ended the Link while the Member was fetched: nothing is given then, and nothing is recorded.
+    if (deps.links.linkFor(memberId) === undefined)
+        return false;
     // The nickname on the server before the apply: the Member may have changed it by hand since the last apply.
     const currentNickname = server.member.nickname;
     const report = await applyNameAndRoles(server.guild, server.member, {
@@ -152,13 +155,16 @@ async function applyTo(deps, memberId, server, player, rank) {
     const roles = rolesFor(player, rank, deps.homeKingdom, deps.troopBracketLevels);
     // Alliance tags Neil applied before are managed too, so an Alliance or rank it no longer gives is taken off.
     const managedTags = [...(previous?.roles ?? []), ...roles];
+    // An Unlink may have ended the Link while the Member was fetched or the Player looked up: nothing is given then.
+    if (deps.links.linkFor(memberId) === undefined)
+        return;
     const report = await applyNameAndRoles(server.guild, server.member, {
         nickname,
         roles,
         managedTags,
         officerRoleIds: deps.officerRoleIds,
     });
-    // An Unlink may have removed the Link meanwhile: the foreign key rejects this record, and the caller logs the failure.
+    // An Unlink may still end the Link during the apply: the foreign key then rejects this record, and the caller logs it.
     deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
     if (!hasChange(report, previous, nickname))
         return;

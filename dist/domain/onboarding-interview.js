@@ -216,6 +216,26 @@ export function confirm(interview, outcome, now) {
         event: { kind: "linked", uid: interview.player.uid },
     };
 }
+/**
+ * An Officer Links the Member to the uid of the Player the Officer confirmed, after the Interview was handed off. Only a
+ * handed-off Interview ends as linked, and it keeps its five failed attempts; the Officer is named in the event, and the
+ * Link names them as its madeBy. An open Interview is not handed off, so nothing changes; an ended one refuses.
+ */
+export function linkByOfficer(interview, uid, officerId, now) {
+    if (interview.step === "handed-off") {
+        return {
+            interview: {
+                step: "linked",
+                ...fieldsOf(interview),
+                failedAttempts: interview.failedAttempts,
+                endedAt: now,
+                uid,
+            },
+            event: { kind: "officer-link", uid, officerId },
+        };
+    }
+    return isOpen(interview) ? ignore(interview) : refuse(interview);
+}
 /** The Member pressed "That's not me": a failed attempt. */
 export function reject(interview, now) {
     if (!isOpen(interview))

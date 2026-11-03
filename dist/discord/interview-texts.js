@@ -95,7 +95,7 @@ export function parseInterviewCustomId(customId) {
         return undefined;
     return { action, interviewId };
 }
-function asApprovableRank(text) {
+export function asApprovableRank(text) {
     return APPROVABLE_RANKS.find((rank) => rank === text);
 }
 /** The custom id of a Rank Approval's rank button: rank:{approvalId}:{rank}. */
@@ -180,14 +180,17 @@ export function uidModal(interviewId) {
         ],
     };
 }
-/** The thread message with the card of a found Player and the buttons to confirm or reject it. */
-export function foundCardMessage(interviewId, player) {
-    const content = [
+/** The card of a Player as text: name, uid with kingdom, and Alliance and rank, one line each. */
+export function playerCardText(player) {
+    return [
         escapeText(player.name),
         `uid ${escapeText(player.uid)} · Kingdom #${player.kingdom.toString()}`,
         allianceCardText(player),
-        "Is this you?",
     ].join("\n");
+}
+/** The thread message with the card of a found Player and the buttons to confirm or reject it. */
+export function foundCardMessage(interviewId, player) {
+    const content = `${playerCardText(player)}\nIs this you?`;
     return {
         content,
         components: [
@@ -411,15 +414,26 @@ export function rankCancelledLeftMessage(username) {
         allowedMentions: noMentions(),
     };
 }
-/** The log line for a Link; it pings the Alliance's leader's Member only when given. */
-export function linkLogLine(member, player, leaderMemberId) {
+/** The start of a Link's log line: the Member, the Player and the Alliance. */
+function linkLogBase(member, player) {
     const alliance = player.alliance === undefined
         ? "no alliance"
         : `[${escapeText(player.alliance.tag)}], ${rankText(player.allianceRank)}`;
-    const base = `🔗 <@${member}> linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}, #${player.kingdom.toString()}, ${alliance}).`;
+    return `🔗 <@${member}> linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}, #${player.kingdom.toString()}, ${alliance}).`;
+}
+/** The log line for a Link; it pings the Alliance's leader's Member only when given. */
+export function linkLogLine(member, player, leaderMemberId) {
+    const base = linkLogBase(member, player);
     if (leaderMemberId === undefined)
         return { content: base, allowedMentions: noMentions() };
     return { content: `${base} <@${leaderMemberId}>`, allowedMentions: { users: [leaderMemberId] } };
+}
+/** The log line for an Officer Link: the Link's line, then the Officer who made it. */
+export function officerLinkLogLine(member, player, officerId) {
+    return {
+        content: `${linkLogBase(member, player)} Made by <@${officerId}>.`,
+        allowedMentions: { users: [officerId] },
+    };
 }
 /** The log line for a uid that was already Linked to another Member. */
 export function refusedLogLine(member, uid) {
