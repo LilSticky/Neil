@@ -58,6 +58,23 @@ discovery.
 ## Alliance Roster
 * The list of an Alliance's Players, each with uid, Player Name and Alliance Rank, as the Game API reports it
 
+## Alliance Overview
+* An Alliance's activity at a glance: totals, top contributors, Least Active members and a per-member table
+* Opened from the Alliance card, shown only to the Member who asked
+
+## Weekly Activity
+* A Player's activity points in their Alliance this week (Game API `active`)
+
+## Daily Honor
+* A Player's honor contribution to their Alliance today (Game API `daily_honor`)
+
+## Daily Tech
+* A Player's tech contribution to their Alliance today (Game API `daily_tech`)
+
+## Least Active
+* The members of an Alliance with the lowest Weekly Activity
+* Members the Game API gives no activity for are listed as "no data", not as Least Active
+
 ## Alliance Rank
 * R1–R5, a Player's rank in their Alliance; R5 is the Alliance's leader
 * Unknown when the Game API lists no rank for the Player

@@ -171,7 +171,7 @@ function rosterOf(count: number): RosterEntry[] {
   return Array.from({ length: count }, (_value, index) => {
     const parsed = parseUid((100_000_000_000 + index).toString());
     if (!parsed.ok) throw new Error(`test uid for member ${index.toString()} is not valid`);
-    return { uid: parsed.value, name: `M${index.toString().padStart(2, "0")}`, allianceRank: "R4" };
+    return { uid: parsed.value, name: `M${index.toString().padStart(2, "0")}`, allianceRank: "R4", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
   });
 }
 

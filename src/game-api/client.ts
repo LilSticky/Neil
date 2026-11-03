@@ -588,8 +588,24 @@ function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
   if (!uid.ok) return [];
   const name = member.nick_name ?? "";
   return [
-    { uid: uid.value, name: name === "" ? "Unknown" : name, allianceRank: rankFromLabel(member.rank_label ?? null) },
+    {
+      uid: uid.value,
+      name: name === "" ? "Unknown" : name,
+      allianceRank: rankFromLabel(member.rank_label ?? null),
+      weeklyActivity: member.active ?? undefined,
+      dailyHonor: member.daily_honor ?? undefined,
+      dailyTech: member.daily_tech ?? undefined,
+      online: member.online ?? undefined,
+      lastOnlineAt: lastOnlineFrom(member.last_online_at),
+    },
   ];
+}
+
+/** A Game API Unix time in seconds as a Date; undefined when the Game gave none or the time is not one a Date holds. */
+function lastOnlineFrom(seconds: number | null | undefined): Date | undefined {
+  if (seconds === null || seconds === undefined) return undefined;
+  const moment = new Date(seconds * 1000);
+  return Number.isFinite(moment.getTime()) ? moment : undefined;
 }
 
 /** Maps one candidate of a 409, leaving out the fields the Game did not give (exactOptionalPropertyTypes). */

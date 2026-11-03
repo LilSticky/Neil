@@ -82,10 +82,57 @@ describe("allianceBodySchema roster", () => {
     const parsed = allianceBodySchema.parse(alliance);
 
     expect(parsed.members).toEqual([
-      { uid: "179060285441", nick_name: "etranger", rank_label: "R4" },
-      { uid: "93159425", nick_name: "Benedict", rank_label: "R3" },
-      { uid: "147744374785", nick_name: "Settong", rank_label: "R1" },
+      {
+        uid: "179060285441",
+        nick_name: "etranger",
+        rank_label: "R4",
+        active: 490,
+        daily_honor: 40,
+        daily_tech: 4600,
+        online: false,
+        last_online_at: 1793285439,
+      },
+      {
+        uid: "93159425",
+        nick_name: "Benedict",
+        rank_label: "R3",
+        active: null,
+        daily_honor: null,
+        daily_tech: null,
+        online: false,
+        last_online_at: 1793191591,
+      },
+      {
+        uid: "147744374785",
+        nick_name: "Settong",
+        rank_label: "R1",
+        active: null,
+        daily_honor: null,
+        daily_tech: null,
+        online: false,
+        last_online_at: 1792878480,
+      },
     ]);
+  });
+
+  test("reads the activity figures and online fields of a recorded member, null included", () => {
+    const parsed = allianceBodySchema.parse(alliance);
+
+    expect(parsed.members[0]).toMatchObject({ active: 490, daily_honor: 40, daily_tech: 4600, online: false });
+    expect(parsed.members[1]).toMatchObject({ active: null, daily_honor: null, daily_tech: null });
+  });
+
+  test("keeps a member whose activity figure is not a whole number, and reads that figure as absent", () => {
+    const body = {
+      ...alliance,
+      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", active: "490", daily_honor: 4.5 }],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toHaveLength(1);
+    expect(parsed.members[0]?.active).toBeUndefined();
+    expect(parsed.members[0]?.daily_honor).toBeUndefined();
   });
 
   test("accepts a member whose nick_name is null and whose rank_label is null", () => {
@@ -112,6 +159,17 @@ describe("allianceBodySchema roster", () => {
     const parsed = allianceBodySchema.parse(body);
 
     expect(parsed.members).toEqual([{ uid: "93159425", nick_name: "Benedict", rank_label: "R3" }]);
+  });
+
+  test("reads a last_online_at beyond the range of a date as absent, and keeps the member", () => {
+    const body = {
+      ...alliance,
+      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: Number.MAX_SAFE_INTEGER }],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
   });
 
   test("gives an empty roster when the body has no members", () => {

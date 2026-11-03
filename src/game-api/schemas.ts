@@ -29,11 +29,23 @@ export const playerBodySchema = z.object({
 
 export type PlayerBody = z.infer<typeof playerBodySchema>;
 
-/** One row of an Alliance's `members`; the name and the rank label may be null. */
+/**
+ * One row of an Alliance's `members`; the name and the rank label may be null. The activity figures (`active`,
+ * `daily_honor`, `daily_tech`) are null when the Game has no data, and read as absent when they are not whole numbers.
+ * `last_online_at` is a Unix time in seconds, read as absent beyond the range a Date holds.
+ */
+/** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
+const MAX_DATE_SECONDS = 8_640_000_000_000;
+
 const rosterMemberSchema = z.object({
   uid: idSchema,
   nick_name: z.string().nullish(),
   rank_label: z.string().nullish(),
+  active: z.number().int().nullish().catch(undefined),
+  daily_honor: z.number().int().nullish().catch(undefined),
+  daily_tech: z.number().int().nullish().catch(undefined),
+  online: z.boolean().nullish().catch(undefined),
+  last_online_at: z.number().int().nonnegative().max(MAX_DATE_SECONDS).nullish().catch(undefined),
 });
 
 export type RosterMemberBody = z.infer<typeof rosterMemberSchema>;

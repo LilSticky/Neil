@@ -23,6 +23,8 @@ export interface PickSession {
   readonly choice: PickChoice;
   /** The page of a roster menu on screen; 0 for a pick list of matches, which has one page. */
   readonly page: number;
+  /** The Alliance Overview each Member holds under this roster menu, by the Member's id: one per Member, reused. */
+  readonly overviews: ReadonlyMap<string, string>;
 }
 
 const LIFETIME_MS = 15 * 60_000;
@@ -30,6 +32,7 @@ const MAX_SESSIONS = 500;
 const PAGE_SIZE = 25;
 
 const CUSTOM_ID_PATTERN = /^pick:([^:]+):(?:select(?::(\d+))?|page:(\d+))$/;
+const OVERVIEW_CUSTOM_ID_PATTERN = /^pick:([^:]+):overview:(\d+):(.+)$/;
 
 /** Memory-only pick lists: a restart ends them, and the oldest is dropped beyond 500. */
 export class PickSessions {
@@ -38,7 +41,7 @@ export class PickSessions {
   /** Opens a pick list for the Member and returns its id, short enough for a custom id. */
   open(ownerId: string, choice: PickChoice, now: Date): string {
     const id = randomBytes(8).toString("hex");
-    this.sessions.set(id, { id, ownerId, createdAt: now, choice, page: 0 });
+    this.sessions.set(id, { id, ownerId, createdAt: now, choice, page: 0, overviews: new Map() });
     if (this.sessions.size > MAX_SESSIONS) {
       const oldest = this.sessions.keys().next();
       if (!oldest.done) this.sessions.delete(oldest.value);
@@ -58,6 +61,13 @@ export class PickSessions {
     const session = this.sessions.get(id);
     if (session === undefined) return;
     this.sessions.set(id, { ...session, page: clampPage(page, entriesOf(session.choice)) });
+  }
+
+  /** Remembers the Alliance Overview a Member holds under a pick list; an unknown id does nothing. */
+  linkOverview(id: string, memberId: string, overviewId: string): void {
+    const session = this.sessions.get(id);
+    if (session === undefined) return;
+    this.sessions.set(id, { ...session, overviews: new Map(session.overviews).set(memberId, overviewId) });
   }
 }
 
@@ -89,14 +99,22 @@ export function pageCount(entries: readonly unknown[]): number {
 
 /**
  * What a component interaction asks for, read back from `pick:{sessionId}:select`, `pick:{sessionId}:select:{page}`
- * (a roster menu, with the page it shows) or `pick:{sessionId}:page:{n}`.
+ * (a roster menu, with the page it shows), `pick:{sessionId}:page:{n}` or the Overview button of an Alliance card,
+ * `pick:{sessionId}:overview:{kingdom}:{tag}`. The Kingdom and tag are as typed in the id, not yet validated.
  */
 export type ParsedCustomId =
   | { readonly sessionId: string; readonly action: "select"; readonly page?: number }
-  | { readonly sessionId: string; readonly action: "page"; readonly page: number };
+  | { readonly sessionId: string; readonly action: "page"; readonly page: number }
+  | { readonly sessionId: string; readonly action: "overview"; readonly kingdom: string; readonly tag: string };
 
 /** Reads a pick list's custom id; anything else, including a malformed `pick:` id, gives undefined. */
 export function parseCustomId(customId: string): ParsedCustomId | undefined {
+  const overview = OVERVIEW_CUSTOM_ID_PATTERN.exec(customId);
+  if (overview !== null) {
+    const [, overviewSessionId, kingdom, tag] = overview;
+    if (overviewSessionId === undefined || kingdom === undefined || tag === undefined) return undefined;
+    return { sessionId: overviewSessionId, action: "overview", kingdom, tag };
+  }
   const match = CUSTOM_ID_PATTERN.exec(customId);
   if (match === null) return undefined;
   const [, sessionId, selectPage, page] = match;

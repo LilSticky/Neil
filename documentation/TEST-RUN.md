@@ -122,6 +122,19 @@ Alliances fill up from lookups: do a few `/player` and `/alliance tag:` lookups 
 | 6c.6 | `/alliance tag:NML` without kingdom | Kingdom 330's NML (or not found) | | |
 | 6c.7 | An Alliance of another Kingdom looked up | Never suggested | | |
 
+## 6d. Alliance overview (slice 008, collected 2026-11-02)
+
+Branch `008-alliance-overview`.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6d.1 | `/alliance tag:NML kingdom:330`, press `Overview` | Only you see: totals (Weekly Activity, Daily Honor, Daily Tech; online now / 24 h), top 5 each, 5 Least Active, "no data" count; no uids; `/quota` unchanged | | |
+| 6d.2 | Second account presses `Overview` on the same card | They get their own private overview | | |
+| 6d.3 | Page the member table (alliance with > 25 members) | 25 rows per page, sorted by Weekly Activity, "no data" last; last online shown in your time zone | | |
+| 6d.4 | Second account presses your page buttons (if visible) | "not yours" note | | |
+| 6d.5 | Wait > 10 minutes, press `Overview` on the old card | Overview still comes (one lookup) or a clear "try again" | | |
+| 6d.6 | Do the numbers match the tracker's website? | — | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

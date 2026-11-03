@@ -15,7 +15,7 @@ import {
 } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
-import { lookupMessages, renderRosterComponents } from "./lookup-cards.js";
+import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
 import { handleAlliance, handlePlayer } from "./lookup.js";
 
@@ -805,9 +805,9 @@ function allianceKey(text: string): AllianceKey {
 
 /** Members of the Alliance, in the order the tracker lists them; the card and the menu show them by rank. */
 const rosterMembers: readonly RosterEntry[] = [
-  { uid: uid("93159425"), name: "Benedict", allianceRank: "R3" },
-  { uid: uid("179060285441"), name: "etranger", allianceRank: "R4" },
-  { uid: uid("147744374785"), name: "Settong", allianceRank: "R1" },
+  { uid: uid("93159425"), name: "Benedict", allianceRank: "R3", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
+  { uid: uid("179060285441"), name: "etranger", allianceRank: "R4", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
+  { uid: uid("147744374785"), name: "Settong", allianceRank: "R1", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined },
 ];
 const allianceWithRoster: Alliance = { ...alliance, roster: rosterMembers };
 const sortedMembers = sortRoster(rosterMembers);
@@ -833,7 +833,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderRosterComponents(sortedMembers, 0, PICK_ID),
+          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID),
           allowedMentions: { parse: [] },
         },
       },
@@ -889,7 +889,7 @@ describe("handleAlliance by the Alliance's full name", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderRosterComponents(sortedMembers, 0, PICK_ID),
+          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID),
           allowedMentions: { parse: [] },
         },
       },

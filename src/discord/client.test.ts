@@ -59,6 +59,7 @@ function handlers() {
     allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
+    overview: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
     memberLeft: vi.fn(() => Promise.resolve()),
     interview: vi.fn(() => Promise.resolve()),
@@ -188,6 +189,18 @@ describe("createClient", () => {
     expect(routed.pick).toHaveBeenCalledWith(interaction);
     expect(routed.player).not.toHaveBeenCalled();
     expect(routed.alliance).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with overview: to the overview handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "overview:a1b2c3d4e5f60718:1");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.overview).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
   });
 
   test("ignores a component whose custom id is not a pick list's", () => {

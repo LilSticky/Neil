@@ -18,6 +18,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 005 | Interview a new member | a Member who joins be walked through giving their player uid in a private thread, confirm the Player Neil found, and get Linked (an already linked uid is refused; an unknown rank goes to the Alliance's R5); it starts by recommending the Player whose name matches the Member's Discord name, and lookups search by name or tag without showing uids | Onboarding Interview (state machine), In-game Proof (uid), Link, Rank Approval, use of the Quota Reserve | `guildMemberAdd`, private thread, buttons/modals, storage | in review |
 | 006 | Give a member their name and roles | an approved Member get their nickname (`[TAG\|R5] Nick \| #331`) and alliance, rank, kingdom and bracket roles | nickname format, role mapping, Managed Roles | role/nickname changes, role hierarchy checks, log channel | in review |
 | 007 | Find an alliance by approximate name | any Member find a Home Kingdom Alliance by part of its name or tag or a near spelling: suggestions while typing `/alliance`, and a pick list when the exact name finds nothing | Known Alliance, approximate matching | autocomplete, storage of seen Alliances, Game API client hook | in progress |
+| 008 | Alliance overview | any Member see an Alliance's activity from the Alliance card: totals, top contributors, Least Active members and a paged per-member table | Alliance Overview, Weekly Activity, Daily Honor, Daily Tech, Least Active | roster fields, button, private paged reply | in progress |
 
 ## Later (unordered)
 
@@ -25,7 +26,6 @@ States: `planned` · `in progress` · `in review` · `done`
   Player changes alliance, rank or kingdom.
 - **Correct a link**: Officers relink, unlink or override a Member; a Member asks for a re-check.
 - **Say goodbye**: clean up Links and roles when a Member leaves.
-- **Alliance overview**: activity (`active`, `daily_honor`, `daily_tech`).
 
 ## Project infrastructure (not slices)
 

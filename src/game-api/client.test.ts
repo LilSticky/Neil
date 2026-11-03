@@ -503,12 +503,87 @@ describe("GameApiClient.getAlliance result", () => {
       capacity: 100,
       leaderName: "DrLOL",
       roster: [
-        { uid: parsedUid("179060285441"), name: "etranger", allianceRank: "R4" },
-        { uid: parsedUid("93159425"), name: "Benedict", allianceRank: "R3" },
-        { uid: parsedUid("147744374785"), name: "Settong", allianceRank: "R1" },
+        {
+          uid: parsedUid("179060285441"),
+          name: "etranger",
+          allianceRank: "R4",
+          weeklyActivity: 490,
+          dailyHonor: 40,
+          dailyTech: 4600,
+          online: false,
+          lastOnlineAt: new Date(1793285439 * 1000),
+        },
+        {
+          uid: parsedUid("93159425"),
+          name: "Benedict",
+          allianceRank: "R3",
+          weeklyActivity: undefined,
+          dailyHonor: undefined,
+          dailyTech: undefined,
+          online: false,
+          lastOnlineAt: new Date(1793191591 * 1000),
+        },
+        {
+          uid: parsedUid("147744374785"),
+          name: "Settong",
+          allianceRank: "R1",
+          weeklyActivity: undefined,
+          dailyHonor: undefined,
+          dailyTech: undefined,
+          online: false,
+          lastOnlineAt: new Date(1792878480 * 1000),
+        },
       ],
     };
     expect(result).toEqual({ kind: "found", value: expected, fetchedAt: FIXED_NOW });
+  });
+
+  test("a null online and a null last_online_at of a roster member read as undefined", async () => {
+    const [first, ...others] = alliance.members;
+    if (first === undefined) throw new Error("the recorded alliance has no members");
+    const body = { ...alliance, members: [{ ...first, online: null, last_online_at: null }, ...others] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: {
+        roster: [{ uid: "179060285441", online: undefined, lastOnlineAt: undefined }, { uid: "93159425" }, { uid: "147744374785" }],
+      },
+    });
+  });
+
+  test("a last_online_at beyond the range of a date reads as an unknown time, not an invalid date", async () => {
+    const [first, ...others] = alliance.members;
+    if (first === undefined) throw new Error("the recorded alliance has no members");
+    const body = { ...alliance, members: [{ ...first, last_online_at: Number.MAX_SAFE_INTEGER }, ...others] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
+    expect(result.value.roster[0]?.lastOnlineAt).toBeUndefined();
+  });
+
+  test("a roster member's activity figures read as undefined when the Game gives none", async () => {
+    const [first, ...others] = alliance.members;
+    if (first === undefined) throw new Error("the recorded alliance has no members");
+    const body = { ...alliance, members: [{ ...first, active: null, daily_honor: null, daily_tech: null }, ...others] };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: {
+        roster: [
+          { uid: "179060285441", weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined },
+          { uid: "93159425" },
+          { uid: "147744374785" },
+        ],
+      },
+    });
   });
 
   test("maps each roster member to its uid and name, a null nick_name to Unknown, and rank_label to the Alliance Rank", async () => {

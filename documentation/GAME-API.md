@@ -73,7 +73,7 @@ no approximate (fuzzy) name search in the API; Neil matches Known Alliances itse
 - `union_id`, `sid` (kingdom), `name`, `abbr`, `power`, `member_count`, `capacity`, `language`,
   `leader_id`, `leader_name`, `bulletin`, `updated_at`
 - `members[]`: `uid`, `nick_name`, `power`, `lv`, `kid`, `kills`, **`rank_code` (101–105) and
-  `rank_label` (`"R1"`–`"R5"`; titled R4s read e.g. `"R4 – Diplomat"`, `"R4 – Militarist"`, seen 2026-11-01; some player answers omit `rank_label` in `alliance_members`)**, `online`, `last_online_at`, `joined_at`, `active` (weekly activity),
+  `rank_label` (`"R1"`–`"R5"`; titled R4s read e.g. `"R4 – Diplomat"`, `"R4 – Militarist"`, seen 2026-11-01; some player answers omit `rank_label` in `alliance_members`)**, `online`, `last_online_at`, `joined_at`, `active` (weekly activity, used by the Alliance Overview, slice 008),
   `daily_honor`, `daily_tech`, `aid`. `null` means the roster did not include it.
 
 ### Rank
