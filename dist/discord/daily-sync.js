@@ -40,11 +40,12 @@ export async function runDailySync(deps) {
         }
         pending.delete(link.memberId);
     };
-    /** Fetches the Member, who leaves the run when they are not on the server. */
+    /** Fetches the Member; one who is not on the server is Unlinked as missing and leaves the run. */
     const present = async (link) => {
         const server = await deps.members.memberOf(link.memberId);
         if (server !== undefined)
             return { link, server };
+        await deps.unlink.unlink({ id: link.memberId }, "missing");
         counts.skipped += 1;
         pending.delete(link.memberId);
         return undefined;

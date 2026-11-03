@@ -33,11 +33,12 @@ async function syncGuarded(deps, memberId, player, rank, server) {
 }
 /**
  * Looks up each Linked Member without a complete apply, in the order of their Links. A Member not on the server is
- * skipped with no lookup; a failure for one Member is logged and the next one follows; a quota stop ends the run and
- * the rest wait for the next start. Never throws.
+ * Unlinked first, so is skipped with no lookup; a failure for one Member is logged and the next one follows; a quota stop
+ * ends the run and the rest wait for the next start. Never throws.
  */
 async function startUp(deps) {
     try {
+        await unlinkMissing(deps);
         const pending = deps.applied.linkedWithoutCompleteApply();
         for (const [index, link] of pending.entries()) {
             try {
@@ -63,6 +64,25 @@ async function startUp(deps) {
     }
     catch (error) {
         deps.logError(`Giving the Linked Members their name and roles at startup failed: ${reasonOf(error)}`);
+    }
+}
+/**
+ * Unlinks each Linked Member Discord reports as not on the server, as missing. A failure to reach Discord stops the
+ * sweep: it is logged once, and the Members not yet checked are left as they are, so the apply that follows still sees
+ * them. Repeated failures in an outage would only repeat the same error.
+ */
+async function unlinkMissing(deps) {
+    for (const link of deps.links.all()) {
+        let server;
+        try {
+            server = await deps.members.memberOf(link.memberId);
+        }
+        catch (error) {
+            deps.logError(`Checking ${link.memberId} is on the server at startup failed: ${reasonOf(error)}`);
+            return;
+        }
+        if (server === undefined)
+            await deps.unlink.unlink({ id: link.memberId }, "missing");
     }
 }
 /** Applies the name and roles to a Member when they are on the server; a Member who is not on it is left alone. */
@@ -138,6 +158,7 @@ async function applyTo(deps, memberId, server, player, rank) {
         managedTags,
         officerRoleIds: deps.officerRoleIds,
     });
+    // An Unlink may have removed the Link meanwhile: the foreign key rejects this record, and the caller logs the failure.
     deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
     if (!hasChange(report, previous, nickname))
         return;
