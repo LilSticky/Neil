@@ -411,6 +411,19 @@ describe("renderOverview: the table embed", () => {
     expect(embed?.description?.split("```")).toHaveLength(3);
   });
 
+  test("replaces line breaks and invisible or direction characters in a name with a space, so rows stay aligned", () => {
+    const roster = [
+      member("100000000001", "A\nB‮C​D", { might: 5 }),
+      member("100000000002", "Plain", { might: 4 }),
+    ];
+
+    const rows = blockLines(overviewOf(roster).embeds[1]).slice(1);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain("A B C D");
+    expect(rows[0]?.lastIndexOf(" ")).toBe(rows[1]?.lastIndexOf(" "));
+  });
+
   test("shows markdown in a name as typed, since the code block shows it as text", () => {
     const [row] = blockLines(overviewOf([member("100000000001", "*Vex*", { might: 5 })]).embeds[1]).slice(1);
 

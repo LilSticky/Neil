@@ -265,7 +265,8 @@ function tableLine(cells: TableCells): string {
 
 /** The name in the table: cut to the column width, with a backtick replaced so the code block is not broken. */
 function tableName(name: string): string {
-  const safe = name.replace(/`/g, "ˋ");
+  // Line breaks and invisible or direction characters would split or scramble a row; a backtick would end the block.
+  const safe = name.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/`/g, "ˋ");
   const characters = Array.from(safe);
   return characters.length > TABLE_NAME_LENGTH ? `${characters.slice(0, TABLE_NAME_LENGTH - 1).join("")}…` : safe;
 }
