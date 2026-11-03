@@ -9,11 +9,13 @@ import { reportRolePermissions } from "./role-permissions.js";
 import { createRankApprovals } from "./rank-approval.js";
 import { handlePing } from "./ping.js";
 import { answer, handleAlliance, handlePlayer, } from "./lookup.js";
-import { handlePick } from "./pick.js";
+import { handleOverview, handlePick } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 import { handleQuota } from "./quota.js";
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
 const PICK_PREFIX = "pick:";
+/** The custom id prefix of every Alliance Overview page button. */
+const OVERVIEW_PREFIX = "overview:";
 /** The custom id prefix of every Onboarding Interview button and modal. */
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
@@ -94,6 +96,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(PICK_PREFIX)) {
                 void handlers.pick(interaction);
+            }
+            else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
+                void handlers.overview(interaction);
             }
             return;
         }
@@ -319,6 +324,7 @@ export async function connect(token, options) {
         alliance: (interaction) => handleAlliance(interaction, allianceContext),
         allianceAutocomplete: (interaction) => answer("/alliance autocomplete", { logError }, () => handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError })),
         pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+        overview: (interaction) => handleOverview(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
         quota: (interaction) => handleQuota({
             memberRoleIds: () => memberRoleIds(interaction.member),
             reply: (reply) => interaction.reply(reply),

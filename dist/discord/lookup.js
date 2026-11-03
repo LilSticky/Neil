@@ -3,7 +3,7 @@ import { matchAlliances } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { parseAllianceKey, parseKingdom, parsePlayerName, parseUid, } from "../domain/lookup-input.js";
 import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
-import { lookupMessages, renderAllianceCard, renderAlliancePickList, renderCloseAlliancePickList, renderPlayerCard, renderPlayerPickList, renderRosterComponents, } from "./lookup-cards.js";
+import { lookupMessages, renderAllianceCard, renderAllianceComponents, renderAlliancePickList, renderCloseAlliancePickList, renderPlayerCard, renderPlayerPickList, } from "./lookup-cards.js";
 /** Lookups never mention anyone, whatever the Game API or the Member typed. */
 export const allowedMentions = { parse: [] };
 /** The private text for a lookup that the Daily Quota or the Quota Reserve kept from the Game API. */
@@ -101,7 +101,7 @@ export function allianceCardMessage(alliance, fetchedAt, now, ownerId, pickSessi
         return { embeds };
     const entries = sortRoster(alliance.roster);
     const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, fetchedAt }, now);
-    return { embeds, components: renderRosterComponents(entries, 0, sessionId) };
+    return { embeds, components: renderAllianceComponents(alliance, 0, sessionId) };
 }
 /** The text of a thrown value, for a log line. */
 export function errorText(error) {
@@ -128,10 +128,10 @@ async function removePlaceholderAndTell(interaction, message) {
 /**
  * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
  * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
- * that throws is logged and told as unavailable.
+ * that throws is logged and told as unavailable. `placeholder` gives the placeholder's options, such as privacy.
  */
-export async function showLookup(interaction, context, ask, card, failureMessage) {
-    await interaction.deferReply();
+export async function showLookup(interaction, context, ask, card, failureMessage, placeholder) {
+    await interaction.deferReply(placeholder);
     let result;
     try {
         result = await ask();

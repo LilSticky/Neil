@@ -1,9 +1,11 @@
 import { MessageFlags } from "discord.js";
+import { sortRoster } from "../domain/alliance-rank.js";
 import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
 import { listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
-import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderRosterComponents, } from "./lookup-cards.js";
+import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderAllianceComponents, } from "./lookup-cards.js";
+import { parseOverviewCustomId, renderOverview } from "./overview-texts.js";
 import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, } from "./lookup.js";
-import { isOwner, pageOf, parseCustomId } from "./pick-sessions.js";
+import { isOwner, pageOf, parseCustomId, } from "./pick-sessions.js";
 const pickMessages = {
     notOwner: "Only the Member who ran this command can use this menu. Run /player or /alliance yourself.",
     expired: "This menu has expired. Run the command again.",
@@ -119,13 +121,76 @@ async function turnRosterPage(interaction, session, page, context) {
     context.pickSessions.turnPage(session.id, page);
     await interaction.update({
         embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
-        components: renderRosterComponents(choice.entries, page, session.id),
+        components: renderAllianceComponents(choice.alliance, page, session.id),
     });
+}
+/**
+ * Opens a pick list for the asker that holds the Alliance, so the page buttons of an Alliance Overview can show it again;
+ * the pick list belongs to the asker, not to the owner of the card. Returns its id.
+ */
+function openOverviewSession(alliance, fetchedAt, askerId, pickSessions, now) {
+    return pickSessions.open(askerId, { kind: "roster", entries: sortRoster(alliance.roster), alliance, fetchedAt }, now);
+}
+/**
+ * The Alliance Overview of a card's pick list for the asker: the one the asker already holds under that pick list while
+ * it is open; otherwise a new one, which the pick list then remembers for the asker.
+ */
+function overviewUnderCard(card, alliance, fetchedAt, askerId, pickSessions, now) {
+    const heldId = card.overviews.get(askerId);
+    if (heldId !== undefined && pickSessions.get(heldId, now) !== "expired") {
+        return renderOverview(alliance, fetchedAt, now, heldId, 0);
+    }
+    const sessionId = openOverviewSession(alliance, fetchedAt, askerId, pickSessions, now);
+    pickSessions.linkOverview(card.id, askerId, sessionId);
+    return renderOverview(alliance, fetchedAt, now, sessionId, 0);
+}
+/**
+ * Sends an Alliance Overview privately. A refused Discord call is logged, and the press is answered as unavailable so it
+ * is never left unacknowledged.
+ */
+async function sendOverview(interaction, context, send) {
+    try {
+        await send();
+    }
+    catch (error) {
+        context.logError(`Showing the Alliance Overview failed: ${errorText(error)}`);
+        await replyPrivately(interaction, lookupMessages.unavailable);
+    }
+}
+/**
+ * The Overview button of an Alliance card. While the card's pick list holds the Alliance, the overview is shown from it,
+ * with no Game API call; once that pick list is gone, the Alliance is looked up again, for the lookup. The overview is
+ * private to the Member who pressed.
+ */
+async function pressOverview(interaction, press, context) {
+    const kingdom = parseKingdom(Number(press.kingdom));
+    const key = parseAllianceKey(press.tag);
+    if (!kingdom.ok || !key.ok) {
+        await replyPrivately(interaction, lookupMessages.unavailable);
+        return;
+    }
+    const askerId = interaction.user.id;
+    const session = context.pickSessions.get(press.sessionId, context.now());
+    if (session !== "expired" && session.choice.kind === "roster") {
+        const { alliance, fetchedAt } = session.choice;
+        const overview = overviewUnderCard(session, alliance, fetchedAt, askerId, context.pickSessions, context.now());
+        await sendOverview(interaction, context, () => interaction.reply({ ...overview, flags: MessageFlags.Ephemeral, allowedMentions }));
+        return;
+    }
+    const kingdomNumber = kingdom.value;
+    const tag = key.value;
+    await showLookup(interaction, context, () => context.gameApi.getAlliance(kingdomNumber, tag, "lookup"), (alliance, fetchedAt, now) => renderOverview(alliance, fetchedAt, now, openOverviewSession(alliance, fetchedAt, askerId, context.pickSessions, now), 0), (failure, now) => failure.kind === "ambiguous"
+        ? { content: lookupMessages.tryAgain }
+        : allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, kingdomNumber), askerId, context.pickSessions, now), { flags: MessageFlags.Ephemeral });
 }
 /** Answers a button or select menu of a pick list: only its owner, only while it is open, the rest privately. */
 export async function handlePick(interaction, context) {
     await answer("a pick list", context, async () => {
         const parsed = parseCustomId(interaction.customId);
+        if (parsed !== undefined && parsed.action === "overview") {
+            await pressOverview(interaction, parsed, context);
+            return;
+        }
         const session = parsed === undefined ? "expired" : context.pickSessions.get(parsed.sessionId, context.now());
         if (parsed === undefined || session === "expired") {
             await replyPrivately(interaction, pickMessages.expired);
@@ -140,6 +205,30 @@ export async function handlePick(interaction, context) {
             return;
         }
         await pickFrom(interaction, session, parsed.page, context);
+    });
+}
+/**
+ * Turns an Alliance Overview to the page pressed. Only the Member who pressed Overview may turn it, while its pick list
+ * is open; the page is redrawn in place, with no Game API call.
+ */
+export async function handleOverview(interaction, context) {
+    await answer("an Alliance Overview", context, async () => {
+        const parsed = parseOverviewCustomId(interaction.customId);
+        const session = parsed === undefined ? "expired" : context.pickSessions.get(parsed.sessionId, context.now());
+        if (parsed === undefined || session === "expired") {
+            await replyPrivately(interaction, pickMessages.expired);
+            return;
+        }
+        if (!isOwner(session, interaction.user.id)) {
+            await replyPrivately(interaction, pickMessages.notOwner);
+            return;
+        }
+        if (session.choice.kind !== "roster") {
+            await replyPrivately(interaction, lookupMessages.unavailable);
+            return;
+        }
+        const { alliance, fetchedAt } = session.choice;
+        await sendOverview(interaction, context, () => interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page)));
     });
 }
 //# sourceMappingURL=pick.js.map

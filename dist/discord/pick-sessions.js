@@ -3,13 +3,14 @@ const LIFETIME_MS = 15 * 60_000;
 const MAX_SESSIONS = 500;
 const PAGE_SIZE = 25;
 const CUSTOM_ID_PATTERN = /^pick:([^:]+):(?:select(?::(\d+))?|page:(\d+))$/;
+const OVERVIEW_CUSTOM_ID_PATTERN = /^pick:([^:]+):overview:(\d+):(.+)$/;
 /** Memory-only pick lists: a restart ends them, and the oldest is dropped beyond 500. */
 export class PickSessions {
     sessions = new Map();
     /** Opens a pick list for the Member and returns its id, short enough for a custom id. */
     open(ownerId, choice, now) {
         const id = randomBytes(8).toString("hex");
-        this.sessions.set(id, { id, ownerId, createdAt: now, choice, page: 0 });
+        this.sessions.set(id, { id, ownerId, createdAt: now, choice, page: 0, overviews: new Map() });
         if (this.sessions.size > MAX_SESSIONS) {
             const oldest = this.sessions.keys().next();
             if (!oldest.done)
@@ -30,6 +31,13 @@ export class PickSessions {
         if (session === undefined)
             return;
         this.sessions.set(id, { ...session, page: clampPage(page, entriesOf(session.choice)) });
+    }
+    /** Remembers the Alliance Overview a Member holds under a pick list; an unknown id does nothing. */
+    linkOverview(id, memberId, overviewId) {
+        const session = this.sessions.get(id);
+        if (session === undefined)
+            return;
+        this.sessions.set(id, { ...session, overviews: new Map(session.overviews).set(memberId, overviewId) });
     }
 }
 /** Whether the Member is the one who opened the pick list. */
@@ -55,6 +63,13 @@ export function pageCount(entries) {
 }
 /** Reads a pick list's custom id; anything else, including a malformed `pick:` id, gives undefined. */
 export function parseCustomId(customId) {
+    const overview = OVERVIEW_CUSTOM_ID_PATTERN.exec(customId);
+    if (overview !== null) {
+        const [, overviewSessionId, kingdom, tag] = overview;
+        if (overviewSessionId === undefined || kingdom === undefined || tag === undefined)
+            return undefined;
+        return { sessionId: overviewSessionId, action: "overview", kingdom, tag };
+    }
     const match = CUSTOM_ID_PATTERN.exec(customId);
     if (match === null)
         return undefined;

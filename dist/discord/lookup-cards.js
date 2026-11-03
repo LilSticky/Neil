@@ -1,6 +1,7 @@
 import { ButtonStyle, ComponentType, escapeMarkdown, } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { utcDayOf } from "../domain/daily-quota.js";
+import { parseAllianceKey } from "../domain/lookup-input.js";
 import { listedAllianceMatches, listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
@@ -35,7 +36,7 @@ export function utcTime(moment) {
  * The card footer: the source and when the data was fetched, in UTC. Today's fetch shows the time only; an earlier
  * day shows the day and English month too.
  */
-function footerFor(fetchedAt, now) {
+export function footerFor(fetchedAt, now) {
     const time = utcTime(fetchedAt);
     const when = utcDayOf(fetchedAt) === utcDayOf(now)
         ? time
@@ -43,14 +44,14 @@ function footerFor(fetchedAt, now) {
     return { text: `${FOOTER_SOURCE} · as of ${when}` };
 }
 /** Escapes Game API and user text for Discord markdown; discord.js leaves a lone `~` alone, so it is escaped here. */
-function escapeText(text) {
+export function escapeText(text) {
     return escapeMarkdown(text).replaceAll("~", "\\~");
 }
 /**
  * Fits an escaped title into Discord's 256 characters, ending with an ellipsis. It cuts after escaping, so the
  * limit counts what Discord shows, and it never leaves a backslash without the character it escapes.
  */
-function fitTitle(escaped) {
+export function fitTitle(escaped) {
     if (escaped.length <= TITLE_MAX_LENGTH)
         return escaped;
     let kept = escaped.slice(0, TITLE_MAX_LENGTH - 1);
@@ -91,7 +92,7 @@ export function renderPlayerCard(player, fetchedAt, now) {
     };
 }
 /** The characters Discord counts toward an embed's limit: the title, the footer and every field's name and value. */
-function embedCharacters(embed) {
+export function embedCharacters(embed) {
     const texts = [
         embed.title ?? "",
         embed.footer?.text ?? "",
@@ -340,5 +341,23 @@ export function renderRosterComponents(entries, page, sessionId) {
         });
     }
     return rows;
+}
+/**
+ * The components under an Alliance card: the roster menu and its page buttons, then an "Overview" button for any Member.
+ * The button's custom id names the pick session, the Kingdom and the tag, so a press can find the Alliance again. An
+ * empty roster has no components at all, and neither has an Alliance whose tag cannot be named in a custom id.
+ */
+export function renderAllianceComponents(alliance, page, sessionId) {
+    const rows = renderRosterComponents(alliance.roster, page, sessionId);
+    const key = parseAllianceKey(alliance.tag);
+    if (rows.length === 0 || !key.ok)
+        return rows;
+    const overview = {
+        type: ComponentType.Button,
+        style: ButtonStyle.Secondary,
+        label: "Overview",
+        custom_id: `pick:${sessionId}:overview:${alliance.kingdom.toString()}:${key.value}`,
+    };
+    return [...rows, { type: ComponentType.ActionRow, components: [overview] }];
 }
 //# sourceMappingURL=lookup-cards.js.map
