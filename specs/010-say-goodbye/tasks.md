@@ -33,4 +33,4 @@ description: "Task list for slice 010, Say goodbye"
   in `client.ts`.
 - [x] T005 Docs: TEST-RUN.md §6f (collected), 009 spec FR-007 note, ROADMAP, STATUS.
 - [x] T006 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
-- [ ] T007 Manual check collected in TEST-RUN.md §6f, run later by the user.
+- [X] T007 Manual check collected in TEST-RUN.md §6f, run later by the user.

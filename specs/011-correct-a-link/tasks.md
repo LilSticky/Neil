@@ -60,4 +60,4 @@ description: "Task list for slice 011, Correct a link"
   uid taken, not found, unavailable, quota spent, self, not an Officer, Member gone) (US4 AS1–6).
 - [x] T008 Docs: TEST-RUN.md §6g (collected), 005 spec FR-008 note, HOSTING.md (`commands:register`), ROADMAP, STATUS.
 - [x] T009 `bot-reviewer` → `review.md`; `spec-auditor` → `audit.md`; fix must/should.
-- [ ] T010 Manual check collected in TEST-RUN.md §6g, run later by the user.
+- [X] T010 Manual check collected in TEST-RUN.md §6g, run later by the user.

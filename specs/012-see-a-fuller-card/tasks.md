@@ -93,4 +93,4 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   - `pick.ts` `handleOverview` passes the parsed sort. Tests: `alliance-overview.test.ts`, `overview-texts.test.ts`,
     `pick.test.ts` (a sort press updates in place, owner only).
 - [x] **T011** Docs: TEST-RUN.md §6h rows for sorting and the table; STATUS.
-- [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.
+- [X] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.

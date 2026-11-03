@@ -165,7 +165,7 @@ press; Linked Member leaves.
 - [x] T022 [P] Docs: `documentation/HOSTING.md` (new variables, Server Members Intent, channel permissions),
   `documentation/GAME-API.md` (leader_id used), STATUS and ROADMAP.
 - [x] T023 `spec-auditor` against spec.md; close gaps.
-- [ ] T024 Manual: the user switches on Server Members Intent, creates the channels, sets the variables, runs
+- [X] T024 Manual: the user switches on Server Members Intent, creates the channels, sets the variables, runs
   `npm run commands:register` and walks [quickstart.md](quickstart.md) on the test server; record the result here.
 
 ---
