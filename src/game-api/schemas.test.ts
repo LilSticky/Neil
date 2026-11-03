@@ -77,6 +77,52 @@ describe("allianceBodySchema", () => {
   });
 });
 
+/** Language tags the Game may send, such as ja, en, zh-Hans or pt-BR. */
+const VALID_LANGUAGE_TAGS = ["ja", "en", "zh-Hans", "pt-BR"];
+
+/** Text that is too long for a language tag, or is not one; it reads as absent and the body is still accepted. */
+const UNREADABLE_LANGUAGES = [
+  { label: "a text of 1,100 characters", value: "a".repeat(1100) },
+  { label: "a text that is not a language tag", value: "ja jp!" },
+  { label: "a text of digits", value: "123" },
+];
+
+describe("language tags", () => {
+  test.each(VALID_LANGUAGE_TAGS)("keeps the language tag %s of a Player", (language) => {
+    const parsed = playerBodySchema.safeParse({ ...playerInAlliance, language });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.language).toBe(language);
+  });
+
+  test.each(VALID_LANGUAGE_TAGS)("keeps the language tag %s of an Alliance", (language) => {
+    const parsed = allianceBodySchema.safeParse({ ...alliance, language });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.language).toBe(language);
+  });
+
+  test.each(UNREADABLE_LANGUAGES)(
+    "reads a Player language that is $label as absent, and still accepts the body",
+    ({ value }) => {
+      const parsed = playerBodySchema.safeParse({ ...playerInAlliance, language: value });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.language).toBeUndefined();
+    },
+  );
+
+  test.each(UNREADABLE_LANGUAGES)(
+    "reads an Alliance language that is $label as absent, and still accepts the body",
+    ({ value }) => {
+      const parsed = allianceBodySchema.safeParse({ ...alliance, language: value });
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.language).toBeUndefined();
+    },
+  );
+});
+
 describe("allianceBodySchema roster", () => {
   test("reads each member of the recorded roster as uid, nick_name and rank_label, with the uid as a string", () => {
     const parsed = allianceBodySchema.parse(alliance);
@@ -85,6 +131,7 @@ describe("allianceBodySchema roster", () => {
       {
         uid: "179060285441",
         nick_name: "etranger",
+        power: 26041955,
         rank_label: "R4",
         kid: 1,
         lv: 22,
@@ -97,6 +144,7 @@ describe("allianceBodySchema roster", () => {
       {
         uid: "93159425",
         nick_name: "Benedict",
+        power: 17081208,
         rank_label: "R3",
         kid: 1,
         lv: 26,
@@ -109,6 +157,7 @@ describe("allianceBodySchema roster", () => {
       {
         uid: "147744374785",
         nick_name: "Settong",
+        power: 16713141,
         rank_label: "R1",
         kid: 1,
         lv: 21,
@@ -201,6 +250,17 @@ describe("allianceBodySchema roster", () => {
     expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
   });
 
+  test("reads a last_online_at of 0 as absent, not as the Unix epoch, and keeps the member", () => {
+    const body = {
+      ...alliance,
+      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: 0 }],
+    };
+
+    const parsed = allianceBodySchema.parse(body);
+
+    expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
+  });
+
   test("gives an empty roster when the body has no members", () => {
     const parsed = allianceBodySchema.parse(withoutField(alliance, "members"));
 
@@ -272,6 +332,98 @@ describe("playerBodySchema alliance leader", () => {
 describe("playerBodySchema empty text", () => {
   test("rejects a body whose nick is an empty string", () => {
     expect(playerBodySchema.safeParse({ ...playerInAlliance, nick: "" }).success).toBe(false);
+  });
+});
+
+/**
+ * Values a new Game field may hold without failing the body: missing, null, of the wrong type, out of range, or a
+ * picture path that is not under /static/, has "..", or is not a picture.
+ */
+const UNREADABLE: readonly unknown[] = [
+  undefined,
+  null,
+  "text",
+  -1,
+  1.5,
+  Number.MAX_SAFE_INTEGER,
+  {},
+  [],
+  "/avatars/head_90002.png",
+  "https://example.com/static/avatars/head_90002.png",
+  "/static/avatars/../head_90002.png",
+  "/static/avatars/head_90002.svg",
+];
+
+const PLAYER_DETAIL_FIELDS = [
+  "kills",
+  "vip",
+  "likes",
+  "last_online_at",
+  "language",
+  "x",
+  "y",
+  "avatar_url",
+  "server_badge_url",
+] as const;
+
+const ALLIANCE_DETAIL_FIELDS = ["level", "exp", "gift_level", "language", "rank", "join", "badge_url", "server_badge_url"] as const;
+
+describe("playerBodySchema Player details", () => {
+  test("reads the recorded Player details under the Game's own names", () => {
+    expect(playerBodySchema.parse(playerInAlliance)).toMatchObject({
+      kills: 4420,
+      vip: 4,
+      likes: 110,
+      last_online_at: 1793154302,
+      language: "en",
+      x: 807,
+      y: 846,
+      avatar_url: "/static/avatars/head_90002.png",
+      server_badge_url: "/static/kingdom/badge_1.png",
+    });
+  });
+
+  test.each(PLAYER_DETAIL_FIELDS)("accepts a body whose %s is unreadable, and keeps the Player's own fields", (field) => {
+    const rejected = UNREADABLE.filter((value) => !playerBodySchema.safeParse({ ...playerInAlliance, [field]: value }).success);
+
+    expect(rejected).toEqual([]);
+  });
+});
+
+describe("allianceBodySchema Alliance details", () => {
+  test("reads the recorded Alliance details under the Game's own names", () => {
+    expect(allianceBodySchema.parse(alliance)).toMatchObject({
+      level: 4,
+      exp: 8829850,
+      gift_level: 6,
+      language: "ja",
+      badge_url: "/static/alliance/badge_103.png",
+      server_badge_url: "/static/kingdom/badge_1.png",
+    });
+  });
+
+  test.each(ALLIANCE_DETAIL_FIELDS)("accepts a body whose %s is unreadable, and keeps the Alliance's own fields", (field) => {
+    const rejected = UNREADABLE.filter((value) => !allianceBodySchema.safeParse({ ...alliance, [field]: value }).success);
+
+    expect(rejected).toEqual([]);
+  });
+
+  test("reads the power of each recorded roster member", () => {
+    expect(allianceBodySchema.parse(alliance).members.map((member) => member.power)).toEqual([
+      26041955, 17081208, 16713141,
+    ]);
+  });
+
+  test("keeps a roster member whose power is unreadable, and accepts the body", () => {
+    const kept = UNREADABLE.filter((value) => {
+      const parsed = allianceBodySchema.safeParse({
+        ...alliance,
+        members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", power: value }],
+      });
+      return !parsed.success || parsed.data.members.length !== 1;
+    });
+
+    expect(kept).toEqual([]);
   });
 });
 

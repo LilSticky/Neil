@@ -61,7 +61,7 @@ const PLAYER_UNKNOWN: Player = {
   uid: UID,
   name: "Vex",
   kingdom: kingdomOf(330),
-  power: 15_902_728,
+  might: 15_902_728,
   sanctuaryLevel: 42,
   alliance: { tag: "NML", name: "Neil's Men", leaderUid: LEADER_UID },
   allianceRank: "unknown",

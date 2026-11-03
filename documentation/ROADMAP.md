@@ -22,10 +22,16 @@ States: `planned` · `in progress` · `in review` · `done`
 | 009 | Keep roles in sync | Linked Members' nicknames and Managed Roles follow the game: a Daily Sync re-reads rosters within its Sync Share | Daily Sync, Sync Share | scheduler, roster re-reads, sync purpose in the quota | in review |
 | 010 | Say goodbye | a Linked Member who leaves be Unlinked at once (log line, private message, their pending Rank Approvals go to the Officers), also when Neil missed the leave | Unlink | `guildMemberRemove`, startup and Daily Sync sweep, private message | in progress |
 | 011 | Correct a link | Officers Unlink any Linked Member, give a Rank Approval at any time and Link a handed-off Member by hand (Officer Link); a Member Unlinks themselves (`/unlink`, `/rank`, `/link`). Scope cut: the Member re-check (the Daily Sync covers it) | Officer Link, Rank Approval by an Officer, Unlink by an Officer or the Member | slash commands, Link confirmation buttons, storage migration for who made a Link | in review |
+| 012 | See a fuller card | any Member see more on `/player` and `/alliance` cards: Kills, VIP Level, Likes, Last Online, Language, Location; Alliance Level, Gift Level, Kingdom Might Rank, Join Requirements; Might per roster row; avatar and badges; an accent color and a clear grid. No extra Game API request | Kills, VIP Level, Likes, Last Online, Language, Location, Alliance Level, Gift Level, Kingdom Might Rank, Join Requirements | lenient schema fields, tracker picture URLs, embed layout | in review |
 
 ## Later (unordered)
 
-- None.
+- **REAPER: Roster of Exiled Antagonists, Pervs, Evildoers & Reprobates.** Lets the R5s keep a list of
+  Players the server's community has exiled for being malicious (add and remove), and any Member find the
+  closest unshielded exile, with their coordinates. Domain: exile list, closest unshielded exile (terms
+  to agree in the dictionary). Adapters: slash commands, storage, Game API coordinates (`x`/`y`).
+  Open questions in [#35](https://github.com/LilSticky/Neil/issues/35); notably the Game API's `shielding` has always read 0 (GAME-API.md), so
+  shield state may not be knowable.
 
 ## Project infrastructure (not slices)
 

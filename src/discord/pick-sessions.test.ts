@@ -157,7 +157,7 @@ function rosterChoice(count: number): PickChoice {
     tag: "NML",
     name: "No Man's Land",
     kingdom: kingdom.value,
-    power: 208815434,
+    might: 208815434,
     memberCount: count,
     capacity: 100,
     leaderName: "M00",

@@ -5,23 +5,29 @@ import {
   type APIActionRowComponent,
   type APIComponentInMessageActionRow,
   type APIEmbed,
+  type APIEmbedAuthor,
   type APIEmbedField,
+  type APIEmbedImage,
   type APIButtonComponentWithCustomId,
   type APIStringSelectComponent,
 } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { lastSeen } from "../domain/alliance-overview.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import { parseAllianceKey, type AllianceKey, type KingdomNumber, type PlayerName } from "../domain/lookup-input.js";
+import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 import {
   listedAllianceMatches,
   listedPlayerMatches,
   rankedAllianceMatches,
   type AllianceRank,
   type Alliance,
+  type JoinRequirements,
   type Match,
   type PickableAllianceMatch,
   type PickablePlayerMatch,
   type Player,
+  type PlayerDetails,
   type RosterEntry,
 } from "../domain/player.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
@@ -37,11 +43,87 @@ const EMPTY_ROSTER_TEXT = "The tracker lists no members.";
 const OPTION_LABEL_MAX_LENGTH = 100;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
+/** The accent color both cards use. */
+export const CARD_COLOR = 0xb33a3a;
+const TRACKER_ORIGIN = "https://lastasylumtracker.com";
+
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const THOUSAND = 1_000;
+/** The suffixes of compact numbers above 999, smallest first; numbers from a billion on use B. */
+const COMPACT_UNITS = [
+  { size: 1_000, suffix: "K" },
+  { size: 1_000_000, suffix: "M" },
+] as const;
+const BILLION = 1_000_000_000;
+
+const LANGUAGE_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
 
 function twoDigits(value: number): string {
   return value.toString().padStart(2, "0");
+}
+
+/** A number with thousands separators, as the cards show full numbers. */
+function thousands(value: number): string {
+  return value.toLocaleString("en-US");
+}
+
+/** The time since a moment, as "just now", "12 min ago", "3 h ago" or "2 days ago"; never more precise than that. */
+export function timeAgo(moment: Date, now: Date): string {
+  const ms = now.getTime() - moment.getTime();
+  if (ms < MINUTE_MS) return "just now";
+  if (ms < HOUR_MS) return `${Math.floor(ms / MINUTE_MS).toString()} min ago`;
+  if (ms < DAY_MS) return `${Math.floor(ms / HOUR_MS).toString()} h ago`;
+  const days = Math.floor(ms / DAY_MS);
+  return days === 1 ? "1 day ago" : `${days.toString()} days ago`;
+}
+
+/** One decimal place at most, the ".0" dropped; `tenths` is the number times ten, rounded. */
+function tenthsText(tenths: number): string {
+  const whole = Math.floor(tenths / 10).toString();
+  const fraction = tenths % 10;
+  return fraction === 0 ? whole : `${whole}.${fraction.toString()}`;
+}
+
+/**
+ * A number in short form: below 1,000 as it is, else K, M or B with at most one decimal. The unit is chosen after
+ * rounding, so 999,950 reads as 1M rather than 1000K.
+ */
+export function compactNumber(value: number): string {
+  if (value < THOUSAND) return value.toString();
+  for (const { size, suffix } of COMPACT_UNITS) {
+    const tenths = Math.round((value / size) * 10);
+    if (tenths < 10_000) return `${tenthsText(tenths)}${suffix}`;
+  }
+  return `${tenthsText(Math.round((value / BILLION) * 10))}B`;
+}
+
+/** The English name of a language code (`ja` reads as Japanese); a code it cannot name is shown in capitals. */
+export function languageName(code: string): string {
+  try {
+    const name = LANGUAGE_NAMES.of(code);
+    if (name !== undefined && name !== code) return name;
+  } catch {
+    // Intl refuses a code that is not a language tag at all; it is shown as the Game sent it.
+  }
+  return code.toUpperCase();
+}
+
+/** The full address of a picture the tracker serves, or undefined when the path is not a picture path. */
+export function trackerPicture(path: string | undefined): string | undefined {
+  if (path === undefined || !PICTURE_PATH_PATTERN.test(path)) return undefined;
+  return `${TRACKER_ORIGIN}${path}`;
+}
+
+/** The Join Requirements as one line: "Open to all" or "By application", then the minimums above zero. */
+export function joinRequirementsText(requirements: JoinRequirements): string {
+  const parts = [requirements.open ? "Open to all" : "By application"];
+  if (requirements.minimumMight > 0) parts.push(`min. ${compactNumber(requirements.minimumMight)} Might`);
+  if (requirements.minimumSanctuaryLevel > 0) {
+    parts.push(`min. sanctuary level ${requirements.minimumSanctuaryLevel.toString()}`);
+  }
+  return parts.join(" · ");
 }
 
 /** The time from now until a moment, as "in 3 h 12 min", "in 59 min" or "in under a minute"; seconds are dropped. */
@@ -98,42 +180,110 @@ function valueOrUnknown(text: string | undefined): string {
   return text === undefined || text === "" ? "Unknown" : escapeText(text);
 }
 
+/** A field that is shown only when its value is known. */
+function optionalField(name: string, value: string | undefined): APIEmbedField[] {
+  return value === undefined ? [] : [{ name, value, inline: true }];
+}
+
+/** The value of a Game detail when it is known, shown with `text`; undefined when the Game gave none. */
+function shownWhenKnown<T>(value: T | undefined, text: (known: T) => string): string | undefined {
+  return value === undefined ? undefined : text(value);
+}
+
+/** The author line: the Kingdom, with its badge as the icon when the Game gave a usable picture path. */
+export function kingdomAuthor(kingdom: KingdomNumber, badgePath: string | undefined): APIEmbedAuthor {
+  const name = `Kingdom #${kingdom.toString()}`;
+  const icon = trackerPicture(badgePath);
+  return icon === undefined ? { name } : { name, icon_url: icon };
+}
+
+/** The picture beside a card, when the Game gave a usable picture path. */
+export function thumbnailOf(path: string | undefined): APIEmbedImage | undefined {
+  const url = trackerPicture(path);
+  return url === undefined ? undefined : { url };
+}
+
+/** A language code as its English name, escaped. */
+function languageText(code: string): string {
+  return escapeText(languageName(code));
+}
+
+/** The Alliance Level as "Level 4 · 8,881,750 XP", "Level 4" without the XP, or nothing when neither is known. */
+function allianceLevelText(level: number | undefined, xp: number | undefined): string | undefined {
+  const parts: string[] = [];
+  if (level !== undefined) parts.push(`Level ${level.toString()}`);
+  if (xp !== undefined) parts.push(`${thousands(xp)} XP`);
+  return parts.length === 0 ? undefined : parts.join(" · ");
+}
+
+/**
+ * The card's description: "Last online" with the time, or "Online now" when the details exist but the Game gave no
+ * Last Online time. Nothing when the Player has no details at all.
+ */
+function onlineText(details: PlayerDetails | undefined, now: Date): string | undefined {
+  if (details === undefined) return undefined;
+  const seen = lastSeen(details);
+  return seen.kind === "online" ? "Online now" : `Last online ${timeAgo(seen.at, now)}`;
+}
+
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
 export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): APIEmbed {
+  const details = player.details;
   const alliance =
     player.alliance === undefined
       ? "No alliance"
       : `[${escapeText(player.alliance.tag)}] ${escapeText(player.alliance.name)}`;
   const fields: APIEmbedField[] = [
-    { name: "Kingdom", value: `#${player.kingdom.toString()}`, inline: true },
-    { name: "Power", value: player.power.toLocaleString("en-US"), inline: true },
+    { name: "Might", value: thousands(player.might), inline: true },
+    ...optionalField("Kills", shownWhenKnown(details?.kills, thousands)),
+    ...optionalField("Likes", shownWhenKnown(details?.likes, thousands)),
     { name: "Sanctuary level", value: player.sanctuaryLevel.toString(), inline: true },
+    ...optionalField("VIP Level", shownWhenKnown(details?.vipLevel, (level) => level.toString())),
+    ...optionalField("Language", shownWhenKnown(details?.language, languageText)),
     { name: "Alliance", value: alliance, inline: true },
   ];
   if (player.alliance !== undefined) {
     const rank = player.allianceRank === "unknown" ? "Unknown" : player.allianceRank;
     fields.push({ name: "Alliance Rank", value: rank, inline: true });
   }
+  fields.push(
+    ...optionalField(
+      "Location",
+      shownWhenKnown(details?.location, (location) => `X:${location.x.toString()} Y:${location.y.toString()}`),
+    ),
+  );
+  const thumbnail = thumbnailOf(details?.avatarPath);
+  const lastOnline = onlineText(details, now);
   return {
     title: fitTitle(escapeText(player.name)),
+    color: CARD_COLOR,
+    author: kingdomAuthor(player.kingdom, details?.kingdomBadgePath),
+    ...(thumbnail === undefined ? {} : { thumbnail }),
+    ...(lastOnline === undefined ? {} : { description: lastOnline }),
     fields,
     footer: footerFor(fetchedAt, now),
   };
 }
 
-/** The characters Discord counts toward an embed's limit: the title, the footer and every field's name and value. */
+/**
+ * The characters Discord counts toward an embed's limit: the title, the author name, the description, the footer and
+ * every field's name and value.
+ */
 export function embedCharacters(embed: APIEmbed): number {
   const texts = [
     embed.title ?? "",
+    embed.author?.name ?? "",
+    embed.description ?? "",
     embed.footer?.text ?? "",
     ...(embed.fields ?? []).flatMap((field) => [field.name, field.value]),
   ];
   return texts.reduce((total, text) => total + text.length, 0);
 }
 
-/** One roster row as the card shows it: the escaped name. */
+/** One roster row as the card shows it: the escaped name, then the might in short form when the Game gave it. */
 function rosterRow(entry: RosterEntry): string {
-  return escapeText(entry.name);
+  const name = escapeText(entry.name);
+  return entry.might === undefined ? name : `${name} · ${compactNumber(entry.might)}`;
 }
 
 /** An Alliance Rank as a field or menu label: R1–R5, or Unknown. */
@@ -207,9 +357,13 @@ function rosterSection(shown: readonly RosterEntry[], fixed: number): APIEmbedFi
  * same on every page. Every Game API text is escaped; a missing Leader reads Unknown.
  */
 export function renderAllianceCard(alliance: Alliance, fetchedAt: Date, now: Date, page = 0): APIEmbed {
+  const details = alliance.details;
   const fields: APIEmbedField[] = [
-    { name: "Kingdom", value: `#${alliance.kingdom.toString()}`, inline: true },
-    { name: "Power", value: alliance.power.toLocaleString("en-US"), inline: true },
+    { name: "Might", value: thousands(alliance.might), inline: true },
+    ...optionalField(
+      "Kingdom Might Rank",
+      shownWhenKnown(details?.kingdomMightRank, (rank) => `#${rank.toString()} in Kingdom #${alliance.kingdom.toString()}`),
+    ),
     {
       name: "Members",
       value: `${alliance.memberCount.toString()}/${alliance.capacity.toString()}`,
@@ -220,9 +374,18 @@ export function renderAllianceCard(alliance: Alliance, fetchedAt: Date, now: Dat
       value: valueOrUnknown(alliance.leaderName),
       inline: true,
     },
+    ...optionalField("Alliance Level", allianceLevelText(details?.level, details?.xp)),
+    ...optionalField("Gift Level", shownWhenKnown(details?.giftLevel, (level) => level.toString())),
+    ...optionalField("Language", shownWhenKnown(details?.language, languageText)),
   ];
+  const thumbnail = thumbnailOf(details?.badgePath);
+  const joinRequirements = shownWhenKnown(details?.joinRequirements, joinRequirementsText);
   const embed: APIEmbed = {
     title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`),
+    color: CARD_COLOR,
+    author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
+    ...(thumbnail === undefined ? {} : { thumbnail }),
+    ...(joinRequirements === undefined ? {} : { description: `**Join Requirements:** ${joinRequirements}` }),
     fields,
     footer: footerFor(fetchedAt, now),
   };

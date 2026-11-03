@@ -23,7 +23,7 @@ a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN
 
 Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, stacked on 007: an "Overview" button on
 the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
-table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests. Fix (2026-11-03, issue #36): the page label no longer shares a custom id with Previous/Next (Discord refused the Overview with COMPONENT_CUSTOM_ID_DUPLICATED); merged forward into 009–011.
+table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests. Fix (2026-11-03, issue #36): the page label no longer shares a custom id with Previous/Next (Discord refused the Overview with COMPONENT_CUSTOM_ID_DUPLICATED); merged forward into 009–012.
 
 Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`, stacked on 008: a Daily Sync at
 `SYNC_HOUR_UTC` re-reads each Alliance with Linked Members once (and looks up movers by uid) within a Sync Share of
@@ -49,9 +49,29 @@ waits for the user.
 
 007 is reviewed (2 should, 3 could fixed) and audited; PR [#24](https://github.com/LilSticky/Neil/pull/24) (issue #23), 1405 tests.
 
-**Next step (2026-11-02):** the roadmap has no slices left after 011. The user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b
-to 6g). The stack #16, #22, #24, #26, #28, #30 and #32 stays open until then; then merge in order (#16 first, retarget
-each next pull request to `main`, and so on).
+Slice 012 "See a fuller card" is implemented on branch `012-see-a-fuller-card`, stacked on 011 (user request,
+2026-11-02: "include whatever is confirmed and stable", and make the card pleasing and easy to read). `/player` and
+`/alliance` cards show the Game API fields judged stable in a live check (GAME-API.md, "Stability check"), the
+tracker's avatar and badges, an accent color and a grouped grid; roster rows show Might. No extra request. Ten new
+dictionary terms (approved). Reviewed (1 must, 1 should, 2 could fixed; C2 kept), audited; test cases in
+[TEST-RUN.md](TEST-RUN.md) §6h; 1979 tests.
+
+Test run feedback (2026-11-03), added to 012: the Alliance Overview gets the Alliance card's look (accent color,
+Kingdom author line, badge, fields in rows of three, Might on table rows), and a Player without a Last Online counts as
+online now (Player card "Online now"; Overview table and counts). The "Unknown interaction" on the roster's Next button
+came from Neil running locally and on Wispbyte at once (TEST-RUN.md 0.6); no change. Tasks T007–T009 done, reviewed
+(S2, C4 fixed; C5 kept for the manual check); 2000 tests. New test cases: TEST-RUN.md §6h.7–6h.9.
+
+Second round of feedback (2026-11-03), added to 012: Power is renamed Might everywhere (Kingdom Power Rank → Kingdom
+Might Rank; Game API and stored keys stay `power`); the Overview's member table is a card of its own with a monospace
+table (#, Name, Might, Weekly, Honor, Tech, Last), sorted by Might, with sort buttons (US4, T010–T011); 2042 tests.
+
+**Next step (2026-11-03):** the user asked to merge and release the whole stack before the manual test run (Neil only
+runs on the test server). Merge #16, #22, #24, #26, #28, #30, #32, #34 in order: for each next branch, merge `main` in
+with `-s ours` (every branch already contains main's changes), retarget to `main`, wait for CI, squash-merge, and note
+in each pull request that its manual check stays open. Then `npm run commands:register`, the Wispbyte setup
+([HOSTING.md](HOSTING.md): Server Members Intent, channel IDs, `HOME_KINGDOM`, Manage Roles and Manage Nicknames)
+and a Wispbyte restart. The merges wait for the user's permission (blocked by the session's permission rules).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
@@ -87,6 +107,8 @@ restarts and redeploys (ADR 5 stands). Details: [tasks.md](../specs/001-greet-th
 
 See [discovery/initial.md](discovery/initial.md#open-questions): which Discord roles exist and which Neil
 may manage (needed by slice 006); (Wispbyte's disk persistence: answered yes in slice 001.)
+
+**Roadmap (2026-11-03):** REAPER (an R5-kept exile list and a command for the closest unshielded exile) added to Later; its open questions are in [#35](https://github.com/LilSticky/Neil/issues/35).
 
 ## Standing notes
 

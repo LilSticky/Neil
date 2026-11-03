@@ -56,7 +56,7 @@ const drLol: Player = {
   uid: uid("93159425"),
   name: "DrLOL",
   kingdom: kingdomNumber(330),
-  power: 15902728,
+  might: 15902728,
   sanctuaryLevel: 42,
   alliance: undefined,
   allianceRank: undefined,
@@ -268,7 +268,7 @@ const memberOne: Player = {
   uid: uid("100000000001"),
   name: "M01",
   kingdom: kingdomNumber(1),
-  power: 5000,
+  might: 5000,
   sanctuaryLevel: 10,
   alliance: { tag: "NML", name: "No Man's Land", leaderUid: undefined },
   allianceRank: "R4",
@@ -279,7 +279,7 @@ const allianceNmx: Alliance = {
   tag: "NMX",
   name: "No Man's Land",
   kingdom: kingdomNumber(2),
-  power: 208815434,
+  might: 208815434,
   memberCount: 30,
   capacity: 100,
   leaderName: "M00",
@@ -719,7 +719,7 @@ function overviewButtonOf(sessionId: string, alliance: Alliance): APIButtonCompo
 
 /** The id of the Alliance Overview a private reply opened, read from the page 2 button it carries. */
 function overviewIdIn(calls: readonly PickCall[]): string {
-  const match = /overview:([0-9a-f]+):1"/.exec(JSON.stringify(calls));
+  const match = /overview:([0-9a-f]+):m:1"/.exec(JSON.stringify(calls));
   if (match?.[1] === undefined) throw new Error("the reply carries no Overview page button");
   return match[1];
 }
@@ -818,6 +818,25 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
     const pickId = openRoster(sessions);
     const { context } = contextWith(sessions, { kind: "not-found" });
     const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:m:1`, userId: OTHER_MEMBER_ID });
+
+    await handleOverview(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "update",
+        options: expect.objectContaining({
+          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might").embeds,
+        }) as unknown,
+      },
+    ]);
+  });
+
+  test("turns a page button sent before the sort was added (no sort in its id) to that page, sorted by Might", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+    const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
     const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:1`, userId: OTHER_MEMBER_ID });
 
     await handleOverview(interaction, context);
@@ -826,7 +845,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1).embeds,
+          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might").embeds,
         }) as unknown,
       },
     ]);
@@ -837,7 +856,49 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
     const pickId = openRoster(sessions);
     const { context } = contextWith(sessions, { kind: "not-found" });
     const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
-    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:1`, userId: THIRD_MEMBER_ID });
+    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:m:1`, userId: THIRD_MEMBER_ID });
+
+    await handleOverview(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "reply",
+        options: {
+          content: NOT_OWNER_TEXT,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handleOverview sort buttons of an Alliance Overview", () => {
+  test("a sort press by the Member who opened the overview updates it in place to page 1, sorted by that figure", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+    const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:h:0`, userId: OTHER_MEMBER_ID });
+
+    await handleOverview(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "update",
+        options: expect.objectContaining({
+          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 0, "dailyHonor").embeds,
+        }) as unknown,
+      },
+    ]);
+  });
+
+  test("tells another Member privately that the table is not theirs to sort, and changes nothing", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const { context } = contextWith(sessions, { kind: "not-found" });
+    const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
+    const interaction = new FakePickInteraction({ customId: `overview:${overviewId}:h:0`, userId: THIRD_MEMBER_ID });
 
     await handleOverview(interaction, context);
 
@@ -910,7 +971,7 @@ describe("handleOverview when Discord refuses the page turn", () => {
     const { context, logged } = contextWith(sessions, { kind: "not-found" });
     const overviewId = await pressOverview(context, pickId, OTHER_MEMBER_ID);
     const interaction = new FirstUpdateRefusedInteraction({
-      customId: `overview:${overviewId}:1`,
+      customId: `overview:${overviewId}:m:1`,
       userId: OTHER_MEMBER_ID,
     });
 

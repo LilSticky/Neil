@@ -61,7 +61,7 @@ const PLAYER: Player = {
   uid: UID,
   name: "Vex",
   kingdom: kingdomOf(330),
-  power: 15_902_728,
+  might: 15_902_728,
   sanctuaryLevel: 42,
   alliance: undefined,
   allianceRank: undefined,

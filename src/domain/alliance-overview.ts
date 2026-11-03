@@ -22,15 +22,42 @@ export interface OverviewTotals {
   readonly noData: number;
 }
 
-/** The table page of the per-member table: 25 members, sorted by Weekly Activity with no data last. */
+/**
+ * How the per-member table is sorted: by a figure, highest first with no value last, or by Last Online (online now
+ * first, then the most recent).
+ */
+export type TableSort = "might" | "weeklyActivity" | "dailyHonor" | "dailyTech" | "lastOnline";
+
+/** The table page of the per-member table: 25 members in the order of its sort. */
 export interface TablePage {
   readonly rows: readonly RosterEntry[];
   readonly page: number;
   readonly pageCount: number;
 }
 
-const TABLE_PAGE_SIZE = 25;
+/** How many members a page of the table lists. */
+export const TABLE_PAGE_SIZE = 25;
 const ONLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** How a Player was last seen: online now, or at the known Last Online time. */
+export type LastSeen = { readonly kind: "online" } | { readonly kind: "lastOnline"; readonly at: Date };
+
+/**
+ * How a Player was last seen. Online now when the Game says so, or when it gives no Last Online time to say otherwise;
+ * else the Last Online time.
+ */
+export function lastSeen(seen: {
+  readonly online?: boolean | undefined;
+  readonly lastOnlineAt?: Date | undefined;
+}): LastSeen {
+  if (seen.online === true || seen.lastOnlineAt === undefined) return { kind: "online" };
+  return { kind: "lastOnline", at: seen.lastOnlineAt };
+}
+
+/** Whether a member is online now (see `lastSeen`). */
+export function isOnlineNow(entry: RosterEntry): boolean {
+  return lastSeen(entry).kind === "online";
+}
 
 /** The totals, online counts and number of members without data of a roster, as of a moment. */
 export function overviewOf(roster: readonly RosterEntry[], now: Date): OverviewTotals {
@@ -41,10 +68,10 @@ export function overviewOf(roster: readonly RosterEntry[], now: Date): OverviewT
       dailyHonor: totalOf(roster, "dailyHonor"),
       dailyTech: totalOf(roster, "dailyTech"),
     },
-    onlineNow: roster.filter((entry) => entry.online === true).length,
+    onlineNow: roster.filter(isOnlineNow).length,
     onlineLast24h: roster.filter(
       (entry) =>
-        entry.online === true || (entry.lastOnlineAt !== undefined && entry.lastOnlineAt.getTime() >= windowStart),
+        isOnlineNow(entry) || (entry.lastOnlineAt !== undefined && entry.lastOnlineAt.getTime() >= windowStart),
     ).length,
     noData: roster.filter((entry) => ACTIVITY_KINDS.every((kind) => figureOf(entry, kind) === undefined)).length,
   };
@@ -66,21 +93,45 @@ export function leastActive(roster: readonly RosterEntry[], count: number): Rost
     .slice(0, count);
 }
 
-/** One page of the table, sorted by Weekly Activity (highest first, no data last). An empty roster is one empty page. */
-export function tablePage(roster: readonly RosterEntry[], page: number): TablePage {
-  const sorted = [...roster].sort(byWeeklyActivityWithNoDataLast);
+/** One page of the table, in the order of its sort. An empty roster is one empty page. */
+export function tablePage(roster: readonly RosterEntry[], sort: TableSort, page: number): TablePage {
+  const sorted = [...roster].sort(orderOf(sort));
   const pageCount = Math.max(1, Math.ceil(sorted.length / TABLE_PAGE_SIZE));
   const shown = Math.min(Math.max(0, page), pageCount - 1);
   const start = shown * TABLE_PAGE_SIZE;
   return { rows: sorted.slice(start, start + TABLE_PAGE_SIZE), page: shown, pageCount };
 }
 
-/** Highest Weekly Activity first; a member without Weekly Activity after every member who has one. */
-function byWeeklyActivityWithNoDataLast(a: RosterEntry, b: RosterEntry): number {
-  if (a.weeklyActivity === undefined || b.weeklyActivity === undefined) {
-    return Number(a.weeklyActivity === undefined) - Number(b.weeklyActivity === undefined);
+type Comparison = (a: RosterEntry, b: RosterEntry) => number;
+
+function orderOf(sort: TableSort): Comparison {
+  return sort === "lastOnline" ? byLastSeen : byFigure(sort);
+}
+
+/** Highest figure first, a member without the figure after every member who has it; ties by name. */
+function byFigure(sort: Exclude<TableSort, "lastOnline">): Comparison {
+  return (a, b) => {
+    const figureA = sort === "might" ? a.might : figureOf(a, sort);
+    const figureB = sort === "might" ? b.might : figureOf(b, sort);
+    if (figureA === undefined || figureB === undefined) {
+      return Number(figureA === undefined) - Number(figureB === undefined) || byName(a, b);
+    }
+    return figureB - figureA || byName(a, b);
+  };
+}
+
+/** Members online now first, then the most recent Last Online first; ties by name. */
+function byLastSeen(a: RosterEntry, b: RosterEntry): number {
+  const seenA = lastSeen(a);
+  const seenB = lastSeen(b);
+  if (seenA.kind === "online" || seenB.kind === "online") {
+    return Number(seenA.kind !== "online") - Number(seenB.kind !== "online") || byName(a, b);
   }
-  return b.weeklyActivity - a.weeklyActivity;
+  return seenB.at.getTime() - seenA.at.getTime() || byName(a, b);
+}
+
+function byName(a: RosterEntry, b: RosterEntry): number {
+  return a.name.localeCompare(b.name);
 }
 
 /** The figure of one kind a member has, undefined when the Game gave none. */

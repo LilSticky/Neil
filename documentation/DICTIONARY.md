@@ -30,6 +30,29 @@ discovery.
 * A Player's in-game nickname
 * Not unique: several Players, also in different Kingdoms, can share one; matched exactly, ignoring letter case
 
+## Might
+* The strength of a Player, or the sum of its members' for an Alliance, as the game shows it (Game API `power`)
+* Not "power": the game and the server say Might
+
+## Kills
+* The number of enemy troops a Player has defeated (Game API `kills`)
+
+## VIP Level
+* A Player's VIP level in the game (Game API `vip`)
+
+## Likes
+* How many likes other Players gave a Player's profile (Game API `likes`)
+
+## Last Online
+* When a Player was last online in the game (Game API `last_online_at`), shown as a time ago
+* A Player without a Last Online is online now
+
+## Language
+* The language a Player or an Alliance has set in the game (Game API `language`), shown as a language name
+
+## Location
+* A Player's position on the Kingdom map, as X and Y (Game API `x`, `y`)
+
 ## Game API
 * The external source of in-game information about Players
 
@@ -50,6 +73,19 @@ discovery.
 ## Alliance
 * A group of Players in one Kingdom, with a tag and a name
 * Identified within its Kingdom by its tag (or name)
+
+## Alliance Level
+* An Alliance's level and its experience points (XP) toward the next one (Game API `level`, `exp`)
+
+## Gift Level
+* The level of an Alliance's gifts (Game API `gift_level`)
+
+## Kingdom Might Rank
+* An Alliance's place among its Kingdom's Alliances by Might (Game API `rank.rank`)
+
+## Join Requirements
+* What a Player needs to join an Alliance: open to all or by application, and a minimum Might and sanctuary level
+  (Game API `join`; a minimum of 0 means none)
 
 ## Known Alliance
 * An Alliance of the Home Kingdom that Neil has seen in a Game API answer in the last 30 days

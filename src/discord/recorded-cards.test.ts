@@ -37,12 +37,20 @@ describe("cards from recorded Game API answers", () => {
 
     expect(renderPlayerCard(result.value, result.fetchedAt, NOW)).toEqual({
       title: "DrLOL",
+      color: 0xb33a3a,
+      author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
+      thumbnail: { url: "https://lastasylumtracker.com/static/avatars/head_90002.png" },
+      description: "Last online 2 days ago",
       fields: [
-        { name: "Kingdom", value: "#1", inline: true },
-        { name: "Power", value: "15,902,728", inline: true },
+        { name: "Might", value: "15,902,728", inline: true },
+        { name: "Kills", value: "4,420", inline: true },
+        { name: "Likes", value: "110", inline: true },
         { name: "Sanctuary level", value: "23", inline: true },
+        { name: "VIP Level", value: "4", inline: true },
+        { name: "Language", value: "English", inline: true },
         { name: "Alliance", value: "[NML] No Man's Land", inline: true },
         { name: "Alliance Rank", value: "R5", inline: true },
+        { name: "Location", value: "X:807 Y:846", inline: true },
       ],
       footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
@@ -59,14 +67,21 @@ describe("cards from recorded Game API answers", () => {
     const card = renderAllianceCard(result.value, result.fetchedAt, NOW);
     expect(card).toMatchObject({
       title: "[NML] No Man's Land",
+      color: 0xb33a3a,
+      author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
+      thumbnail: { url: "https://lastasylumtracker.com/static/alliance/badge_103.png" },
+      description: "**Join Requirements:** Open to all",
       footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
     });
-    // The roster fields follow these four; their rows are covered in lookup-cards.test.ts.
-    expect(card.fields?.slice(0, 4)).toMatchObject([
-      { name: "Kingdom", value: "#1" },
-      { name: "Power", value: "208,815,434" },
+    // The roster fields follow these seven; their rows are covered in lookup-cards.test.ts.
+    expect(card.fields?.slice(0, 7)).toMatchObject([
+      { name: "Might", value: "208,815,434" },
+      { name: "Kingdom Might Rank", value: "#25 in Kingdom #1" },
       { name: "Members", value: "52/100" },
       { name: "Leader", value: "DrLOL" },
+      { name: "Alliance Level", value: "Level 4 · 8,829,850 XP" },
+      { name: "Gift Level", value: "6" },
+      { name: "Language", value: "Japanese" },
     ]);
   });
 });

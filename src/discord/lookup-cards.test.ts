@@ -4,6 +4,7 @@ import {
   type APIButtonComponentWithCustomId,
   type APIComponentInMessageActionRow,
   type APIEmbed,
+  type APIEmbedField,
 } from "discord.js";
 import { describe, expect, test } from "vitest";
 import {
@@ -16,8 +17,18 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import type { Alliance, Match, Player, RosterEntry } from "../domain/player.js";
+import type {
+  Alliance,
+  AllianceDetails,
+  Match,
+  Player,
+  PlayerDetails,
+  RosterEntry,
+} from "../domain/player.js";
 import {
+  compactNumber,
+  joinRequirementsText,
+  languageName,
   lookupMessages,
   renderAllianceCard,
   renderAllianceComponents,
@@ -26,7 +37,9 @@ import {
   renderPlayerCard,
   renderPlayerPickList,
   renderRosterComponents,
+  timeAgo,
   timeLeft,
+  trackerPicture,
 } from "./lookup-cards.js";
 
 function uid(text: string): Uid {
@@ -48,7 +61,7 @@ const inAlliance: Player = {
   uid: uid("145563254785"),
   name: "Vex",
   kingdom: kingdom(330),
-  power: 15902728,
+  might: 15902728,
   sanctuaryLevel: 42,
   alliance: { tag: "NML", name: "Neil's Men", leaderUid: undefined },
   allianceRank: "R5",
@@ -58,7 +71,7 @@ const withoutAlliance: Player = {
   uid: uid("145563254785"),
   name: "Vex",
   kingdom: kingdom(330),
-  power: 15902728,
+  might: 15902728,
   sanctuaryLevel: 42,
   alliance: undefined,
   allianceRank: undefined,
@@ -69,11 +82,11 @@ describe("renderPlayerCard", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({ title: "Vex" });
   });
 
-  test("shows Kingdom, Power, Sanctuary level, Alliance and Alliance Rank as inline fields", () => {
+  test("shows Might, Sanctuary level, Alliance and Alliance Rank as inline fields, with the Kingdom in the author line", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
+      author: { name: "Kingdom #330" },
       fields: [
-        { name: "Kingdom", value: "#330", inline: true },
-        { name: "Power", value: "15,902,728", inline: true },
+        { name: "Might", value: "15,902,728", inline: true },
         { name: "Sanctuary level", value: "42", inline: true },
         { name: "Alliance", value: "[NML] Neil's Men", inline: true },
         { name: "Alliance Rank", value: "R5", inline: true },
@@ -86,8 +99,7 @@ describe("renderPlayerCard", () => {
 
     expect(card).toMatchObject({
       fields: [
-        { name: "Kingdom", value: "#330" },
-        { name: "Power", value: "15,902,728" },
+        { name: "Might", value: "15,902,728" },
         { name: "Sanctuary level", value: "42" },
         { name: "Alliance", value: "No alliance" },
       ],
@@ -165,7 +177,7 @@ const alliance: Alliance = {
   tag: "NML",
   name: "No Man's Land",
   kingdom: kingdom(1),
-  power: 208815434,
+  might: 208815434,
   memberCount: 52,
   capacity: 100,
   leaderName: "DrLOL",
@@ -179,12 +191,13 @@ describe("renderAllianceCard", () => {
     });
   });
 
-  test("shows Kingdom, Power, Members as count/capacity, and Leader as inline fields, before the roster", () => {
-    const fields = renderAllianceCard(alliance, FETCHED_AT, NOW).fields ?? [];
+  test("shows Might, Members as count/capacity, and Leader as inline fields, before the roster, with the Kingdom in the author line", () => {
+    const card = renderAllianceCard(alliance, FETCHED_AT, NOW);
+    const fields = card.fields ?? [];
 
-    expect(fields.slice(0, 4)).toEqual([
-      { name: "Kingdom", value: "#1", inline: true },
-      { name: "Power", value: "208,815,434", inline: true },
+    expect(card).toMatchObject({ author: { name: "Kingdom #1" } });
+    expect(fields.slice(0, 3)).toEqual([
+      { name: "Might", value: "208,815,434", inline: true },
       { name: "Members", value: "52/100", inline: true },
       { name: "Leader", value: "DrLOL", inline: true },
     ]);
@@ -496,10 +509,12 @@ function fieldValue(embed: APIEmbed, name: string): string | undefined {
   return embed.fields?.find((field) => field.name === name)?.value;
 }
 
-/** Every character Discord counts toward an embed's 6,000: title, footer and each field's name and value. */
+/** Every character Discord counts toward an embed's 6,000: title, author name, description, footer and each field's name and value. */
 function embedCharacters(embed: APIEmbed): number {
   const parts = [
     embed.title ?? "",
+    embed.author?.name ?? "",
+    embed.description ?? "",
     embed.footer?.text ?? "",
     ...(embed.fields ?? []).flatMap((field) => [field.name, field.value]),
   ];
@@ -519,8 +534,7 @@ describe("renderAllianceCard roster fields", () => {
     const card = renderAllianceCard({ ...alliance, roster }, FETCHED_AT, NOW);
 
     expect(card.fields?.map((field) => field.name)).toEqual([
-      "Kingdom",
-      "Power",
+      "Might",
       "Members",
       "Leader",
       "R4",
@@ -593,9 +607,9 @@ describe("renderAllianceCard with 100 long rows", () => {
   });
 });
 
-/** The member rows an Alliance card lists, in order: the four Alliance fields come first, then the roster fields. */
+/** The member rows an Alliance card lists, in order: the three Alliance fields come first, then the roster fields. */
 function rosterRowsOf(card: APIEmbed): string[] {
-  return (card.fields ?? []).slice(4).flatMap((field) => field.value.split("\n"));
+  return (card.fields ?? []).slice(3).flatMap((field) => field.value.split("\n"));
 }
 
 describe("renderAllianceCard on a page of a roster of 100", () => {
@@ -635,7 +649,7 @@ describe("renderAllianceCard on a page of a roster of 100", () => {
     const first = renderAllianceCard({ ...alliance, roster: members }, FETCHED_AT, NOW, 0);
     const last = renderAllianceCard({ ...alliance, roster: members }, FETCHED_AT, NOW, 3);
 
-    expect(last.fields?.slice(0, 4)).toEqual(first.fields?.slice(0, 4));
+    expect(last.fields?.slice(0, 3)).toEqual(first.fields?.slice(0, 3));
   });
 });
 
@@ -970,5 +984,434 @@ describe("renderAllianceComponents", () => {
         custom_id: expect.stringMatching(new RegExp(`^pick:${SESSION_ID}:overview`)) as unknown,
       }) as unknown,
     ]);
+  });
+});
+
+/** The accent color both cards use. */
+const ACCENT_COLOR = 0xb33a3a;
+const TRACKER = "https://lastasylumtracker.com";
+const EMPTY_ROSTER_FIELD: APIEmbedField = { name: "Roster", value: "The tracker lists no members." };
+
+const fullPlayerDetails: PlayerDetails = {
+  kills: 4420,
+  vipLevel: 4,
+  likes: 110,
+  lastOnlineAt: new Date("2026-10-28T02:25:02Z"),
+  language: "en",
+  location: { x: 807, y: 846 },
+  avatarPath: "/static/avatars/head_90002.png",
+  kingdomBadgePath: "/static/kingdom/badge_1.png",
+};
+
+const fullPlayer: Player = { ...inAlliance, details: fullPlayerDetails };
+
+/** The Player card's fields for `fullPlayerDetails`, in the order the card shows them. */
+const fullPlayerFields: APIEmbedField[] = [
+  { name: "Might", value: "15,902,728", inline: true },
+  { name: "Kills", value: "4,420", inline: true },
+  { name: "Likes", value: "110", inline: true },
+  { name: "Sanctuary level", value: "42", inline: true },
+  { name: "VIP Level", value: "4", inline: true },
+  { name: "Language", value: "English", inline: true },
+  { name: "Alliance", value: "[NML] Neil's Men", inline: true },
+  { name: "Alliance Rank", value: "R5", inline: true },
+  { name: "Location", value: "X:807 Y:846", inline: true },
+];
+
+const fullPlayerCard: APIEmbed = {
+  title: "Vex",
+  color: ACCENT_COLOR,
+  author: { name: "Kingdom #330", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
+  thumbnail: { url: `${TRACKER}/static/avatars/head_90002.png` },
+  description: "Last online 2 days ago",
+  fields: fullPlayerFields,
+  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+};
+
+const noDetailsPlayerCard: APIEmbed = {
+  title: "Vex",
+  color: ACCENT_COLOR,
+  author: { name: "Kingdom #330" },
+  fields: [
+    { name: "Might", value: "15,902,728", inline: true },
+    { name: "Sanctuary level", value: "42", inline: true },
+    { name: "Alliance", value: "[NML] Neil's Men", inline: true },
+    { name: "Alliance Rank", value: "R5", inline: true },
+  ],
+  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+};
+
+describe("renderPlayerCard with details", () => {
+  test("shows the full card: accent color, Kingdom badge beside the Kingdom, avatar, Last Online, and the fields in order", () => {
+    expect(renderPlayerCard(fullPlayer, FETCHED_AT, NOW)).toEqual(fullPlayerCard);
+  });
+
+  test.each([
+    { label: "Kills", details: { kills: undefined }, field: "Kills" },
+    { label: "VIP Level", details: { vipLevel: undefined }, field: "VIP Level" },
+    { label: "Likes", details: { likes: undefined }, field: "Likes" },
+    { label: "Language", details: { language: undefined }, field: "Language" },
+    { label: "Location", details: { location: undefined }, field: "Location" },
+  ])("leaves only $label off the card when the Game gives none", ({ details, field }) => {
+    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, ...details } }, FETCHED_AT, NOW);
+
+    expect(card).toEqual({ ...fullPlayerCard, fields: fullPlayerFields.filter((item) => item.name !== field) });
+  });
+
+  test.each([
+    { label: "avatar", details: { avatarPath: undefined }, change: { thumbnail: undefined } },
+    {
+      label: "Kingdom badge",
+      details: { kingdomBadgePath: undefined },
+      change: { author: { name: "Kingdom #330" } },
+    },
+  ])("leaves only the $label off the card when the Game gives none", ({ details, change }) => {
+    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, ...details } }, FETCHED_AT, NOW);
+
+    expect(card).toEqual({ ...fullPlayerCard, ...change });
+  });
+
+  test("shows Online now as the description when the Game gives no Last Online time", () => {
+    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, lastOnlineAt: undefined } }, FETCHED_AT, NOW);
+
+    expect(card).toEqual({ ...fullPlayerCard, description: "Online now" });
+  });
+
+  test("renders a Player whose details are all unknown as Online now, with no picture, badge or detail fields", () => {
+    const allUnknown: PlayerDetails = {
+      kills: undefined,
+      vipLevel: undefined,
+      likes: undefined,
+      lastOnlineAt: undefined,
+      language: undefined,
+      location: undefined,
+      avatarPath: undefined,
+      kingdomBadgePath: undefined,
+    };
+
+    expect(renderPlayerCard({ ...inAlliance, details: allUnknown }, FETCHED_AT, NOW)).toEqual({
+      ...noDetailsPlayerCard,
+      description: "Online now",
+    });
+  });
+
+  test("leaves out a picture whose path is not a tracker /static/ path", () => {
+    const card = renderPlayerCard(
+      {
+        ...inAlliance,
+        details: {
+          ...fullPlayerDetails,
+          avatarPath: "https://evil.example/head.png",
+          kingdomBadgePath: "/static/../secret.png",
+        },
+      },
+      FETCHED_AT,
+      NOW,
+    );
+
+    expect(card).toEqual({ ...fullPlayerCard, thumbnail: undefined, author: { name: "Kingdom #330" } });
+  });
+
+  test("shows No alliance and no Alliance Rank with the details", () => {
+    const card = renderPlayerCard({ ...withoutAlliance, details: fullPlayerDetails }, FETCHED_AT, NOW);
+
+    expect(card.fields?.find((field) => field.name === "Alliance")).toEqual({
+      name: "Alliance",
+      value: "No alliance",
+      inline: true,
+    });
+    expect(card.fields?.map((field) => field.name)).not.toContain("Alliance Rank");
+  });
+});
+
+describe("renderPlayerCard without details", () => {
+  test("shows today's card, with the Kingdom in the author line and no picture, description or Kingdom field", () => {
+    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toEqual(noDetailsPlayerCard);
+  });
+});
+
+describe("timeAgo", () => {
+  const MINUTE_MS = 60_000;
+  const HOUR_MS = 60 * MINUTE_MS;
+  const DAY_MS = 24 * HOUR_MS;
+
+  test.each([
+    { label: "59 s ago, under a minute", ms: MINUTE_MS - 1000, text: "just now" },
+    { label: "5 min in the future, clock skew", ms: -5 * MINUTE_MS, text: "just now" },
+    { label: "exactly 1 min", ms: MINUTE_MS, text: "1 min ago" },
+    { label: "59 min 59 s, minutes rounded down", ms: HOUR_MS - 1000, text: "59 min ago" },
+    { label: "exactly 1 h", ms: HOUR_MS, text: "1 h ago" },
+    { label: "23 h 59 min, hours rounded down", ms: DAY_MS - MINUTE_MS, text: "23 h ago" },
+    { label: "exactly 24 h", ms: DAY_MS, text: "1 day ago" },
+    { label: "47 h, days rounded down", ms: 2 * DAY_MS - HOUR_MS, text: "1 day ago" },
+    { label: "3 days", ms: 3 * DAY_MS, text: "3 days ago" },
+    { label: "400 days, beyond a year", ms: 400 * DAY_MS, text: "400 days ago" },
+  ])("$label reads as $text", ({ ms, text }) => {
+    expect(timeAgo(new Date(NOW.getTime() - ms), NOW)).toBe(text);
+  });
+});
+
+describe("compactNumber", () => {
+  test.each([
+    { n: 0, text: "0" },
+    { n: 999, text: "999" },
+    { n: 1_000, text: "1K" },
+    { n: 1_500, text: "1.5K" },
+    { n: 12_000, text: "12K" },
+    { n: 999_949, text: "999.9K" },
+    { n: 999_950, text: "1M" },
+    { n: 1_000_000, text: "1M" },
+    { n: 27_626_362, text: "27.6M" },
+    { n: 1_000_000_000, text: "1B" },
+    { n: 1_500_000_000, text: "1.5B" },
+  ])("$n reads as $text", ({ n, text }) => {
+    expect(compactNumber(n)).toBe(text);
+  });
+});
+
+describe("languageName", () => {
+  test.each([
+    { code: "ja", name: "Japanese" },
+    { code: "en", name: "English" },
+    { code: "xx", name: "XX" },
+    { code: "ab!", name: "AB!" },
+  ])("$code reads as $name", ({ code, name }) => {
+    expect(languageName(code)).toBe(name);
+  });
+});
+
+describe("trackerPicture", () => {
+  test("prefixes a /static/ path with the tracker's own address", () => {
+    expect(trackerPicture("/static/avatars/head_90002.png")).toBe(
+      "https://lastasylumtracker.com/static/avatars/head_90002.png",
+    );
+  });
+});
+
+describe("joinRequirementsText", () => {
+  test.each([
+    { label: "open, no minimums", open: true, minimumMight: 0, minimumSanctuaryLevel: 0, text: "Open to all" },
+    {
+      label: "by application, no minimums",
+      open: false,
+      minimumMight: 0,
+      minimumSanctuaryLevel: 0,
+      text: "By application",
+    },
+    {
+      label: "open, minimum might 10M",
+      open: true,
+      minimumMight: 10_000_000,
+      minimumSanctuaryLevel: 0,
+      text: "Open to all · min. 10M Might",
+    },
+    {
+      label: "by application, minimum sanctuary level 15",
+      open: false,
+      minimumMight: 0,
+      minimumSanctuaryLevel: 15,
+      text: "By application · min. sanctuary level 15",
+    },
+    {
+      label: "open, both minimums",
+      open: true,
+      minimumMight: 10_000_000,
+      minimumSanctuaryLevel: 15,
+      text: "Open to all · min. 10M Might · min. sanctuary level 15",
+    },
+    {
+      label: "minimum might 1,000",
+      open: false,
+      minimumMight: 1_000,
+      minimumSanctuaryLevel: 0,
+      text: "By application · min. 1K Might",
+    },
+  ])("$label reads as $text", ({ open, minimumMight, minimumSanctuaryLevel, text }) => {
+    expect(joinRequirementsText({ open, minimumMight, minimumSanctuaryLevel })).toBe(text);
+  });
+});
+
+const fullAllianceDetails: AllianceDetails = {
+  level: 4,
+  xp: 8_881_750,
+  giftLevel: 6,
+  kingdomMightRank: 24,
+  language: "ja",
+  joinRequirements: { open: true, minimumMight: 0, minimumSanctuaryLevel: 0 },
+  badgePath: "/static/alliance/badge_103.png",
+  kingdomBadgePath: "/static/kingdom/badge_1.png",
+};
+
+const fullAlliance: Alliance = { ...alliance, details: fullAllianceDetails };
+
+/** The Alliance fields for `fullAllianceDetails`, in the order the card shows them. */
+const fullAllianceFields: APIEmbedField[] = [
+  { name: "Might", value: "208,815,434", inline: true },
+  { name: "Kingdom Might Rank", value: "#24 in Kingdom #1", inline: true },
+  { name: "Members", value: "52/100", inline: true },
+  { name: "Leader", value: "DrLOL", inline: true },
+  { name: "Alliance Level", value: "Level 4 · 8,881,750 XP", inline: true },
+  { name: "Gift Level", value: "6", inline: true },
+  { name: "Language", value: "Japanese", inline: true },
+];
+
+const fullAllianceCard: APIEmbed = {
+  title: "[NML] No Man's Land",
+  color: ACCENT_COLOR,
+  author: { name: "Kingdom #1", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
+  thumbnail: { url: `${TRACKER}/static/alliance/badge_103.png` },
+  description: "**Join Requirements:** Open to all",
+  fields: [...fullAllianceFields, EMPTY_ROSTER_FIELD],
+  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+};
+
+const noDetailsAllianceCard: APIEmbed = {
+  title: "[NML] No Man's Land",
+  color: ACCENT_COLOR,
+  author: { name: "Kingdom #1" },
+  fields: [
+    { name: "Might", value: "208,815,434", inline: true },
+    { name: "Members", value: "52/100", inline: true },
+    { name: "Leader", value: "DrLOL", inline: true },
+    EMPTY_ROSTER_FIELD,
+  ],
+  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+};
+
+describe("renderAllianceCard with details", () => {
+  test("shows the full card: accent color, Kingdom badge beside the Kingdom, Alliance badge, Join Requirements, and the fields in order", () => {
+    expect(renderAllianceCard(fullAlliance, FETCHED_AT, NOW)).toEqual(fullAllianceCard);
+  });
+
+  test("shows the Alliance Level as Level alone when the XP is missing", () => {
+    const card = renderAllianceCard(
+      { ...alliance, details: { ...fullAllianceDetails, xp: undefined } },
+      FETCHED_AT,
+      NOW,
+    );
+
+    expect(fieldValue(card, "Alliance Level")).toBe("Level 4");
+  });
+
+  test.each([
+    { label: "Kingdom Might Rank", details: { kingdomMightRank: undefined }, field: "Kingdom Might Rank" },
+    { label: "Alliance Level", details: { level: undefined, xp: undefined }, field: "Alliance Level" },
+    { label: "Gift Level", details: { giftLevel: undefined }, field: "Gift Level" },
+    { label: "Language", details: { language: undefined }, field: "Language" },
+  ])("leaves only $label off the card when the Game gives none", ({ details, field }) => {
+    const card = renderAllianceCard({ ...alliance, details: { ...fullAllianceDetails, ...details } }, FETCHED_AT, NOW);
+
+    expect(card.fields).toEqual([...fullAllianceFields.filter((item) => item.name !== field), EMPTY_ROSTER_FIELD]);
+  });
+
+  test.each([
+    {
+      label: "Join Requirements",
+      details: { joinRequirements: undefined },
+      change: { description: undefined },
+    },
+    { label: "Alliance badge", details: { badgePath: undefined }, change: { thumbnail: undefined } },
+    {
+      label: "Kingdom badge",
+      details: { kingdomBadgePath: undefined },
+      change: { author: { name: "Kingdom #1" } },
+    },
+  ])("leaves only the $label off the card when the Game gives none", ({ details, change }) => {
+    const card = renderAllianceCard({ ...alliance, details: { ...fullAllianceDetails, ...details } }, FETCHED_AT, NOW);
+
+    expect(card).toEqual({ ...fullAllianceCard, ...change });
+  });
+
+  test("shows today's card without the Kingdom field when the details are missing", () => {
+    expect(renderAllianceCard(alliance, FETCHED_AT, NOW)).toEqual(noDetailsAllianceCard);
+  });
+});
+
+function rosterEntryWithMight(
+  uidText: string,
+  name: string,
+  allianceRank: RosterEntry["allianceRank"],
+  might: number,
+): RosterEntry {
+  return { ...rosterEntry(uidText, name, allianceRank), might };
+}
+
+describe("renderAllianceCard roster rows with might", () => {
+  test("shows each row's might in short form after the name, and only the name when the might is unknown", () => {
+    const card = renderAllianceCard(
+      {
+        ...alliance,
+        roster: [rosterEntryWithMight("5555", "Ana", "R4", 27_626_362), rosterEntry("42", "Benedict", "R3")],
+      },
+      FETCHED_AT,
+      NOW,
+    );
+
+    expect(fieldValue(card, "R4")).toBe("Ana · 27.6M");
+    expect(fieldValue(card, "R3")).toBe("Benedict");
+  });
+
+  test("escapes the name in a row that shows might", () => {
+    const card = renderAllianceCard(
+      { ...alliance, roster: [rosterEntryWithMight("5555", "_Ana_", "R4", 27_626_362)] },
+      FETCHED_AT,
+      NOW,
+    );
+
+    expect(fieldValue(card, "R4")).toBe("\\_Ana\\_ · 27.6M");
+  });
+});
+
+describe("renderAllianceCard with a page of 25 rows of 100-character names and might", () => {
+  const longRows: RosterEntry[] = Array.from({ length: 25 }, (_value, index) =>
+    rosterEntryWithMight(
+      (100_000_000_000 + index).toString(),
+      `${"N".repeat(96)}${index.toString().padStart(4, "0")}`,
+      "R4",
+      27_626_362,
+    ),
+  );
+
+  test("keeps the whole card within Discord's 6,000 characters", () => {
+    const card = renderAllianceCard({ ...fullAlliance, roster: longRows }, FETCHED_AT, NOW);
+
+    expect(embedCharacters(card)).toBeLessThanOrEqual(6000);
+  });
+
+  test("keeps every field value within Discord's 1,024 characters", () => {
+    const card = renderAllianceCard({ ...fullAlliance, roster: longRows }, FETCHED_AT, NOW);
+
+    for (const field of card.fields ?? []) {
+      expect(field.value.length).toBeLessThanOrEqual(1024);
+    }
+  });
+
+  test("lists all 25 rows, each with its might", () => {
+    const card = renderAllianceCard({ ...fullAlliance, roster: longRows }, FETCHED_AT, NOW);
+    const rows = (card.fields ?? []).slice(7).flatMap((field) => field.value.split("\n"));
+
+    expect(rows).toHaveLength(25);
+    expect(rows.every((row) => row.endsWith(" · 27.6M"))).toBe(true);
+  });
+});
+
+describe("renderAllianceCard with details on every page", () => {
+  test("keeps the author, picture, description and Alliance fields the same on every page", () => {
+    const members: RosterEntry[] = Array.from({ length: 100 }, (_value, index) =>
+      rosterEntryWithMight(
+        (100_000_000_000 + index).toString(),
+        `M${index.toString().padStart(2, "0")}`,
+        "R4",
+        1_000_000 + index,
+      ),
+    );
+
+    const first = renderAllianceCard({ ...fullAlliance, roster: members }, FETCHED_AT, NOW, 0);
+    const last = renderAllianceCard({ ...fullAlliance, roster: members }, FETCHED_AT, NOW, 3);
+
+    expect(last.author).toEqual(first.author);
+    expect(last.thumbnail).toEqual(first.thumbnail);
+    expect(last.description).toBe(first.description);
+    expect(last.fields?.slice(0, 7)).toEqual(first.fields?.slice(0, 7));
   });
 });

@@ -72,8 +72,8 @@ export function playerFromRoster(alliance: Alliance, entry: RosterEntry): Player
     uid: entry.uid,
     name: entry.name,
     kingdom: entry.kingdom,
-    // A roster row does not give the power; names and roles never use it.
-    power: 0,
+    // A roster row does not give the might; names and roles never use it.
+    might: 0,
     sanctuaryLevel: entry.sanctuaryLevel,
     alliance: { tag: alliance.tag, name: alliance.name, leaderUid: undefined },
     allianceRank: entry.allianceRank,

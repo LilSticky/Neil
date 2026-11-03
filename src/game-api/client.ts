@@ -9,7 +9,15 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
-import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
+import type {
+  Alliance,
+  AllianceDetails,
+  LookupResult,
+  Match,
+  Player,
+  PlayerDetails,
+  RosterEntry,
+} from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import type { QuotaKeeper } from "./quota-keeper.js";
 import { InFlight, LookupCache, type CacheEntry } from "./lookup-cache.js";
@@ -296,8 +304,9 @@ export class GameApiClient {
       uid: uid.value,
       name: body.nick,
       kingdom: kingdom.value,
-      power: body.power,
+      might: body.power,
       sanctuaryLevel: body.lv,
+      details: playerDetailsFrom(body),
     };
 
     if (body.aid === null || body.aid === 0) {
@@ -568,17 +577,49 @@ function leaderUidFrom(alliance: PlayerBody["alliance"]): Uid | undefined {
   return uid.ok ? uid.value : undefined;
 }
 
+/** The details of a Player from a 200 body; each one is undefined when the body gives none readable. */
+function playerDetailsFrom(body: PlayerBody): PlayerDetails {
+  return {
+    kills: body.kills,
+    vipLevel: body.vip,
+    likes: body.likes,
+    lastOnlineAt: dateFromSeconds(body.last_online_at),
+    language: body.language,
+    location: body.x === undefined || body.y === undefined ? undefined : { x: body.x, y: body.y },
+    avatarPath: body.avatar_url,
+    kingdomBadgePath: body.server_badge_url,
+  };
+}
+
+/** The details of an Alliance from a 200 body; each one is undefined when the body gives none readable. */
+function allianceDetailsFrom(body: AllianceBody): AllianceDetails {
+  return {
+    level: body.level,
+    xp: body.exp,
+    giftLevel: body.gift_level,
+    kingdomMightRank: body.rank?.rank,
+    language: body.language,
+    joinRequirements:
+      body.join === undefined
+        ? undefined
+        : { open: body.join.auto, minimumMight: body.join.power, minimumSanctuaryLevel: body.join.castle_level },
+    badgePath: body.badge_url,
+    kingdomBadgePath: body.server_badge_url,
+  };
+}
+
 /** An Alliance from a 200 body, in the Kingdom the body names. */
 function allianceFrom(body: AllianceBody, kingdom: KingdomNumber): Alliance {
   return {
     tag: body.abbr,
     name: body.name,
     kingdom,
-    power: body.power,
+    might: body.power,
     memberCount: body.member_count,
     capacity: body.capacity,
     leaderName: body.leader_name ?? undefined,
     roster: body.members.flatMap(rosterEntryFrom),
+    details: allianceDetailsFrom(body),
   };
 }
 
@@ -598,6 +639,7 @@ function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
     {
       uid: uid.value,
       name: name === "" ? "Unknown" : name,
+      ...(member.power === undefined ? {} : { might: member.power }),
       allianceRank: rankFromLabel(member.rank_label ?? null),
       kingdom: kingdomFromRoster(member.kid),
       sanctuaryLevel: member.lv ?? undefined,
@@ -605,13 +647,13 @@ function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
       dailyHonor: member.daily_honor ?? undefined,
       dailyTech: member.daily_tech ?? undefined,
       online: member.online ?? undefined,
-      lastOnlineAt: lastOnlineFrom(member.last_online_at),
+      lastOnlineAt: dateFromSeconds(member.last_online_at),
     },
   ];
 }
 
 /** A Game API Unix time in seconds as a Date; undefined when the Game gave none or the time is not one a Date holds. */
-function lastOnlineFrom(seconds: number | null | undefined): Date | undefined {
+function dateFromSeconds(seconds: number | null | undefined): Date | undefined {
   if (seconds === null || seconds === undefined) return undefined;
   const moment = new Date(seconds * 1000);
   return Number.isFinite(moment.getTime()) ? moment : undefined;

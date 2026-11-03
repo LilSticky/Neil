@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
+import { isOnlineNow, lastSeen, leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
 import { parseUid } from "./lookup-input.js";
 import type { RosterEntry } from "./player.js";
 
@@ -7,6 +7,7 @@ const NOW = new Date("2026-11-02T12:00:00Z");
 const HOUR_MS = 3_600_000;
 
 interface Figures {
+  readonly might?: number;
   readonly weeklyActivity?: number;
   readonly dailyHonor?: number;
   readonly dailyTech?: number;
@@ -32,6 +33,7 @@ function member(name: string, figures: Figures = {}): RosterEntry {
     dailyTech: figures.dailyTech,
     online: figures.online,
     lastOnlineAt: figures.lastOnlineAt,
+    ...(figures.might === undefined ? {} : { might: figures.might }),
   };
 }
 
@@ -73,7 +75,56 @@ describe("overviewOf totals", () => {
   });
 });
 
+describe("isOnlineNow", () => {
+  test.each([
+    { label: "online flag false with no Last Online", figures: { online: false } },
+    { label: "online flag unknown with no Last Online", figures: {} },
+  ])("is online now for a member with $label", ({ figures }) => {
+    expect(isOnlineNow(member("Alpha", figures))).toBe(true);
+  });
+
+  test("is online now when the online flag is true, whatever the Last Online", () => {
+    expect(isOnlineNow(member("Alpha", { online: true, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(true);
+  });
+
+  test("is not online now when the online flag is false and the Last Online is known", () => {
+    expect(isOnlineNow(member("Alpha", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(false);
+  });
+});
+
+describe("lastSeen", () => {
+  test.each([
+    { label: "online flag true with no Last Online", seen: { online: true } },
+    { label: "online flag true with a Last Online", seen: { online: true, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) } },
+    { label: "online flag false with no Last Online", seen: { online: false } },
+    { label: "online flag unknown with no Last Online", seen: {} },
+  ])("is online for a member with $label", ({ seen }) => {
+    expect(lastSeen(seen)).toEqual({ kind: "online" });
+  });
+
+  test.each([
+    { label: "online flag false", online: false },
+    { label: "online flag unknown", online: undefined },
+  ])("is the Last Online time for a member with $label and a Last Online", ({ online }) => {
+    const at = new Date(NOW.getTime() - 5 * HOUR_MS);
+
+    expect(lastSeen({ online, lastOnlineAt: at })).toEqual({ kind: "lastOnline", at });
+  });
+});
+
 describe("overviewOf online", () => {
+  test("counts a member without a Last Online as online now and in the last 24 hours", () => {
+    const roster = [
+      member("Alpha", { online: false }),
+      member("Beta", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }),
+    ];
+
+    const overview = overviewOf(roster, NOW);
+
+    expect(overview.onlineNow).toBe(1);
+    expect(overview.onlineLast24h).toBe(2);
+  });
+
   test("counts the members online now", () => {
     const roster = [
       member("Alpha", { online: true, lastOnlineAt: NOW }),
@@ -165,25 +216,27 @@ describe("leastActive", () => {
 });
 
 describe("tablePage", () => {
-  const thirty = Array.from({ length: 30 }, (_, index) => member(`Player ${index.toString()}`, { weeklyActivity: index }));
+  const thirty = Array.from({ length: 30 }, (_value, index) =>
+    member(`Player ${index.toString()}`, { weeklyActivity: index }),
+  );
 
   test("lists 25 members on the first page and the rest on the second", () => {
-    const first = tablePage(thirty, 0);
-    const second = tablePage(thirty, 1);
+    const first = tablePage(thirty, "weeklyActivity", 0);
+    const second = tablePage(thirty, "weeklyActivity", 1);
 
     expect(first.pageCount).toBe(2);
     expect(first.rows).toHaveLength(25);
     expect(second.rows).toHaveLength(5);
   });
 
-  test("sorts the table by Weekly Activity, highest first", () => {
+  test("sorts by Weekly Activity, highest first", () => {
     const roster = [
       member("Alpha", { weeklyActivity: 5 }),
       member("Beta", { weeklyActivity: 50 }),
       member("Gamma", { weeklyActivity: 20 }),
     ];
 
-    expect(namesOf(tablePage(roster, 0).rows)).toEqual(["Beta", "Gamma", "Alpha"]);
+    expect(namesOf(tablePage(roster, "weeklyActivity", 0).rows)).toEqual(["Beta", "Gamma", "Alpha"]);
   });
 
   test("puts members with no Weekly Activity last, after every member who has one", () => {
@@ -193,19 +246,95 @@ describe("tablePage", () => {
       member("Gamma", { weeklyActivity: 20 }),
     ];
 
-    const rows = tablePage(roster, 0).rows;
-
-    expect(namesOf(rows)).toEqual(["Gamma", "Beta", "Alpha"]);
+    expect(namesOf(tablePage(roster, "weeklyActivity", 0).rows)).toEqual(["Gamma", "Beta", "Alpha"]);
   });
 
   test("continues the sorted order on the second page", () => {
-    const second = tablePage(thirty, 1);
+    const second = tablePage(thirty, "weeklyActivity", 1);
 
     expect(second.page).toBe(1);
     expect(second.rows[0]?.weeklyActivity).toBe(4);
   });
 
   test("an empty roster is one page with no rows", () => {
-    expect(tablePage([], 0)).toEqual({ rows: [], page: 0, pageCount: 1 });
+    expect(tablePage([], "might", 0)).toEqual({ rows: [], page: 0, pageCount: 1 });
+  });
+
+  test("sorts by Might, highest first", () => {
+    const roster = [
+      member("Alpha", { might: 5 }),
+      member("Beta", { might: 50 }),
+      member("Gamma", { might: 20 }),
+    ];
+
+    expect(namesOf(tablePage(roster, "might", 0).rows)).toEqual(["Beta", "Gamma", "Alpha"]);
+  });
+
+  test("puts members with no Might last, in name order", () => {
+    const roster = [
+      member("Zeta"),
+      member("Alpha"),
+      member("Mid", { might: 1 }),
+    ];
+
+    expect(namesOf(tablePage(roster, "might", 0).rows)).toEqual(["Mid", "Alpha", "Zeta"]);
+  });
+
+  test("breaks a tie in Might by name", () => {
+    const roster = [
+      member("Zeta", { might: 10 }),
+      member("Alpha", { might: 10 }),
+      member("Mid", { might: 20 }),
+    ];
+
+    expect(namesOf(tablePage(roster, "might", 0).rows)).toEqual(["Mid", "Alpha", "Zeta"]);
+  });
+
+  test.each([
+    { sort: "weeklyActivity", order: ["Beta", "Gamma", "Alpha"] },
+    { sort: "dailyHonor", order: ["Alpha", "Gamma", "Beta"] },
+    { sort: "dailyTech", order: ["Beta", "Alpha", "Gamma"] },
+  ] as const)("sorts by $sort on that figure alone, highest first", ({ sort, order }) => {
+    const roster = [
+      member("Alpha", { weeklyActivity: 1, dailyHonor: 9, dailyTech: 5 }),
+      member("Beta", { weeklyActivity: 9, dailyHonor: 1, dailyTech: 7 }),
+      member("Gamma", { weeklyActivity: 5, dailyHonor: 5, dailyTech: 1 }),
+    ];
+
+    expect(namesOf(tablePage(roster, sort, 0).rows)).toEqual(order);
+  });
+
+  test.each(["weeklyActivity", "dailyHonor", "dailyTech"] as const)(
+    "puts members with no %s last, in name order",
+    (sort) => {
+      const roster = [
+        member("Zeta"),
+        member("Alpha"),
+        member("Mid", { weeklyActivity: 1, dailyHonor: 1, dailyTech: 1 }),
+      ];
+
+      expect(namesOf(tablePage(roster, sort, 0).rows)).toEqual(["Mid", "Alpha", "Zeta"]);
+    },
+  );
+
+  test("sorts by Last Online: members online now first, then the most recently online, ties by name", () => {
+    const roster = [
+      member("Beta", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }),
+      member("Gamma", { online: false, lastOnlineAt: new Date(NOW.getTime() - HOUR_MS) }),
+      member("Alpha", { online: true, lastOnlineAt: NOW }),
+      member("Delta"),
+      member("Epsilon", { online: false, lastOnlineAt: new Date(NOW.getTime() - HOUR_MS) }),
+    ];
+
+    expect(namesOf(tablePage(roster, "lastOnline", 0).rows)).toEqual(["Alpha", "Delta", "Epsilon", "Gamma", "Beta"]);
+  });
+
+  test("keeps the sorted order across pages for each sort", () => {
+    const roster = Array.from({ length: 30 }, (_value, index) =>
+      member(`Player ${index.toString().padStart(2, "0")}`, { might: index + 1, dailyHonor: index + 1 }),
+    );
+
+    expect(tablePage(roster, "might", 1).rows[0]?.might).toBe(5);
+    expect(tablePage(roster, "dailyHonor", 1).rows[0]?.dailyHonor).toBe(5);
   });
 });

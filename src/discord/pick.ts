@@ -398,7 +398,7 @@ export async function handleOverview(interaction: PickInteraction, context: Pick
     }
     const { alliance, fetchedAt } = session.choice;
     await sendOverview(interaction, context, () =>
-      interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page)),
+      interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort)),
     );
   });
 }
