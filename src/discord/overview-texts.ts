@@ -185,7 +185,8 @@ function pageButtons(
       type: ComponentType.ActionRow,
       components: [
         button("◀ Previous", overviewCustomId(sessionId, Math.max(0, page - 1)), page === 0),
-        button(`${(page + 1).toString()} / ${pageCount.toString()}`, overviewCustomId(sessionId, page), true),
+        // The label is no page button; its own id keeps every custom id in the row unique (Discord refuses duplicates).
+        button(`${(page + 1).toString()} / ${pageCount.toString()}`, `overview:${sessionId}:label`, true),
         button("Next ▶", overviewCustomId(sessionId, Math.min(last, page + 1)), page === last),
       ],
     },

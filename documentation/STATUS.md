@@ -23,7 +23,7 @@ a Kingdom means the Home Kingdom. Test cases collected in [TEST-RUN.md](TEST-RUN
 
 Slice 008 "Alliance overview" is implemented on branch `008-alliance-overview`, stacked on 007: an "Overview" button on
 the Alliance card gives the pressing Member a private Alliance Overview (totals, top 5, Least Active, a paged member
-table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests.
+table) from the roster already fetched. Test cases collected in [TEST-RUN.md](TEST-RUN.md) §6d. Reviewed (1 must, 4 should fixed), audited; PR [#26](https://github.com/LilSticky/Neil/pull/26) (issue #25), 1468 tests. Fix (2026-11-03, issue #36): the page label no longer shares a custom id with Previous/Next (Discord refused the Overview with COMPONENT_CUSTOM_ID_DUPLICATED); merged forward into 009–011.
 
 Slice 009 "Keep roles in sync" is implemented on branch `009-keep-roles-in-sync`, stacked on 008: a Daily Sync at
 `SYNC_HOUR_UTC` re-reads each Alliance with Linked Members once (and looks up movers by uid) within a Sync Share of
