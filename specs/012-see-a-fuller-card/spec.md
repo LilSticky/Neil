@@ -25,6 +25,16 @@ the card visually pleasing and easy to read." Field selection and pictures appro
 - Q: Dictionary? → A: Kills, VIP Level, Likes, Last Online, Language, Location, Alliance Level, Gift Level, Kingdom
   Power Rank and Join Requirements are added (approved with the field groups, 2026-11-02).
 
+### Session 2026-11-03 (test run feedback)
+
+- Q: A Player without a Last Online? → A: is online now (user, 2026-11-03): the Player card reads "Online now", and
+  the Alliance Overview counts and shows such a member as online.
+- Q: The Alliance Overview's look? → A: like the Alliance card (user, 2026-11-03): accent color, Kingdom author line
+  with badge, Alliance badge, totals and online counts as a 3-column grid, the Top lists side by side, power in the
+  member table rows. It was out of scope before; now US3.
+- The "Unknown interaction" on the roster's Next button came from two Neils (local and Wispbyte) answering one press;
+  no change (TEST-RUN.md 0.6 already says to stop Neil on Wispbyte).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A Member sees a fuller Player card (Priority: P1)
@@ -81,6 +91,26 @@ any new field still gives a card.
 
 ---
 
+### User Story 3 - A Member sees an Alliance Overview that looks like the card (Priority: P2)
+
+A Member presses Overview on an Alliance card. The private Alliance Overview carries the card's look: accent color,
+"Kingdom #N" with the Kingdom badge, the Alliance badge as the picture, the totals and online counts in a 3-column grid,
+the three Top lists side by side, and each member table row with the member's power in short form.
+
+**Independent Test**: automated: the Overview built from a roster with details shows color, author, thumbnail, inline
+fields and power on rows, and stays within Discord's limits on every page.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Alliance with details, **When** the Overview is built, **Then** it has the card's color, author line and
+   badge thumbnail, and the totals, online counts and Top lists are inline fields.
+2. **Given** a member with a power, **Then** the table row reads `Name · 27.6M · …`; **given** none, the power is left out.
+3. **Given** an Alliance without details, **Then** the Overview still shows, with "Kingdom #N" and no pictures.
+4. **Given** a member without a Last Online, **Then** the table shows them "online" and they count in Online now and
+   Online in the last 24 hours.
+
+---
+
 ### Edge Cases
 
 - A picture path that is missing, empty or not a tracker `/static/` path: that picture is left out; Neil never puts
@@ -88,6 +118,7 @@ any new field still gives a card.
 - The tracker is down when Discord fetches a picture: Discord shows the card without it; Neil does nothing.
 - Last Online in the future or under a minute ago (clock skew): "just now". Older than a year: still a time ago in days.
 - An unknown Language code: shown as the code in capitals ("XX"); an empty one is left out.
+- No Last Online (missing, 0 or unreadable): the Player is online now ("Online now" on the Player card).
 - Location 0:0 is shown as given (its meaning is not known).
 - Long names with power added to roster rows: the roster section still keeps to Discord's field and card limits (rows
   that do not fit are counted in the "and N more" note, as today).
@@ -112,6 +143,10 @@ any new field still gives a card.
 - **FR-007**: Cards MUST stay within Discord's limits (field value 1,024, card 6,000 characters) on every roster page,
   and every Game API text MUST be escaped, as today.
 - **FR-008**: The slice MUST NOT add any Game API request; all values come from answers Neil already gets.
+- **FR-009**: A Player or roster member without a Last Online MUST be treated as online now: "Online now" on the
+  Player card; "online" in the Alliance Overview table and counted in its online counts.
+- **FR-010**: The Alliance Overview MUST use the Alliance card's look (FR-004, FR-006) and show power in short form on
+  each member table row, within Discord's limits (FR-007).
 
 ### Key Entities
 
@@ -138,4 +173,5 @@ any new field still gives a card.
   power in both samples).
 - `join.castle_level` is the minimum sanctuary level; `join.auto: true` means anyone may join without an application.
 - `last_online_at` on the Player answer is the Player's last time online in the game (it matched the roster's value).
-- The Onboarding Interview's confirmation card and the Alliance Overview are out of scope; they keep their look.
+- The Onboarding Interview's confirmation card is out of scope; it keeps its look. (The Alliance Overview was out of
+  scope until 2026-11-03; now US3.)

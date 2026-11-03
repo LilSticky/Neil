@@ -63,4 +63,16 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   today's card; same values on every page.
 - [x] **T005** Docs: TEST-RUN.md §6h (manual check: `/player DrLOL`, `/alliance NML`, pictures, a Player without
   alliance), ROADMAP row 012, STATUS.
+- [ ] **T007** Online now without a Last Online (FR-009). Domain `src/domain/alliance-overview.ts`: export
+  `isOnlineNow(entry)` = `online === true || lastOnlineAt === undefined`, used by `onlineNow` and `onlineLast24h`.
+  Tests in `alliance-overview.test.ts` (online flag false/undefined with no time → online; with a time → as before)
+  and `lookup-cards.test.ts`: Player card with `details` but no `lastOnlineAt` → description "Online now"; without
+  `details` → no description. `overview-texts.test.ts`: such a row reads "online".
+- [ ] **T008** Alliance Overview with the card's look (US3, FR-010). `overview-texts.ts` reuses `CARD_COLOR`,
+  `kingdomAuthor`, `thumbnailOf`, `compactNumber` (export what is needed from `lookup-cards.ts`). Overview embed:
+  color, author, thumbnail; fields inline in rows of three: Weekly Activity · Daily Honor · Daily Tech /
+  Online now · Online in the last 24 hours · No data / Top Weekly Activity · Top Daily Honor · Top Daily Tech /
+  Least Active (not inline). Table embed: same color; rows `Name · 27.6M · figures · seen` (power left out when
+  unknown). Tests in `overview-texts.test.ts`; existing limit tests still pass with power on 25 rows of long names.
+- [ ] **T009** Docs: TEST-RUN.md §6h rows for the Overview look and Online now; STATUS.
 - [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.
