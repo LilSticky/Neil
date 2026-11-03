@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isOnlineNow, leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
+import { isOnlineNow, lastSeen, leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
 import { parseUid } from "./lookup-input.js";
 import type { RosterEntry } from "./player.js";
 
@@ -87,6 +87,26 @@ describe("isOnlineNow", () => {
 
   test("is not online now when the online flag is false and the Last Online is known", () => {
     expect(isOnlineNow(member("Alpha", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(false);
+  });
+});
+
+describe("lastSeen", () => {
+  test.each([
+    { label: "online flag true with no Last Online", seen: { online: true } },
+    { label: "online flag true with a Last Online", seen: { online: true, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) } },
+    { label: "online flag false with no Last Online", seen: { online: false } },
+    { label: "online flag unknown with no Last Online", seen: {} },
+  ])("is online for a member with $label", ({ seen }) => {
+    expect(lastSeen(seen)).toEqual({ kind: "online" });
+  });
+
+  test.each([
+    { label: "online flag false", online: false },
+    { label: "online flag unknown", online: undefined },
+  ])("is the Last Online time for a member with $label and a Last Online", ({ online }) => {
+    const at = new Date(NOW.getTime() - 5 * HOUR_MS);
+
+    expect(lastSeen({ online, lastOnlineAt: at })).toEqual({ kind: "lastOnline", at });
   });
 });
 

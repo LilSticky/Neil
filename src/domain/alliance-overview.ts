@@ -32,12 +32,24 @@ export interface TablePage {
 const TABLE_PAGE_SIZE = 25;
 const ONLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** How a Player was last seen: online now, or at the known Last Online time. */
+export type LastSeen = { readonly kind: "online" } | { readonly kind: "lastOnline"; readonly at: Date };
+
 /**
- * Whether a member is online now: the Game says so, or gives no Last Online time to say otherwise. A member without a
- * Last Online time counts as online now.
+ * How a Player was last seen. Online now when the Game says so, or when it gives no Last Online time to say otherwise;
+ * else the Last Online time.
  */
+export function lastSeen(seen: {
+  readonly online?: boolean | undefined;
+  readonly lastOnlineAt?: Date | undefined;
+}): LastSeen {
+  if (seen.online === true || seen.lastOnlineAt === undefined) return { kind: "online" };
+  return { kind: "lastOnline", at: seen.lastOnlineAt };
+}
+
+/** Whether a member is online now (see `lastSeen`). */
 export function isOnlineNow(entry: RosterEntry): boolean {
-  return entry.online === true || entry.lastOnlineAt === undefined;
+  return lastSeen(entry).kind === "online";
 }
 
 /** The totals, online counts and number of members without data of a roster, as of a moment. */

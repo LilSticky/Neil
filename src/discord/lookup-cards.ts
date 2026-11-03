@@ -12,6 +12,7 @@ import {
   type APIStringSelectComponent,
 } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { lastSeen } from "../domain/alliance-overview.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import { parseAllianceKey, type AllianceKey, type KingdomNumber, type PlayerName } from "../domain/lookup-input.js";
 import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
@@ -221,8 +222,8 @@ function allianceLevelText(level: number | undefined, xp: number | undefined): s
  */
 function onlineText(details: PlayerDetails | undefined, now: Date): string | undefined {
   if (details === undefined) return undefined;
-  const { lastOnlineAt } = details;
-  return lastOnlineAt === undefined ? "Online now" : `Last online ${timeAgo(lastOnlineAt, now)}`;
+  const seen = lastSeen(details);
+  return seen.kind === "online" ? "Online now" : `Last online ${timeAgo(seen.at, now)}`;
 }
 
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
