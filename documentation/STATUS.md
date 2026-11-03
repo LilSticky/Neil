@@ -62,9 +62,16 @@ online now (Player card "Online now"; Overview table and counts). The "Unknown i
 came from Neil running locally and on Wispbyte at once (TEST-RUN.md 0.6); no change. Tasks T007–T009 done, reviewed
 (S2, C4 fixed; C5 kept for the manual check); 2000 tests. New test cases: TEST-RUN.md §6h.7–6h.9.
 
-**Next step (2026-11-03):** the roadmap has no slices left after 012. The user runs [TEST-RUN.md](TEST-RUN.md) (sections 2b
-to 6h). The stack #16, #22, #24, #26, #28, #30, #32 and #34 stays open until then; then merge in order (#16 first, retarget
-each next pull request to `main`, and so on).
+Second round of feedback (2026-11-03), added to 012: Power is renamed Might everywhere (Kingdom Power Rank → Kingdom
+Might Rank; Game API and stored keys stay `power`); the Overview's member table is a card of its own with a monospace
+table (#, Name, Might, Weekly, Honor, Tech, Last), sorted by Might, with sort buttons (US4, T010–T011); 2042 tests.
+
+**Next step (2026-11-03):** the user asked to merge and release the whole stack before the manual test run (Neil only
+runs on the test server). Merge #16, #22, #24, #26, #28, #30, #32, #34 in order: for each next branch, merge `main` in
+with `-s ours` (every branch already contains main's changes), retarget to `main`, wait for CI, squash-merge, and note
+in each pull request that its manual check stays open. Then `npm run commands:register`, the Wispbyte setup
+([HOSTING.md](HOSTING.md): Server Members Intent, channel IDs, `HOME_KINGDOM`, Manage Roles and Manage Nicknames)
+and a Wispbyte restart. The merges wait for the user's permission (blocked by the session's permission rules).
 
 Slice 005 "Interview a new member" is implemented on branch `005-interview-a-new-member` (issue #15): a joiner gets a private
 Onboarding Interview thread, gives a uid, confirms the Player and is Linked; unknown ranks go to the Alliance's R5 (Rank Approval);
