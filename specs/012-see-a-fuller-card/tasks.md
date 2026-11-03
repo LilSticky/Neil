@@ -92,5 +92,5 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
     row 2 Previous / label / Next (only when more than one page). Rows still cut to Discord's limits.
   - `pick.ts` `handleOverview` passes the parsed sort. Tests: `alliance-overview.test.ts`, `overview-texts.test.ts`,
     `pick.test.ts` (a sort press updates in place, owner only).
-- [ ] **T011** Docs: TEST-RUN.md §6h rows for sorting and the table; STATUS.
+- [x] **T011** Docs: TEST-RUN.md §6h rows for sorting and the table; STATUS.
 - [ ] **T006** Manual check on the test server (TEST-RUN.md §6h, SC-004). Waits for the user.

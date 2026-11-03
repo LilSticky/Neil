@@ -168,7 +168,7 @@ Online; the page buttons keep the sort.
 - **FR-009**: A Player or roster member without a Last Online MUST be treated as online now: "Online now" on the
   Player card; "online" in the Alliance Overview table and counted in its online counts.
 - **FR-011**: The Alliance Overview's member table MUST be a monospace table (one code block) with the columns #, Name,
-  Might, Weekly, Honor, Tech, Last Online, sorted by Might by default, with buttons to sort by each figure column; only
+  Might, Weekly, Honor, Tech, Last (Last Online), sorted by Might by default, with buttons to sort by each figure column; only
   the Member who pressed Overview may sort it, and sorting asks the Game API nothing.
 - **FR-010**: The Alliance Overview MUST use the Alliance card's look (FR-004, FR-006) and show Might in short form on
   each member table row, within Discord's limits (FR-007).

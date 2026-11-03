@@ -50,3 +50,27 @@ None.
 - Both embeds stay within 6,000 characters (the author name is counted); fields stay under 1,024.
 - Names are escaped; pictures come only through `trackerPicture`; the domain stays pure.
 - "Online now without a Last Online" does not leak: `leastActive`, the Daily Sync and the Interview store never read it.
+
+## Review: Might rename and T010 (bot-reviewer, 2026-11-03), diff `a80725b..71b5597`
+
+### Must
+
+None.
+
+### Should
+
+- [ ] S3 Old `overview:{session}:{page}` ids open the Might sort, while the old table was sorted by Weekly Activity.
+  Kept as specced (T010): pick lists live only in memory, so no old Overview survives the restart that ships this.
+- [x] S4 Line breaks, invisible and direction characters in names could split or scramble table rows. Fixed: replaced
+  with a space before the name is cut.
+
+### Could
+
+- [x] C6 Header "Last" vs FR-011 "Last Online": FR-011 now names the header "Last".
+- [ ] C7 The active sort button stays enabled (pressing it returns to page 1). Kept: harmless.
+
+### Checked and clean
+
+- The rename keeps the wire key `power` (Game API) and the stored key `power` (Interview store); no migration.
+- Custom ids are unique on every page and sort, at most 5 buttons per row, ids ~30 characters; sorting is owner-only
+  and asks the Game API nothing; the table keeps to 4,096 / 6,000 characters.

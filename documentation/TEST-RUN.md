@@ -199,6 +199,11 @@ Branch `012-see-a-fuller-card`. No new commands, no `commands:register` needed.
 | 6h.7 | `/player` on a Player the Game gives no Last Online for (often one online right now) | "Online now" under the name | | |
 | 6h.8 | Press Overview on the card from 6h.3 | Same red accent, "Kingdom #1" with badge, Alliance badge at the right; totals, online counts and Top lists in rows of three (check they read well on desktop and phone); Least Active full width; table rows `Name · 27.6M · …`; members without a Last Online read "online" | | |
 | 6h.9 | Turn the Overview's table to page 2 | Same look; no Discord error | | |
+| 6h.10 | Look at the Overview's member table | A card of its own: red accent, "Kingdom #1", title "Members · sorted by Might"; one monospace table `#  Name  Might  Weekly  Honor  Tech  Last` with aligned columns, highest Might first; footer "Page 1 of N" | | |
+| 6h.11 | Press Weekly Activity, Daily Honor, Daily Tech, Last Online, then Might | Page 1 sorted by that column (Last Online: online first), pressed button highlighted; no Discord error | | |
+| 6h.12 | Sort by Daily Honor, then press Next | Page 2, still sorted by Daily Honor | | |
+| 6h.13 | Another Member presses a sort button on your Overview | Not possible (the Overview is private); if it were, "Only the Member who ran this command…" | | |
+| 6h.14 | Read the table on a phone | Rows may wrap on narrow screens; note whether it is still readable | | |
 
 ## 7. Afterwards
 
