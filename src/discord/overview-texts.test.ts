@@ -1,5 +1,6 @@
-import { ButtonStyle, ComponentType, type APIActionRowComponent, type APIButtonComponentWithCustomId, type APIEmbed } from "discord.js";
+import { ButtonStyle, type APIActionRowComponent, type APIButtonComponentWithCustomId, type APIEmbed } from "discord.js";
 import { describe, expect, test } from "vitest";
+import type { TableSort } from "../domain/alliance-overview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, AllianceDetails, RosterEntry } from "../domain/player.js";
 import { overviewCustomId, parseOverviewCustomId, renderOverview, type OverviewReply } from "./overview-texts.js";
@@ -14,6 +15,19 @@ const TITLE_MAX_LENGTH = 256;
 /** The accent color the Player and Alliance cards share. */
 const ACCENT_COLOR = 0xb33a3a;
 const TRACKER = "https://lastasylumtracker.com";
+const MINUTE_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+const TABLE_HEADER = "#  Name           Might  Weekly  Honor   Tech  Last";
+
+/** The table sorts: the key in the button id, and the name the table title and the button show. */
+const SORTS: readonly { readonly sort: TableSort; readonly key: string; readonly name: string }[] = [
+  { sort: "might", key: "m", name: "Might" },
+  { sort: "weeklyActivity", key: "w", name: "Weekly Activity" },
+  { sort: "dailyHonor", key: "h", name: "Daily Honor" },
+  { sort: "dailyTech", key: "t", name: "Daily Tech" },
+  { sort: "lastOnline", key: "l", name: "Last Online" },
+];
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -77,12 +91,18 @@ function allianceWith(roster: readonly RosterEntry[]): Alliance {
   };
 }
 
-/** The Alliance Overview of a roster, fetched at FETCHED_AT and shown at NOW, on the given page. */
+/** The Alliance Overview of a roster, fetched at FETCHED_AT and shown at NOW, on the given page, sorted by Might. */
 function overviewOf(roster: readonly RosterEntry[], page = 0): OverviewReply {
   return renderOverview(allianceWith(roster), FETCHED_AT, NOW, SESSION, page);
 }
 
+/** The Alliance Overview of a roster on the given page and sort. */
+function overviewSorted(roster: readonly RosterEntry[], sort: TableSort, page = 0): OverviewReply {
+  return renderOverview(allianceWith(roster), FETCHED_AT, NOW, SESSION, page, sort);
+}
+
 const alpha = member("179060285441", "Alpha", {
+  might: 27_626_362,
   weeklyActivity: 490,
   dailyHonor: 40,
   dailyTech: 4600,
@@ -99,6 +119,11 @@ const beta = member("93159425", "Beta", {
 const gamma = member("147744374785", "Gamma", { weeklyActivity: 5, dailyHonor: 2, dailyTech: 9, online: false });
 const delta = member("300000000001", "Delta");
 
+/** Thirty members with Might 1 to 30, Player0 to Player29, so the table takes two pages. */
+const thirtyRanked = Array.from({ length: 30 }, (_value, index) =>
+  member(String(100_000_000_000 + index), `Player${index.toString()}`, { might: index + 1 }),
+);
+
 function fieldValue(embed: APIEmbed | undefined, name: string): string | undefined {
   return embed?.fields?.find((field) => field.name === name)?.value;
 }
@@ -114,6 +139,23 @@ function totalCharacters(embeds: readonly APIEmbed[]): number {
     ];
     return total + texts.reduce((sum, text) => sum + text.length, 0);
   }, 0);
+}
+
+/** The whitespace-separated words of a table line. */
+function tokens(line: string | undefined): string[] {
+  return (line ?? "").trim().split(/\s+/);
+}
+
+/** The lines inside the table's code block: the header line, then one line per member. */
+function blockLines(embed: APIEmbed | undefined): string[] {
+  const lines = (embed?.description ?? "").split("\n");
+  expect(lines[0]).toBe("```");
+  expect(lines.at(-1)).toBe("```");
+  return lines.slice(1, -1);
+}
+
+function buttonsOf(components: readonly APIActionRowComponent<APIButtonComponentWithCustomId>[]): APIButtonComponentWithCustomId[] {
+  return components.flatMap((row) => row.components);
 }
 
 describe("renderOverview: the Alliance Overview embed", () => {
@@ -255,67 +297,6 @@ describe("renderOverview: the Alliance Overview embed", () => {
   });
 });
 
-describe("renderOverview: the table page", () => {
-  test("lists each member's name, Weekly Activity, Daily Honor, Daily Tech and last online in its description", () => {
-    const table = overviewOf([alpha]).embeds[1];
-
-    expect(table?.description).toBe("Alpha · 490 · 40 · 4,600 · <t:1793285439:R>");
-  });
-
-  test("shows online instead of a time for a member online now, and for a member without a last online time", () => {
-    const table = overviewOf([beta, delta]).embeds[1];
-
-    expect(table?.description).toContain("Beta · 10 · 60 · 400 · online");
-    expect(table?.description).toContain("Delta · no data · online");
-  });
-
-  test("lists 25 members on the first page, and the next page holds the rest", () => {
-    const roster = Array.from({ length: 30 }, (_, index) =>
-      member(String(100_000_000_000 + index), `Player ${index.toString()}`, { weeklyActivity: index + 1 }),
-    );
-
-    const first = overviewOf(roster, 0).embeds[1];
-    const second = overviewOf(roster, 1).embeds[1];
-
-    expect(first?.description?.split("\n")).toHaveLength(25);
-    expect(second?.description?.split("\n")).toHaveLength(5);
-    expect(first?.title).toBe("Members · page 1 of 2");
-    expect(second?.title).toBe("Members · page 2 of 2");
-  });
-
-  test("gives a member with no data last", () => {
-    const table = overviewOf([delta, gamma]).embeds[1];
-
-    expect(table?.description?.split("\n")[0]).toContain("Gamma");
-    expect(table?.description?.split("\n")[1]).toContain("Delta");
-  });
-
-  test("cuts long names so the table fits the description limit and the whole reply fits the message limit", () => {
-    const longName = "N".repeat(200);
-    const roster = Array.from({ length: 30 }, (_, index) =>
-      member(String(100_000_000_000 + index), `${longName}${index.toString()}`, {
-        weeklyActivity: index + 1,
-        dailyHonor: index + 1,
-        dailyTech: index + 1,
-        online: false,
-        lastOnlineAt: NOW,
-      }),
-    );
-
-    const reply = overviewOf(roster);
-    const table = reply.embeds[1];
-
-    expect(table?.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX_LENGTH);
-    expect(table?.description).toContain("…");
-    for (const embed of reply.embeds) {
-      for (const field of embed.fields ?? []) {
-        expect(field.value.length).toBeLessThanOrEqual(FIELD_VALUE_MAX_LENGTH);
-      }
-    }
-    expect(totalCharacters(reply.embeds)).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
-  });
-});
-
 describe("renderOverview: the Alliance card's look", () => {
   test("gives the overview and the table the accent color of the cards", () => {
     const reply = overviewOf([alpha]);
@@ -358,30 +339,164 @@ describe("renderOverview: the Alliance card's look", () => {
   });
 });
 
-describe("renderOverview: might in the table", () => {
-  test("shows each member's might in short form after the name, and leaves it out when unknown", () => {
-    const withMight = member("179060285441", "Alpha", {
-      might: 27_626_362,
-      weeklyActivity: 490,
-      dailyHonor: 40,
-      dailyTech: 4600,
-      online: false,
-      lastOnlineAt: new Date(1793285439 * 1000),
+describe("renderOverview: the table embed", () => {
+  test("shows the table as one code block, whose first line is the header", () => {
+    const lines = blockLines(overviewOf([alpha]).embeds[1]);
+
+    expect(lines[0]).toBe(TABLE_HEADER);
+  });
+
+  test("shows a row per member: rank, name, Might, the three figures in short form, and last online", () => {
+    const [row] = blockLines(overviewOf([alpha]).embeds[1]).slice(1);
+
+    expect(tokens(row)).toEqual(["1", "Alpha", "27.6M", "490", "40", "4.6K", "3d"]);
+  });
+
+  test("shows a missing figure as –, and a member online now, or with no Last Online, as online", () => {
+    const rows = blockLines(overviewOf([beta, delta]).embeds[1]).slice(1);
+
+    expect(tokens(rows[0])).toEqual(["1", "Beta", "–", "10", "60", "400", "online"]);
+    expect(tokens(rows[1])).toEqual(["2", "Delta", "–", "–", "–", "–", "online"]);
+  });
+
+  test("shows the last online time as minutes, hours or days, in short form", () => {
+    const roster = [
+      member("100000000001", "Ann", { might: 30, online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * MINUTE_MS) }),
+      member("100000000002", "Ben", { might: 20, online: false, lastOnlineAt: new Date(NOW.getTime() - 3 * HOUR_MS) }),
+      member("100000000003", "Cy", { might: 10, online: false, lastOnlineAt: new Date(NOW.getTime() - 2 * DAY_MS) }),
+    ];
+
+    const rows = blockLines(overviewOf(roster).embeds[1]).slice(1);
+
+    expect(rows.map((row) => tokens(row).at(-1))).toEqual(["5m", "3h", "2d"]);
+  });
+
+  test("right-aligns each figure under the end of its column header", () => {
+    const lines = blockLines(overviewOf([alpha]).embeds[1]);
+    const header = lines[0] ?? "";
+    const row = lines[1] ?? "";
+
+    expect(row.indexOf("27.6M") + "27.6M".length).toBe(header.indexOf("Might") + "Might".length);
+    expect(row.indexOf(" 490 ") + " 490".length).toBe(header.indexOf("Weekly") + "Weekly".length);
+    expect(row.indexOf(" 40 ") + " 40".length).toBe(header.indexOf("Honor") + "Honor".length);
+    expect(row.indexOf(" 4.6K ") + " 4.6K".length).toBe(header.indexOf("Tech") + "Tech".length);
+  });
+
+  test("starts the Last Online column at the same place in every row, whatever the names", () => {
+    const roster = [alpha, beta, delta, member("100000000005", "Commander Anastasia the Great", { might: 5 })];
+
+    const rows = blockLines(overviewOf(roster).embeds[1]).slice(1);
+
+    expect(new Set(rows.map((row) => row.lastIndexOf(" ") + 1)).size).toBe(1);
+  });
+
+  test("cuts a name longer than 14 characters to 13 and an ellipsis", () => {
+    const [row] = blockLines(overviewOf([member("100000000001", "Commander Anastasia the Great", { might: 5 })]).embeds[1]).slice(1);
+
+    expect(row).toContain("Commander Ana…");
+    expect(row).not.toContain("Anastasia");
+  });
+
+  test("leaves a name of exactly 14 characters as it is", () => {
+    const [row] = blockLines(overviewOf([member("100000000001", "Fourteen Chars", { might: 5 })]).embeds[1]).slice(1);
+
+    expect(row).toContain("Fourteen Chars");
+    expect(row).not.toContain("…");
+  });
+
+  test("replaces a backtick in a name with ˋ, so the code block is not broken", () => {
+    const embed = overviewOf([member("100000000001", "Be`st", { might: 5 })]).embeds[1];
+
+    expect(blockLines(embed)[1]).toContain("Beˋst");
+    expect(embed?.description?.split("```")).toHaveLength(3);
+  });
+
+  test("shows markdown in a name as typed, since the code block shows it as text", () => {
+    const [row] = blockLines(overviewOf([member("100000000001", "*Vex*", { might: 5 })]).embeds[1]).slice(1);
+
+    expect(row).toContain("*Vex*");
+    expect(row).not.toContain("\\*");
+  });
+
+  test("puts members without Might last, after every member who has one", () => {
+    const names = blockLines(overviewOf([delta, beta, alpha]).embeds[1]).slice(1).map((row) => tokens(row)[1]);
+
+    expect(names).toEqual(["Alpha", "Beta", "Delta"]);
+  });
+
+  test.each(SORTS)("sorts the rows by $name, and titles the table with that name", ({ sort, name }) => {
+    const roster = [
+      member("100000000001", "Ann", { might: 30, weeklyActivity: 5, dailyHonor: 300, dailyTech: 1, online: false, lastOnlineAt: new Date(NOW.getTime() - 2 * DAY_MS) }),
+      member("100000000002", "Ben", { might: 10, weeklyActivity: 50, dailyHonor: 100, dailyTech: 9, online: true }),
+      member("100000000003", "Cy", { might: 20, weeklyActivity: 1, dailyHonor: 900, dailyTech: 3, online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * MINUTE_MS) }),
+    ];
+    const expected: Readonly<Record<TableSort, readonly string[]>> = {
+      might: ["Ann", "Cy", "Ben"],
+      weeklyActivity: ["Ben", "Ann", "Cy"],
+      dailyHonor: ["Cy", "Ann", "Ben"],
+      dailyTech: ["Ben", "Cy", "Ann"],
+      lastOnline: ["Ben", "Cy", "Ann"],
+    };
+
+    const table = overviewSorted(roster, sort).embeds[1];
+
+    expect(table?.title).toBe(`Members · sorted by ${name}`);
+    expect(blockLines(table).slice(1).map((row) => tokens(row)[1])).toEqual(expected[sort]);
+  });
+
+  test("gives the table the card's color and the Kingdom author with its badge, and no thumbnail", () => {
+    const reply = renderOverview({ ...allianceWith([alpha]), details: allianceDetails }, FETCHED_AT, NOW, SESSION, 0);
+
+    expect(reply.embeds[1]).toMatchObject({
+      color: ACCENT_COLOR,
+      author: { name: "Kingdom #1", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
     });
-
-    const description = overviewOf([withMight, beta]).embeds[1]?.description ?? "";
-
-    expect(description).toContain("Alpha · 27.6M · 490 · 40 · 4,600 · <t:1793285439:R>");
-    expect(description).toContain("Beta · 10 · 60 · 400 · online");
+    expect(reply.embeds[1]?.thumbnail).toBeUndefined();
   });
 
-  test("shows the might in place of no data for a member with might and no figures", () => {
-    const description = overviewOf([member("300000000001", "Delta", { might: 5_000 })]).embeds[1]?.description ?? "";
-
-    expect(description).toBe("Delta · 5K · no data · online");
+  test("shows the page in the footer of the table", () => {
+    expect(overviewOf(thirtyRanked, 0).embeds[1]?.footer?.text).toBe("Page 1 of 2");
+    expect(overviewOf(thirtyRanked, 1).embeds[1]?.footer?.text).toBe("Page 2 of 2");
   });
 
-  test("keeps 25 rows of 100-character names with might within the description and message limits", () => {
+  test("lists 25 members on the first page and the rest on the second, ranked by place in the sorted roster", () => {
+    const first = blockLines(overviewOf(thirtyRanked, 0).embeds[1]).slice(1);
+    const second = blockLines(overviewOf(thirtyRanked, 1).embeds[1]).slice(1);
+
+    expect(first).toHaveLength(25);
+    expect(second).toHaveLength(5);
+    expect(tokens(first[0])[0]).toBe("1");
+    expect(tokens(first[0])[1]).toBe("Player29");
+    expect(tokens(second[0])[0]).toBe("26");
+    expect(tokens(second[0])[1]).toBe("Player4");
+  });
+
+  test("cuts long names so the table fits the description limit and the whole reply fits the message limit", () => {
+    const longName = "N".repeat(200);
+    const roster = Array.from({ length: 30 }, (_, index) =>
+      member(String(100_000_000_000 + index), `${longName}${index.toString()}`, {
+        weeklyActivity: index + 1,
+        dailyHonor: index + 1,
+        dailyTech: index + 1,
+        online: false,
+        lastOnlineAt: NOW,
+      }),
+    );
+
+    const reply = overviewOf(roster);
+    const table = reply.embeds[1];
+
+    expect(table?.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX_LENGTH);
+    expect(table?.description).toContain("…");
+    for (const embed of reply.embeds) {
+      for (const field of embed.fields ?? []) {
+        expect(field.value.length).toBeLessThanOrEqual(FIELD_VALUE_MAX_LENGTH);
+      }
+    }
+    expect(totalCharacters(reply.embeds)).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
+  });
+
+  test("keeps 25 rows of 100-character names with Might within the description and message limits", () => {
     const longName = "N".repeat(100);
     const roster = Array.from({ length: 25 }, (_, index) =>
       member(String(100_000_000_000 + index), `${longName}${index.toString()}`, {
@@ -399,72 +514,109 @@ describe("renderOverview: might in the table", () => {
 
     expect(table?.description?.length ?? 0).toBeLessThanOrEqual(DESCRIPTION_MAX_LENGTH);
     expect(totalCharacters(reply.embeds)).toBeLessThanOrEqual(MESSAGE_MAX_LENGTH);
-    expect(table?.description?.split("\n")).toHaveLength(25);
-    expect(table?.description).toContain(" · 27.6M · ");
+    expect(blockLines(table).slice(1)).toHaveLength(25);
   });
 });
 
-describe("renderOverview: page buttons", () => {
-  const thirty = Array.from({ length: 30 }, (_, index) =>
-    member(String(100_000_000_000 + index), `Player ${index.toString()}`, { weeklyActivity: index + 1 }),
-  );
+describe("renderOverview: the sort and page buttons", () => {
+  test("shows the five sort buttons in one row, in the order of the table's columns, named as the sorts", () => {
+    const [sortRow] = overviewOf([alpha, beta]).components;
 
-  function buttonsOf(
-    components: readonly APIActionRowComponent<APIButtonComponentWithCustomId>[],
-  ): APIButtonComponentWithCustomId[] {
-    return components.flatMap((row) => row.components);
-  }
+    expect(sortRow?.components.map((button) => button.label)).toEqual(SORTS.map((sort) => sort.name));
+  });
 
-  test("has no page buttons when the table fits one page", () => {
+  test("gives each sort button the id overview:{session}:sort:{key}, which no page button shares", () => {
+    const [sortRow] = overviewOf([alpha, beta]).components;
+
+    expect(sortRow?.components.map((button) => button.custom_id)).toEqual(
+      SORTS.map((sort) => `overview:${SESSION}:sort:${sort.key}`),
+    );
+  });
+
+  test("makes the active sort's button Primary and the others Secondary", () => {
+    const [sortRow] = overviewSorted([alpha, beta], "dailyHonor").components;
+
+    expect(sortRow?.components.map((button) => button.style)).toEqual([
+      ButtonStyle.Secondary,
+      ButtonStyle.Secondary,
+      ButtonStyle.Primary,
+      ButtonStyle.Secondary,
+      ButtonStyle.Secondary,
+    ]);
+  });
+
+  test("makes the Might button Primary by default", () => {
+    const [sortRow] = overviewOf([alpha, beta]).components;
+
+    expect(sortRow?.components[0]?.style).toBe(ButtonStyle.Primary);
+  });
+
+  test("shows the sort row on a single page, and no page row", () => {
     const reply = overviewOf([alpha, beta]);
 
-    expect(reply.components).toEqual([]);
-  });
-
-  test("on the first of two pages, Previous is disabled and Next turns to page 2", () => {
-    const reply = overviewOf(thirty, 0);
-    const [previous, , next] = buttonsOf(reply.components);
-
     expect(reply.components).toHaveLength(1);
-    expect(reply.components[0]?.components[0]?.type).toBe(ComponentType.Button);
-    expect(previous).toMatchObject({ label: "◀ Previous", disabled: true, style: ButtonStyle.Secondary });
-    expect(next).toMatchObject({ label: "Next ▶", custom_id: `overview:${SESSION}:1`, disabled: false });
+    expect(reply.components[0]?.components).toHaveLength(SORTS.length);
   });
 
-  test("on the second of two pages, Previous turns to page 1 and Next is disabled", () => {
-    const reply = overviewOf(thirty, 1);
-    const [previous, , next] = buttonsOf(reply.components);
+  test("adds the page row when the table takes more than one page", () => {
+    expect(overviewOf(thirtyRanked, 0).components).toHaveLength(2);
+  });
 
-    expect(previous).toMatchObject({ custom_id: `overview:${SESSION}:0`, disabled: false });
+  test("on the first of two pages, Previous is disabled and Next turns to page 2 in the same sort", () => {
+    const [, pageRow] = overviewSorted(thirtyRanked, "dailyTech").components;
+    const [previous, label, next] = pageRow?.components ?? [];
+
+    expect(previous).toMatchObject({ label: "◀ Previous", disabled: true, style: ButtonStyle.Secondary });
+    expect(next).toMatchObject({ label: "Next ▶", custom_id: `overview:${SESSION}:t:1`, disabled: false });
+    expect(label).toMatchObject({ label: "1 / 2", custom_id: `overview:${SESSION}:label`, disabled: true });
+  });
+
+  test("on the second of two pages, Previous turns to page 1 in the same sort, and Next is disabled", () => {
+    const [, pageRow] = overviewSorted(thirtyRanked, "dailyTech", 1).components;
+    const [previous, , next] = pageRow?.components ?? [];
+
+    expect(previous).toMatchObject({ custom_id: `overview:${SESSION}:t:0`, disabled: false });
     expect(next).toMatchObject({ disabled: true });
   });
 
-  test.each([0, 1])("on page %i, every button has its own custom id, as Discord requires", (page) => {
-    const ids = buttonsOf(overviewOf(thirty, page).components).map((button) => button.custom_id);
+  test.each([0, 1])("on page %i, the sort and page buttons together have their own custom ids, as Discord requires", (page) => {
+    const ids = buttonsOf(overviewOf(thirtyRanked, page).components).map((button) => button.custom_id);
 
+    expect(ids).toHaveLength(SORTS.length + 3);
     expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  test("the page label is no page button: its id reads back as no Overview page", () => {
-    const [, label] = buttonsOf(overviewOf(thirty, 0).components);
-
-    expect(label).toMatchObject({ label: "1 / 2", disabled: true });
-    expect(parseOverviewCustomId(label?.custom_id ?? "")).toBeUndefined();
   });
 });
 
 describe("overviewCustomId and parseOverviewCustomId", () => {
-  test("builds overview:{session}:{page} and reads it back", () => {
-    const customId = overviewCustomId(SESSION, 3);
+  test.each(SORTS)("builds overview:{session}:{key}:{page} for $name and reads it back", ({ sort, key }) => {
+    const customId = overviewCustomId(SESSION, sort, 3);
 
-    expect(customId).toBe(`overview:${SESSION}:3`);
-    expect(parseOverviewCustomId(customId)).toEqual({ sessionId: SESSION, page: 3 });
+    expect(customId).toBe(`overview:${SESSION}:${key}:3`);
+    expect(parseOverviewCustomId(customId)).toEqual({ sessionId: SESSION, sort, page: 3 });
   });
 
-  test.each(["pick:a1b2:page:1", "overview:a1b2", "overview:a1b2:x", "overview:a1b2:1:2", "something else"])(
-    "gives undefined for %s",
-    (customId) => {
-      expect(parseOverviewCustomId(customId)).toBeUndefined();
-    },
-  );
+  test("reads the old overview:{session}:{page} id as the Might sort on that page", () => {
+    expect(parseOverviewCustomId(`overview:${SESSION}:3`)).toEqual({ sessionId: SESSION, sort: "might", page: 3 });
+  });
+
+  test("reads every sort button back as the first page of its sort", () => {
+    const [sortRow] = overviewOf([alpha, beta]).components;
+    const parsed = sortRow?.components.map((button) => parseOverviewCustomId(button.custom_id));
+
+    expect(parsed).toEqual(SORTS.map((sort) => ({ sessionId: SESSION, sort: sort.sort, page: 0 })));
+  });
+
+  test.each([
+    "pick:a1b2:page:1",
+    "overview:a1b2",
+    "overview:a1b2:x",
+    "overview:a1b2:x:1",
+    "overview:a1b2:1:2",
+    "overview:a1b2:m",
+    "overview:a1b2:m:1:2",
+    `overview:${SESSION}:label`,
+    "something else",
+  ])("gives undefined for %s", (customId) => {
+    expect(parseOverviewCustomId(customId)).toBeUndefined();
+  });
 });
