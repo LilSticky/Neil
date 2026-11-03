@@ -32,6 +32,14 @@ export interface TablePage {
 const TABLE_PAGE_SIZE = 25;
 const ONLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Whether a member is online now: the Game says so, or gives no Last Online time to say otherwise. A member without a
+ * Last Online time counts as online now.
+ */
+export function isOnlineNow(entry: RosterEntry): boolean {
+  return entry.online === true || entry.lastOnlineAt === undefined;
+}
+
 /** The totals, online counts and number of members without data of a roster, as of a moment. */
 export function overviewOf(roster: readonly RosterEntry[], now: Date): OverviewTotals {
   const windowStart = now.getTime() - ONLINE_WINDOW_MS;
@@ -41,10 +49,10 @@ export function overviewOf(roster: readonly RosterEntry[], now: Date): OverviewT
       dailyHonor: totalOf(roster, "dailyHonor"),
       dailyTech: totalOf(roster, "dailyTech"),
     },
-    onlineNow: roster.filter((entry) => entry.online === true).length,
+    onlineNow: roster.filter(isOnlineNow).length,
     onlineLast24h: roster.filter(
       (entry) =>
-        entry.online === true || (entry.lastOnlineAt !== undefined && entry.lastOnlineAt.getTime() >= windowStart),
+        isOnlineNow(entry) || (entry.lastOnlineAt !== undefined && entry.lastOnlineAt.getTime() >= windowStart),
     ).length,
     noData: roster.filter((entry) => ACTIVITY_KINDS.every((kind) => figureOf(entry, kind) === undefined)).length,
   };

@@ -1059,7 +1059,6 @@ describe("renderPlayerCard with details", () => {
   });
 
   test.each([
-    { label: "Last Online", details: { lastOnlineAt: undefined }, change: { description: undefined } },
     { label: "avatar", details: { avatarPath: undefined }, change: { thumbnail: undefined } },
     {
       label: "Kingdom badge",
@@ -1072,7 +1071,13 @@ describe("renderPlayerCard with details", () => {
     expect(card).toEqual({ ...fullPlayerCard, ...change });
   });
 
-  test("renders a Player whose details are all unknown as one without details", () => {
+  test("shows Online now as the description when the Game gives no Last Online time", () => {
+    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, lastOnlineAt: undefined } }, FETCHED_AT, NOW);
+
+    expect(card).toEqual({ ...fullPlayerCard, description: "Online now" });
+  });
+
+  test("renders a Player whose details are all unknown as Online now, with no picture, badge or detail fields", () => {
     const allUnknown: PlayerDetails = {
       kills: undefined,
       vipLevel: undefined,
@@ -1084,7 +1089,10 @@ describe("renderPlayerCard with details", () => {
       kingdomBadgePath: undefined,
     };
 
-    expect(renderPlayerCard({ ...inAlliance, details: allUnknown }, FETCHED_AT, NOW)).toEqual(noDetailsPlayerCard);
+    expect(renderPlayerCard({ ...inAlliance, details: allUnknown }, FETCHED_AT, NOW)).toEqual({
+      ...noDetailsPlayerCard,
+      description: "Online now",
+    });
   });
 
   test("leaves out a picture whose path is not a tracker /static/ path", () => {

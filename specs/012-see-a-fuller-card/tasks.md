@@ -63,7 +63,7 @@ task (`test-first` → `implementer`). No new Game API request (FR-008).
   today's card; same values on every page.
 - [x] **T005** Docs: TEST-RUN.md §6h (manual check: `/player DrLOL`, `/alliance NML`, pictures, a Player without
   alliance), ROADMAP row 012, STATUS.
-- [ ] **T007** Online now without a Last Online (FR-009). Domain `src/domain/alliance-overview.ts`: export
+- [x] **T007** Online now without a Last Online (FR-009). Domain `src/domain/alliance-overview.ts`: export
   `isOnlineNow(entry)` = `online === true || lastOnlineAt === undefined`, used by `onlineNow` and `onlineLast24h`.
   Tests in `alliance-overview.test.ts` (online flag false/undefined with no time → online; with a time → as before)
   and `lookup-cards.test.ts`: Player card with `details` but no `lastOnlineAt` → description "Online now"; without

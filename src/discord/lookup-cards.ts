@@ -26,6 +26,7 @@ import {
   type PickableAllianceMatch,
   type PickablePlayerMatch,
   type Player,
+  type PlayerDetails,
   type RosterEntry,
 } from "../domain/player.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
@@ -214,6 +215,16 @@ function allianceLevelText(level: number | undefined, xp: number | undefined): s
   return parts.length === 0 ? undefined : parts.join(" · ");
 }
 
+/**
+ * The card's description: "Last online" with the time, or "Online now" when the details exist but the Game gave no
+ * Last Online time. Nothing when the Player has no details at all.
+ */
+function onlineText(details: PlayerDetails | undefined, now: Date): string | undefined {
+  if (details === undefined) return undefined;
+  const { lastOnlineAt } = details;
+  return lastOnlineAt === undefined ? "Online now" : `Last online ${timeAgo(lastOnlineAt, now)}`;
+}
+
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
 export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): APIEmbed {
   const details = player.details;
@@ -241,7 +252,7 @@ export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): AP
     ),
   );
   const thumbnail = thumbnailOf(details?.avatarPath);
-  const lastOnline = shownWhenKnown(details?.lastOnlineAt, (moment) => `Last online ${timeAgo(moment, now)}`);
+  const lastOnline = onlineText(details, now);
   return {
     title: fitTitle(escapeText(player.name)),
     color: CARD_COLOR,

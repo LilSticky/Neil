@@ -8,6 +8,7 @@ import {
 } from "discord.js";
 import {
   figureOf,
+  isOnlineNow,
   leastActive,
   overviewOf,
   tablePage,
@@ -158,11 +159,11 @@ function figureText(entry: RosterEntry, kind: ActivityKind): string {
   return figure === undefined ? UNKNOWN_VALUE : numbers.format(figure);
 }
 
-/** "online" for a member online now, a Discord relative timestamp for a known last online time, otherwise "–". */
+/** "online" for a member online now, otherwise a Discord relative timestamp for the known last online time. */
 function seenText(entry: RosterEntry): string {
-  if (entry.online === true) return "online";
-  if (entry.lastOnlineAt === undefined) return UNKNOWN_VALUE;
-  return `<t:${Math.floor(entry.lastOnlineAt.getTime() / 1000).toString()}:R>`;
+  const { lastOnlineAt } = entry;
+  if (isOnlineNow(entry) || lastOnlineAt === undefined) return "online";
+  return `<t:${Math.floor(lastOnlineAt.getTime() / 1000).toString()}:R>`;
 }
 
 /** A member's name cut to the name limit (with "…") and escaped for Discord markdown. */

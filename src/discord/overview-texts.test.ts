@@ -148,8 +148,8 @@ describe("renderOverview: the Alliance Overview embed", () => {
   test("shows how many members are online now and how many were online in the last 24 hours", () => {
     const embed = overviewOf([alpha, beta, gamma]).embeds[0];
 
-    expect(fieldValue(embed, "Online now")).toBe("1");
-    expect(fieldValue(embed, "Online in the last 24 hours")).toBe("1");
+    expect(fieldValue(embed, "Online now")).toBe("2");
+    expect(fieldValue(embed, "Online in the last 24 hours")).toBe("2");
   });
 
   test("counts the members without data in words", () => {
@@ -245,11 +245,11 @@ describe("renderOverview: the table page", () => {
     expect(table?.description).toBe("Alpha · 490 · 40 · 4,600 · <t:1793285439:R>");
   });
 
-  test("shows online instead of a time for a member online now, and – for an unknown last online time", () => {
+  test("shows online instead of a time for a member online now, and for a member without a last online time", () => {
     const table = overviewOf([beta, delta]).embeds[1];
 
     expect(table?.description).toContain("Beta · 10 · 60 · 400 · online");
-    expect(table?.description).toContain("Delta · no data · –");
+    expect(table?.description).toContain("Delta · no data · online");
   });
 
   test("lists 25 members on the first page, and the next page holds the rest", () => {

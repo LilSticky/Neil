@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
+import { isOnlineNow, leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
 import { parseUid } from "./lookup-input.js";
 import type { RosterEntry } from "./player.js";
 
@@ -73,7 +73,36 @@ describe("overviewOf totals", () => {
   });
 });
 
+describe("isOnlineNow", () => {
+  test.each([
+    { label: "online flag false with no Last Online", figures: { online: false } },
+    { label: "online flag unknown with no Last Online", figures: {} },
+  ])("is online now for a member with $label", ({ figures }) => {
+    expect(isOnlineNow(member("Alpha", figures))).toBe(true);
+  });
+
+  test("is online now when the online flag is true, whatever the Last Online", () => {
+    expect(isOnlineNow(member("Alpha", { online: true, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(true);
+  });
+
+  test("is not online now when the online flag is false and the Last Online is known", () => {
+    expect(isOnlineNow(member("Alpha", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(false);
+  });
+});
+
 describe("overviewOf online", () => {
+  test("counts a member without a Last Online as online now and in the last 24 hours", () => {
+    const roster = [
+      member("Alpha", { online: false }),
+      member("Beta", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }),
+    ];
+
+    const overview = overviewOf(roster, NOW);
+
+    expect(overview.onlineNow).toBe(1);
+    expect(overview.onlineLast24h).toBe(2);
+  });
+
   test("counts the members online now", () => {
     const roster = [
       member("Alpha", { online: true, lastOnlineAt: NOW }),
