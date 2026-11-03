@@ -28,7 +28,7 @@ function kingdom(number: number): KingdomNumber {
 }
 
 interface Figures {
-  readonly power?: number;
+  readonly might?: number;
   readonly weeklyActivity?: number;
   readonly dailyHonor?: number;
   readonly dailyTech?: number;
@@ -49,7 +49,7 @@ function member(uidText: string, name: string, figures: Figures = {}): RosterEnt
     dailyTech: figures.dailyTech,
     online: figures.online,
     lastOnlineAt: figures.lastOnlineAt,
-    ...(figures.power === undefined ? {} : { power: figures.power }),
+    ...(figures.might === undefined ? {} : { might: figures.might }),
   };
 }
 
@@ -57,9 +57,9 @@ const allianceDetails: AllianceDetails = {
   level: 4,
   xp: 8_829_850,
   giftLevel: 6,
-  kingdomPowerRank: 25,
+  kingdomMightRank: 25,
   language: "ja",
-  joinRequirements: { open: true, minimumPower: 0, minimumSanctuaryLevel: 0 },
+  joinRequirements: { open: true, minimumMight: 0, minimumSanctuaryLevel: 0 },
   badgePath: "/static/alliance/badge_103.png",
   kingdomBadgePath: "/static/kingdom/badge_1.png",
 };
@@ -69,7 +69,7 @@ function allianceWith(roster: readonly RosterEntry[]): Alliance {
     tag: "NML",
     name: "No Man's Land",
     kingdom: kingdom(1),
-    power: 208815434,
+    might: 208815434,
     memberCount: roster.length,
     capacity: 100,
     leaderName: "DrLOL",
@@ -358,10 +358,10 @@ describe("renderOverview: the Alliance card's look", () => {
   });
 });
 
-describe("renderOverview: power in the table", () => {
-  test("shows each member's power in short form after the name, and leaves it out when unknown", () => {
-    const powered = member("179060285441", "Alpha", {
-      power: 27_626_362,
+describe("renderOverview: might in the table", () => {
+  test("shows each member's might in short form after the name, and leaves it out when unknown", () => {
+    const withMight = member("179060285441", "Alpha", {
+      might: 27_626_362,
       weeklyActivity: 490,
       dailyHonor: 40,
       dailyTech: 4600,
@@ -369,23 +369,23 @@ describe("renderOverview: power in the table", () => {
       lastOnlineAt: new Date(1793285439 * 1000),
     });
 
-    const description = overviewOf([powered, beta]).embeds[1]?.description ?? "";
+    const description = overviewOf([withMight, beta]).embeds[1]?.description ?? "";
 
     expect(description).toContain("Alpha · 27.6M · 490 · 40 · 4,600 · <t:1793285439:R>");
     expect(description).toContain("Beta · 10 · 60 · 400 · online");
   });
 
-  test("shows the power in place of no data for a member with power and no figures", () => {
-    const description = overviewOf([member("300000000001", "Delta", { power: 5_000 })]).embeds[1]?.description ?? "";
+  test("shows the might in place of no data for a member with might and no figures", () => {
+    const description = overviewOf([member("300000000001", "Delta", { might: 5_000 })]).embeds[1]?.description ?? "";
 
     expect(description).toBe("Delta · 5K · no data · online");
   });
 
-  test("keeps 25 rows of 100-character names with power within the description and message limits", () => {
+  test("keeps 25 rows of 100-character names with might within the description and message limits", () => {
     const longName = "N".repeat(100);
     const roster = Array.from({ length: 25 }, (_, index) =>
       member(String(100_000_000_000 + index), `${longName}${index.toString()}`, {
-        power: 27_626_362,
+        might: 27_626_362,
         weeklyActivity: index + 1,
         dailyHonor: index + 1,
         dailyTech: index + 1,

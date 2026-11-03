@@ -32,7 +32,7 @@ interface PlayerProfile {
   readonly uid: Uid;
   readonly name: string;
   readonly kingdom: KingdomNumber;
-  readonly power: number;
+  readonly might: number;
   readonly sanctuaryLevel: number;
   readonly details?: PlayerDetails;
 }
@@ -53,8 +53,8 @@ export interface RosterEntry {
   readonly uid: Uid;
   readonly name: string;
   readonly allianceRank: AllianceRank;
-  /** The Member's power (`power`); undefined when the Game gives none readable. */
-  readonly power?: number;
+  /** The Member's might (`might`); undefined when the Game gives none readable. */
+  readonly might?: number;
   /** The Kingdom the Member is in (`kid`); undefined when the Game gives none. */
   readonly kingdom: KingdomNumber | undefined;
   /** The Member's sanctuary level (`lv`); undefined when the Game gives none. */
@@ -72,7 +72,7 @@ export interface RosterEntry {
 /** The Join Requirements of an Alliance: whether it is open, and the minimums a joiner needs. */
 export interface JoinRequirements {
   readonly open: boolean;
-  readonly minimumPower: number;
+  readonly minimumMight: number;
   readonly minimumSanctuaryLevel: number;
 }
 
@@ -83,7 +83,7 @@ export interface AllianceDetails {
   readonly xp: number | undefined;
   readonly giftLevel: number | undefined;
   /** The Alliance's rank among the Alliances of its Kingdom (`rank.rank`). */
-  readonly kingdomPowerRank: number | undefined;
+  readonly kingdomMightRank: number | undefined;
   /** The language code the Alliance uses (`language`). */
   readonly language: string | undefined;
   readonly joinRequirements: JoinRequirements | undefined;
@@ -98,7 +98,7 @@ export interface Alliance {
   readonly tag: string;
   readonly name: string;
   readonly kingdom: KingdomNumber;
-  readonly power: number;
+  readonly might: number;
   readonly memberCount: number;
   readonly capacity: number;
   readonly leaderName: string | undefined;

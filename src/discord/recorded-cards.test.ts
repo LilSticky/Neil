@@ -42,7 +42,7 @@ describe("cards from recorded Game API answers", () => {
       thumbnail: { url: "https://lastasylumtracker.com/static/avatars/head_90002.png" },
       description: "Last online 2 days ago",
       fields: [
-        { name: "Power", value: "15,902,728", inline: true },
+        { name: "Might", value: "15,902,728", inline: true },
         { name: "Kills", value: "4,420", inline: true },
         { name: "Likes", value: "110", inline: true },
         { name: "Sanctuary level", value: "23", inline: true },
@@ -75,8 +75,8 @@ describe("cards from recorded Game API answers", () => {
     });
     // The roster fields follow these seven; their rows are covered in lookup-cards.test.ts.
     expect(card.fields?.slice(0, 7)).toMatchObject([
-      { name: "Power", value: "208,815,434" },
-      { name: "Kingdom Power Rank", value: "#25 in Kingdom #1" },
+      { name: "Might", value: "208,815,434" },
+      { name: "Kingdom Might Rank", value: "#25 in Kingdom #1" },
       { name: "Members", value: "52/100" },
       { name: "Leader", value: "DrLOL" },
       { name: "Alliance Level", value: "Level 4 · 8,829,850 XP" },

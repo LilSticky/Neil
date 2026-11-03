@@ -91,7 +91,7 @@ describe("playerFromRoster", () => {
       tag: "NML",
       name: "No Man's Land",
       kingdom: kingdomOf(330),
-      power: 208_815_434,
+      might: 208_815_434,
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",

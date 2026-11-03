@@ -74,7 +74,7 @@ function allianceOf(tag: string, kingdom: KingdomNumber, roster: readonly Roster
     tag,
     name: `${tag} Alliance`,
     kingdom,
-    power: 1_000_000,
+    might: 1_000_000,
     memberCount: roster.length,
     capacity: 100,
     leaderName: undefined,
@@ -112,7 +112,7 @@ function playerOf(
   sanctuaryLevel: number,
   alliance?: { readonly tag: string; readonly rank: AllianceRank },
 ): Player {
-  const profile = { uid, name, kingdom, power: 15_902_728, sanctuaryLevel };
+  const profile = { uid, name, kingdom, might: 15_902_728, sanctuaryLevel };
   if (alliance === undefined) return { ...profile, alliance: undefined, allianceRank: undefined };
   return {
     ...profile,

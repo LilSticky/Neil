@@ -61,7 +61,7 @@ const inAlliance: Player = {
   uid: uid("145563254785"),
   name: "Vex",
   kingdom: kingdom(330),
-  power: 15902728,
+  might: 15902728,
   sanctuaryLevel: 42,
   alliance: { tag: "NML", name: "Neil's Men", leaderUid: undefined },
   allianceRank: "R5",
@@ -71,7 +71,7 @@ const withoutAlliance: Player = {
   uid: uid("145563254785"),
   name: "Vex",
   kingdom: kingdom(330),
-  power: 15902728,
+  might: 15902728,
   sanctuaryLevel: 42,
   alliance: undefined,
   allianceRank: undefined,
@@ -82,11 +82,11 @@ describe("renderPlayerCard", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({ title: "Vex" });
   });
 
-  test("shows Power, Sanctuary level, Alliance and Alliance Rank as inline fields, with the Kingdom in the author line", () => {
+  test("shows Might, Sanctuary level, Alliance and Alliance Rank as inline fields, with the Kingdom in the author line", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
       author: { name: "Kingdom #330" },
       fields: [
-        { name: "Power", value: "15,902,728", inline: true },
+        { name: "Might", value: "15,902,728", inline: true },
         { name: "Sanctuary level", value: "42", inline: true },
         { name: "Alliance", value: "[NML] Neil's Men", inline: true },
         { name: "Alliance Rank", value: "R5", inline: true },
@@ -99,7 +99,7 @@ describe("renderPlayerCard", () => {
 
     expect(card).toMatchObject({
       fields: [
-        { name: "Power", value: "15,902,728" },
+        { name: "Might", value: "15,902,728" },
         { name: "Sanctuary level", value: "42" },
         { name: "Alliance", value: "No alliance" },
       ],
@@ -177,7 +177,7 @@ const alliance: Alliance = {
   tag: "NML",
   name: "No Man's Land",
   kingdom: kingdom(1),
-  power: 208815434,
+  might: 208815434,
   memberCount: 52,
   capacity: 100,
   leaderName: "DrLOL",
@@ -191,13 +191,13 @@ describe("renderAllianceCard", () => {
     });
   });
 
-  test("shows Power, Members as count/capacity, and Leader as inline fields, before the roster, with the Kingdom in the author line", () => {
+  test("shows Might, Members as count/capacity, and Leader as inline fields, before the roster, with the Kingdom in the author line", () => {
     const card = renderAllianceCard(alliance, FETCHED_AT, NOW);
     const fields = card.fields ?? [];
 
     expect(card).toMatchObject({ author: { name: "Kingdom #1" } });
     expect(fields.slice(0, 3)).toEqual([
-      { name: "Power", value: "208,815,434", inline: true },
+      { name: "Might", value: "208,815,434", inline: true },
       { name: "Members", value: "52/100", inline: true },
       { name: "Leader", value: "DrLOL", inline: true },
     ]);
@@ -534,7 +534,7 @@ describe("renderAllianceCard roster fields", () => {
     const card = renderAllianceCard({ ...alliance, roster }, FETCHED_AT, NOW);
 
     expect(card.fields?.map((field) => field.name)).toEqual([
-      "Power",
+      "Might",
       "Members",
       "Leader",
       "R4",
@@ -1007,7 +1007,7 @@ const fullPlayer: Player = { ...inAlliance, details: fullPlayerDetails };
 
 /** The Player card's fields for `fullPlayerDetails`, in the order the card shows them. */
 const fullPlayerFields: APIEmbedField[] = [
-  { name: "Power", value: "15,902,728", inline: true },
+  { name: "Might", value: "15,902,728", inline: true },
   { name: "Kills", value: "4,420", inline: true },
   { name: "Likes", value: "110", inline: true },
   { name: "Sanctuary level", value: "42", inline: true },
@@ -1033,7 +1033,7 @@ const noDetailsPlayerCard: APIEmbed = {
   color: ACCENT_COLOR,
   author: { name: "Kingdom #330" },
   fields: [
-    { name: "Power", value: "15,902,728", inline: true },
+    { name: "Might", value: "15,902,728", inline: true },
     { name: "Sanctuary level", value: "42", inline: true },
     { name: "Alliance", value: "[NML] Neil's Men", inline: true },
     { name: "Alliance Rank", value: "R5", inline: true },
@@ -1190,44 +1190,44 @@ describe("trackerPicture", () => {
 
 describe("joinRequirementsText", () => {
   test.each([
-    { label: "open, no minimums", open: true, minimumPower: 0, minimumSanctuaryLevel: 0, text: "Open to all" },
+    { label: "open, no minimums", open: true, minimumMight: 0, minimumSanctuaryLevel: 0, text: "Open to all" },
     {
       label: "by application, no minimums",
       open: false,
-      minimumPower: 0,
+      minimumMight: 0,
       minimumSanctuaryLevel: 0,
       text: "By application",
     },
     {
-      label: "open, minimum power 10M",
+      label: "open, minimum might 10M",
       open: true,
-      minimumPower: 10_000_000,
+      minimumMight: 10_000_000,
       minimumSanctuaryLevel: 0,
-      text: "Open to all · min. 10M power",
+      text: "Open to all · min. 10M Might",
     },
     {
       label: "by application, minimum sanctuary level 15",
       open: false,
-      minimumPower: 0,
+      minimumMight: 0,
       minimumSanctuaryLevel: 15,
       text: "By application · min. sanctuary level 15",
     },
     {
       label: "open, both minimums",
       open: true,
-      minimumPower: 10_000_000,
+      minimumMight: 10_000_000,
       minimumSanctuaryLevel: 15,
-      text: "Open to all · min. 10M power · min. sanctuary level 15",
+      text: "Open to all · min. 10M Might · min. sanctuary level 15",
     },
     {
-      label: "minimum power 1,000",
+      label: "minimum might 1,000",
       open: false,
-      minimumPower: 1_000,
+      minimumMight: 1_000,
       minimumSanctuaryLevel: 0,
-      text: "By application · min. 1K power",
+      text: "By application · min. 1K Might",
     },
-  ])("$label reads as $text", ({ open, minimumPower, minimumSanctuaryLevel, text }) => {
-    expect(joinRequirementsText({ open, minimumPower, minimumSanctuaryLevel })).toBe(text);
+  ])("$label reads as $text", ({ open, minimumMight, minimumSanctuaryLevel, text }) => {
+    expect(joinRequirementsText({ open, minimumMight, minimumSanctuaryLevel })).toBe(text);
   });
 });
 
@@ -1235,9 +1235,9 @@ const fullAllianceDetails: AllianceDetails = {
   level: 4,
   xp: 8_881_750,
   giftLevel: 6,
-  kingdomPowerRank: 24,
+  kingdomMightRank: 24,
   language: "ja",
-  joinRequirements: { open: true, minimumPower: 0, minimumSanctuaryLevel: 0 },
+  joinRequirements: { open: true, minimumMight: 0, minimumSanctuaryLevel: 0 },
   badgePath: "/static/alliance/badge_103.png",
   kingdomBadgePath: "/static/kingdom/badge_1.png",
 };
@@ -1246,8 +1246,8 @@ const fullAlliance: Alliance = { ...alliance, details: fullAllianceDetails };
 
 /** The Alliance fields for `fullAllianceDetails`, in the order the card shows them. */
 const fullAllianceFields: APIEmbedField[] = [
-  { name: "Power", value: "208,815,434", inline: true },
-  { name: "Kingdom Power Rank", value: "#24 in Kingdom #1", inline: true },
+  { name: "Might", value: "208,815,434", inline: true },
+  { name: "Kingdom Might Rank", value: "#24 in Kingdom #1", inline: true },
   { name: "Members", value: "52/100", inline: true },
   { name: "Leader", value: "DrLOL", inline: true },
   { name: "Alliance Level", value: "Level 4 · 8,881,750 XP", inline: true },
@@ -1270,7 +1270,7 @@ const noDetailsAllianceCard: APIEmbed = {
   color: ACCENT_COLOR,
   author: { name: "Kingdom #1" },
   fields: [
-    { name: "Power", value: "208,815,434", inline: true },
+    { name: "Might", value: "208,815,434", inline: true },
     { name: "Members", value: "52/100", inline: true },
     { name: "Leader", value: "DrLOL", inline: true },
     EMPTY_ROSTER_FIELD,
@@ -1294,7 +1294,7 @@ describe("renderAllianceCard with details", () => {
   });
 
   test.each([
-    { label: "Kingdom Power Rank", details: { kingdomPowerRank: undefined }, field: "Kingdom Power Rank" },
+    { label: "Kingdom Might Rank", details: { kingdomMightRank: undefined }, field: "Kingdom Might Rank" },
     { label: "Alliance Level", details: { level: undefined, xp: undefined }, field: "Alliance Level" },
     { label: "Gift Level", details: { giftLevel: undefined }, field: "Gift Level" },
     { label: "Language", details: { language: undefined }, field: "Language" },
@@ -1327,21 +1327,21 @@ describe("renderAllianceCard with details", () => {
   });
 });
 
-function rosterEntryWithPower(
+function rosterEntryWithMight(
   uidText: string,
   name: string,
   allianceRank: RosterEntry["allianceRank"],
-  power: number,
+  might: number,
 ): RosterEntry {
-  return { ...rosterEntry(uidText, name, allianceRank), power };
+  return { ...rosterEntry(uidText, name, allianceRank), might };
 }
 
-describe("renderAllianceCard roster rows with power", () => {
-  test("shows each row's power in short form after the name, and only the name when the power is unknown", () => {
+describe("renderAllianceCard roster rows with might", () => {
+  test("shows each row's might in short form after the name, and only the name when the might is unknown", () => {
     const card = renderAllianceCard(
       {
         ...alliance,
-        roster: [rosterEntryWithPower("5555", "Ana", "R4", 27_626_362), rosterEntry("42", "Benedict", "R3")],
+        roster: [rosterEntryWithMight("5555", "Ana", "R4", 27_626_362), rosterEntry("42", "Benedict", "R3")],
       },
       FETCHED_AT,
       NOW,
@@ -1351,9 +1351,9 @@ describe("renderAllianceCard roster rows with power", () => {
     expect(fieldValue(card, "R3")).toBe("Benedict");
   });
 
-  test("escapes the name in a row that shows power", () => {
+  test("escapes the name in a row that shows might", () => {
     const card = renderAllianceCard(
-      { ...alliance, roster: [rosterEntryWithPower("5555", "_Ana_", "R4", 27_626_362)] },
+      { ...alliance, roster: [rosterEntryWithMight("5555", "_Ana_", "R4", 27_626_362)] },
       FETCHED_AT,
       NOW,
     );
@@ -1362,9 +1362,9 @@ describe("renderAllianceCard roster rows with power", () => {
   });
 });
 
-describe("renderAllianceCard with a page of 25 rows of 100-character names and power", () => {
+describe("renderAllianceCard with a page of 25 rows of 100-character names and might", () => {
   const longRows: RosterEntry[] = Array.from({ length: 25 }, (_value, index) =>
-    rosterEntryWithPower(
+    rosterEntryWithMight(
       (100_000_000_000 + index).toString(),
       `${"N".repeat(96)}${index.toString().padStart(4, "0")}`,
       "R4",
@@ -1386,7 +1386,7 @@ describe("renderAllianceCard with a page of 25 rows of 100-character names and p
     }
   });
 
-  test("lists all 25 rows, each with its power", () => {
+  test("lists all 25 rows, each with its might", () => {
     const card = renderAllianceCard({ ...fullAlliance, roster: longRows }, FETCHED_AT, NOW);
     const rows = (card.fields ?? []).slice(7).flatMap((field) => field.value.split("\n"));
 
@@ -1398,7 +1398,7 @@ describe("renderAllianceCard with a page of 25 rows of 100-character names and p
 describe("renderAllianceCard with details on every page", () => {
   test("keeps the author, picture, description and Alliance fields the same on every page", () => {
     const members: RosterEntry[] = Array.from({ length: 100 }, (_value, index) =>
-      rosterEntryWithPower(
+      rosterEntryWithMight(
         (100_000_000_000 + index).toString(),
         `M${index.toString().padStart(2, "0")}`,
         "R4",

@@ -20,7 +20,7 @@ function kingdomOf(number: number): KingdomNumber {
 
 /** An Alliance as the Game API answer describes it; only the Kingdom, tag and name matter to the store. */
 function allianceOf(kingdom: KingdomNumber, tag: string, name: string): Alliance {
-  return { tag, name, kingdom, power: 0, memberCount: 0, capacity: 0, leaderName: undefined, roster: [] };
+  return { tag, name, kingdom, might: 0, memberCount: 0, capacity: 0, leaderName: undefined, roster: [] };
 }
 
 /** The tags of the Known Alliances the store gives for `now`, in a stable order. */

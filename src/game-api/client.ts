@@ -304,7 +304,7 @@ export class GameApiClient {
       uid: uid.value,
       name: body.nick,
       kingdom: kingdom.value,
-      power: body.power,
+      might: body.power,
       sanctuaryLevel: body.lv,
       details: playerDetailsFrom(body),
     };
@@ -597,12 +597,12 @@ function allianceDetailsFrom(body: AllianceBody): AllianceDetails {
     level: body.level,
     xp: body.exp,
     giftLevel: body.gift_level,
-    kingdomPowerRank: body.rank?.rank,
+    kingdomMightRank: body.rank?.rank,
     language: body.language,
     joinRequirements:
       body.join === undefined
         ? undefined
-        : { open: body.join.auto, minimumPower: body.join.power, minimumSanctuaryLevel: body.join.castle_level },
+        : { open: body.join.auto, minimumMight: body.join.power, minimumSanctuaryLevel: body.join.castle_level },
     badgePath: body.badge_url,
     kingdomBadgePath: body.server_badge_url,
   };
@@ -614,7 +614,7 @@ function allianceFrom(body: AllianceBody, kingdom: KingdomNumber): Alliance {
     tag: body.abbr,
     name: body.name,
     kingdom,
-    power: body.power,
+    might: body.power,
     memberCount: body.member_count,
     capacity: body.capacity,
     leaderName: body.leader_name ?? undefined,
@@ -639,7 +639,7 @@ function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
     {
       uid: uid.value,
       name: name === "" ? "Unknown" : name,
-      ...(member.power === undefined ? {} : { power: member.power }),
+      ...(member.power === undefined ? {} : { might: member.power }),
       allianceRank: rankFromLabel(member.rank_label ?? null),
       kingdom: kingdomFromRoster(member.kid),
       sanctuaryLevel: member.lv ?? undefined,

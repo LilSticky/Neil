@@ -643,7 +643,7 @@ const PLAYER_RANKED: Player = {
   uid: FOUND_UID,
   name: "Vera",
   kingdom: KINGDOM,
-  power: 15_000_000,
+  might: 15_000_000,
   sanctuaryLevel: 20,
   alliance: { tag: "NML", name: "NML Alliance", leaderUid: undefined },
   allianceRank: "R3",

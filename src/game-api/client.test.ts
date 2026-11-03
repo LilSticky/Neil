@@ -49,9 +49,9 @@ const RECORDED_ALLIANCE_DETAILS: AllianceDetails = {
   level: 4,
   xp: 8829850,
   giftLevel: 6,
-  kingdomPowerRank: 25,
+  kingdomMightRank: 25,
   language: "ja",
-  joinRequirements: { open: true, minimumPower: 0, minimumSanctuaryLevel: 0 },
+  joinRequirements: { open: true, minimumMight: 0, minimumSanctuaryLevel: 0 },
   badgePath: "/static/alliance/badge_103.png",
   kingdomBadgePath: "/static/kingdom/badge_1.png",
 };
@@ -227,7 +227,7 @@ describe("GameApiClient.getPlayer result", () => {
         uid: "145563254785",
         name: "DrLOL",
         kingdom: 1,
-        power: 15902728,
+        might: 15902728,
         sanctuaryLevel: 23,
         alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
@@ -264,7 +264,7 @@ describe("GameApiClient.getPlayer result", () => {
         uid: "145563254785",
         name: "DrLOL",
         kingdom: 1,
-        power: 15902728,
+        might: 15902728,
         sanctuaryLevel: 23,
         alliance: undefined,
         allianceRank: undefined,
@@ -524,7 +524,7 @@ describe("GameApiClient.getAlliance result", () => {
       tag: "NML",
       name: "No Man's Land",
       kingdom: parsedKingdom(1),
-      power: 208815434,
+      might: 208815434,
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",
@@ -533,7 +533,7 @@ describe("GameApiClient.getAlliance result", () => {
         {
           uid: parsedUid("179060285441"),
           name: "etranger",
-          power: 26041955,
+          might: 26041955,
           allianceRank: "R4",
           kingdom: parsedKingdom(1),
           sanctuaryLevel: 22,
@@ -546,7 +546,7 @@ describe("GameApiClient.getAlliance result", () => {
         {
           uid: parsedUid("93159425"),
           name: "Benedict",
-          power: 17081208,
+          might: 17081208,
           allianceRank: "R3",
           kingdom: parsedKingdom(1),
           sanctuaryLevel: 26,
@@ -559,7 +559,7 @@ describe("GameApiClient.getAlliance result", () => {
         {
           uid: parsedUid("147744374785"),
           name: "Settong",
-          power: 16713141,
+          might: 16713141,
           allianceRank: "R1",
           kingdom: parsedKingdom(1),
           sanctuaryLevel: 21,
@@ -1378,7 +1378,7 @@ describe("GameApiClient.findPlayer result", () => {
         uid: "145563254785",
         name: "DrLOL",
         kingdom: 1,
-        power: 15902728,
+        might: 15902728,
         sanctuaryLevel: 23,
         alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
@@ -1851,7 +1851,7 @@ const allianceDetailCases: readonly DetailCase<keyof AllianceDetails>[] = [
   ...casesOf("xp", "exp", UNREADABLE_COUNT),
   ...casesOf("giftLevel", "gift_level", UNREADABLE_COUNT),
   ...casesOf("language", "language", UNREADABLE_TEXT),
-  ...casesOf("kingdomPowerRank", "rank", UNREADABLE_RANK),
+  ...casesOf("kingdomMightRank", "rank", UNREADABLE_RANK),
   ...casesOf("joinRequirements", "join", UNREADABLE_JOIN),
   ...casesOf("badgePath", "badge_url", UNREADABLE_PATH),
   ...casesOf("kingdomBadgePath", "server_badge_url", UNREADABLE_PATH),
@@ -1879,7 +1879,7 @@ describe("GameApiClient.getPlayer details", () => {
         uid: "145563254785",
         name: "DrLOL",
         kingdom: 1,
-        power: 15902728,
+        might: 15902728,
         sanctuaryLevel: 23,
         allianceRank: "R5",
       });
@@ -1906,7 +1906,7 @@ describe("GameApiClient.getAlliance details", () => {
 
     expect(foundAlliance(result).details?.joinRequirements).toEqual({
       open: false,
-      minimumPower: 5_000_000,
+      minimumMight: 5_000_000,
       minimumSanctuaryLevel: 20,
     });
   });
@@ -1922,7 +1922,7 @@ describe("GameApiClient.getAlliance details", () => {
       expect(foundAlliance(result)).toMatchObject({
         tag: "NML",
         name: "No Man's Land",
-        power: 208815434,
+        might: 208815434,
         memberCount: 52,
         capacity: 100,
         leaderName: "DrLOL",
@@ -1933,17 +1933,17 @@ describe("GameApiClient.getAlliance details", () => {
   );
 });
 
-describe("GameApiClient.getAlliance roster power", () => {
-  test("reads the power of each recorded roster member", async () => {
+describe("GameApiClient.getAlliance roster might", () => {
+  test("reads the might of each recorded roster member", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, alliance));
 
     const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
-    expect(foundAlliance(result).roster.map((row) => row.power)).toEqual([26041955, 17081208, 16713141]);
+    expect(foundAlliance(result).roster.map((row) => row.might)).toEqual([26041955, 17081208, 16713141]);
   });
 
   test.each(UNREADABLE_COUNT)(
-    "a roster member whose power is $label reads its power as undefined, and the member is kept",
+    "a roster member whose might is $label reads its might as undefined, and the member is kept",
     async ({ value }) => {
       const [first, ...others] = alliance.members;
       if (first === undefined) throw new Error("the recorded alliance has no members");
@@ -1954,8 +1954,8 @@ describe("GameApiClient.getAlliance roster power", () => {
 
       const roster = foundAlliance(result).roster;
       expect(roster.map((row) => row.uid)).toEqual(["179060285441", "93159425", "147744374785"]);
-      expect(roster[0]?.power).toBeUndefined();
-      expect(roster[1]?.power).toBe(17081208);
+      expect(roster[0]?.might).toBeUndefined();
+      expect(roster[1]?.might).toBe(17081208);
     },
   );
 });

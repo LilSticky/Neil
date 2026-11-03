@@ -459,7 +459,7 @@ function playerJson(player: Player): string {
     uid: player.uid,
     name: player.name,
     kingdom: player.kingdom,
-    power: player.power,
+    power: player.might,
     sanctuaryLevel: player.sanctuaryLevel,
     alliance: player.alliance,
     allianceRank: player.allianceRank,
@@ -496,7 +496,7 @@ function playerOf(text: string | null): Player | undefined {
     uid: uid.value,
     name: record.name,
     kingdom: kingdom.value,
-    power: record.power,
+    might: record.power,
     sanctuaryLevel: record.sanctuaryLevel,
   };
   if (record.alliance === undefined) {

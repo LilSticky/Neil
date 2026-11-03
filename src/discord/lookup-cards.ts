@@ -119,7 +119,7 @@ export function trackerPicture(path: string | undefined): string | undefined {
 /** The Join Requirements as one line: "Open to all" or "By application", then the minimums above zero. */
 export function joinRequirementsText(requirements: JoinRequirements): string {
   const parts = [requirements.open ? "Open to all" : "By application"];
-  if (requirements.minimumPower > 0) parts.push(`min. ${compactNumber(requirements.minimumPower)} power`);
+  if (requirements.minimumMight > 0) parts.push(`min. ${compactNumber(requirements.minimumMight)} Might`);
   if (requirements.minimumSanctuaryLevel > 0) {
     parts.push(`min. sanctuary level ${requirements.minimumSanctuaryLevel.toString()}`);
   }
@@ -234,7 +234,7 @@ export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): AP
       ? "No alliance"
       : `[${escapeText(player.alliance.tag)}] ${escapeText(player.alliance.name)}`;
   const fields: APIEmbedField[] = [
-    { name: "Power", value: thousands(player.power), inline: true },
+    { name: "Might", value: thousands(player.might), inline: true },
     ...optionalField("Kills", shownWhenKnown(details?.kills, thousands)),
     ...optionalField("Likes", shownWhenKnown(details?.likes, thousands)),
     { name: "Sanctuary level", value: player.sanctuaryLevel.toString(), inline: true },
@@ -280,10 +280,10 @@ export function embedCharacters(embed: APIEmbed): number {
   return texts.reduce((total, text) => total + text.length, 0);
 }
 
-/** One roster row as the card shows it: the escaped name, then the power in short form when the Game gave it. */
+/** One roster row as the card shows it: the escaped name, then the might in short form when the Game gave it. */
 function rosterRow(entry: RosterEntry): string {
   const name = escapeText(entry.name);
-  return entry.power === undefined ? name : `${name} · ${compactNumber(entry.power)}`;
+  return entry.might === undefined ? name : `${name} · ${compactNumber(entry.might)}`;
 }
 
 /** An Alliance Rank as a field or menu label: R1–R5, or Unknown. */
@@ -359,10 +359,10 @@ function rosterSection(shown: readonly RosterEntry[], fixed: number): APIEmbedFi
 export function renderAllianceCard(alliance: Alliance, fetchedAt: Date, now: Date, page = 0): APIEmbed {
   const details = alliance.details;
   const fields: APIEmbedField[] = [
-    { name: "Power", value: thousands(alliance.power), inline: true },
+    { name: "Might", value: thousands(alliance.might), inline: true },
     ...optionalField(
-      "Kingdom Power Rank",
-      shownWhenKnown(details?.kingdomPowerRank, (rank) => `#${rank.toString()} in Kingdom #${alliance.kingdom.toString()}`),
+      "Kingdom Might Rank",
+      shownWhenKnown(details?.kingdomMightRank, (rank) => `#${rank.toString()} in Kingdom #${alliance.kingdom.toString()}`),
     ),
     {
       name: "Members",

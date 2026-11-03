@@ -166,7 +166,7 @@ function linesWithin(lines: readonly string[], limit: number): string[] {
 }
 
 /**
- * One member of the table: name (with the power in short form when the Game gave it), the three figures (or "no data")
+ * One member of the table: name (with the might in short form when the Game gave it), the three figures (or "no data")
  * and the last online time.
  */
 function tableRow(entry: RosterEntry): string {
@@ -175,7 +175,7 @@ function tableRow(entry: RosterEntry): string {
     ? ACTIVITY_KINDS.map((kind) => figureText(entry, kind)).join(SECTION_SEPARATOR)
     : NO_DATA;
   const name = displayName(entry.name);
-  const named = entry.power === undefined ? name : `${name}${SECTION_SEPARATOR}${compactNumber(entry.power)}`;
+  const named = entry.might === undefined ? name : `${name}${SECTION_SEPARATOR}${compactNumber(entry.might)}`;
   return [named, figures, seenText(entry)].join(SECTION_SEPARATOR);
 }
 

@@ -48,7 +48,7 @@ const PLAYER: Player = {
   uid: UID,
   name: "Neil",
   kingdom: kingdomOf(330),
-  power: 1_000_000,
+  might: 1_000_000,
   sanctuaryLevel: 5,
   alliance: { tag: "LAS", name: "Last Asylum", leaderUid: undefined },
   allianceRank: "R4",
