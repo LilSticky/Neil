@@ -9,6 +9,12 @@ export function parseUid(input) {
         return { ok: false };
     return { ok: true, value: trimmed };
 }
+/** An Interview uid as typed: trimmed, one leading # dropped, then the same rules as parseUid. */
+export function parseInterviewUid(input) {
+    const trimmed = input.trim();
+    const withoutHash = trimmed.startsWith("#") ? trimmed.slice(1) : trimmed;
+    return parseUid(withoutHash);
+}
 export function parseKingdom(input) {
     if (!Number.isInteger(input) || input < 1 || input > 9999)
         return { ok: false };

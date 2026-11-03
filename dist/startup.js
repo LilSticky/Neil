@@ -28,7 +28,7 @@ export async function start(deps) {
         const config = loadConfig(deps.env);
         const buildInfo = deps.readBuildInfo();
         deps.prepareDataDir(config.dataDir);
-        store = deps.openStore(config.dataDir);
+        store = deps.openStore(config.dataDir, config.interviewTimeoutMs);
         const startRecord = recordStart(store.load(), deps.now());
         store.save(startRecord);
         const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now, reserve: config.quotaReserve });
@@ -44,6 +44,12 @@ export async function start(deps) {
             gameApi,
             quotaReserve: config.quotaReserve,
             officerRoleIds: config.officerRoleIds,
+            guildId: config.guildId,
+            onboardingChannelId: config.onboardingChannelId,
+            logChannelId: config.logChannelId,
+            interviewTimeoutMs: config.interviewTimeoutMs,
+            interviews: store.interviews,
+            links: store.links,
         });
     }
     catch (error) {
