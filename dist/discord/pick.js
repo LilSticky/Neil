@@ -1,6 +1,6 @@
 import { MessageFlags } from "discord.js";
 import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
-import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
+import { listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderRosterComponents, } from "./lookup-cards.js";
 import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, } from "./lookup.js";
 import { isOwner, pageOf, parseCustomId } from "./pick-sessions.js";
@@ -102,7 +102,7 @@ async function pickFrom(interaction, session, menuPage, context) {
             await pickPlayerMatch(interaction, pickedAt(listedPlayerMatches(choice.matches).listed, value), context);
             return;
         case "alliances":
-            await pickAllianceMatch(interaction, pickedAt(listedAllianceMatches(choice.matches).listed, value), context);
+            await pickAllianceMatch(interaction, pickedAt(rankedAllianceMatches(choice.matches), value), context);
             return;
         case "roster":
             await pickRosterMember(interaction, pageOf(choice.entries, menuPage ?? session.page), value, context);

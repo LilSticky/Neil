@@ -79,6 +79,14 @@ const migrations = [
      applied_at TEXT NOT NULL,
      complete INTEGER NOT NULL CHECK (complete IN (0, 1))
    )`,
+    // Migration 6: the Home Kingdom Alliances seen in Game API answers, for approximate name matching (slice 007).
+    `CREATE TABLE known_alliance (
+     kingdom INTEGER NOT NULL,
+     tag TEXT NOT NULL,
+     name TEXT NOT NULL,
+     last_seen TEXT NOT NULL,
+     PRIMARY KEY (kingdom, tag)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

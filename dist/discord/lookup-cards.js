@@ -1,7 +1,7 @@
 import { ButtonStyle, ComponentType, escapeMarkdown, } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { utcDayOf } from "../domain/daily-quota.js";
-import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
+import { listedAllianceMatches, listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
@@ -208,7 +208,7 @@ export const lookupMessages = {
     unavailable: "Lookups are not working right now. Please tell an Officer.",
     showing: (label) => `Showing ${escapeText(label)}.`,
     giveKingdomAndTagOrName: "Give the kingdom and the alliance tag, or the alliance's exact full name.",
-    allianceNameNotFound: (key) => `No alliance is named exactly "${escapeText(key)}". Use the full name, or the kingdom and tag; approximate names are not supported.`,
+    allianceNameNotFound: (key) => `No alliance is named "${escapeText(key)}", and none I know is close. Try the tag, or start typing and pick a suggestion.`,
 };
 /** A Player match as the pick list labels it: its name and Kingdom. */
 export function playerPickLabel(match) {
@@ -255,6 +255,25 @@ export function renderAlliancePickList(key, matches, sessionId) {
     }));
     return {
         content: `Several alliances are named "${escapeText(key)}". Pick one:${note}`,
+        components: [
+            {
+                type: ComponentType.ActionRow,
+                components: [{ type: ComponentType.StringSelect, custom_id: `pick:${sessionId}:select`, options }],
+            },
+        ],
+    };
+}
+/**
+ * The private pick list for a name no Alliance has, while Known Alliances are close to it: a select menu of them as
+ * `[TAG] Name`, under the session id the pick handler looks up. The pick handler lists the matches in the same order.
+ */
+export function renderCloseAlliancePickList(name, matches, sessionId) {
+    const options = rankedAllianceMatches(matches).map((match, index) => ({
+        label: optionLabel(`[${match.tag}] ${match.name ?? "Unknown"}`),
+        value: index.toString(),
+    }));
+    return {
+        content: `No alliance is named "${escapeText(name)}". Did you mean one of these?`,
         components: [
             {
                 type: ComponentType.ActionRow,

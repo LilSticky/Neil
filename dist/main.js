@@ -9,6 +9,7 @@ import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
+import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
 import { start } from "./startup.js";
@@ -31,15 +32,17 @@ await start({
             interviews: new InterviewStore(db, interviewTimeoutMs),
             links: new LinkStore(db),
             applied: new AppliedStore(db),
+            knownAlliances: new KnownAllianceStore(db),
         };
     },
-    createGameApi: (apiKey, version, cacheTtlMs, quota) => new GameApiClient({
+    createGameApi: (apiKey, version, cacheTtlMs, quota, onAllianceSeen) => new GameApiClient({
         apiKey,
         version,
         fetch: globalThis.fetch,
         now: () => new Date(),
         quota,
         cacheTtlMs,
+        onAllianceSeen,
         sleep: (ms) => sleepFor(ms),
         random: Math.random,
         logError: (line) => {

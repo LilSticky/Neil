@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits, GuildMember, } from "discord.js";
 import { z } from "zod";
+import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createInterviews, } from "./interview.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
@@ -7,7 +8,7 @@ import { createNameAndRoles } from "./name-and-roles.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import { createRankApprovals } from "./rank-approval.js";
 import { handlePing } from "./ping.js";
-import { answer, handleAlliance, handlePlayer } from "./lookup.js";
+import { answer, handleAlliance, handlePlayer, } from "./lookup.js";
 import { handlePick } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 import { handleQuota } from "./quota.js";
@@ -72,6 +73,11 @@ export function createClient(handlers, options) {
                     void handlers.interview(interaction);
                     break;
             }
+            return;
+        }
+        if (interaction.isAutocomplete()) {
+            if (interaction.commandName === "alliance")
+                void handlers.allianceAutocomplete(interaction);
             return;
         }
         if (interaction.isModalSubmit()) {
@@ -288,6 +294,14 @@ export async function connect(token, options) {
     // One store for every pick list: the lookups open them, the pick handler answers them.
     const pickSessions = new PickSessions();
     const now = () => new Date();
+    const allianceContext = {
+        gameApi: options.gameApi,
+        pickSessions,
+        now,
+        logError,
+        homeKingdom: options.homeKingdom,
+        knownAlliances: options.knownAlliances,
+    };
     // Interview and Rank Approval events wait here until ready and the channel check have passed; then they reach the services.
     let openServices = () => undefined;
     const services = new Promise((resolve) => {
@@ -302,7 +316,8 @@ export async function connect(token, options) {
             logError,
         }),
         player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
-        alliance: (interaction) => handleAlliance(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+        alliance: (interaction) => handleAlliance(interaction, allianceContext),
+        allianceAutocomplete: (interaction) => answer("/alliance autocomplete", { logError }, () => handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError })),
         pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
         quota: (interaction) => handleQuota({
             memberRoleIds: () => memberRoleIds(interaction.member),

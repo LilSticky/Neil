@@ -21,6 +21,7 @@ export class GameApiClient {
     sleep;
     random;
     logError;
+    onAllianceSeen;
     timeoutMs;
     baseUrl;
     players;
@@ -40,6 +41,7 @@ export class GameApiClient {
         this.sleep = options.sleep;
         this.random = options.random;
         this.logError = options.logError;
+        this.onAllianceSeen = options.onAllianceSeen;
         this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
         this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
         this.players = new LookupCache({ ttlMs: options.cacheTtlMs });
@@ -62,8 +64,10 @@ export class GameApiClient {
             return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
         return this.playerLookups.share(flightKey(purpose, key), async () => {
             const result = await this.fetchPlayer(uid, purpose);
-            if (result.kind === "found")
+            if (result.kind === "found") {
                 this.players.store(key, result.value, result.fetchedAt);
+                this.sawPlayer(result.value);
+            }
             return orStale(result, foundBy(this.players.getStale(key)));
         });
     }
@@ -74,14 +78,24 @@ export class GameApiClient {
      */
     async findPlayer(name, kingdom, purpose) {
         const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
-        return this.byName(this.playerNames, this.playerNameLookups, key, purpose, () => this.fetchPlayerByName(name, kingdom, purpose));
+        return this.byName(this.playerNames, this.playerNameLookups, key, purpose, async () => {
+            const result = await this.fetchPlayerByName(name, kingdom, purpose);
+            if (result.kind === "found")
+                this.sawPlayer(result.value);
+            return result;
+        });
     }
     /**
      * A fresh cached answer, else one shared request; a found Alliance and a match list are cached, a failure is not.
      * The full name is compared in lower case. The purpose decides whether the request may use the Quota Reserve.
      */
     async findAlliance(name, purpose) {
-        return this.byName(this.allianceNames, this.allianceNameLookups, `alliance-name:${name.toLowerCase()}`, purpose, () => this.fetchAllianceByName(name, purpose));
+        return this.byName(this.allianceNames, this.allianceNameLookups, `alliance-name:${name.toLowerCase()}`, purpose, async () => {
+            const result = await this.fetchAllianceByName(name, purpose);
+            if (result.kind === "found")
+                this.sawAlliance(result.value);
+            return result;
+        });
     }
     /**
      * The name lookups' cache flow: a fresh answer from the cache, else one request shared by concurrent callers with
@@ -115,8 +129,10 @@ export class GameApiClient {
             return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
         return this.allianceLookups.share(flightKey(purpose, cacheKey), async () => {
             const result = await this.fetchAlliance(kingdom, key, purpose);
-            if (result.kind === "found")
+            if (result.kind === "found") {
                 this.alliances.store(cacheKey, result.value, result.fetchedAt);
+                this.sawAlliance(result.value);
+            }
             return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
         });
     }
@@ -337,6 +353,27 @@ export class GameApiClient {
             return;
         }
         this.quota.settle(day, figures);
+    }
+    /** The Alliance a found Player belongs to, if any, is in the Player's Kingdom. */
+    sawPlayer(player) {
+        if (player.alliance === undefined)
+            return;
+        this.sawAllianceIn(player.kingdom, player.alliance.tag, player.alliance.name);
+    }
+    sawAlliance(alliance) {
+        this.sawAllianceIn(alliance.kingdom, alliance.tag, alliance.name);
+    }
+    /** Tells the hook of an Alliance; a throwing hook is logged, and the lookup it came from still succeeds. */
+    sawAllianceIn(kingdom, tag, name) {
+        if (this.onAllianceSeen === undefined)
+            return;
+        try {
+            this.onAllianceSeen(kingdom, tag, name);
+        }
+        catch (error) {
+            const reason = error instanceof Error ? error.message : "unknown error";
+            this.logError(`Game API onAllianceSeen: hook failed, ${reason}`);
+        }
     }
     fail(endpoint, detail, failure) {
         this.logError(`Game API ${endpoint}: ${failure.kind}, ${detail}`);

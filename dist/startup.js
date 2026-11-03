@@ -31,13 +31,22 @@ export async function start(deps) {
         store = deps.openStore(config.dataDir, config.interviewTimeoutMs);
         const startRecord = recordStart(store.load(), deps.now());
         store.save(startRecord);
+        const { knownAlliances } = store;
+        // Known Alliances not seen for 30 days are forgotten at each start (FR-006).
+        knownAlliances.forget(deps.now());
         const quota = new QuotaKeeper({ store: store.dailyQuota, now: deps.now, reserve: config.quotaReserve });
         // Reads today's Daily Quota now, so a corrupt row stops startup as a corrupt start record does.
         const today = quota.today();
         if (config.quotaReserve >= today.limit) {
             deps.writeWarning(`Warning: GAME_API_QUOTA_RESERVE (${config.quotaReserve.toString()}) is at or above the Daily Quota limit (${today.limit.toString()}); lookups will never ask the Game API.`);
         }
-        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota);
+        // Only the Home Kingdom's Alliances are kept: they are the ones /alliance suggests by name and tag.
+        const onAllianceSeen = (kingdom, tag, name) => {
+            if (kingdom !== config.homeKingdom || tag.trim() === "" || name.trim() === "")
+                return;
+            knownAlliances.seen({ kingdom, tag, name }, deps.now());
+        };
+        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota, onAllianceSeen);
         connection = await deps.connect(config.discordToken, {
             buildInfo,
             startRecord,
@@ -51,6 +60,7 @@ export async function start(deps) {
             interviews: store.interviews,
             links: store.links,
             applied: store.applied,
+            knownAlliances,
             homeKingdom: config.homeKingdom,
             troopBracketLevels: config.troopBracketLevels,
         });
