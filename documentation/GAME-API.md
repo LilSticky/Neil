@@ -49,7 +49,7 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 | `GET /alliances/{alliance_id}` | documented, not tried | an alliance by id |
 
 Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
-[discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004). There is
+[discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004), and the Onboarding Interview's Recommended Player (slice 005: one `/players/name/{name}` per Interview, Quota Reserve). There is
 no approximate (fuzzy) name search in the API.
 
 ### Player (`/players/{uid}`), verified fields
@@ -59,7 +59,9 @@ no approximate (fuzzy) name search in the API.
 - Game: `power`, `lv` (= `level`, sanctuary level), `kills`, `vip`, `likes`, `language`, `gender`,
   `skin_name`, `x`, `y`, `first_seen_at`, `last_seen_at` (Unix seconds, fractional)
 - Alliance: `aid` (= `union_id`), `alliance_name`, `alliance_abbr`, and an `alliance` object with
-  `name`, `abbr`, `power`, `member_count`, `capacity`, `language`, **`leader_id`**, `leader_name`
+  `name`, `abbr`, `power`, `member_count`, `capacity`, `language`, **`leader_id`**, `leader_name`.
+  `leader_id` is read since slice 005 as the Alliance leader's uid, leniently (a number or a digit string;
+  nullish means no leader).
 - **`alliance_members[]`**: the player's whole alliance roster, same fields as below, including
   `rank_label`. The player's own rank is their row in it.
 - `ranks`: `{}` in the sample; **not the alliance rank**. Ignore it.

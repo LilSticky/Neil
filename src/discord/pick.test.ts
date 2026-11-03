@@ -256,7 +256,7 @@ const memberOne: Player = {
   kingdom: kingdomNumber(1),
   power: 5000,
   sanctuaryLevel: 10,
-  alliance: { tag: "NML", name: "No Man's Land" },
+  alliance: { tag: "NML", name: "No Man's Land", leaderUid: undefined },
   allianceRank: "R4",
 };
 
@@ -337,10 +337,12 @@ describe("handlePick page buttons of a roster", () => {
     );
     const listed = JSON.stringify(updatedEmbeds);
     expect(updatedEmbeds).toHaveLength(1);
-    expect(listed).toContain("M25 · 100000000025");
-    expect(listed).toContain("M29 · 100000000029");
-    expect(listed).not.toContain("M00 · 100000000000");
-    expect(listed).not.toContain("M24 · 100000000024");
+    expect(listed).toContain("M25");
+    expect(listed).toContain("M29");
+    expect(listed).not.toContain("M01");
+    expect(listed).not.toContain("M24");
+    expect(listed).not.toContain("100000000025");
+    expect(listed).not.toContain("100000000029");
   });
 });
 

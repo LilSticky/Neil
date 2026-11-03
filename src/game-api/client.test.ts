@@ -203,10 +203,22 @@ describe("GameApiClient.getPlayer result", () => {
         kingdom: 1,
         power: 15902728,
         sanctuaryLevel: 23,
-        alliance: { tag: "NML", name: "No Man's Land" },
+        alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
       },
       fetchedAt: FIXED_NOW,
+    });
+  });
+
+  test("maps the Alliance's leader_id to its leaderUid, even when the Leader is not the requested player", async () => {
+    const body = { ...playerInAlliance, alliance: { ...playerInAlliance.alliance, leader_id: 93159425 } };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: { uid: "145563254785", alliance: { tag: "NML", leaderUid: "93159425" } },
     });
   });
 
@@ -1205,7 +1217,7 @@ describe("GameApiClient.findPlayer result", () => {
         kingdom: 1,
         power: 15902728,
         sanctuaryLevel: 23,
-        alliance: { tag: "NML", name: "No Man's Land" },
+        alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
       },
       fetchedAt: FIXED_NOW,

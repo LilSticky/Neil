@@ -16,6 +16,54 @@ const migrations: readonly string[] = [
      limit_reached INTEGER NOT NULL CHECK (limit_reached IN (0, 1)),
      confirmed_at TEXT
    )`,
+  // Onboarding Interviews, Links and Rank Approvals (slice 005, ADR 7).
+  `CREATE TABLE onboarding_interview (
+     id INTEGER PRIMARY KEY,
+     member_id TEXT NOT NULL,
+     thread_id TEXT NOT NULL,
+     step TEXT NOT NULL,
+     failed_attempts INTEGER NOT NULL CHECK (failed_attempts BETWEEN 0 AND 5),
+     uid TEXT,
+     player_json TEXT,
+     started_at TEXT NOT NULL,
+     last_asked_at TEXT,
+     resumes_at TEXT,
+     ended_at TEXT,
+     end_reason TEXT,
+     due_at TEXT
+   );
+   CREATE INDEX onboarding_interview_due ON onboarding_interview (due_at);
+   CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
+     WHERE step IN ('awaiting-uid', 'checking', 'awaiting-confirmation', 'paused-for-quota');
+   CREATE TABLE link (
+     member_id TEXT PRIMARY KEY,
+     uid TEXT NOT NULL UNIQUE,
+     linked_at TEXT NOT NULL,
+     rank_source TEXT NOT NULL,
+     alliance_rank TEXT,
+     approved_by TEXT,
+     approved_at TEXT
+   );
+   CREATE TABLE rank_approval (
+     id INTEGER PRIMARY KEY,
+     linked_member_id TEXT NOT NULL,
+     thread_id TEXT NOT NULL,
+     approver_kind TEXT NOT NULL,
+     approver_member_id TEXT,
+     state TEXT NOT NULL,
+     rank TEXT,
+     approved_by TEXT,
+     asked_at TEXT NOT NULL,
+     ended_at TEXT
+   )`,
+  // Migration 4: the name lookup, the Recommended Player, the pick list and the chosen uid (slice 005, US6).
+  `ALTER TABLE onboarding_interview ADD COLUMN chosen_uid TEXT;
+   ALTER TABLE onboarding_interview ADD COLUMN chosen_player_json TEXT;
+   ALTER TABLE onboarding_interview ADD COLUMN matches_json TEXT;
+   DROP INDEX one_open_interview;
+   CREATE UNIQUE INDEX one_open_interview ON onboarding_interview (member_id)
+     WHERE step IN ('recommending', 'awaiting-recommendation', 'awaiting-pick', 'awaiting-uid', 'checking',
+       'awaiting-confirmation', 'paused-for-quota')`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

@@ -86,7 +86,7 @@ function fitTitle(escaped: string): string {
 }
 
 /** A select menu option's label, cut to 100 characters when longer, ending with an ellipsis. */
-function optionLabel(text: string): string {
+export function optionLabel(text: string): string {
   if (text.length <= OPTION_LABEL_MAX_LENGTH) return text;
   return `${text.slice(0, OPTION_LABEL_MAX_LENGTH - 1)}…`;
 }
@@ -103,7 +103,6 @@ export function renderPlayerCard(player: Player, fetchedAt: Date, now: Date): AP
       ? "No alliance"
       : `[${escapeText(player.alliance.tag)}] ${escapeText(player.alliance.name)}`;
   const fields: APIEmbedField[] = [
-    { name: "uid", value: escapeText(player.uid), inline: true },
     { name: "Kingdom", value: `#${player.kingdom.toString()}`, inline: true },
     { name: "Power", value: player.power.toLocaleString("en-US"), inline: true },
     { name: "Sanctuary level", value: player.sanctuaryLevel.toString(), inline: true },
@@ -130,9 +129,9 @@ function embedCharacters(embed: APIEmbed): number {
   return texts.reduce((total, text) => total + text.length, 0);
 }
 
-/** One roster row as the card shows it: the escaped name and the uid. */
+/** One roster row as the card shows it: the escaped name. */
 function rosterRow(entry: RosterEntry): string {
-  return `${escapeText(entry.name)} · ${escapeText(entry.uid)}`;
+  return escapeText(entry.name);
 }
 
 /** An Alliance Rank as a field or menu label: R1–R5, or Unknown. */
@@ -280,7 +279,8 @@ export function renderPlayerPickList(
   const { listed, leftOut } = listedPlayerMatches(matches);
   const note = leftOut > 0 ? `\n${PLAYER_PICK_LIMIT_NOTE}` : "";
   const options = listed.map((match, index) => ({
-    label: optionLabel(playerPickLabel(match)),
+    label: optionLabel(match.name ?? "Unknown"),
+    description: `Kingdom #${match.kingdom.toString()}`,
     value: index.toString(),
   }));
   return {
@@ -344,8 +344,8 @@ export function renderRosterComponents(
   const pages = pageCount(ordered);
   const current = clampPage(page, ordered);
   const options = pageOf(ordered, current).map((entry, index) => ({
-    label: optionLabel(`${rankLabel(entry.allianceRank)} · ${entry.name}`),
-    description: `uid ${entry.uid}`,
+    label: optionLabel(entry.name),
+    description: rankLabel(entry.allianceRank),
     value: index.toString(),
   }));
   const rows: APIActionRowComponent<APIComponentInMessageActionRow>[] = [

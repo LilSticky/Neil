@@ -7,6 +7,8 @@ export type AllianceRank = "R1" | "R2" | "R3" | "R4" | "R5" | "unknown";
 export interface PlayerAlliance {
   readonly tag: string;
   readonly name: string;
+  /** The Alliance's leader, its R5, as the Game API names it; undefined when the Game gives none readable. */
+  readonly leaderUid: Uid | undefined;
 }
 
 interface PlayerProfile {

@@ -448,7 +448,7 @@ export async function handleAlliance(
 ): Promise<void> {
   await answer("/alliance", context, async () => {
     const kingdomValue = interaction.options.getInteger("kingdom");
-    const tagText = interaction.options.getString("alliance");
+    const tagText = interaction.options.getString("tag");
     const nameText = interaction.options.getString("name");
     if (kingdomValue !== null && tagText !== null && nameText === null) {
       await lookUpAllianceByTag(interaction, context, kingdomValue, tagText);
