@@ -15,7 +15,8 @@ waits on the open questions in [#35](https://github.com/LilSticky/Neil/issues/35
 
 ## Known broken / WIP
 
-- Slice 011, C3 (hiding Officer commands from Members) is left open.
+- Officer commands are now hidden from Members (slice 011 C3 fixed). After deploying, run `npm run commands:register`
+  and do the Integrations step in [HOSTING.md](HOSTING.md) (allow Moderator and King, limit to the moderator channel).
 - Slice 005: T033 (`bot-reviewer` on the Phase 9–10 diff) and T034 (`spec-auditor` against FR-021–FR-027) are unticked.
 
 ## Open questions
