@@ -28,7 +28,21 @@ States: `planned` · `in progress` · `in review` · `done`
 
 ## Later (unordered)
 
-- Nothing yet.
+Ideas from the user (2026-11-04), not yet sliced. Each needs domain discovery (`domain-modeler`) first; the terms
+below are working words, not dictionary terms.
+
+- **Be alarmed for excavations ("booty")**: opt-in alarms when an alliance excavation starts. Blocked on the Game
+  API; its developer is working on something that would help.
+- **Be reminded of events**: Neil keeps Discord events for in-game events, and opt-in Members are invited,
+  reminded, reminded to sign up, and given the event's guides.
+- **Prepare an Undead Siege**: help plan who reinforces whom across the 20 waves, knowing that not every Player is
+  eligible to take part.
+- **Fight KvK / AD on Raid Day**: manage raid groups and their communication, on top of the player and alliance
+  lookups.
+- **Shape the alliance hive**: lay out text (dot matrix) or a simple pattern, give each Player their coordinates,
+  and remind those not yet in place.
+- **Score REAPER kills**: points and a scoreboard for confirmed kills of Exiles (extends slice 014). Blocked on the
+  Game API providing battle information.
 
 ## Project infrastructure (not slices)
 
