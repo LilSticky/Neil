@@ -1,0 +1,1 @@
+{"version":3,"file":"link-state-role.js","sourceRoot":"","sources":["../../src/domain/link-state-role.ts"],"names":[],"mappings":"AAGA,6EAA6E;AAC7E,MAAM,UAAU,YAAY,CAAC,KAAc,EAAE,KAAc;IACzD,IAAI,KAAK,IAAI,CAAC,KAAK;QAAE,OAAO,MAAM,CAAC;IACnC,IAAI,KAAK,IAAI,CAAC,KAAK;QAAE,OAAO,UAAU,CAAC;IACvC,OAAO,MAAM,CAAC;AAChB,CAAC"}

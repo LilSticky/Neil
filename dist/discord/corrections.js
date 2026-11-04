@@ -225,12 +225,13 @@ async function confirmLink(button, pending, deps) {
     await finishOfficerLink(deps, pending, latest.threadId, link, outcome.rankApproval);
 }
 /**
- * The Onboarding Role is taken off, the stored Officer Link is logged with its Officer, and its name and roles applied. A
- * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted. A failed
- * name and roles step is logged; the Link stands.
+ * The Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither role. The stored
+ * Officer Link is logged with its Officer, and its name and roles applied. A pending Rank Approval is asked in the thread,
+ * which says the Link is stored; otherwise the thread is deleted. A failed name and roles step is logged; the Link stands.
  */
 async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
     const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+    await deps.doctorRole.give(pending.memberId);
     await deps.onboardingRole.takeOff(pending.memberId);
     if (pendingApproval !== undefined) {
         await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));

@@ -1,0 +1,1 @@
+{"version":3,"file":"doctor-role.js","sourceRoot":"","sources":["../../src/domain/doctor-role.ts"],"names":[],"mappings":"AAAA,gGAAgG;AAChG,MAAM,CAAC,MAAM,gBAAgB,GAAG,QAAQ,CAAC;AAEzC,yEAAyE;AACzE,MAAM,UAAU,eAAe,CAAC,MAA2D;IACzF,OAAO,CAAC,MAAM,CAAC,GAAG,IAAI,MAAM,CAAC,MAAM,CAAC;AACtC,CAAC"}

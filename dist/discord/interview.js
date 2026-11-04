@@ -96,8 +96,10 @@ function errorText(error) {
 async function joinMember(deps, member) {
     if (member.bot)
         return;
-    if (deps.links.linkFor(member.id) !== undefined)
+    if (deps.links.linkFor(member.id) !== undefined) {
+        await deps.doctorRole.give(member.id);
         return;
+    }
     if (deps.interviews.openFor(member.id) !== undefined)
         return;
     await deps.onboardingRole.give(member.id);
@@ -514,13 +516,14 @@ async function refuseConfirmation(deps, interview, now) {
     return "done";
 }
 /**
- * The Link is stored: the Onboarding Role is taken off and the log notes the Link with the leader's Member when present.
- * The Member's name and roles follow, without touching the Link. The Preferences message is posted in the thread. A
- * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted, unless
- * the Preferences message is open in it.
+ * The Link is stored: the Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither
+ * role; the log notes the Link with the leader's Member when present. The Member's name and roles follow, without touching
+ * the Link. The Preferences message is posted in the thread. A pending Rank Approval is asked in the thread, which says the
+ * Link is stored; otherwise the thread is deleted, unless the Preferences message is open in it.
  */
 async function finishLink(deps, interview, leaderMemberId, link, rankApproval) {
     const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+    await deps.doctorRole.give(interview.memberId);
     await deps.onboardingRole.takeOff(interview.memberId);
     if (pendingApproval !== undefined) {
         await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));

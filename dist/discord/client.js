@@ -6,6 +6,7 @@ import { createInterviews, } from "./interview.js";
 import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
+import { createDoctorRole } from "./doctor-role.js";
 import { createNameAndRoles } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
 import { createPreferenceRoles } from "./preferences.js";
@@ -545,8 +546,15 @@ export async function connect(token, options) {
         const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
         const officerRoles = { moderatorRoleId, kingRoleId };
         const channels = createOnboardingChannels(guild, channelIds);
-        // One Onboarding Role service for every path that gives or takes the role off.
+        // One Onboarding Role service and one Doctor Role service, for every path that gives or takes the roles off.
         const onboardingRole = createOnboardingRole({
+            members: serverMembersOf(guild),
+            links: options.links,
+            logError,
+            log: (message) => channels.log(message),
+            officerRoleIds: options.officerRoleIds,
+        });
+        const doctorRole = createDoctorRole({
             members: serverMembersOf(guild),
             links: options.links,
             logError,
@@ -589,6 +597,7 @@ export async function connect(token, options) {
             channels,
             members: serverMembersOf(guild),
             onboardingRole,
+            doctorRole,
             preferenceRoles,
             now,
             sendPrivateMessage,
@@ -630,6 +639,7 @@ export async function connect(token, options) {
             nameAndRoles,
             unlink,
             onboardingRole,
+            doctorRole,
             preferences: createPreferencesAfterLink({
                 preferences: options.preferences,
                 channels,
@@ -668,6 +678,7 @@ export async function connect(token, options) {
                 rankApprovals,
                 nameAndRoles,
                 onboardingRole,
+                doctorRole,
                 isOnServer,
                 sendPrivateMessage,
                 confirmations: linkConfirmations,
@@ -708,10 +719,17 @@ export async function connect(token, options) {
             reaperRemove: (interaction) => handleReaperRemove(interaction, reaperWrites),
             pick: (interaction) => handlePick(interaction, pickContext),
         });
-        // The startup sweep of the Onboarding Role and the startup apply run in the background, so login does not wait for
-        // them. The Daily Sync starts once the startup apply has settled, so their Game API lookups do not overlap.
-        void onboardingRole.atStartup().catch((error) => {
+        // The startup sweeps of the Onboarding Role and then the Doctor Role, chained so their log lines and role changes do not
+        // interleave, and the startup apply, run in the background, so login does not wait for them. The Daily Sync starts once
+        // the startup apply has settled, so their Game API lookups do not overlap.
+        void onboardingRole
+            .atStartup()
+            .catch((error) => {
             logError(`Bringing the Onboarding Role of the Members up to date at startup failed: ${String(error)}`);
+        })
+            .then(() => doctorRole.atStartup())
+            .catch((error) => {
+            logError(`Bringing the Doctor Role of the Members up to date at startup failed: ${String(error)}`);
         });
         void nameAndRoles
             .atStartup()

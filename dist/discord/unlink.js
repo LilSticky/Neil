@@ -7,9 +7,9 @@ export function createUnlink(deps) {
 }
 /**
  * Ends a Member's Link. The Link and its applied state are removed first. For a Member on the server, Neil then takes off
- * the Managed Roles and the nickname it set, and cancels the Member's own pending Rank Approval. The Member is logged and
- * told privately (not when they Unlinked themselves), and the Rank Approvals waiting on them are handed on. Each step is
- * guarded, so a failure is logged and the next step still runs.
+ * the Managed Roles, the Doctor Role and the nickname it set, gives the Onboarding Role back, and cancels the Member's own
+ * pending Rank Approval. The Member is logged and told privately (not when they Unlinked themselves), and the Rank
+ * Approvals waiting on them are handed on. Each step is guarded, so a failure is logged and the next step still runs.
  */
 async function unlinkMember(deps, memberId, reason) {
     const applied = attempt(deps, memberId, "reading the applied state", () => deps.applied.get(memberId));
@@ -20,6 +20,7 @@ async function unlinkMember(deps, memberId, reason) {
     let notChanged = [];
     if (!removedByDiscord(reason)) {
         notChanged = await takeOffOnServer(deps, memberId, applied);
+        await deps.doctorRole.takeOff(memberId);
         await deps.onboardingRole.give(memberId);
         await cancelOwnApproval(deps, memberId);
     }
