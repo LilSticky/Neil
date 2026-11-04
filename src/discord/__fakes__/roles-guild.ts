@@ -150,6 +150,8 @@ export class FakeRolesGuild implements RolesGuild {
 /** A guild member of the fakes: the roles it holds and its nickname. */
 export class FakeRolesMember implements RolesMember {
   nickname: string | undefined = undefined;
+  /** Whether the Member is a bot account; a test sets it for a bot. */
+  bot = false;
 
   constructor(
     readonly id: string,

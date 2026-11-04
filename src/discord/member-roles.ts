@@ -38,6 +38,8 @@ export interface RolesGuild {
 /** The part of a guild member the apply uses. */
 export interface RolesMember {
   readonly id: string;
+  /** Whether the Member is a bot account, which Neil never gives a named role. */
+  readonly bot: boolean;
   /** The server nickname; null or undefined when the Member has none. */
   readonly nickname?: string | null | undefined;
   readonly roles: readonly RoleLike[];
@@ -128,6 +130,27 @@ export async function applyNameAndRoles(
   }
 
   return { nickname, added, removed, created, skipped };
+}
+
+/**
+ * Gives the Member the permission-free role of the name, creating it once when the guild has none. A role that grants
+ * permissions, or one out of reach, is refused and returned as the skip. Never throws.
+ */
+export async function giveNamedRole(guild: RolesGuild, member: RolesMember, name: string): Promise<Skipped | undefined> {
+  return addRole(guild, member, name, [], { added: [], created: [] });
+}
+
+/**
+ * Takes the permission-free role of the name off the Member, when they hold it. A role out of reach is left and
+ * returned as the skip; so is a held role of the name that grants permissions, which Neil never takes off. Never throws.
+ */
+export async function takeOffNamedRole(guild: RolesGuild, member: RolesMember, name: string): Promise<Skipped | undefined> {
+  const skip = await removeRoles(guild, member, name, [], []);
+  if (skip !== undefined) return skip;
+  const keepsPermissions = member.roles.some(
+    (role) => role.name === name && isGivable(guild, role, []) && role.permissions.bitfield !== 0n,
+  );
+  return keepsPermissions ? { what: name, reason: "has-permissions" } : undefined;
 }
 
 /** Whether Neil may give or take the role: not @everyone, not an integration's, and not an Officer role. */

@@ -15,6 +15,7 @@ export class FakeServerMembers implements ServerMembers {
   private readonly members = new Map<MemberId, ServerMember>();
   private readonly failures = new Map<MemberId, Error>();
   private failure: Error | undefined = undefined;
+  private listingFailure: Error | undefined = undefined;
   private hold: { readonly reached: () => void; readonly released: Promise<void> } | undefined = undefined;
 
   join(memberId: MemberId, guild: FakeRolesGuild, member: FakeRolesMember): void {
@@ -23,6 +24,17 @@ export class FakeServerMembers implements ServerMembers {
 
   failWith(error: Error): void {
     this.failure = error;
+  }
+
+  /** Makes listing every Member fail with the error, as an outage of Discord would. */
+  failListing(error: Error): void {
+    this.listingFailure = error;
+  }
+
+  /** Every Member on the server, in the order they joined. Rejects after `failListing`. */
+  all(): Promise<readonly ServerMember[]> {
+    if (this.listingFailure !== undefined) return Promise.reject(this.listingFailure);
+    return Promise.resolve([...this.members.values()]);
   }
 
   /** Makes the lookup of this one Member fail; the other Members are reached as usual. */

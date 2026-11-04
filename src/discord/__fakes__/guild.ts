@@ -40,8 +40,6 @@ export class FakeChannel {
   readonly sent: FakeMessage[] = [];
   /** Ids of the members added to this thread. */
   readonly memberIds = new Set<string>();
-  locked = false;
-  archived = false;
 
   /** The channel.threads manager: creating a thread registers it in the guild. */
   readonly threads = {
@@ -86,16 +84,6 @@ export class FakeChannel {
     return { has: (permission: bigint) => this.botPermissions.includes(permission) };
   }
 
-  setLocked(locked: boolean): Promise<FakeChannel> {
-    this.locked = locked;
-    return Promise.resolve(this);
-  }
-
-  setArchived(archived: boolean): Promise<FakeChannel> {
-    this.archived = archived;
-    return Promise.resolve(this);
-  }
-
   /** Deletes the channel or thread from the guild: fetching its id afterwards gives null. */
   delete(): Promise<FakeChannel> {
     this.guild.remove(this.id);
@@ -108,12 +96,22 @@ export class FakeGuild {
   readonly members = { me: { id: BOT_MEMBER_ID } };
 
   private readonly byId = new Map<string, FakeChannel>();
+  private readonly fetchFailures = new Map<string, Error>();
   private threadCount = 0;
 
   /** The guild channel manager: an unknown id fetches null, a thread fetches like a channel. */
   readonly channels = {
-    fetch: (id: string): Promise<FakeChannel | null> => Promise.resolve(this.byId.get(id) ?? null),
+    fetch: (id: string): Promise<FakeChannel | null> => {
+      const failure = this.fetchFailures.get(id);
+      if (failure !== undefined) return Promise.reject(failure);
+      return Promise.resolve(this.byId.get(id) ?? null);
+    },
   };
+
+  /** Makes fetching this channel or thread reject with the error, as Discord does for a thread it cannot find. */
+  failFetch(id: string, error: Error): void {
+    this.fetchFailures.set(id, error);
+  }
 
   addChannel(id: string, options: FakeChannelOptions): FakeChannel {
     const channel = new FakeChannel(this, id, options.type, options.botPermissions ?? [], undefined, undefined);

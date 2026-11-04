@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { ChannelType, Events, PermissionFlagsBits } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { todaysQuota, utcDayOf, type RequestPurpose } from "../domain/daily-quota.js";
+import { ONBOARDING_ROLE_NAME } from "../domain/onboarding-role.js";
 import { parseUid, parseKingdom, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../domain/player.js";
 import { recordStart } from "../domain/start-record.js";
@@ -287,6 +288,36 @@ describe("connect", () => {
     gameApi.release();
     await vi.waitFor(() => {
       expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
+    });
+  });
+
+  describe("the Onboarding Role at startup", () => {
+    test("gives the Onboarding Role to a non-bot Member who is not Linked", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(guild.rolesOf(BOB)).toContain(ONBOARDING_ROLE_NAME);
+      });
+    });
+
+    test("takes the Onboarding Role off a Linked Member who holds it", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.defineRole(ONBOARDING_ROLE_NAME);
+      guild.join(ALICE, [ONBOARDING_ROLE_NAME]);
+      FakeClient.served = guild;
+      linkAlice();
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(guild.rolesOf(ALICE)).not.toContain(ONBOARDING_ROLE_NAME);
+      });
     });
   });
 

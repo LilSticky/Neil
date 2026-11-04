@@ -6,8 +6,8 @@ import { applyNameAndRoles } from "./member-roles.js";
 import type { ServerMembers } from "./name-and-roles.js";
 import type { OfficerRoles } from "./interview-texts.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import {
-  rankCancelledByUnlinkMessage,
   rankHandedToOfficersMessage,
   unlinkedByOfficerPrivateMessage,
   unlinkedLogLine,
@@ -29,9 +29,11 @@ export interface Unlink {
 export interface UnlinkDeps {
   readonly links: LinkStore;
   readonly applied: AppliedStore;
-  readonly channels: Pick<OnboardingChannels, "log" | "post">;
+  readonly channels: Pick<OnboardingChannels, "log" | "post" | "deleteThread">;
   /** The members of the server: a Member not on it has no roles or nickname for Neil to change. */
   readonly members: ServerMembers;
+  /** Gives the Onboarding Role back to a Member whose Link ends by their own or an Officer's Unlink. */
+  readonly onboardingRole: Pick<OnboardingRole, "give">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -55,6 +57,7 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {
     notChanged = await takeOffOnServer(deps, memberId, applied);
+    await deps.onboardingRole.give(memberId);
     await cancelOwnApproval(deps, memberId);
   }
   if (removed !== undefined) {
@@ -107,8 +110,8 @@ async function cancelOwnApproval(deps: UnlinkDeps, memberId: MemberId): Promise<
     deps.links.saveIfPending(cancelled),
   );
   if (saved !== true) return;
-  await attemptAsync(deps, memberId, `posting in the thread of Rank Approval ${pending.id.toString()}`, () =>
-    deps.channels.post(pending.threadId, rankCancelledByUnlinkMessage()),
+  await attemptAsync(deps, memberId, `deleting the thread of Rank Approval ${pending.id.toString()}`, () =>
+    deps.channels.deleteThread(pending.threadId),
   );
 }
 

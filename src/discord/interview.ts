@@ -29,6 +29,7 @@ import type { CreateOutcome, InterviewStore } from "../storage/interview-store.j
 import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import type { Unlink } from "./unlink.js";
 import {
@@ -45,7 +46,6 @@ import {
   interviewEndedReply,
   interviewLinkedReply,
   interviewOpenedReply,
-  leftMessage,
   linkedMessage,
   linkLogLine,
   malformedUidMessage,
@@ -53,7 +53,6 @@ import {
   parseInterviewCustomId,
   pickListMessage,
   quotaSpentMessage,
-  rankCancelledLeftMessage,
   rankCancelledLogLine,
   recommendationMessage,
   refusedLogLine,
@@ -139,6 +138,7 @@ export interface InterviewDeps {
   readonly rankApprovals: RankApprovals;
   readonly nameAndRoles: NameAndRoles;
   readonly unlink: Unlink;
+  readonly onboardingRole: Pick<OnboardingRole, "give" | "takeOff">;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -267,6 +267,7 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
   if (member.bot) return;
   if (deps.links.linkFor(member.id) !== undefined) return;
   if (deps.interviews.openFor(member.id) !== undefined) return;
+  await deps.onboardingRole.give(member.id);
   await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
 }
 
@@ -418,13 +419,13 @@ async function leaveServer(deps: InterviewDeps, member: LeftMember): Promise<voi
   const interview = deps.interviews.openFor(member.id);
   if (interview !== undefined) {
     await leaveStep(deps, `Abandoning the Interview of ${member.id}`, () =>
-      abandonOnLeave(deps, interview, member.username, now),
+      abandonOnLeave(deps, interview, now),
     );
   }
   const approval = deps.links.pendingFor(member.id);
   if (approval !== undefined) {
     await leaveStep(deps, `Cancelling the Rank Approval of ${member.id}`, () =>
-      cancelRankApproval(deps, approval, member.username, now),
+      cancelRankApproval(deps, approval, now),
     );
   }
   await deps.unlink.unlink({ id: member.id }, "left");
@@ -439,24 +440,22 @@ async function leaveStep(deps: InterviewDeps, label: string, work: () => Promise
   }
 }
 
-async function abandonOnLeave(deps: InterviewDeps, interview: OpenInterview, username: string, now: Date): Promise<void> {
+async function abandonOnLeave(deps: InterviewDeps, interview: OpenInterview, now: Date): Promise<void> {
   const transition = memberLeft(interview, now);
   if (transition.event.kind !== "abandoned") return;
   deps.interviews.save(transition.interview);
   // The log comes first: a thread that is gone must not cost the line.
   await deps.channels.log(abandonedLogLine(interview.memberId, "left"));
-  await deps.channels.post(interview.threadId, leftMessage(username));
-  await deps.channels.lockAndArchive(interview.threadId);
+  await deps.channels.deleteThread(interview.threadId);
 }
 
-async function cancelRankApproval(deps: InterviewDeps, approval: RankApproval, username: string, now: Date): Promise<void> {
+async function cancelRankApproval(deps: InterviewDeps, approval: RankApproval, now: Date): Promise<void> {
   const change = cancel(approval, now);
   if (!change.ok) return;
   deps.links.save(change.approval);
   // The log comes first: a thread that is gone must not cost the line.
   await deps.channels.log(rankCancelledLogLine(approval.linkedMemberId));
-  await deps.channels.post(approval.threadId, rankCancelledLeftMessage(username));
-  await deps.channels.archive(approval.threadId);
+  await deps.channels.deleteThread(approval.threadId);
 }
 
 async function pressButton(deps: InterviewDeps, button: ButtonInteractionLike): Promise<void> {
@@ -690,9 +689,9 @@ async function refuseConfirmation(
 }
 
 /**
- * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The Member's
- * name and roles follow, without touching the Link or the thread. The thread closes, unless a Rank Approval is asked in
- * it: then the thread is archived when the approval ends.
+ * The Link is stored: the Onboarding Role is taken off and the log notes the Link with the leader's Member when present.
+ * The Member's name and roles follow, without touching the Link. A pending Rank Approval is asked in the thread, which
+ * says the Link is stored; otherwise the thread is deleted.
  */
 async function finishLink(
   deps: InterviewDeps,
@@ -701,11 +700,15 @@ async function finishLink(
   link: Link,
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
-  await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
+  const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+  await deps.onboardingRole.takeOff(interview.memberId);
+  if (pendingApproval !== undefined) {
+    await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
+  }
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
   await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
-  if (rankApproval?.state === "pending") return deps.rankApprovals.announce(rankApproval, interview.player);
-  await deps.channels.archive(interview.threadId);
+  if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, interview.player);
+  await deps.channels.deleteThread(interview.threadId);
 }
 
 /** Gives the Linked Member their name and roles; a failure is logged, never thrown, so the Link stands. */

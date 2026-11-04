@@ -66,6 +66,20 @@ deploy.
 and **below** the Moderator and King roles. Neil creates missing Managed Roles itself, without permissions; never
 give a role with such a name any permissions (Neil then refuses to use it). Neil cannot rename the server owner.
 
+**Onboarding Role for slice 013**: Neil gives the `Onboarding` role (created by Neil, without permissions) to every
+Member who is not Linked, and takes it off at Link. Neil never changes channel permissions; set them by hand, once Neil
+has created the role (at its first start with slice 013):
+
+- Every channel or category except `#onboarding`: deny **View Channel** to `@everyone`, and allow it to the roles that
+  should see it (for example the Alliance or Kingdom roles, and Neil's own role for `#neil-log`).
+- `#onboarding`: deny **View Channel** to `@everyone`; allow **View Channel**, **Send Messages** and **Send Messages in
+  Threads** to `Onboarding`; allow **View Channel** and **Manage Threads** to the Moderator and King roles; allow **View
+  Channel** and **Send Messages in Threads** to `R5`, so an Alliance leader can open the Rank Approval threads Neil adds
+  them to (private threads: they see only those); Neil keeps the permissions listed for slice 005.
+- Neil's role must sit **above** `Onboarding`. Never give `Onboarding` permissions (Neil then refuses to use it).
+
+Finished Interview threads are deleted, so Neil needs Manage Threads in `#onboarding` (already required).
+
 Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
 startup. Don't delete `.env` in the file manager.
 

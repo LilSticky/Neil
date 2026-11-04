@@ -13,7 +13,6 @@ import { LinkStore } from "../storage/link-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
   rankAskedMessage,
-  rankApprovedMessage,
   rankNotAllowedReply,
   rankSetLogLine,
   type OfficerRoles,
@@ -67,13 +66,14 @@ const PLAYER_UNKNOWN: Player = {
   allianceRank: "unknown",
 };
 
-/** The onboarding channels as Rank Approvals use them: records every thread, post, archive and log call. */
+/** The onboarding channels as Rank Approvals use them: records every thread, post, deletion and log call. */
 class FakeChannels implements OnboardingChannels {
   readonly added: { readonly threadId: string; readonly memberId: string }[] = [];
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
-  readonly archived: string[] = [];
+  readonly deleted: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
   private posted = 0;
+  private deleteFailure: Error | undefined = undefined;
 
   openThread(): Promise<string> {
     return Promise.resolve(THREAD);
@@ -94,16 +94,14 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
-  deleteThread(): Promise<void> {
-    return Promise.resolve();
+  /** Every thread deletion is refused from now on: the thread cannot be deleted. */
+  refuseDeletes(error: Error): void {
+    this.deleteFailure = error;
   }
 
-  lockAndArchive(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  archive(threadId: string): Promise<void> {
-    this.archived.push(threadId);
+  deleteThread(threadId: string): Promise<void> {
+    if (this.deleteFailure !== undefined) return Promise.reject(this.deleteFailure);
+    this.deleted.push(threadId);
     return Promise.resolve();
   }
 
@@ -274,17 +272,15 @@ describe("createRankApprovals", () => {
       expect(button.updates[0]?.components).toEqual([]);
     });
 
-    test("posts the approved message in the thread and archives the thread", async () => {
+    test("deletes the thread with no approved message in it", async () => {
       const approval = linkWithPendingApproval(h, { kind: "officers" });
       await h.service.announce(approval, PLAYER_UNKNOWN);
+      const postsBefore = h.channels.posts.length;
 
       await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
 
-      expect(h.channels.posts.at(-1)).toEqual({
-        threadId: THREAD,
-        message: rankApprovedMessage(storedApproved(h, approval.id)),
-      });
-      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.posts.slice(postsBefore)).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("logs the rank set by the approver", async () => {
@@ -336,7 +332,7 @@ describe("createRankApprovals", () => {
       expect(button.updates).toEqual([]);
       expect(h.links.get(approval.id)).toMatchObject({ state: "pending" });
       expect(h.links.linkFor(MEMBER)?.allianceRank).toEqual({ source: "unknown" });
-      expect(h.channels.archived).toEqual([]);
+      expect(h.channels.deleted).toEqual([]);
       expect(h.channels.logs).toEqual([]);
     });
 
@@ -353,7 +349,7 @@ describe("createRankApprovals", () => {
       expect(h.channels.logs).toEqual([]);
     });
 
-    test("two Officers pressing at once: one rank is stored, one approved post and one log line, and the late press is refused", async () => {
+    test("two Officers pressing at once: one rank is stored, the thread deleted once and one log line, and the late press is refused", async () => {
       const approval = linkWithPendingApproval(h, { kind: "officers" });
       await h.service.announce(approval, PLAYER_UNKNOWN);
       h.roles.set(OTHER_OFFICER, [OFFICERS.kingRoleId]);
@@ -371,9 +367,8 @@ describe("createRankApprovals", () => {
         approvedBy: OTHER_OFFICER,
         approvedAt: NOW,
       });
-      expect(h.channels.posts.slice(1)).toEqual([
-        { threadId: THREAD, message: rankApprovedMessage(storedApproved(h, approval.id)) },
-      ]);
+      expect(h.channels.posts.slice(1)).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
       expect(h.channels.logs).toEqual([rankSetLogLine(OTHER_OFFICER, MEMBER, "R4")]);
       expect(late.replies).toEqual([rankNotAllowedReply()]);
       expect(late.updates).toEqual([]);
@@ -421,7 +416,7 @@ describe("createRankApprovals", () => {
       expect(h.nameAndRoles.approved).toEqual([]);
     });
 
-    test("a failing apply leaves the Rank Approval and the thread messages as they are", async () => {
+    test("a failing apply leaves the Rank Approval and the thread deletion as they are", async () => {
       const approval = linkWithPendingApproval(h, { kind: "officers" });
       await h.service.announce(approval, PLAYER_UNKNOWN);
       h.nameAndRoles.failWith(new Error("Discord refused the role change"));
@@ -438,8 +433,22 @@ describe("createRankApprovals", () => {
         approvedBy: OFFICER,
         approvedAt: NOW,
       });
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: rankApprovedMessage(approved) });
-      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
+    test("still logs the rank, removes the buttons and gives the name and roles when the thread cannot be deleted", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.channels.refuseDeletes(new Error("Unknown Channel"));
+      const button = rankPress(approval.id, "R3", OFFICER);
+
+      await expect(h.service.onButton(button)).resolves.toBeUndefined();
+
+      expect(button.updates).toHaveLength(1);
+      expect(button.updates[0]?.components).toEqual([]);
+      expect(h.channels.logs).toEqual([rankSetLogLine(OFFICER, MEMBER, "R3")]);
+      expect(h.nameAndRoles.approved).toEqual([MEMBER]);
+      expect(h.errors).toEqual([expect.stringContaining("Unknown Channel")]);
     });
   });
 });

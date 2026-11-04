@@ -18,7 +18,7 @@ discovery.
 
 ## Managed Role
 * A Discord role Neil may give and remove: the Alliance, Alliance Rank, Kingdom and Troop Bracket roles
-* Neil creates a missing Managed Role on first use; it never touches any other role
+* Neil creates a missing Managed Role on first use; apart from the Onboarding Role, it never touches any other role
 
 # Game
 
@@ -145,6 +145,11 @@ discovery.
 * The Player whose Player Name equals the Member's server display name with tags, prefixes and unsupported characters removed; offered at the start of an Onboarding Interview, without its uid
 * When several Players share that name, the Member picks one of them from a list
 * Not In-game Proof: a Member who says "that's me" still gives the uid, which must be that Player's
+
+## Onboarding Role
+* The Discord role a Member holds while they are not Linked; it lets them see and write in `#onboarding`
+* Neil gives it when a Member joins and when a Member still on the server is Unlinked, removes it at Link, and puts every Member right at startup
+* Not a Managed Role; Neil creates it without permissions on first use
 
 ## Link
 * The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me"), or as an Officer Link

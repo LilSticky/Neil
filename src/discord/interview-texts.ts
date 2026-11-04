@@ -47,8 +47,6 @@ const MAX_TRIES = 5;
 const EXAMPLE_UID = "145563254785";
 const UID_HELP =
   "In the game, tap your profile picture in the top left, then the feather next to your name. The number under the picture is your uid; the button next to it copies it.";
-const MINUTE_MS = 60_000;
-const MINUTES_PER_HOUR = 60;
 const PICK_LIST_MAX_OPTIONS = 25;
 
 const INTERVIEW_ACTIONS = ["uid", "modal", "confirm", "reject", "accept", "decline", "pick"] as const;
@@ -78,16 +76,6 @@ function triesLeftText(triesLeft: number): string {
 /** Joins the non-empty parts with single spaces. */
 function sentences(...parts: readonly string[]): string {
   return parts.filter((part) => part !== "").join(" ");
-}
-
-/** A timeout as whole hours when it divides evenly, else as minutes: "24 hours", "1 hour", "3 minutes". */
-function durationText(ms: number): string {
-  const minutes = Math.floor(ms / MINUTE_MS);
-  if (minutes >= MINUTES_PER_HOUR && minutes % MINUTES_PER_HOUR === 0) {
-    const hours = minutes / MINUTES_PER_HOUR;
-    return hours === 1 ? "1 hour" : `${hours.toString()} hours`;
-  }
-  return minutes === 1 ? "1 minute" : `${minutes.toString()} minutes`;
 }
 
 function rankText(rank: AllianceRank): string {
@@ -439,22 +427,6 @@ export function handedOffMessage(member: MemberId, officers: OfficerRoles): Mess
   };
 }
 
-/** The thread message when an Interview times out, naming how long the silence lasted. */
-export function timedOutMessage(timeoutMs: number): Message {
-  return {
-    content: `No answer for ${durationText(timeoutMs)}, so this interview is closed. Run /interview to start again.`,
-    allowedMentions: noMentions(),
-  };
-}
-
-/** The thread message when the Member left the server; the username is escaped. */
-export function leftMessage(username: string): Message {
-  return {
-    content: `${escapeText(username)} left the server; this interview is closed.`,
-    allowedMentions: noMentions(),
-  };
-}
-
 /** The private reply to a button press on an Interview that belongs to someone else. */
 export function buttonOfSomeoneElseReply(): PrivateReply {
   return {
@@ -515,27 +487,11 @@ export function rankAskedMessage(
   };
 }
 
-/** The thread message once a rank is approved: it names the approver, the Linked Member and the rank; only the approver is pinged. */
-export function rankApprovedMessage(approval: Extract<RankApproval, { state: "approved" }>): Message {
-  return {
-    content: `<@${approval.approvedBy}> set <@${approval.linkedMemberId}>'s rank to ${approval.rank}.`,
-    allowedMentions: { users: [approval.approvedBy] },
-  };
-}
-
 /** The private reply to a rank button pressed by someone who may not approve it. */
 export function rankNotAllowedReply(): PrivateReply {
   return {
     content: "You can't approve this rank.",
     flags: MessageFlags.Ephemeral,
-    allowedMentions: noMentions(),
-  };
-}
-
-/** The thread message when a Rank Approval is cancelled because the Member left; the username is escaped. */
-export function rankCancelledLeftMessage(username: string): Message {
-  return {
-    content: `${escapeText(username)} left the server; the rank approval is cancelled.`,
     allowedMentions: noMentions(),
   };
 }

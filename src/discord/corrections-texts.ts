@@ -76,14 +76,6 @@ export function rankSetReply(memberId: MemberId, rank: ApprovableRank, gameRank:
   return replyText(`The rank of <@${memberId}> is now ${rank}.${gameNote}`);
 }
 
-/** The message in a Rank Approval's thread when an Officer set the rank before the Members of it did. */
-export function rankSetInThreadMessage(officerId: MemberId, memberId: MemberId, rank: ApprovableRank): Message {
-  return {
-    content: `<@${officerId}> set <@${memberId}>'s rank to ${rank}.`,
-    allowedMentions: NO_MENTIONS,
-  };
-}
-
 /** The private reply to /link when the caller names themselves. */
 export function selfLinkReply(): Message {
   return replyText("You can't Link yourself: another Officer must.");

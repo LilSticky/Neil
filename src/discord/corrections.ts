@@ -12,6 +12,7 @@ import type { LinkStore } from "../storage/link-store.js";
 import { leaderPing, pendingApprovalFor, storeLinkIfStep, type InterviewGameApi } from "./interview.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import {
   asApprovableRank,
@@ -41,7 +42,6 @@ import {
   ownLinkReply,
   parseLinkCustomId,
   rankInputReply,
-  rankSetInThreadMessage,
   rankSetReply,
   selfLinkReply,
   uidLinkedElsewhereReply,
@@ -105,7 +105,7 @@ export interface UnlinkCommandDeps {
 /** Everything /rank reads and writes. */
 export interface RankCommandDeps {
   readonly links: LinkStore;
-  readonly channels: Pick<OnboardingChannels, "log" | "post">;
+  readonly channels: Pick<OnboardingChannels, "log" | "post" | "deleteThread">;
   readonly nameAndRoles: Pick<NameAndRoles, "onRankApproved">;
   readonly officerRoles: OfficerRoles;
   readonly now: () => Date;
@@ -128,9 +128,10 @@ export interface LinkCommandDeps {
 export interface LinkButtonDeps {
   readonly links: LinkStore;
   readonly interviews: InterviewStore;
-  readonly channels: Pick<OnboardingChannels, "post" | "log" | "archive">;
+  readonly channels: Pick<OnboardingChannels, "post" | "log" | "deleteThread">;
   readonly rankApprovals: Pick<RankApprovals, "announce">;
   readonly nameAndRoles: Pick<NameAndRoles, "onLinked">;
+  readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
   readonly confirmations: PendingLinkConfirmations;
   readonly now: () => Date;
@@ -258,10 +259,12 @@ export function handleRank(interaction: CorrectionInteraction, deps: RankCommand
       return interaction.editReply(decision.reason === "own-link" ? ownLinkReply() : noAllianceReply(memberId));
     }
     const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: caller.memberId }, now);
-    if (settled !== undefined) {
-      await deps.channels.post(settled.threadId, rankSetInThreadMessage(caller.memberId, memberId, rank));
-    }
     await logLine(deps.logError, () => deps.channels.log(rankSetLogLine(caller.memberId, memberId, rank)));
+    if (settled !== undefined) {
+      await answer("the deletion of an Interview thread", { logError: deps.logError }, () =>
+        deps.channels.deleteThread(settled.threadId),
+      );
+    }
     await interaction.editReply(rankSetReply(memberId, rank, decision.gameRank));
     await deps.nameAndRoles.onRankApproved(memberId);
   });
@@ -375,9 +378,9 @@ async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, 
 }
 
 /**
- * The stored Officer Link is said in the Interview thread, logged with its Officer, and its name and roles applied. A
- * pending Rank Approval is asked in the thread; otherwise the thread is archived. A failed name and roles step is logged;
- * the Link stands.
+ * The Onboarding Role is taken off, the stored Officer Link is logged with its Officer, and its name and roles applied. A
+ * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted. A failed
+ * name and roles step is logged; the Link stands.
  */
 async function finishOfficerLink(
   deps: LinkButtonDeps,
@@ -386,7 +389,11 @@ async function finishOfficerLink(
   link: Link,
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
-  await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
+  const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+  await deps.onboardingRole.takeOff(pending.memberId);
+  if (pendingApproval !== undefined) {
+    await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
+  }
   await logLine(deps.logError, () =>
     deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)),
   );
@@ -397,6 +404,6 @@ async function finishOfficerLink(
       `Giving the name and roles after an Officer Link failed: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-  if (rankApproval?.state === "pending") return deps.rankApprovals.announce(rankApproval, pending.player);
-  await deps.channels.archive(threadId);
+  if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, pending.player);
+  await deps.channels.deleteThread(threadId);
 }
