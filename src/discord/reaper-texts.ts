@@ -13,6 +13,12 @@ export const reaperMessages = {
   alreadyExile: (name: string, reason: string): string => `${escapeText(name)} is already an Exile: ${escapeText(reason)}`,
   addLog: (name: string, uid: string, kingdom: number, adderId: string, reason: string): string =>
     `🔥 ${escapeText(name)} (${uid}, Kingdom ${kingdom.toString()}) added to REAPER by <@${adderId}>: ${escapeText(reason)}`,
+  removed: (name: string): string => `${escapeText(name)} is no longer an Exile.`,
+  notAnExile: "not an Exile",
+  removeLog: (name: string, uid: string, kingdom: number, removerId: string): string =>
+    `${escapeText(name)} (${uid}, Kingdom ${kingdom.toString()}) removed from REAPER by <@${removerId}>`,
+  /** The label of an Exile in the /reaper remove suggestions: the name and the Kingdom. */
+  exileChoice: (name: string, kingdom: number): string => `${name} (Kingdom ${kingdom.toString()})`,
   bothXAndY: "Give both x and y.",
   askXAndY: "Give x and y to measure from. Neil has no position for you.",
   noExilesInKingdom: (kingdom: number): string => `No Exiles in Kingdom ${kingdom.toString()}.`,
