@@ -7,6 +7,12 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 016, Choose your channels ([specs](../specs/016-choose-your-channels/); branch `016-choose-your-channels`, issue
+[#42](https://github.com/LilSticky/Neil/issues/42)): after the Link, a Preferences message (Languages, Region, Interests,
+Experience) gives Preference Roles that show the matching channels; `/channels` shows it again. T001–T012 are
+done; the reviews (T013, T014) come next; the manual check
+([TEST-RUN.md](TEST-RUN.md) §6j, T015) comes later.
+
 Slice 013, Keep newcomers in onboarding ([specs](../specs/013-keep-newcomers-in-onboarding/)): the Onboarding Role
 (given on join and Unlink, taken off at Link, put right at startup) and deletion of finished Interview threads. Merged
 to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task T012) is open.

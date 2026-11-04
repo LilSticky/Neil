@@ -168,7 +168,7 @@ given; a Member who is not Linked is told to finish onboarding first.
 - **FR-009**: The Interview thread MUST be deleted (slice 013) only after the last question is answered, skipped or timed
   out, or as before while a Rank Approval is pending.
 - **FR-010**: A failed role change MUST be logged and MUST NOT stop the Interview or the command.
-- **FR-011**: Neil MUST NOT change channel permissions; HOSTING.md MUST describe which Preference Role sees which channels.
+- **FR-011**: Neil MUST NOT change channel permissions; SERVER-SETUP.md MUST describe which Preference Role sees which channels.
 
 ### Key Entities
 

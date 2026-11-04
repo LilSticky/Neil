@@ -220,6 +220,25 @@ Branch `013-keep-newcomers-in-onboarding`. No new commands. Before: set the chan
 | 6i.6 | An Interview with an unknown rank (Rank Approval) | `Onboarding` gone at Link; the thread stays until the Rank Approval is given, then is deleted | | |
 | 6i.7 | Hand-off, then `/link` by an Officer | `Onboarding` stays during the hand-off; gone after the Officer Link; thread deleted | | |
 
+## 6j. Choose your channels (slice 016, collected 2026-11-04)
+
+Branch `016-choose-your-channels`. New command: `/channels`. Before: set the Preference Role channel permissions
+from SERVER-SETUP.md (step 8b) and HOSTING.md, and set `DISCORD_GUIDES_FORUM_ID` if you want the guides forum named.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6j.1 | Restart Neil | Nothing changes for existing Members: no Preferences message, no Preference Role given | | |
+| 6j.2 | Link a test account whose game Language is set (e.g. Italian) | The Preferences message is in the Interview thread, with that Language preselected and its role given | | |
+| 6j.3 | Choose two Languages, a Region, PvP and Veteran | Each change gives its role at once and updates the message; the guides invitation appears; one log line per change | | |
+| 6j.4 | Press Done | The thread is deleted | | |
+| 6j.5 | Link another test account and touch nothing | The thread is deleted after the Interview timeout | | |
+| 6j.6 | Check NaP discussions with three test accounts: R4 choosing it, R5 choosing nothing, R3 | R4 sees the NaP discussions channel after choosing; R5 gets it without choosing; R3 does not see it | | |
+| 6j.7 | `/channels` as a Linked Member | Current choices shown privately, preselected; a change applies | | |
+| 6j.8 | `/channels` as a Member who is not Linked | Told to finish onboarding first; nothing else | | |
+| 6j.9 | `/unlink` the test account | All Preference Roles are gone | | |
+| 6j.10 | Officer Link of a test account | It gets a private message pointing to `/channels`; no Preferences message in the thread | | |
+| 6j.11 | Compare the game's language list with the 17 offered (English … Indonesian, plan R2) | Every language the game offers is in the list; note any missing ones here | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

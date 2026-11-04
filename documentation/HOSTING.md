@@ -45,6 +45,7 @@ Neil's values; names exactly as written):
 | `DATA_DIR` | `./data` |
 | `DISCORD_ONBOARDING_CHANNEL_ID` | ID of `#onboarding` (from slice 005; required) |
 | `DISCORD_LOG_CHANNEL_ID` | ID of `#neil-log` (from slice 005; required) |
+| `DISCORD_GUIDES_FORUM_ID` | optional; ID of the guides forum, named in the Preferences guides line (from slice 016; without it the line says "the guides forum") |
 | `INTERVIEW_TIMEOUT_MINUTES` | optional; minutes an Onboarding Interview may stay silent (whole number, at least 1, default 1440) |
 | `HOME_KINGDOM` | the Home Kingdom's number, `330` (from slice 006; required) |
 | `SYNC_HOUR_UTC` | optional; UTC hour of the Daily Sync, 0–23 (default `3`, slice 009) |
