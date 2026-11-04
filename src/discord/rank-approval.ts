@@ -3,6 +3,7 @@ import { isOfficer } from "../domain/officer.js";
 import type { Player } from "../domain/player.js";
 import { approve, mayApprove, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { PreferenceStore } from "../storage/preference-store.js";
 import { answer } from "./lookup.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
@@ -35,6 +36,8 @@ export interface RankApprovals {
 /** Everything the Rank Approvals read and write, injected so that tests run without Discord. */
 export interface RankApprovalDeps {
   readonly links: LinkStore;
+  /** Read only: an open Preferences message in the approval's thread keeps the thread (FR-009). */
+  readonly preferences: Pick<PreferenceStore, "prompt">;
   readonly channels: OnboardingChannels;
   readonly nameAndRoles: NameAndRoles;
   readonly officerRoles: OfficerRoles;
@@ -78,9 +81,18 @@ async function pressRankButton(deps: RankApprovalDeps, button: RankButtonLike): 
   await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
   // A thread that cannot be deleted is logged; the approval, the log line and the name and roles stand.
   await answer("the deletion of an Interview thread", { logError: deps.logError }, () =>
-    deps.channels.deleteThread(approved.threadId),
+    deleteApprovalThread(deps, approved),
   );
   await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
+}
+
+/** Deletes the approval's thread, unless the Member's Preferences message is still open in it (Done or the sweeper deletes it). */
+async function deleteApprovalThread(
+  deps: RankApprovalDeps,
+  approval: { readonly threadId: string; readonly linkedMemberId: MemberId },
+): Promise<void> {
+  if (deps.preferences.prompt(approval.linkedMemberId)?.threadId === approval.threadId) return;
+  await deps.channels.deleteThread(approval.threadId);
 }
 
 /** Gives the Member their name and roles with the approved rank; a failure is logged, the approval stands. */

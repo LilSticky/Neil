@@ -78,6 +78,8 @@ class FakeChannels implements OnboardingChannels {
   readonly logs: BaseMessageOptions[] = [];
   readonly failingThreads = new Set<string>();
   readonly failingDeletes = new Set<string>();
+  /** Called with the thread id as each deletion starts, before it can fail: a test reads the state at that moment. */
+  onDelete: (threadId: string) => void = () => undefined;
   private posted = 0;
 
   openThread(): Promise<string> {
@@ -102,6 +104,7 @@ class FakeChannels implements OnboardingChannels {
   }
 
   deleteThread(threadId: string): Promise<void> {
+    this.onDelete(threadId);
     if (this.failingDeletes.has(threadId)) {
       return Promise.reject(new Error(`Discord refused to delete ${threadId}`));
     }
@@ -339,6 +342,41 @@ describe("createSweeper", () => {
 
       expect(preferences.prompt(MEMBER)).toBeUndefined();
       expect(channels.deleted).toEqual([]);
+    });
+
+    test("is deleted before its prompt is closed, so that the prompt is still open while its thread goes", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+      let promptWhileDeleting: unknown = undefined;
+      channels.onDelete = () => {
+        promptWhileDeleting = preferences.prompt(MEMBER);
+      };
+
+      await sweeper.sweep();
+
+      expect(promptWhileDeleting).toEqual({ threadId: THREAD, postedAt: OVERDUE_START });
+      expect(preferences.prompt(MEMBER)).toBeUndefined();
+    });
+
+    test("whose thread cannot be deleted stays open, so that the next sweep retries it, and the failure is logged", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+      channels.failingDeletes.add(THREAD);
+
+      await sweeper.sweep();
+
+      expect(preferences.prompt(MEMBER)).toEqual({ threadId: THREAD, postedAt: OVERDUE_START });
+      expect(errors).toHaveLength(1);
+    });
+
+    test("whose thread could not be deleted is closed and deleted by the next sweep once the deletion works", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+      channels.failingDeletes.add(THREAD);
+      await sweeper.sweep();
+      channels.failingDeletes.delete(THREAD);
+
+      await sweeper.sweep();
+
+      expect(preferences.prompt(MEMBER)).toBeUndefined();
+      expect(channels.deleted).toEqual([THREAD]);
     });
 
     test("posted after the deadline is left open, with its thread", async () => {

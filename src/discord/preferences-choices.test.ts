@@ -22,6 +22,7 @@ import {
   notLinkedReply,
   notYoursReply,
   preferencesCustomId,
+  preferencesFailedReply,
   preferencesLogLine,
   preferencesMessage,
   type PreferenceQuestion,
@@ -425,6 +426,17 @@ describe("Done", () => {
     expect(trace.indexOf("press.update")).toBeLessThan(trace.indexOf("channels.deleteThread"));
   });
 
+  test("deletes the thread before it closes the prompt", async () => {
+    const { store, trace, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+
+    await choices.press(doneOf());
+
+    expect(trace.indexOf("channels.deleteThread")).toBeGreaterThanOrEqual(0);
+    expect(trace.indexOf("channels.deleteThread")).toBeLessThan(trace.indexOf("store.closePrompt"));
+  });
+
   test("keeps the thread while a Rank Approval is pending, and still closes the prompt", async () => {
     const { store, links, channels, linkAlice, doneOf, choices } = setUp();
     linkAlice();
@@ -517,6 +529,61 @@ describe("/channels", () => {
     expect(store.writes).toEqual([]);
     expect(roles.applied).toEqual([]);
     expect(channels.logs).toEqual([]);
+  });
+});
+
+describe("a refused thread deletion on Done", () => {
+  test("keeps the prompt open, so that the next sweep can retry the deletion, and logs the failure", async () => {
+    const { store, channels, logError, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+    channels.failDelete = true;
+
+    await choices.press(doneOf());
+
+    expect(store.prompt(ALICE)).toEqual({ threadId: ALICE_THREAD, postedAt: NOW });
+    expect(logError).toHaveBeenCalledOnce();
+  });
+});
+
+describe("a press the choices cannot read or save", () => {
+  test("a press with a Preferences custom id that does not parse is answered privately with an error, and logged", async () => {
+    const { logError, linkAlice, choices } = setUp();
+    linkAlice();
+    const press = new FakePress([], "pref:languages:not-a-snowflake", { id: ALICE }, ["de"]);
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([preferencesFailedReply()]);
+    expect(press.updates).toEqual([]);
+    expect(logError).toHaveBeenCalledOnce();
+  });
+
+  test("a save that fails before the press is answered is answered privately with an error, and logged", async () => {
+    const { store, logError, linkAlice, selectOf, choices } = setUp();
+    linkAlice();
+    store.failOn = "setLanguages";
+    const press = selectOf("languages", ["de"]);
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([preferencesFailedReply()]);
+    expect(press.updates).toEqual([]);
+    expect(logError).toHaveBeenCalledOnce();
+  });
+
+  test("a failure after the press is answered is only logged, with no second reply", async () => {
+    const { store, channels, logError, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+    channels.failDelete = true;
+    const press = doneOf();
+
+    await choices.press(press);
+
+    expect(press.updates).toHaveLength(1);
+    expect(press.replies).toEqual([]);
+    expect(logError).toHaveBeenCalledOnce();
   });
 });
 

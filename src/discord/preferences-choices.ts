@@ -23,6 +23,7 @@ import {
   notLinkedReply,
   notYoursReply,
   parsePreferencesCustomId,
+  preferencesFailedReply,
   preferencesLogLine,
   preferencesMessage,
   savedMessage,
@@ -62,7 +63,7 @@ export interface ChannelsCommand {
 
 /** Handles the presses on a Preferences message, and the /channels command that shows one. */
 export interface PreferenceChoices {
-  /** Answers a press and makes its change. Never throws: a failure is logged. */
+  /** Answers a press and makes its change. Never throws: a failure is logged, and answered privately when nothing was answered. */
   press(press: PreferencePress): Promise<void>;
   /** Answers /channels with the Member's Preferences message, or tells a Member who is not Linked to finish onboarding. Never throws. */
   showChannels(command: ChannelsCommand): Promise<void>;
@@ -72,10 +73,12 @@ export interface PreferenceChoices {
 export function createPreferenceChoices(deps: PreferenceChoicesDeps): PreferenceChoices {
   return {
     async press(press) {
+      const tracked = trackAnswer(press);
       try {
-        await handlePress(deps, press);
+        await handlePress(deps, tracked.press);
       } catch (error) {
         deps.logError(`A Preferences press by ${press.user.id} failed: ${reasonOf(error)}`);
+        if (!tracked.answered()) await replyFailed(deps, press);
       }
     },
     async showChannels(command) {
@@ -90,10 +93,7 @@ export function createPreferenceChoices(deps: PreferenceChoicesDeps): Preference
 
 async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress): Promise<void> {
   const parsed = parsePreferencesCustomId(press.customId);
-  if (parsed === undefined) {
-    deps.logError(`A Preferences press with an unknown custom id by ${press.user.id} was ignored`);
-    return;
-  }
+  if (parsed === undefined) throw new Error(`the custom id ${press.customId} is not one of the Preferences message`);
   const { question, memberId } = parsed;
   if (memberId !== press.user.id) {
     await press.reply(notYoursReply());
@@ -123,14 +123,46 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
   await command.reply({ ...message, flags: MessageFlags.Ephemeral });
 }
 
-/** Done: the message is answered first, then the prompt closes and its thread goes, unless a Rank Approval waits. */
+/**
+ * Done: the message is answered first, then the thread goes, unless a Rank Approval waits, and only then the prompt closes:
+ * a thread that cannot be deleted leaves the prompt open, so that the next sweep retries it.
+ */
 async function finish(deps: PreferenceChoicesDeps, press: PreferencePress, memberId: MemberId): Promise<void> {
   await press.update(savedMessage());
   const prompt = deps.preferences.prompt(memberId);
   if (prompt === undefined) return;
+  if (deps.rankApprovals.pendingFor(memberId) === undefined) await deps.channels.deleteThread(prompt.threadId);
   deps.preferences.closePrompt(memberId);
-  if (deps.rankApprovals.pendingFor(memberId) !== undefined) return;
-  await deps.channels.deleteThread(prompt.threadId);
+}
+
+/** The press as the handler sees it, and whether it has been answered: a reply or an update, once made, counts. */
+function trackAnswer(press: PreferencePress): { readonly press: PreferencePress; answered(): boolean } {
+  let answered = false;
+  return {
+    press: {
+      customId: press.customId,
+      user: press.user,
+      values: press.values,
+      reply: (message) => {
+        answered = true;
+        return press.reply(message);
+      },
+      update: (options) => {
+        answered = true;
+        return press.update(options);
+      },
+    },
+    answered: () => answered,
+  };
+}
+
+/** A press that failed before it was answered gets a private error, so that Discord does not show it as failed. */
+async function replyFailed(deps: PreferenceChoicesDeps, press: PreferencePress): Promise<void> {
+  try {
+    await press.reply(preferencesFailedReply());
+  } catch (error) {
+    deps.logError(`Answering a failed Preferences press by ${press.user.id} failed: ${reasonOf(error)}`);
+  }
 }
 
 /** A select change: saves the answer, answers the press with the new Preferences, then applies the roles and logs. */

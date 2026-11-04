@@ -21,7 +21,7 @@ import {
 } from "../domain/preferences.js";
 import type { AllianceRank } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
-import type { Message, PrivateReply } from "./interview-texts.js";
+import { somethingWentWrongReply, type Message, type PrivateReply } from "./interview-texts.js";
 
 /** The questions of the Preferences message: one select menu each, and the Done button. */
 const PREFERENCE_QUESTIONS = ["languages", "region", "interests", "experience", "done"] as const;
@@ -86,6 +86,11 @@ export function notYoursReply(): PrivateReply {
     flags: MessageFlags.Ephemeral,
     allowedMentions: noMentions(),
   };
+}
+
+/** The private reply to a press on the Preferences message that could not be read or saved: the same wording as the Interview's. */
+export function preferencesFailedReply(): PrivateReply {
+  return somethingWentWrongReply();
 }
 
 /** The Preferences message once Done is pressed: a saved text, with no menus left. */

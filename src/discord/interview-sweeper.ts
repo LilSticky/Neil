@@ -161,10 +161,10 @@ async function closeExpiredPreferences(deps: SweeperDeps, now: Date): Promise<vo
   }
 }
 
+/** The thread goes first: when its deletion fails the prompt stays open, and the next sweep retries it. */
 async function closeExpiredPreference(deps: SweeperDeps, prompt: PostedPreferencePrompt): Promise<void> {
+  if (deps.links.pendingFor(prompt.memberId) === undefined) await deps.channels.deleteThread(prompt.threadId);
   deps.preferences.closePrompt(prompt.memberId);
-  if (deps.links.pendingFor(prompt.memberId) !== undefined) return;
-  await deps.channels.deleteThread(prompt.threadId);
 }
 
 async function guarded(deps: SweeperDeps, label: string, work: () => Promise<void>): Promise<void> {

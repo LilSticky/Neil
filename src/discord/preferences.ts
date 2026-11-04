@@ -4,11 +4,13 @@ import type { LinkStore } from "../storage/link-store.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import { giveNamedRole, takeOffNamedRole, type RolesGuild, type RolesMember, type Skipped } from "./member-roles.js";
 import type { ServerMember, ServerMembers } from "./name-and-roles.js";
+import type { OnboardingChannels } from "./onboarding-channels.js";
 
 export interface PreferenceRolesDeps {
   readonly members: ServerMembers;
-  readonly links: Pick<LinkStore, "linkFor">;
-  readonly preferences: Pick<PreferenceStore, "get" | "setInterests" | "forget">;
+  readonly links: Pick<LinkStore, "linkFor" | "pendingFor">;
+  readonly preferences: Pick<PreferenceStore, "get" | "setInterests" | "forget" | "prompt">;
+  readonly channels: Pick<OnboardingChannels, "deleteThread">;
   readonly logError: (line: string) => void;
   /** The log channel's line for a change of roles: one per apply that changed a role. */
   readonly log: (line: string) => void;
@@ -27,7 +29,10 @@ export interface PreferenceRoles {
    * change runs), and takes off the other Preference Roles they hold. A Member not on the server is left alone.
    */
   apply(memberId: MemberId): Promise<void>;
-  /** Takes every Preference Role off the Member and deletes their Preferences, even when the server cannot be reached. */
+  /**
+   * Takes every Preference Role off the Member, deletes the thread of their open Preferences message (unless a Rank
+   * Approval of theirs is pending) and deletes their Preferences, even when the server or the thread cannot be reached.
+   */
   forget(memberId: MemberId): Promise<void>;
 }
 
@@ -104,10 +109,25 @@ async function forgetOf(deps: PreferenceRolesDeps, memberId: MemberId): Promise<
   } catch (error) {
     deps.logError(`Taking the Preference Roles off ${memberId} failed: ${reasonOf(error)}`);
   }
+  await deleteOpenPromptThread(deps, memberId);
   try {
     deps.preferences.forget(memberId);
   } catch (error) {
     deps.logError(`Deleting the Preferences of ${memberId} failed: ${reasonOf(error)}`);
+  }
+}
+
+/**
+ * Deletes the thread of the Member's open Preferences message, unless a Rank Approval of theirs is pending: that Rank
+ * Approval deletes the thread when it ends. Never throws: a failure is logged.
+ */
+async function deleteOpenPromptThread(deps: PreferenceRolesDeps, memberId: MemberId): Promise<void> {
+  try {
+    const prompt = deps.preferences.prompt(memberId);
+    if (prompt === undefined || deps.links.pendingFor(memberId) !== undefined) return;
+    await deps.channels.deleteThread(prompt.threadId);
+  } catch (error) {
+    deps.logError(`Deleting the Preferences message of ${memberId} failed: ${reasonOf(error)}`);
   }
 }
 

@@ -701,6 +701,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       members: serverMembersOf(guild),
       links: options.links,
       preferences: options.preferences,
+      channels,
       logError,
       // A change of roles is one plain line in the log channel, without mentions; a refused post is logged and the change stands.
       log: (line) => {
@@ -749,6 +750,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     });
     const rankApprovals = createRankApprovals({
       links: options.links,
+      preferences: options.preferences,
       channels,
       nameAndRoles,
       officerRoles,

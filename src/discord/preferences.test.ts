@@ -6,12 +6,14 @@ import { FakeLinkStore } from "./__fakes__/link-store.js";
 import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
+import type { OnboardingChannels } from "./onboarding-channels.js";
 import { createPreferenceRoles } from "./preferences.js";
 
 const OWNER = "900000000000000001";
 const ALICE: MemberId = "111111111111111111";
 const BOB: MemberId = "222222222222222222";
 const APPROVER: MemberId = "555555555555555555";
+const ALICE_THREAD = "333333333333333301";
 /** The Officer role of the Moderators, as the configuration gives it. */
 const OFFICER_ROLE_ID = "700000000000000001";
 /** The Administrator permission bit: a role with it is refused. */
@@ -50,14 +52,27 @@ function gate(): { readonly closed: Promise<void>; readonly open: () => void } {
   };
 }
 
+/** The onboarding channels as the Preference Roles use them: records every thread deleted; can refuse a delete. */
+class FakeThreads implements Pick<OnboardingChannels, "deleteThread"> {
+  readonly deleted: string[] = [];
+  failDelete = false;
+
+  deleteThread(threadId: string): Promise<void> {
+    if (this.failDelete) return Promise.reject(new Error("Discord refused to delete the thread"));
+    this.deleted.push(threadId);
+    return Promise.resolve();
+  }
+}
+
 function setUp(officerRoleIds: readonly string[] = []) {
   const guild = new FakeRolesGuild(OWNER);
   const members = new FakeServerMembers();
   const preferences = new FakePreferenceStore();
   const links = new FakeLinkStore();
+  const channels = new FakeThreads();
   const logError = vi.fn<(line: string) => void>();
   const log = vi.fn<(line: string) => void>();
-  const service = createPreferenceRoles({ members, preferences, links, logError, log, officerRoleIds });
+  const service = createPreferenceRoles({ members, preferences, links, channels, logError, log, officerRoleIds });
   /**
    * Puts a Member on the server, holding the given roles, as the discord.js adapter would find them, and Links them at
    * the given rank. A Member put on the server is Linked too, unless the test unlinks them.
@@ -68,7 +83,7 @@ function setUp(officerRoleIds: readonly string[] = []) {
     links.link(memberId, rank);
     return member;
   };
-  return { guild, members, preferences, links, logError, log, service, join };
+  return { guild, members, preferences, links, channels, logError, log, service, join };
 }
 
 describe("apply", () => {
@@ -343,5 +358,49 @@ describe("forget", () => {
     expect(preferences.forgotten).toEqual([ALICE]);
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError).toHaveBeenCalledWith(expect.stringContaining(ALICE));
+  });
+});
+
+describe("forget: the open Preferences message", () => {
+  test("deletes the thread of the open Preferences message when no Rank Approval is pending", async () => {
+    const { preferences, channels, service } = setUp();
+    preferences.openPrompt(ALICE, ALICE_THREAD, NOW);
+
+    await service.forget(ALICE);
+
+    expect(channels.deleted).toEqual([ALICE_THREAD]);
+    expect(preferences.prompt(ALICE)).toBeUndefined();
+  });
+
+  test("deletes the thread of the open Preferences message even when the Member is not on the server", async () => {
+    const { preferences, channels, service } = setUp();
+    preferences.openPrompt(ALICE, ALICE_THREAD, NOW);
+
+    await service.forget(ALICE);
+
+    expect(channels.deleted).toEqual([ALICE_THREAD]);
+  });
+
+  test("keeps the thread while a Rank Approval of the Member is pending, which deletes it when it ends", async () => {
+    const { preferences, links, channels, service } = setUp();
+    links.pendingApproval(ALICE, ALICE_THREAD);
+    preferences.openPrompt(ALICE, ALICE_THREAD, NOW);
+
+    await service.forget(ALICE);
+
+    expect(channels.deleted).toEqual([]);
+    expect(preferences.forgotten).toEqual([ALICE]);
+  });
+
+  test("a refused thread deletion is logged, and the Preferences are still forgotten", async () => {
+    const { preferences, channels, logError, service } = setUp();
+    preferences.openPrompt(ALICE, ALICE_THREAD, NOW);
+    channels.failDelete = true;
+
+    await service.forget(ALICE);
+
+    expect(logError).toHaveBeenCalledOnce();
+    expect(preferences.forgotten).toEqual([ALICE]);
+    expect(preferences.prompt(ALICE)).toBeUndefined();
   });
 });
