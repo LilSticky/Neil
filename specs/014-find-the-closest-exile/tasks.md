@@ -36,7 +36,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
   line; unknown → "not an Exile"; refusal for non-editors.
 - [x] **T010** [US1–4] Wiring: `client.ts` routes `/reaper`, its autocomplete and `reaper:` buttons; `main.ts` builds
   `ReaperStore`; command registered.
-- [ ] **T011** Docs (D9): GAME-API.md (`shielding` read), TEST-RUN.md REAPER section, STATUS, ROADMAP row 014.
+- [x] **T011** Docs (D9): GAME-API.md (`shielding` read), TEST-RUN.md REAPER section, STATUS, ROADMAP row 014.
 - [ ] **T012** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.
 - [ ] **T013** `spec-auditor` against spec.md; findings into `audit.md`; close gaps.
 - [ ] **T014** Manual check collected in TEST-RUN.md (REAPER), run later by the user.

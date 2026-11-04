@@ -220,6 +220,23 @@ Branch `013-keep-newcomers-in-onboarding`. No new commands. Before: set the chan
 | 6i.6 | An Interview with an unknown rank (Rank Approval) | `Onboarding` gone at Link; the thread stays until the Rank Approval is given, then is deleted | | |
 | 6i.7 | Hand-off, then `/link` by an Officer | `Onboarding` stays during the hand-off; gone after the Officer Link; thread deleted | | |
 
+## 6j. Find the closest Exile (slice 014, REAPER, collected 2026-11-04)
+
+Branch `014-find-the-closest-exile`. New command `/reaper` (run `npm run commands:register` after deploying). You
+need a Member Linked to the R5 of a Home Kingdom Alliance and a second Member who is not.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6j.1 | As the R5: `/reaper add name:<a real Player> reason:test` | Private "… is now an Exile."; one log line naming the Exile, the reason and you | | |
+| 6j.2 | Same with a name in several Kingdoms | A private pick list; picking stores the chosen Player | | |
+| 6j.3 | Add the same Player again | "already an Exile" with the stored reason; no log line | | |
+| 6j.4 | As the other Member (or an Officer who is not a Home R5): `/reaper add …` | "Only R5s of Home Kingdom Alliances may change REAPER."; `/quota` used count unchanged | | |
+| 6j.5 | `/reaper closest` | Private: header with your position and the shield note, up to 3 cards in distance order with Coordinates, Distance, Reason, Exiled on; nobody's adder shown | | |
+| 6j.6 | Run `/reaper closest` again within 10 minutes | Same answer; `/quota` used count unchanged | | |
+| 6j.7 | `/reaper closest x:500 y:500 all:true` (with 4+ Exiles) | Paged by distance from 500,500, 3 per page; Previous/Next work; nobody else can turn your pages | | |
+| 6j.8 | `/reaper list` | Every Exile newest first (name, Kingdom, reason, date), 8 per page | | |
+| 6j.9 | As the R5: `/reaper remove exile:` | Suggestions while typing; removing confirms privately, logs one line, and the Exile is gone from `list` | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
