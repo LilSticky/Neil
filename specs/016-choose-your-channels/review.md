@@ -42,3 +42,22 @@
 
 allowedMentions, private replies, the Member check on custom IDs, zod on stored rows and select values, roles created
 without permissions and refused with them, no new Game API request, no secrets, no new intents, strict types.
+
+## Second pass (2026-11-04, after the merge of `main`)
+
+All Must and Should items are fixed: M1, S4, S5, C1, C2 in c8ef517; M2, S1, S2, S3 in d3282fe. The re-review found M2 only
+half fixed, and that is fixed too:
+
+- **M2b** `discord/corrections.ts`: `/rank` settled a pending Rank Approval and deleted its thread with a Preferences
+  message open. Fixed: `keepsApprovalThread` is shared by the approval buttons and `/rank`.
+- **S6** `storage/database.test.ts`: no upgrade test from version 11. Added, with `schema-v11.sql` and a `reaper` row.
+
+The merge with slice 014 is clean: every route, service and store of both slices is there; Preferences are migration 12,
+after REAPER's 11.
+
+Accepted, not fixed:
+
+- At Unlink, a thread that cannot be deleted is logged (`console.error` only) and not retried: the prompt row must not
+  outlive the Link. A press in the leftover thread gets the not-Linked reply.
+- `trackAnswer` counts a press as answered before the reply resolves, so a rejected `update` shows Discord's "interaction
+  failed" and the roles wait for the next apply.

@@ -35,19 +35,25 @@ Typecheck: green. Tests: 2254 passed (68 files). Lint (--quiet): green.
 ## Tasks
 
 - T001-T012 ticked and their changes exist in the diff. No silently skipped task found.
-- T013 (review.md) unticked and `review.md` does not exist: open.
+- T013 done: see review.md.
 - T014 is this audit. T015 unticked: manual check 6k.1-6k.11 is collected in TEST-RUN.md, to be run by the user.
 
 ## Tests covering nothing in the spec
 
 None found. Storage/migration tests and `preferences-after-link` serve plan R-items (storage, preselection).
 
-## Test-server check recorded in tasks.md: NO
+## Test-server check recorded in tasks.md: NOT RUN
 
-Only the TEST-RUN.md 6k note; no Definition of Done 2 entry.
+Recorded at T015: merged without a test-server check, on the user's word; Definition of Done 2 is open.
 
 ## Gaps to close
 
 1. Test: R5 who becomes R4 keeps NaP discussions (US3.4).
 2. Test: Player without Alliance not offered NaP (US3.3); explicit skip-all gives no role (US1.3).
 3. T013 review.md; record the test-server check in tasks.md.
+
+## Second pass (2026-11-04, after the merge of `main`)
+
+A1, A2 and A3 are closed by tests, A2 with a Linked Member with no Alliance in `preferences-after-link.test.ts` (the
+`/channels` path has no such test). FR-008 and FR-009 hold, FR-009 on the buttons, `/rank`, Done and the sweeper. Tests:
+2461 passed (76 files).
