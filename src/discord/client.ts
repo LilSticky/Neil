@@ -641,23 +641,27 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
       log: (message) => channels.log(message),
     });
+    // A private message to a Member, by Discord DM; Discord refuses it when the Member cannot be messaged.
+    const sendPrivateMessage = async (memberId: string, message: BaseMessageOptions): Promise<void> => {
+      const user = await client.users.fetch(memberId);
+      await user.send(message);
+    };
+    const preferenceRoles = createPreferenceRoles({
+      members: serverMembersOf(guild),
+      links: options.links,
+      preferences: options.preferences,
+      logError,
+    });
     const unlink = createUnlink({
       links: options.links,
       applied: options.applied,
       channels,
       members: serverMembersOf(guild),
       onboardingRole,
+      preferenceRoles,
       now,
-      sendPrivateMessage: async (memberId, message) => {
-        const user = await client.users.fetch(memberId);
-        await user.send(message);
-      },
+      sendPrivateMessage,
       officerRoles,
-      logError,
-    });
-    const preferenceRoles = createPreferenceRoles({
-      members: serverMembersOf(guild),
-      preferences: options.preferences,
       logError,
     });
     const nameAndRoles = createNameAndRoles({
@@ -737,6 +741,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           nameAndRoles,
           onboardingRole,
           isOnServer,
+          sendPrivateMessage,
           confirmations: linkConfirmations,
           now,
           logError,

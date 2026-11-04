@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { MessageFlags } from "discord.js";
+import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { mayCorrect, type Corrector } from "../domain/correction.js";
 import { needsRankApproval, officerRank, rankOnLink, type Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
@@ -14,6 +14,7 @@ import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
+import { officerLinkPreferencesMessage } from "./preferences-texts.js";
 import {
   asApprovableRank,
   linkedMessage,
@@ -133,6 +134,8 @@ export interface LinkButtonDeps {
   readonly nameAndRoles: Pick<NameAndRoles, "onLinked">;
   readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
+  /** Privately tells the Member an Officer Linked about /channels; Discord may refuse it. */
+  readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly confirmations: PendingLinkConfirmations;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
@@ -396,6 +399,9 @@ async function finishOfficerLink(
   }
   await logLine(deps.logError, () =>
     deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)),
+  );
+  await answer("the /channels message after an Officer Link", { logError: deps.logError }, () =>
+    deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()),
   );
   try {
     await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);

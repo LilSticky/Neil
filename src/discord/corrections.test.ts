@@ -649,6 +649,43 @@ describe("handleLinkButton: a failing channel does not stop the Officer Link", (
   });
 });
 
+describe("handleLinkButton: an Officer Link tells the Member about /channels", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("sends the Member a private message pointing to /channels, once the Officer Link is stored", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.privateMessages.attempts[0]?.memberId).toBe(HANDED_OFF);
+    expect(contentOf(h.privateMessages.attempts[0]?.message)).toContain("/channels");
+  });
+
+  test("a refused private message is ignored: the Officer Link stands and the name and roles are applied", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.privateMessages.refuseWith(new Error("Cannot send messages to this user"));
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.links.linkFor(HANDED_OFF)).toEqual(
+      expect.objectContaining({ memberId: HANDED_OFF, uid: FOUND_UID, madeBy: { kind: "officer-link", officerId: OFFICER } }),
+    );
+    expect(h.nameAndRoles.linked).toEqual([expect.objectContaining({ memberId: HANDED_OFF })]);
+    expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
+  });
+});
+
 /* /link: an Officer Links a handed-off Member by hand, after confirming the Player shown. */
 
 const HANDED_OFF: MemberId = "555555555555555555";
@@ -784,10 +821,26 @@ function privateAnswersOf(button: FakeLinkButton): FakeLinkButton["answers"] {
   return button.answers.filter((answer) => answer.method !== "update");
 }
 
+/** The private messages an Officer Link sends the Member: records every attempt, a refused one included. */
+class FakeLinkPrivateMessages {
+  readonly attempts: { readonly memberId: MemberId; readonly message: BaseMessageOptions }[] = [];
+  private failure: Error | undefined = undefined;
+
+  refuseWith(error: Error): void {
+    this.failure = error;
+  }
+
+  send(memberId: MemberId, message: BaseMessageOptions): Promise<void> {
+    this.attempts.push({ memberId, message });
+    return this.failure === undefined ? Promise.resolve() : Promise.reject(this.failure);
+  }
+}
+
 interface LinkHarness extends Harness {
   readonly gameApi: FakeLinkGameApi;
   readonly rankApprovals: FakeRankApprovals;
   readonly onboardingRole: FakeOnboardingRole;
+  readonly privateMessages: FakeLinkPrivateMessages;
   /** The Members on the server; a Member not in it has left. */
   readonly onServer: Set<MemberId>;
   readonly confirmations: PendingLinkConfirmations;
@@ -801,6 +854,7 @@ function makeLinkHarness(): LinkHarness {
     gameApi: new FakeLinkGameApi(),
     rankApprovals: new FakeRankApprovals(),
     onboardingRole: new FakeOnboardingRole(),
+    privateMessages: new FakeLinkPrivateMessages(),
     onServer: new Set([OFFICER, LINKED, OTHER_LINKED, UNLINKED, NOT_OFFICER_LINKED, HANDED_OFF, RUNNING]),
     confirmations: new PendingLinkConfirmations(),
     now: NOW,
@@ -832,6 +886,7 @@ function confirmDeps(h: LinkHarness) {
     isOnServer: (memberId: MemberId) => Promise.resolve(h.onServer.has(memberId)),
     confirmations: h.confirmations,
     onboardingRole: h.onboardingRole,
+    sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => h.privateMessages.send(memberId, message),
     now: () => h.now,
     logError: (line: string) => h.errors.push(line),
   };

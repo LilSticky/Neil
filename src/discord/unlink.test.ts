@@ -11,6 +11,7 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
+import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import type { OfficerRoles } from "./interview-texts.js";
@@ -163,6 +164,8 @@ interface Harness {
   readonly guild: FakeRolesGuild;
   /** The Onboarding Role service: records the Members Unlink gives the role back to. */
   readonly onboardingRole: FakeOnboardingRole;
+  /** The Preference Roles: records every forget, the Preferences of the Member Unlink forgets. */
+  readonly preferenceRoles: FakePreferenceRoles;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -272,12 +275,14 @@ describe("createUnlink", () => {
     guild.defineRole("NML");
     guild.defineRole("R4");
     const onboardingRole = new FakeOnboardingRole();
+    const preferenceRoles = new FakePreferenceRoles();
     const service = createUnlink({
       links,
       applied,
       channels,
       members,
       onboardingRole,
+      preferenceRoles,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -285,7 +290,7 @@ describe("createUnlink", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, preferenceRoles, service };
   });
 
   afterEach(() => {
@@ -676,5 +681,80 @@ describe("createUnlink", () => {
 
       expect(h.onboardingRole.calls).toEqual([]);
     });
+  });
+});
+
+describe("createUnlink: the Preferences of the Member are forgotten", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let h: Harness;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-unlink-prefs-"));
+    db = openDatabase(dataDir);
+    const links = new LinkStore(db);
+    const applied = new AppliedStore(db);
+    const channels = new FakeChannels();
+    const privateMessages = new FakePrivateMessages();
+    const errors: string[] = [];
+    const members = new FakeServerMembers();
+    const guild = new FakeRolesGuild(OWNER_ID);
+    guild.defineRole("NML");
+    guild.defineRole("R4");
+    const onboardingRole = new FakeOnboardingRole();
+    const preferenceRoles = new FakePreferenceRoles();
+    const service = createUnlink({
+      links,
+      applied,
+      channels,
+      members,
+      onboardingRole,
+      preferenceRoles,
+      now: () => NOW,
+      sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
+      officerRoles: OFFICERS,
+      logError: (line: string) => {
+        errors.push(line);
+      },
+    });
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, preferenceRoles, service };
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test.each<[string, UnlinkReason]>([
+    ["the Member Unlinks themselves", "self"],
+    ["an Officer Unlinks the Member", BY_OFFICER],
+    ["the Member leaves the server", "left"],
+    ["the Member is found missing", "missing"],
+  ])("forgets the Preferences of the Member when %s", async (_case, reason) => {
+    linkMember(h, LEAVER_ID, LEAVER_UID);
+
+    await h.service.unlink(LEAVER, reason);
+
+    expect(h.preferenceRoles.forgotten).toEqual([LEAVER_ID]);
+  });
+
+  test("forgets the Preferences of a Member whose Link has already ended meanwhile", async () => {
+    await h.service.unlink(LEAVER, "missing");
+
+    expect(h.preferenceRoles.forgotten).toEqual([LEAVER_ID]);
+  });
+
+  test("a failure to forget is logged, and the Unlink still ends the Link and logs it", async () => {
+    linkMember(h, ALICE, ALICE_UID);
+    joinServer(h, ALICE, ["NML"], undefined);
+    h.preferenceRoles.failForgetWith(new Error("socket hang up"));
+
+    await h.service.unlink({ id: ALICE }, BY_OFFICER);
+
+    expect(h.preferenceRoles.forgotten).toEqual([ALICE]);
+    expect(h.links.linkFor(ALICE)).toBeUndefined();
+    expect(h.channels.logs).toHaveLength(1);
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.errors).toEqual([expect.stringContaining(ALICE)]);
   });
 });

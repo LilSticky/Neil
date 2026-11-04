@@ -2,6 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { RankOnLink } from "../domain/link.js";
 import { EMPTY_PREFERENCES, type GameLanguageCode, type Preferences } from "../domain/preferences.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import { FakeLinkStore } from "./__fakes__/link-store.js";
 import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
@@ -37,15 +38,20 @@ function setUp() {
   const guild = new FakeRolesGuild(OWNER);
   const members = new FakeServerMembers();
   const preferences = new FakePreferenceStore();
+  const links = new FakeLinkStore();
   const logError = vi.fn<(line: string) => void>();
-  const service = createPreferenceRoles({ members, preferences, logError });
-  /** Puts a Member on the server, holding the given roles, as the discord.js adapter would find them. */
+  const service = createPreferenceRoles({ members, preferences, links, logError });
+  /**
+   * Puts a Member on the server, holding the given roles, as the discord.js adapter would find them. A Member put on the
+   * server is Linked too, unless the test unlinks them.
+   */
   const join = (memberId: MemberId, roles: readonly string[] = []): FakeRolesMember => {
     const member = guild.member(memberId, roles);
     members.join(memberId, guild, member);
+    links.link(memberId);
     return member;
   };
-  return { guild, members, preferences, logError, service, join };
+  return { guild, members, preferences, links, logError, service, join };
 }
 
 describe("apply", () => {
@@ -151,6 +157,31 @@ describe("apply", () => {
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError).toHaveBeenCalledWith(expect.stringContaining(ALICE));
     expect(logError).toHaveBeenCalledWith(expect.stringContaining("English"));
+  });
+
+  test("gives no Preference Role to a Member who is not Linked, and takes off every one they hold", async () => {
+    const { guild, preferences, links, service, join } = setUp();
+    guild.defineRole("English");
+    guild.defineRole("NaP discussions");
+    guild.defineRole("Onboarding");
+    const alice = join(ALICE, ["English", "NaP discussions", "Onboarding"]);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
+    links.unlink(ALICE);
+
+    await service.apply(ALICE, R5);
+
+    expect(heldNames(alice)).toEqual(["Onboarding"]);
+  });
+
+  test("gives nothing to a Member who is not Linked, even an R5 who would get NaP discussions", async () => {
+    const { guild, links, service, join } = setUp();
+    guild.defineRole("NaP discussions");
+    const alice = join(ALICE);
+    links.unlink(ALICE);
+
+    await service.apply(ALICE, R5);
+
+    expect(heldNames(alice)).toEqual([]);
   });
 
   test("logs a failure to reach the server and does not throw", async () => {

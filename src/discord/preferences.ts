@@ -1,12 +1,14 @@
 import type { RankOnLink } from "../domain/link.js";
 import { ALL_PREFERENCE_ROLE_NAMES, allianceRankOf, preferenceRolesFor } from "../domain/preferences.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import type { LinkStore } from "../storage/link-store.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import { giveNamedRole, takeOffNamedRole, type RolesGuild, type RolesMember, type Skipped } from "./member-roles.js";
 import type { ServerMember, ServerMembers } from "./name-and-roles.js";
 
 export interface PreferenceRolesDeps {
   readonly members: ServerMembers;
+  readonly links: Pick<LinkStore, "linkFor">;
   readonly preferences: Pick<PreferenceStore, "get" | "forget">;
   readonly logError: (line: string) => void;
 }
@@ -40,7 +42,7 @@ async function applyTo(deps: PreferenceRolesDeps, memberId: MemberId, rank: Rank
   try {
     const server = await deps.members.memberOf(memberId);
     if (server === undefined) return;
-    const wanted = preferenceRolesFor(deps.preferences.get(memberId), allianceRankOf(rank));
+    const wanted = wantedRoles(deps, memberId, rank);
     const held = heldNames(server.member);
     const unwanted = ALL_PREFERENCE_ROLE_NAMES.filter((name) => held.has(name) && !wanted.includes(name));
     const missing = wanted.filter((name) => !held.has(name));
@@ -49,6 +51,12 @@ async function applyTo(deps: PreferenceRolesDeps, memberId: MemberId, rank: Rank
   } catch (error) {
     deps.logError(`Changing the Preference Roles of ${memberId} failed: ${reasonOf(error)}`);
   }
+}
+
+/** The Preference Roles a Member wants: none at all while the Member is not Linked, so their held ones all come off. */
+function wantedRoles(deps: PreferenceRolesDeps, memberId: MemberId, rank: RankOnLink): readonly string[] {
+  if (deps.links.linkFor(memberId) === undefined) return [];
+  return preferenceRolesFor(deps.preferences.get(memberId), allianceRankOf(rank));
 }
 
 async function forgetOf(deps: PreferenceRolesDeps, memberId: MemberId): Promise<void> {

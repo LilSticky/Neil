@@ -102,6 +102,14 @@ export function savedMessage(): SavedMessage {
   };
 }
 
+/** The private message to a Member after an Officer Link: their Preferences are chosen with /channels. */
+export function officerLinkPreferencesMessage(): Message {
+  return {
+    content: "You are Linked now. Run /channels to choose the channels you want to see.",
+    allowedMentions: noMentions(),
+  };
+}
+
 /** The guides line for a Member's Experience: Veteran is invited to write guides, New to read them; none otherwise. */
 export function guidesLine(experience: ExperienceKey | undefined, guidesForumId: string | undefined): string | undefined {
   const forum = guidesForumId === undefined ? GUIDES_FORUM_NAME : `<#${guidesForumId}>`;

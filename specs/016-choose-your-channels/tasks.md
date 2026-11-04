@@ -32,7 +32,7 @@ description: "Task list for slice 016, Choose your channels"
 - [x] **T008** [US3] `name-and-roles.ts` (R5): `onLinked`, `onRankApproved`, `syncMember`, `atStartup` call
   `preferences.apply` with the rank; R5 gets NaP discussions at Link; a rank change in the Daily Sync takes it off a
   former R4/R5 and gives it to a new R5; a failure leaves the name and roles standing.
-- [ ] **T009** [US1–4] `unlink.ts`: every Unlink calls `forget` (roles off for a Member still on the server, rows always
+- [x] **T009** [US1–4] `unlink.ts`: every Unlink calls `forget` (roles off for a Member still on the server, rows always
   deleted). `corrections.ts` Officer Link (R6): private message pointing to `/channels`, failure ignored.
 - [ ] **T010** [US4] `/channels` in `commands.ts`: Linked → the private Preferences message with current answers; not
   Linked → "finish onboarding first"; register-commands test.

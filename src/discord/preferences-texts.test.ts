@@ -13,6 +13,7 @@ import {
   guidesLine,
   notLinkedReply,
   notYoursReply,
+  officerLinkPreferencesMessage,
   parsePreferencesCustomId,
   preferencesCustomId,
   preferencesLogLine,
@@ -338,5 +339,14 @@ describe("private replies about the Preferences", () => {
 
     expect(reply.content).toMatch(/belong to another Member/);
     expect(reply.flags).toBe(MessageFlags.Ephemeral);
+  });
+});
+
+describe("the private message after an Officer Link", () => {
+  test("points the Member to /channels, with no mentions", () => {
+    const message = officerLinkPreferencesMessage();
+
+    expect(message.content).toContain("/channels");
+    expect(message.allowedMentions).toEqual({ parse: [] });
   });
 });
