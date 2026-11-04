@@ -79,6 +79,11 @@ export const interview = new SlashCommandBuilder()
   .setDescription("Start your Onboarding Interview")
   .setContexts(InteractionContextType.Guild);
 
+export const channels = new SlashCommandBuilder()
+  .setName("channels")
+  .setDescription("Choose which channels you see")
+  .setContexts(InteractionContextType.Guild);
+
 export const unlink = new SlashCommandBuilder()
   .setName("unlink")
   .setDescription("End a Link: your own, or another Member's (Officers)")
@@ -175,6 +180,7 @@ export const commands = [
   player.toJSON(),
   alliance.toJSON(),
   quota.toJSON(),
+  channels.toJSON(),
   interview.toJSON(),
   unlink.toJSON(),
   rank.toJSON(),

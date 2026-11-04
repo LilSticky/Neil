@@ -10,6 +10,7 @@ import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
 import type { ReaperStore } from "./storage/reaper-store.js";
+import type { PreferenceStore } from "./storage/preference-store.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
 export function formatStartupError(
@@ -47,6 +48,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly knownAlliances: KnownAllianceStore;
   readonly dailySync: DailySyncStore;
   readonly reaper: ReaperStore;
+  readonly preferences: PreferenceStore;
 }
 
 export interface Connection {
@@ -134,6 +136,8 @@ export async function start(deps: StartupDeps): Promise<void> {
       troopBracketLevels: config.troopBracketLevels,
       dailySync: store.dailySync,
       reaper: store.reaper,
+      preferences: store.preferences,
+      guidesForumId: config.guidesForumId,
       syncHourUtc: config.syncHourUtc,
       syncShare: config.syncShare,
     });

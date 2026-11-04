@@ -10,6 +10,7 @@ import type { Player } from "../domain/player.js";
 import type { Approver, MemberId, RankApproval } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
+import { createPreferenceStore, type PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
   rankAskedMessage,
@@ -45,6 +46,7 @@ const OFFICER: MemberId = "555555555555555555";
 const OTHER_OFFICER: MemberId = "888888888888888888";
 const LEADER: MemberId = "777777777777777777";
 const THREAD = "666666666666666666";
+const OTHER_THREAD = "999999999999999999";
 const UID = uidOf("145563254785");
 const LEADER_UID = uidOf("145563254700");
 
@@ -148,6 +150,8 @@ function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value
 
 interface Harness {
   readonly links: LinkStore;
+  /** The Preferences messages open in threads: a test opens one for the Member whose Rank Approval ends. */
+  readonly preferences: PreferenceStore;
   readonly channels: FakeChannels;
   readonly roles: Map<MemberId, readonly string[]>;
   readonly nameAndRoles: FakeNameAndRoles;
@@ -196,8 +200,10 @@ describe("createRankApprovals", () => {
     const nameAndRoles = new FakeNameAndRoles();
     const errors: string[] = [];
     const roleGates = new Map<MemberId, Promise<void>>();
+    const preferences = createPreferenceStore(db, () => undefined);
     const service = createRankApprovals({
       links,
+      preferences,
       channels,
       nameAndRoles,
       officerRoles: OFFICERS,
@@ -217,7 +223,7 @@ describe("createRankApprovals", () => {
         gate.resolve(undefined);
       };
     };
-    h = { links, channels, roles, errors, nameAndRoles, service, holdRolesOf };
+    h = { links, preferences, channels, roles, errors, nameAndRoles, service, holdRolesOf };
   });
 
   afterEach(() => {
@@ -280,6 +286,28 @@ describe("createRankApprovals", () => {
       await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
 
       expect(h.channels.posts.slice(postsBefore)).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
+    test("keeps the thread while the Member's Preferences message is open in it, with no message in it", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.preferences.openPrompt(MEMBER, THREAD, NOW);
+      const postsBefore = h.channels.posts.length;
+
+      await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
+
+      expect(h.channels.posts.slice(postsBefore)).toEqual([]);
+      expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("still deletes the thread when the Member's Preferences message is open in another thread", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.preferences.openPrompt(MEMBER, OTHER_THREAD, NOW);
+
+      await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
+
       expect(h.channels.deleted).toEqual([THREAD]);
     });
 

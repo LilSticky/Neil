@@ -27,6 +27,7 @@ keeps their nickname and roles matching the game.
 |------------|-----|-----|
 | **Onboarding Interview** | every newcomer | When someone joins, Neil opens a private thread in `#onboarding` and asks which Player they are. The Member proves it with their uid (the number under their in-game profile picture). If the thread got lost, `/interview` starts a new one. |
 | **Link** | Neil | Once the Member confirms ("that's me"), Neil Links them to the Player, then gives them their nickname and roles. |
+| **Preferences** | Neil | After the Link, one message in the Interview thread with four menus (Languages, Region, Interests, Experience) and a **Done** button. Each choice gives a Preference Role, which shows the matching channels (step 8b). `/channels` shows the same menus later, privately. |
 | **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance tag, Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |
 | **Daily Sync** | Neil | Once a day (03:00 UTC by default) Neil re-reads the game and updates nicknames and roles. |
 | **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the channel permissions in step 8) lets them see only `#onboarding`. |
@@ -59,10 +60,11 @@ keeps their nickname and roles matching the game.
 | `R1`–`R5` | Neil, when first needed | created automatically | Alliance Rank, for Home Kingdom Alliances only. |
 | `#330`, `#331`, … | Neil, when first needed | created automatically | The Kingdom a Member's Player is in. |
 | `T1`–`T10` | Neil, when first needed | created automatically | Troop Bracket (highest troop tier the sanctuary level unlocks). |
+| **Preference Roles**: languages (e.g. `Italian`), `Americas`, `Europe/Africa`, `Asia/Oceania`, `PvP`, `Events`, `Trading`, `Off-topic`, `NaP discussions`, `New`, `Intermediate`, `Veteran` | Neil, when first needed | created automatically | Given by the Member's choices (section 1, Preferences). They show the channels in step 8b. |
 
 🔴 **REQUIRED: never give a permission to a role Neil creates.** Neil creates them with no permissions, and refuses
-to use a role with one of these names (`Onboarding`, an Alliance tag, `R1`–`R5`, `#<number>`, `T1`–`T10`) that has
-any. If you made such a role yourself before, remove its permissions or delete it and let Neil recreate it.
+to use a role with one of these names (`Onboarding`, an Alliance tag, `R1`–`R5`, `#<number>`, `T1`–`T10`, a Preference
+Role) that has any. If you made such a role yourself before, remove its permissions or delete it and let Neil recreate it.
 
 ⚪ **OPTIONAL:** you may change the **color**, **icon** and **"display separately"** setting of Neil's roles. Neil
 doesn't mind.
@@ -76,11 +78,12 @@ Discord lets a bot manage only the roles and Members **below** its own role. Nei
   Moderator
   Neil              ← the bot's role
   Onboarding        ← everything Neil manages sits below Neil
+  Preference Roles
   NML, R5 … R1, #330, T10 … T1
   @everyone
 ```
 
-- 🔴 **REQUIRED:** **Neil** sits **above** `Onboarding` and every Managed Role, or it can't give or remove them.
+- 🔴 **REQUIRED:** **Neil** sits **above** `Onboarding`, the Preference Roles and every Managed Role, or it can't give or remove them.
 - 🔴 **REQUIRED:** **Neil** sits **below** Moderator and King.
 - ⚪ **OPTIONAL:** the order of the Managed Roles among themselves.
 
@@ -95,6 +98,9 @@ Neil also can't change the nickname of a Member whose highest role is above Neil
 | `#onboarding` (a text channel) | 🔴 REQUIRED | Neil opens one private thread per newcomer here. |
 | `#neil-log` (a text channel) | 🔴 REQUIRED | Neil reports Links, Unlinks, handed-off Interviews, missing permissions and problems here. |
 | A moderator-only channel | 🟡 RECOMMENDED | Where Officers use `/quota`, `/rank` and `/link`. |
+| Language, region and interest channels | 🟡 RECOMMENDED | Shown only to Members with the matching Preference Role (step 8b). |
+| The NaP publications channel | 🟡 RECOMMENDED | Visible to every Linked Member (step 8b). |
+| The guides forum | 🟡 RECOMMENDED | Readable by everyone; Veterans are invited to write (step 8b). |
 | Every other channel | — | Hidden from newcomers (step 8). |
 
 The names don't matter; Neil finds the channels by their ID (step 7). Both must be ordinary **text channels**,
@@ -212,6 +218,36 @@ created later inherits them.
 Tip: open **Server Settings → Roles → Onboarding → View Server As Role** to check what a newcomer sees. They
 should see only `#onboarding`.
 
+### Step 8b: Show channels by Preference
+
+🟡 **RECOMMENDED.** Preference Roles (section 2) decide which channels a Member sees, once they have chosen. Set these
+the same way as step 8, on the channel or its category. Neil never changes these permissions itself.
+
+**Language, region and interest channels.** For each one, e.g. the auto-translated Italian channel (role **Italian**),
+or `Europe/Africa`, `PvP`:
+
+| Role | Permission | Setting |
+|------|------------|---------|
+| **@everyone** | View Channel | ❌ |
+| that channel's Preference Role, e.g. **Italian** | View Channel | ✅ |
+
+**NaP discussions.** The channel is visible only to the **NaP discussions** role. Neil gives it to every R5 and to each
+R4 who chooses it, and takes it off anyone else.
+
+| Role | Permission | Setting |
+|------|------------|---------|
+| **@everyone** | View Channel | ❌ |
+| **NaP discussions** | View Channel | ✅ |
+
+**NaP publications.** Every Linked Member sees it, with no Preference Role. Set it as in step 8: **@everyone** View
+Channel ❌, and the roles of Linked Members (e.g. `#330`) View Channel ✅.
+
+**Guides forum.** Everyone can read it, newcomers included, so this one channel is the exception to step 8: **@everyone**
+View Channel ✅. The **Veteran** role is invited to write in it: give **Veteran** Create Posts ✅ and Send Messages in
+Threads ✅ on that forum.
+
+🟡 **RECOMMENDED:** check one language with **View Server As Role**, as in step 8.
+
 ### Step 9: Make the Officer commands visible to Officers
 
 🔴 **REQUIRED** for Officers to use `/quota`, `/rank` and `/link`. Discord hides these three from everyone except
@@ -222,7 +258,7 @@ Administrators until you allow them.
 1. **Roles & Members** → **Add** → **Moderator** and **King**. 🔴 REQUIRED
 2. **Channels** → limit it to the moderator-only channel. 🟡 RECOMMENDED
 
-Leave `/player`, `/alliance`, `/interview`, `/unlink`, `/reaper` and `/ping` as they are: every Member may use them.
+Leave `/player`, `/alliance`, `/interview`, `/unlink`, `/channels`, `/reaper` and `/ping` as they are: every Member may use them.
 Neil still checks the Officer role itself, so a mistake here never gives a Member Officer powers.
 
 ### Step 10: Test it
@@ -254,6 +290,7 @@ never need them.
 | `GAME_API_QUOTA_RESERVE` | ⚪ OPTIONAL | Requests kept back for Interviews | `100` |
 | `GAME_API_CACHE_MINUTES` | ⚪ OPTIONAL | How long a lookup is cached (at least 10) | `10` |
 | `TROOP_BRACKET_LEVELS` | ⚪ OPTIONAL | Sanctuary level where each of T1–T10 starts | `1,3,6,10,14,17,20,24,27,30` |
+| `DISCORD_GUIDES_FORUM_ID` | ⚪ OPTIONAL | ID of the guides forum, named in the Veteran and New guides line of the Preferences message | — (the line says "the guides forum") |
 
 Slash commands are registered by the developer (`npm run commands:register`) when the command list changes. After
 that, check step 9 again for any new Officer command.

@@ -17,6 +17,8 @@ import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
+import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
+import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
@@ -59,6 +61,7 @@ const OTHER_UID = uidOf("145563254786");
 const OFFICER_UID = uidOf("145563254787");
 const NOT_OFFICER_UID = uidOf("145563254788");
 const THREAD = "800000000000000001";
+const OTHER_THREAD = "800000000000000002";
 
 const UNKNOWN_RANK: RankOnLink = { source: "unknown" };
 const NO_ALLIANCE: RankOnLink = { source: "no-alliance" };
@@ -161,6 +164,7 @@ interface Harness {
   readonly unlink: FakeUnlink;
   readonly channels: FakeChannels;
   readonly nameAndRoles: FakeNameAndRoles;
+  readonly preferences: FakePreferenceStore;
   readonly errors: string[];
   readonly close: () => void;
 }
@@ -179,6 +183,7 @@ function makeHarness(): Harness {
     unlink: new FakeUnlink(links),
     channels: new FakeChannels(),
     nameAndRoles: new FakeNameAndRoles(),
+    preferences: new FakePreferenceStore(),
     errors,
     close: () => {
       db.close();
@@ -322,6 +327,7 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     h = makeHarness();
     deps = {
       links: h.links,
+      preferences: h.preferences,
       channels: h.channels,
       nameAndRoles: h.nameAndRoles,
       officerRoles: OFFICERS,
@@ -421,6 +427,27 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     await handleRank(interaction, deps);
 
     expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([THREAD]);
+  });
+
+  test("keeps the thread while the Member's Preferences message is open in it, with no message in it", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.preferences.openPrompt(LINKED, THREAD, NOW);
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
+    expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([]);
+  });
+
+  test("still deletes the thread when the Member's Preferences message is open in another thread", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.preferences.openPrompt(LINKED, OTHER_THREAD, NOW);
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
     expect(h.channels.deleted).toEqual([THREAD]);
   });
 
@@ -525,6 +552,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
       links: h.links,
       gameApi: h.gameApi,
       unlink: h.unlink,
+      preferenceRoles: new FakePreferenceRoles(),
       homeKingdom: KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       officerRoleIds: OFFICER_ROLE_IDS,
@@ -536,6 +564,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
 
     await handleRank(interaction, {
       links: h.links,
+      preferences: h.preferences,
       channels: h.channels,
       nameAndRoles,
       officerRoles: OFFICERS,
@@ -642,6 +671,43 @@ describe("handleLinkButton: a failing channel does not stop the Officer Link", (
     await press(h, confirm, OFFICER);
 
     expect(h.links.linkFor(HANDED_OFF)).toBeDefined();
+    expect(h.nameAndRoles.linked).toEqual([expect.objectContaining({ memberId: HANDED_OFF })]);
+    expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
+  });
+});
+
+describe("handleLinkButton: an Officer Link tells the Member about /channels", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("sends the Member a private message pointing to /channels, once the Officer Link is stored", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.privateMessages.attempts[0]?.memberId).toBe(HANDED_OFF);
+    expect(contentOf(h.privateMessages.attempts[0]?.message)).toContain("/channels");
+  });
+
+  test("a refused private message is ignored: the Officer Link stands and the name and roles are applied", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    h.privateMessages.refuseWith(new Error("Cannot send messages to this user"));
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.links.linkFor(HANDED_OFF)).toEqual(
+      expect.objectContaining({ memberId: HANDED_OFF, uid: FOUND_UID, madeBy: { kind: "officer-link", officerId: OFFICER } }),
+    );
     expect(h.nameAndRoles.linked).toEqual([expect.objectContaining({ memberId: HANDED_OFF })]);
     expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
   });
@@ -782,10 +848,26 @@ function privateAnswersOf(button: FakeLinkButton): FakeLinkButton["answers"] {
   return button.answers.filter((answer) => answer.method !== "update");
 }
 
+/** The private messages an Officer Link sends the Member: records every attempt, a refused one included. */
+class FakeLinkPrivateMessages {
+  readonly attempts: { readonly memberId: MemberId; readonly message: BaseMessageOptions }[] = [];
+  private failure: Error | undefined = undefined;
+
+  refuseWith(error: Error): void {
+    this.failure = error;
+  }
+
+  send(memberId: MemberId, message: BaseMessageOptions): Promise<void> {
+    this.attempts.push({ memberId, message });
+    return this.failure === undefined ? Promise.resolve() : Promise.reject(this.failure);
+  }
+}
+
 interface LinkHarness extends Harness {
   readonly gameApi: FakeLinkGameApi;
   readonly rankApprovals: FakeRankApprovals;
   readonly onboardingRole: FakeOnboardingRole;
+  readonly privateMessages: FakeLinkPrivateMessages;
   /** The Members on the server; a Member not in it has left. */
   readonly onServer: Set<MemberId>;
   readonly confirmations: PendingLinkConfirmations;
@@ -799,6 +881,7 @@ function makeLinkHarness(): LinkHarness {
     gameApi: new FakeLinkGameApi(),
     rankApprovals: new FakeRankApprovals(),
     onboardingRole: new FakeOnboardingRole(),
+    privateMessages: new FakeLinkPrivateMessages(),
     onServer: new Set([OFFICER, LINKED, OTHER_LINKED, UNLINKED, NOT_OFFICER_LINKED, HANDED_OFF, RUNNING]),
     confirmations: new PendingLinkConfirmations(),
     now: NOW,
@@ -830,6 +913,7 @@ function confirmDeps(h: LinkHarness) {
     isOnServer: (memberId: MemberId) => Promise.resolve(h.onServer.has(memberId)),
     confirmations: h.confirmations,
     onboardingRole: h.onboardingRole,
+    sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => h.privateMessages.send(memberId, message),
     now: () => h.now,
     logError: (line: string) => h.errors.push(line),
   };

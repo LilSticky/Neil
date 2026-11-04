@@ -18,7 +18,7 @@ discovery.
 
 ## Managed Role
 * A Discord role Neil may give and remove: the Alliance, Alliance Rank, Kingdom and Troop Bracket roles
-* Neil creates a missing Managed Role on first use; apart from the Onboarding Role, it never touches any other role
+* Neil creates a missing Managed Role on first use; apart from the Onboarding Role and the Preference Roles, it never touches any other role
 
 # Game
 
@@ -159,6 +159,20 @@ discovery.
 * The Discord role a Member holds while they are not Linked; it lets them see and write in `#onboarding`
 * Neil gives it when a Member joins and when a Member still on the server is Unlinked, removes it at Link, and puts every Member right at startup
 * Not a Managed Role; Neil creates it without permissions on first use
+
+## Preference
+* An optional answer a Linked Member gives about themselves after the Link, or later with `/channels`: their Languages, Region, Interests and Experience
+* Decides which channels they see; skipped questions give no Preference
+* Forgotten at Unlink
+
+## Preference Role
+* The Discord role for one Preference (e.g. `Italian`, `Europe/Africa`, `PvP`, `Veteran`); it shows the matching channels
+* Not a Managed Role; Neil creates it without permissions on first use and removes it at Unlink
+
+## NaP discussions
+* The Interest for talking about non-aggression pacts (NaP) between Alliances
+* Offered only to a Member Linked to an R4; a Member Linked to an R5 gets it without asking; anyone else loses it
+* Other Members see only the NaP publications
 
 ## Link
 * The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me"), or as an Officer Link

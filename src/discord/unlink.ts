@@ -7,6 +7,7 @@ import type { ServerMembers } from "./name-and-roles.js";
 import type { OfficerRoles } from "./interview-texts.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { OnboardingRole } from "./onboarding-role.js";
+import type { PreferenceRoles } from "./preferences.js";
 import {
   rankHandedToOfficersMessage,
   unlinkedByOfficerPrivateMessage,
@@ -34,6 +35,8 @@ export interface UnlinkDeps {
   readonly members: ServerMembers;
   /** Gives the Onboarding Role back to a Member whose Link ends by their own or an Officer's Unlink. */
   readonly onboardingRole: Pick<OnboardingRole, "give">;
+  /** Takes the Preference Roles off a Member whose Link ends, and deletes their Preferences. */
+  readonly preferenceRoles: Pick<PreferenceRoles, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -54,6 +57,8 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   const applied = attempt(deps, memberId, "reading the applied state", () => deps.applied.get(memberId));
   // The Link goes first, so an apply that is under way finds no Link and gives the Member nothing more.
   const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
+  // Every Unlink forgets the Preferences, also a Member already gone from the server: their rows must not outlive the Link.
+  await attemptAsync(deps, memberId, "forgetting the Preferences", () => deps.preferenceRoles.forget(memberId));
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {
     notChanged = await takeOffOnServer(deps, memberId, applied);

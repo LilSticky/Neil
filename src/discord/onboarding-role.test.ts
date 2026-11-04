@@ -16,6 +16,8 @@ const BOT: MemberId = "444444444444444444";
 const UID = uidOf("145563254785");
 /** The Administrator permission bit: a role with it is refused. */
 const ADMINISTRATOR = 8n;
+/** The id of an Officer role of the server, as the configuration gives it: Neil never gives or takes it. */
+const OFFICER_ROLE_ID = "700000000000000001";
 const NOW = new Date("2026-11-04T10:00:00Z");
 
 function uidOf(digits: string): Uid {
@@ -49,13 +51,13 @@ class FakeLinks {
   }
 }
 
-function setUp() {
+function setUp(officerRoleIds: readonly string[] = []) {
   const guild = new FakeRolesGuild(OWNER);
   const members = new FakeServerMembers();
   const links = new FakeLinks();
   const logError = vi.fn<(line: string) => void>();
   const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
-  const service = createOnboardingRole({ members, links, logError, log });
+  const service = createOnboardingRole({ members, links, logError, log, officerRoleIds });
   /** Puts a Member on the server, holding the given roles, as the discord.js adapter would find them. */
   const join = (memberId: MemberId, roles: readonly string[] = [], bot = false): FakeRolesMember => {
     const member = guild.member(memberId, roles);
@@ -76,6 +78,16 @@ describe("give", () => {
     expect(guild.createdRoleNames()).toEqual(["Onboarding"]);
     expect(heldNames(alice)).toEqual(["Onboarding"]);
     expect(logError).not.toHaveBeenCalled();
+  });
+
+  test("never gives an Officer role named Onboarding", async () => {
+    const { guild, service, join } = setUp([OFFICER_ROLE_ID]);
+    guild.defineRole("Onboarding", { id: OFFICER_ROLE_ID });
+    const alice = join(ALICE);
+
+    await service.give(ALICE);
+
+    expect(heldNames(alice)).toEqual([]);
   });
 
   test("changes nothing for a Member who is not on the server", async () => {

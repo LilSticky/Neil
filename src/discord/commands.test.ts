@@ -119,6 +119,19 @@ describe("commands", () => {
     );
   });
 
+  test("hold /channels, open to every Member, guild only, without options, described as choosing the channels a Member sees", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "channels",
+        description: "Choose which channels you see",
+        type: ApplicationCommandType.ChatInput,
+        options: [],
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+      }),
+    );
+  });
+
   test("hold /unlink, open to anyone, guild only, with one optional user option member; Neil checks who may Unlink whom", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
@@ -253,9 +266,10 @@ describe("commands", () => {
     expect(reaper?.default_member_permissions ?? null).toBeNull();
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /interview, /unlink, /rank, /link and /reaper", () => {
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link and /reaper", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
+      "channels",
       "interview",
       "link",
       "ping",

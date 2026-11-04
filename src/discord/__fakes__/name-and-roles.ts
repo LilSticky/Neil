@@ -19,11 +19,15 @@ export class FakeNameAndRoles implements NameAndRoles {
   readonly approved: MemberId[] = [];
   private failure: Error | undefined = undefined;
 
+  /** Every call in the order made, under the name of the method; a test may share one trace with other fakes. */
+  constructor(readonly trace: string[] = []) {}
+
   failWith(error: Error): void {
     this.failure = error;
   }
 
   onLinked(memberId: MemberId, player: Player, rank: RankOnLink): Promise<void> {
+    this.trace.push("nameAndRoles.onLinked");
     this.linked.push({ memberId, player, rank });
     return this.outcome();
   }

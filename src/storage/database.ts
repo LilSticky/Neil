@@ -126,6 +126,20 @@ const migrations: readonly string[] = [
      CHECK ((x IS NULL) = (y IS NULL) AND (x IS NULL) = (position_at IS NULL))
    );
    CREATE INDEX reaper_kingdom ON reaper (kingdom)`,
+  // Migration 12: Preferences and the open Preferences message (slice 016). A Preference is one row per Member, kind and
+  // value; a preference_prompt row marks the Preferences message still open in the Member's Interview thread. member_id
+  // is a snowflake in both (slice 016, review C1).
+  `CREATE TABLE preference (
+     member_id TEXT NOT NULL CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*'),
+     kind TEXT NOT NULL,
+     value TEXT NOT NULL,
+     PRIMARY KEY (member_id, kind, value)
+   );
+   CREATE TABLE preference_prompt (
+     member_id TEXT PRIMARY KEY CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*'),
+     thread_id TEXT NOT NULL,
+     posted_at TEXT NOT NULL
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

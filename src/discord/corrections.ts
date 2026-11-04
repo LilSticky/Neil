@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { MessageFlags } from "discord.js";
+import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { mayCorrect, type Corrector } from "../domain/correction.js";
 import { needsRankApproval, officerRank, rankOnLink, type Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
@@ -9,11 +9,13 @@ import type { Player } from "../domain/player.js";
 import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { PreferenceStore } from "../storage/preference-store.js";
 import { leaderPing, pendingApprovalFor, storeLinkIfStep, type InterviewGameApi } from "./interview.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { OnboardingRole } from "./onboarding-role.js";
-import type { RankApprovals } from "./rank-approval.js";
+import { keepsApprovalThread, type RankApprovals } from "./rank-approval.js";
+import { officerLinkPreferencesMessage } from "./preferences-texts.js";
 import {
   asApprovableRank,
   linkedMessage,
@@ -105,6 +107,8 @@ export interface UnlinkCommandDeps {
 /** Everything /rank reads and writes. */
 export interface RankCommandDeps {
   readonly links: LinkStore;
+  /** Read only: an open Preferences message in the approval's thread keeps the thread (FR-009). */
+  readonly preferences: Pick<PreferenceStore, "prompt">;
   readonly channels: Pick<OnboardingChannels, "log" | "post" | "deleteThread">;
   readonly nameAndRoles: Pick<NameAndRoles, "onRankApproved">;
   readonly officerRoles: OfficerRoles;
@@ -133,6 +137,8 @@ export interface LinkButtonDeps {
   readonly nameAndRoles: Pick<NameAndRoles, "onLinked">;
   readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
+  /** Privately tells the Member an Officer Linked about /channels; Discord may refuse it. */
+  readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly confirmations: PendingLinkConfirmations;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
@@ -261,9 +267,12 @@ export function handleRank(interaction: CorrectionInteraction, deps: RankCommand
     const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: caller.memberId }, now);
     await logLine(deps.logError, () => deps.channels.log(rankSetLogLine(caller.memberId, memberId, rank)));
     if (settled !== undefined) {
-      await answer("the deletion of an Interview thread", { logError: deps.logError }, () =>
-        deps.channels.deleteThread(settled.threadId),
-      );
+      const approval = { threadId: settled.threadId, linkedMemberId: memberId };
+      if (!keepsApprovalThread(deps.preferences, approval)) {
+        await answer("the deletion of an Interview thread", { logError: deps.logError }, () =>
+          deps.channels.deleteThread(approval.threadId),
+        );
+      }
     }
     await interaction.editReply(rankSetReply(memberId, rank, decision.gameRank));
     await deps.nameAndRoles.onRankApproved(memberId);
@@ -396,6 +405,9 @@ async function finishOfficerLink(
   }
   await logLine(deps.logError, () =>
     deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)),
+  );
+  await answer("the /channels message after an Officer Link", { logError: deps.logError }, () =>
+    deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()),
   );
   try {
     await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);

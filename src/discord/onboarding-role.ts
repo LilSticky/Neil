@@ -17,6 +17,8 @@ export interface OnboardingRoleDeps {
   readonly logError: (line: string) => void;
   /** The log channel: receives the one summary line of the startup sweep. */
   readonly log: (message: BaseMessageOptions) => Promise<void>;
+  /** The Officer roles of the server: Neil never gives or takes one, even one named Onboarding. */
+  readonly officerRoleIds: readonly string[];
 }
 
 /**
@@ -45,7 +47,12 @@ export function createOnboardingRole(deps: OnboardingRoleDeps): OnboardingRole {
 }
 
 /** The change of one Member's Onboarding Role: a Member is looked up, the change made, and a skip logged. */
-type Change = (guild: RolesGuild, member: RolesMember, name: string) => Promise<Skipped | undefined>;
+type Change = (
+  guild: RolesGuild,
+  member: RolesMember,
+  name: string,
+  officerRoleIds: readonly string[],
+) => Promise<Skipped | undefined>;
 
 async function changeFor(deps: OnboardingRoleDeps, memberId: MemberId, change: Change): Promise<void> {
   try {
@@ -64,7 +71,7 @@ async function changeAndLog(
   server: ServerMember,
   change: Change,
 ): Promise<Skipped | undefined> {
-  const skip = await change(server.guild, server.member, ONBOARDING_ROLE_NAME);
+  const skip = await change(server.guild, server.member, ONBOARDING_ROLE_NAME, deps.officerRoleIds);
   if (skip !== undefined) {
     deps.logError(`Changing the ${ONBOARDING_ROLE_NAME} Role of ${memberId} was skipped: ${skip.reason}`);
   }

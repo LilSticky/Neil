@@ -237,6 +237,25 @@ need a Member Linked to the R5 of a Home Kingdom Alliance and a second Member wh
 | 6j.8 | `/reaper list` | Every Exile newest first (name, Kingdom, reason, date), 8 per page | | |
 | 6j.9 | As the R5: `/reaper remove exile:` | Suggestions while typing; removing confirms privately, logs one line, and the Exile is gone from `list` | | |
 
+## 6k. Choose your channels (slice 016, collected 2026-11-04)
+
+Branch `016-choose-your-channels`. New command: `/channels`. Before: set the Preference Role channel permissions
+from SERVER-SETUP.md (step 8b) and HOSTING.md, and set `DISCORD_GUIDES_FORUM_ID` if you want the guides forum named.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6k.1 | Restart Neil | Nothing changes for existing Members: no Preferences message, no Preference Role given | | |
+| 6k.2 | Link a test account whose game Language is set (e.g. Italian) | The Preferences message is in the Interview thread, with that Language preselected and its role given | | |
+| 6k.3 | Choose two Languages, a Region, PvP and Veteran | Each change gives its role at once and updates the message; the guides invitation appears; one log line per change | | |
+| 6k.4 | Press Done | The thread is deleted | | |
+| 6k.5 | Link another test account and touch nothing | The thread is deleted after the Interview timeout | | |
+| 6k.6 | Check NaP discussions with three test accounts: R4 choosing it, R5 choosing nothing, R3 | R4 sees the NaP discussions channel after choosing; R5 gets it without choosing; R3 does not see it | | |
+| 6k.7 | `/channels` as a Linked Member | Current choices shown privately, preselected; a change applies | | |
+| 6k.8 | `/channels` as a Member who is not Linked | Told to finish onboarding first; nothing else | | |
+| 6k.9 | `/unlink` the test account | All Preference Roles are gone | | |
+| 6k.10 | Officer Link of a test account | It gets a private message pointing to `/channels`; no Preferences message in the thread | | |
+| 6k.11 | Compare the game's language list with the 17 offered (English … Indonesian, plan R2) | Every language the game offers is in the list; note any missing ones here | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

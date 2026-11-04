@@ -9,6 +9,7 @@ import type { LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { AppliedStore, AppliedState } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { PreferenceRoles } from "./preferences.js";
 import type { Unlink } from "./unlink.js";
 import {
   applyNameAndRoles,
@@ -70,6 +71,8 @@ export interface NameAndRolesDeps {
   readonly links: LinkStore;
   readonly gameApi: NameAndRolesGameApi;
   readonly unlink: Unlink;
+  /** Follows the rank after every apply; a failure is logged and the name and roles stand. */
+  readonly preferenceRoles: Pick<PreferenceRoles, "apply">;
   readonly homeKingdom: KingdomNumber;
   readonly troopBracketLevels: readonly number[];
   /** The Moderator and King role IDs from config: Neil never gives or takes these roles as Managed Roles. */
@@ -224,6 +227,7 @@ async function syncTo(
   });
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
   deps.links.updateRank(memberId, rank);
+  await givePreferenceRoles(deps, memberId);
   const nicknameChanged = report.nickname === "set" && currentNickname !== nickname;
   // The owner's nickname skip is the same on every run and never a change, so it is not logged.
   const otherSkips = report.skipped.filter((skip) => !isOwnerNicknameSkip(skip));
@@ -256,8 +260,21 @@ async function applyTo(
   });
   // An Unlink may still end the Link during the apply: the foreign key then rejects this record, and the caller logs it.
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
+  await givePreferenceRoles(deps, memberId);
   if (!hasChange(report, previous, nickname)) return;
   await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? ""));
+}
+
+/**
+ * Gives the Preference Roles of the Member's Link, which already holds the rank. A failure is logged with the Member, and
+ * the name and roles stand.
+ */
+async function givePreferenceRoles(deps: NameAndRolesDeps, memberId: MemberId): Promise<void> {
+  try {
+    await deps.preferenceRoles.apply(memberId);
+  } catch (error) {
+    deps.logError(`Giving ${memberId} their Preference Roles failed: ${reasonOf(error)}`);
+  }
 }
 
 function appliedStateOf(
