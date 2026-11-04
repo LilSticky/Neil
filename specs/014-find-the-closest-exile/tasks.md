@@ -12,7 +12,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
 - [x] **T001** [US1–4] Domain `src/domain/exile.ts` (D1): `Exile`, `exileReasonOf` (trimmed, 1–200), `mayChangeReaper`
   (R5 + Home Kingdom only), `distance`, `rankExiles` (other Kingdom, shielded, caller's uid and no-position dropped;
   distance order, ties by earlier `addedAt`; counts left out).
-- [ ] **T002** [US2] Shield (D2): `PlayerDetails.shielded` read leniently from `shielding` in `src/game-api/schemas.ts`
+- [x] **T002** [US2] Shield (D2): `PlayerDetails.shielded` read leniently from `shielding` in `src/game-api/schemas.ts`
   (non-zero → true, 0 → false, missing or unreadable → undefined); recorded fixtures stay green.
 - [ ] **T003** [US1–4] Storage (D3): migration 11 (`reaper` table, data-model.md) and `src/storage/reaper-store.ts`:
   `add` (`added`/`already`), `remove` (`removed`/`not-an-exile`), `all` (newest first), `inKingdom`, `find`, `refresh`;

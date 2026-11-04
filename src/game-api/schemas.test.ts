@@ -364,6 +364,7 @@ const PLAYER_DETAIL_FIELDS = [
   "y",
   "avatar_url",
   "server_badge_url",
+  "shielding",
 ] as const;
 
 const ALLIANCE_DETAIL_FIELDS = ["level", "exp", "gift_level", "language", "rank", "join", "badge_url", "server_badge_url"] as const;

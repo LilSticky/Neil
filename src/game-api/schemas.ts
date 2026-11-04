@@ -17,6 +17,9 @@ const languageSchema = z
   .optional()
   .catch(undefined);
 
+/** The shield reading: any number (0 means no shield); any other value reads as undefined (unknown). */
+const shieldingSchema = z.number().optional().catch(undefined);
+
 /** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
 const MAX_DATE_SECONDS = 8_640_000_000_000;
 
@@ -36,7 +39,7 @@ const rosterRowSchema = z.object({
 
 /**
  * The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us.
- * The Player details (`kills` to `server_badge_url`) each read as undefined when unreadable; the body is still accepted.
+ * The Player details (`kills` to `shielding`) each read as undefined when unreadable; the body is still accepted.
  */
 export const playerBodySchema = z.object({
   uid: idSchema,
@@ -62,6 +65,7 @@ export const playerBodySchema = z.object({
   y: wholeCountSchema,
   avatar_url: picturePathSchema,
   server_badge_url: picturePathSchema,
+  shielding: shieldingSchema,
 });
 
 export type PlayerBody = z.infer<typeof playerBodySchema>;
