@@ -171,6 +171,8 @@ when there are none.
 - Two lookups by one Member at the same moment with one request left: only one is sent.
 - A Member who leaves the server keeps their count for the day; it matters only for the Lookup Member count.
 - The allowance computes to less than 1 (e.g. a tiny limit): it is 1.
+- The same-weekday records average 0 (nobody looked up on those days): Expected Lookup Members is 100, as with no
+  records, because the formula cannot divide by 0.
 - The Daily Quota's limit is unknown at startup: the default limit Neil uses today applies until the Game API reports
   one.
 - A Member's interaction comes in after midnight UTC for a lookup started before: it counts on the day the request is

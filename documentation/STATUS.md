@@ -7,6 +7,10 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 015, Daily Allowance (`../Neil-015`, [specs](../specs/015-look-up-within-a-daily-allowance/)): resumed on
+2026-11-05 on the user's word, with `main` merged in. Spec and plan are done, tasks are next. `/reaper` is not charged
+(the user's decision). It takes migration 13 and ADR 10.
+
 Slice 017, Give Members the Doctor Role ([specs](../specs/017-give-members-the-doctor-role/), issue
 [#47](https://github.com/LilSticky/Neil/issues/47)): every Linked Member, Guests included, holds the Doctor Role, and
 SERVER-SETUP.md step 8c sets out Home Kingdom and Shared information. Merged to `main` with T001–T010 done. **Merged red:**
@@ -23,16 +27,13 @@ merged to `main` as #44: `/reaper add|remove` for Home Kingdom R5s, `/reaper clo
 Member. T001–T013 done (review and audit in the spec folder, ADR 9 for its personal data); the manual check T014
 (TEST-RUN.md §6j) is open.
 
-Slice 015, Daily Allowance (`../Neil-015`): spec only, parked, not in this release. It takes migration 13 and changes
-the lookup signature `/reaper` uses, so it merges `main` before it continues.
-
 Slice 013, Keep newcomers in onboarding ([specs](../specs/013-keep-newcomers-in-onboarding/)): the Onboarding Role
 (given on join and Unlink, taken off at Link, put right at startup) and deletion of finished Interview threads. Merged
 to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task T012) is open.
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** for the user: click Restart in the Wispbyte panel once CI has deployed `main`, then run
+**Next step:** `/speckit-tasks` for slice 015 in `../Neil-015`. Meanwhile, for the user: click Restart in the Wispbyte panel once CI has deployed `main`, then run
 `npm run commands:register` (`/reaper` and `/channels` are new). After the restart, check that Linked Members hold
 `Doctor`, and only then set up the channels ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9). Then TEST-RUN.md
 §6i, §6j, §6k and §6l.
