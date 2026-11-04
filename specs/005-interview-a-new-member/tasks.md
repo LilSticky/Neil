@@ -207,8 +207,8 @@ name request and no uid request. Design: [data-model.md](data-model.md#addendum-
   Implement `src/discord/lookup-cards.ts`.
 - [x] T032 Docs: contracts (interview, 004 lookups), quickstart, TEST-RUN.md (new section for US6/US7), GAME-API.md
   (name lookup used by the Interview), STATUS.
-- [ ] T033 `bot-reviewer` on the Phase 9–10 diff; findings into `review.md`; fix must/should items.
-- [ ] T034 `spec-auditor` against FR-021–FR-027; close gaps.
+- [x] T033 `bot-reviewer` on the Phase 9–10 diff; findings into `review.md`; fix must/should items.
+- [x] T034 `spec-auditor` against FR-021–FR-027; close gaps.
 
 ## Dependencies
 
