@@ -39,9 +39,9 @@ description: "Task list for slice 016, Choose your channels"
 - [x] **T011** `client.ts`: build the store and service, route `pref:` components and `/channels`, pass the service to
   name and roles, the Interview, the sweeper, corrections and Unlink.
 - [x] **T012** Docs: HOSTING.md (create the language, region, interest and experience channels' permissions per
-  Preference Role; NaP publications visible to every Linked Member; `DISCORD_GUIDES_FORUM_ID`), `env.example`, TEST-RUN.md §6j,
+  Preference Role; NaP publications visible to every Linked Member; `DISCORD_GUIDES_FORUM_ID`), `env.example`, TEST-RUN.md §6k,
   STATUS, ROADMAP (016 row).
 - [ ] **T013** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.
 - [ ] **T014** `spec-auditor` against spec.md; findings into `audit.md`; close gaps.
-- [ ] **T015** Manual check collected in TEST-RUN.md §6j (including the game's language list, R2), run later by the
+- [ ] **T015** Manual check collected in TEST-RUN.md §6k (including the game's language list, R2), run later by the
   user.

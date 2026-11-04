@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { ExileReason } from "../domain/exile.js";
 import type { Alliance, Match, RosterEntry } from "../domain/player.js";
 
 /**
@@ -8,6 +9,8 @@ import type { Alliance, Match, RosterEntry } from "../domain/player.js";
 export type PickChoice =
   | { readonly kind: "players"; readonly matches: readonly Match[] }
   | { readonly kind: "alliances"; readonly matches: readonly Match[] }
+  /** The Player matches of /reaper add: the Player picked becomes an Exile with this reason. */
+  | { readonly kind: "exile"; readonly matches: readonly Match[]; readonly reason: ExileReason }
   | {
       readonly kind: "roster";
       readonly entries: readonly RosterEntry[];

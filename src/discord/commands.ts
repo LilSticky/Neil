@@ -126,6 +126,54 @@ export const link = new SlashCommandBuilder()
       .setMaxLength(32),
   );
 
+/** REAPER: any Member finds and lists Exiles; Neil lets only Home Kingdom R5s add and remove them. */
+export const reaper = new SlashCommandBuilder()
+  .setName("reaper")
+  .setDescription("REAPER: find the closest Exiles, or keep the list (Home Kingdom R5s)")
+  .setContexts(InteractionContextType.Guild)
+  .addSubcommand((sub) =>
+    sub
+      .setName("closest")
+      .setDescription("The 3 closest Exiles to your Linked Player, or to x and y")
+      .addIntegerOption((option) =>
+        option.setName("x").setDescription("Measure from this x instead (with y)").setRequired(false).setMinValue(0),
+      )
+      .addIntegerOption((option) =>
+        option.setName("y").setDescription("Measure from this y instead (with x)").setRequired(false).setMinValue(0),
+      )
+      .addBooleanOption((option) =>
+        option.setName("all").setDescription("Every Exile in the Kingdom by distance, paged").setRequired(false),
+      ),
+  )
+  .addSubcommand((sub) => sub.setName("list").setDescription("Every Exile on REAPER, newest first"))
+  .addSubcommand((sub) =>
+    sub
+      .setName("add")
+      .setDescription("Add a Player to REAPER (Home Kingdom R5s)")
+      .addStringOption((option) =>
+        option.setName("name").setDescription("The player's complete in-game name").setRequired(true).setMaxLength(32),
+      )
+      .addStringOption((option) =>
+        option.setName("reason").setDescription("Why they are exiled").setRequired(true).setMaxLength(200),
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("kingdom")
+          .setDescription("The player's kingdom number")
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(9999),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("remove")
+      .setDescription("Remove an Exile from REAPER (Home Kingdom R5s)")
+      .addStringOption((option) =>
+        option.setName("exile").setDescription("The Exile to remove").setRequired(true).setAutocomplete(true),
+      ),
+  );
+
 /** Everything registered for the configured server, as REST payloads. */
 export const commands = [
   ping.toJSON(),
@@ -137,4 +185,5 @@ export const commands = [
   unlink.toJSON(),
   rank.toJSON(),
   link.toJSON(),
+  reaper.toJSON(),
 ];

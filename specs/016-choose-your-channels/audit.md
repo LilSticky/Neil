@@ -29,14 +29,14 @@ Typecheck: green. Tests: 2254 passed (68 files). Lint (--quiet): green.
 | FR-011 no channel permissions; SERVER-SETUP.md | SERVER-SETUP.md/HOSTING.md changed in diff; no code touches permissions | covered by construction |
 | Edge: Officer Link private message, failure ignored | corrections.test (2); preferences-texts.test | covered |
 | Edge: hand-made role left alone | preferences.test "leaves the other roles alone" | covered |
-| SC-001 | manual 6j.2-6j.3 | out of scope |
+| SC-001 | manual 6k.2-6k.3 | out of scope |
 | SC-002 at most 4 interactions | components test (4 menus + Done) | partial: no test asserting one-click skip |
 
 ## Tasks
 
 - T001-T012 ticked and their changes exist in the diff. No silently skipped task found.
 - T013 (review.md) unticked and `review.md` does not exist: open.
-- T014 is this audit. T015 unticked: manual check 6j.1-6j.11 is collected in TEST-RUN.md, to be run by the user.
+- T014 is this audit. T015 unticked: manual check 6k.1-6k.11 is collected in TEST-RUN.md, to be run by the user.
 
 ## Tests covering nothing in the spec
 
@@ -44,7 +44,7 @@ None found. Storage/migration tests and `preferences-after-link` serve plan R-it
 
 ## Test-server check recorded in tasks.md: NO
 
-Only the TEST-RUN.md 6j note; no Definition of Done 2 entry.
+Only the TEST-RUN.md 6k note; no Definition of Done 2 entry.
 
 ## Gaps to close
 
