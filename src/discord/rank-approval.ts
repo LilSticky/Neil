@@ -86,12 +86,23 @@ async function pressRankButton(deps: RankApprovalDeps, button: RankButtonLike): 
   await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
 }
 
-/** Deletes the approval's thread, unless the Member's Preferences message is still open in it (Done or the sweeper deletes it). */
+/**
+ * Whether a thread of a Rank Approval stays: the Member's Preferences message is still open in it (Done or the sweeper
+ * deletes it, FR-009). Shared by the approval buttons and /rank.
+ */
+export function keepsApprovalThread(
+  preferences: Pick<PreferenceStore, "prompt">,
+  approval: { readonly threadId: string; readonly linkedMemberId: MemberId },
+): boolean {
+  return preferences.prompt(approval.linkedMemberId)?.threadId === approval.threadId;
+}
+
+/** Deletes the approval's thread, unless the Member's Preferences message is still open in it. */
 async function deleteApprovalThread(
   deps: RankApprovalDeps,
   approval: { readonly threadId: string; readonly linkedMemberId: MemberId },
 ): Promise<void> {
-  if (deps.preferences.prompt(approval.linkedMemberId)?.threadId === approval.threadId) return;
+  if (keepsApprovalThread(deps.preferences, approval)) return;
   await deps.channels.deleteThread(approval.threadId);
 }
 

@@ -713,4 +713,42 @@ describe("openDatabase", () => {
       db.close();
     }
   });
+
+  test("upgrades a version 11 database to 12 and keeps its reaper rows and Links", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v11.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, linked_by) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown", null);
+    legacy
+      .prepare("INSERT INTO reaper (uid, name, kingdom, x, y, position_at, reason, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("145563254786", "Vex", 330, null, null, null, "Looted the Alliance", "2026-11-03T12:00:00.000Z", "888888888888888888");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+        { version: 6 },
+        { version: 7 },
+        { version: 8 },
+        { version: 9 },
+        { version: 10 },
+        { version: 11 },
+        { version: 12 },
+      ]);
+      expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
+        { member_id: "member-1", uid: "145563254785", linked_by: null },
+      ]);
+      expect(db.prepare("SELECT uid, name, kingdom, reason, added_by FROM reaper").all()).toEqual([
+        { uid: "145563254786", name: "Vex", kingdom: 330, reason: "Looted the Alliance", added_by: "888888888888888888" },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
 });

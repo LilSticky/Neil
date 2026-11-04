@@ -363,7 +363,8 @@ describe("forget", () => {
 
 describe("forget: the open Preferences message", () => {
   test("deletes the thread of the open Preferences message when no Rank Approval is pending", async () => {
-    const { preferences, channels, service } = setUp();
+    const { preferences, channels, service, join } = setUp();
+    join(ALICE);
     preferences.openPrompt(ALICE, ALICE_THREAD, NOW);
 
     await service.forget(ALICE);

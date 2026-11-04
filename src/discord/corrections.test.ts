@@ -18,6 +18,7 @@ import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
 import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
+import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
@@ -60,6 +61,7 @@ const OTHER_UID = uidOf("145563254786");
 const OFFICER_UID = uidOf("145563254787");
 const NOT_OFFICER_UID = uidOf("145563254788");
 const THREAD = "800000000000000001";
+const OTHER_THREAD = "800000000000000002";
 
 const UNKNOWN_RANK: RankOnLink = { source: "unknown" };
 const NO_ALLIANCE: RankOnLink = { source: "no-alliance" };
@@ -162,6 +164,7 @@ interface Harness {
   readonly unlink: FakeUnlink;
   readonly channels: FakeChannels;
   readonly nameAndRoles: FakeNameAndRoles;
+  readonly preferences: FakePreferenceStore;
   readonly errors: string[];
   readonly close: () => void;
 }
@@ -180,6 +183,7 @@ function makeHarness(): Harness {
     unlink: new FakeUnlink(links),
     channels: new FakeChannels(),
     nameAndRoles: new FakeNameAndRoles(),
+    preferences: new FakePreferenceStore(),
     errors,
     close: () => {
       db.close();
@@ -323,6 +327,7 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     h = makeHarness();
     deps = {
       links: h.links,
+      preferences: h.preferences,
       channels: h.channels,
       nameAndRoles: h.nameAndRoles,
       officerRoles: OFFICERS,
@@ -422,6 +427,27 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     await handleRank(interaction, deps);
 
     expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([THREAD]);
+  });
+
+  test("keeps the thread while the Member's Preferences message is open in it, with no message in it", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.preferences.openPrompt(LINKED, THREAD, NOW);
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
+    expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([]);
+  });
+
+  test("still deletes the thread when the Member's Preferences message is open in another thread", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.preferences.openPrompt(LINKED, OTHER_THREAD, NOW);
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
     expect(h.channels.deleted).toEqual([THREAD]);
   });
 
@@ -538,6 +564,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
 
     await handleRank(interaction, {
       links: h.links,
+      preferences: h.preferences,
       channels: h.channels,
       nameAndRoles,
       officerRoles: OFFICERS,

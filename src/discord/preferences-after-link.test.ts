@@ -31,6 +31,7 @@ const NOW = new Date("2026-10-31T10:00:00Z");
 const MEMBER: MemberId = "111111111111111111";
 const THREAD = "666666666666666666";
 const RANK: RankOnLink = { source: "game-api", rank: "R4" };
+const NO_ALLIANCE: RankOnLink = { source: "no-alliance" };
 
 /** A Player whose game Language is the given code; the other details are not read here. */
 function playerIn(language: string | undefined): Player {
@@ -136,5 +137,23 @@ describe("createPreferencesAfterLink", () => {
     await expect(serviceWith().postAfterLink(MEMBER, THREAD, playerIn("fr"), RANK)).rejects.toThrow();
 
     expect(store.prompt(MEMBER)).toBeUndefined();
+  });
+
+  test("a Linked Member with no Alliance is posted the Interests without NaP discussions, as for a Member with no rank", async () => {
+    await serviceWith().postAfterLink(MEMBER, THREAD, playerIn(undefined), NO_ALLIANCE);
+
+    expect(channels.posts).toEqual([
+      {
+        threadId: THREAD,
+        message: preferencesMessage({
+          memberId: MEMBER,
+          preferences: EMPTY_PREFERENCES,
+          rank: undefined,
+          playerLanguage: undefined,
+          guidesForumId: undefined,
+        }),
+        languagesAtPost: [],
+      },
+    ]);
   });
 });

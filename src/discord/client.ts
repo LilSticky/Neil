@@ -875,7 +875,15 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       unlink: (interaction: CorrectionInteraction) =>
         handleUnlink(interaction, { links: options.links, unlink, officerRoles, logError }),
       rank: (interaction: CorrectionInteraction) =>
-        handleRank(interaction, { links: options.links, channels, nameAndRoles, officerRoles, now, logError }),
+        handleRank(interaction, {
+          links: options.links,
+          preferences: options.preferences,
+          channels,
+          nameAndRoles,
+          officerRoles,
+          now,
+          logError,
+        }),
       link: (interaction: LinkInteraction) =>
         handleLink(interaction, {
           links: options.links,
