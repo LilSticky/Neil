@@ -69,7 +69,7 @@ message has at most 5 component rows, a select menu at most 25 options.
   the roles, and updates the message. Picking Veteran or New adds the guides line (Veteran: invitation to write in the
   guides forum; New: pointer to it).
 - **`/channels`**: no options, any Member, private reply. Not Linked → "finish onboarding first", nothing else.
-- **Configuration**: `GUIDES_FORUM_ID` (channel ID, optional; without it the guides line names "the guides forum").
+- **Configuration**: `DISCORD_GUIDES_FORUM_ID` (channel ID, optional; without it the guides line names "the guides forum").
 - **Log channel**: one line per Preferences change (`@Member: Languages Italian, English`), and failed role changes as
   today.
 

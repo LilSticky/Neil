@@ -21,7 +21,7 @@ description: "Task list for slice 016, Choose your channels"
   thrown; `forget(memberId)` takes them all off and deletes the rows.
 - [ ] **T004** [US1–3] `src/discord/preferences-texts.ts` and the message (contracts): four menus with preselection
   (stored answers, else the game Language), Interests by rank, Done button, custom IDs with the Member ID; the guides
-  line for Veteran and New (`GUIDES_FORUM_ID` in `config.ts`, optional).
+  line for Veteran and New (`DISCORD_GUIDES_FORUM_ID` in `config.ts`, optional).
 - [ ] **T005** [US1–3] Select and Done handling (R7): a change saves the answer, applies the roles, logs one line and
   updates the message; a press by another Member changes nothing; Done closes the prompt and deletes the thread unless
   a Rank Approval is pending.
@@ -39,7 +39,7 @@ description: "Task list for slice 016, Choose your channels"
 - [ ] **T011** `client.ts`: build the store and service, route `pref:` components and `/channels`, pass the service to
   name and roles, the Interview, the sweeper, corrections and Unlink.
 - [ ] **T012** Docs: HOSTING.md (create the language, region, interest and experience channels' permissions per
-  Preference Role; NaP publications visible to every Linked Member; `GUIDES_FORUM_ID`), `env.example`, TEST-RUN.md §6j,
+  Preference Role; NaP publications visible to every Linked Member; `DISCORD_GUIDES_FORUM_ID`), `env.example`, TEST-RUN.md §6j,
   STATUS, ROADMAP (016 row).
 - [ ] **T013** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.
 - [ ] **T014** `spec-auditor` against spec.md; findings into `audit.md`; close gaps.
