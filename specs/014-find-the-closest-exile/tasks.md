@@ -17,7 +17,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
 - [x] **T003** [US1–4] Storage (D3): migration 11 (`reaper` table, data-model.md) and `src/storage/reaper-store.ts`:
   `add` (`added`/`already`), `remove` (`removed`/`not-an-exile`), `all` (newest first), `inKingdom`, `find`, `refresh`;
   survives reopening; bad rows refused by zod.
-- [ ] **T004** [US1, US3] Editor check (D3): `editorOf(memberId)` from the Link's rank and the Applied State's
+- [x] **T004** [US1, US3] Editor check (D3): `editorOf(memberId)` from the Link's rank and the Applied State's
   `alliance_kingdom`; R5 by Game API or Rank Approval in the Home Kingdom → may; R4, other Kingdom, unknown rank, no
   Alliance, no Link → may not.
 - [ ] **T005** [US1–4] Command (contract): `/reaper` with `closest`, `list`, `add`, `remove` in `src/discord/commands.ts`;
