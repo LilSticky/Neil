@@ -386,7 +386,7 @@ export async function handleReaperClosest(interaction: ReaperInteraction, contex
   });
 }
 
-/** Answers /reaper list, privately: every Exile of REAPER, newest first, 20 per page. */
+/** Answers /reaper list, privately: every Exile of REAPER, newest first, 8 per page. */
 export async function handleReaperList(interaction: ReaperInteraction, context: ReaperListContext): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const exiles = context.reaper.all();

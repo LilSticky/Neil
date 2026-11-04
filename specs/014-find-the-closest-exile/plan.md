@@ -55,7 +55,7 @@ lookup budget, a warm one 0.
   coordinates, distance, reason and date exiled; a stored position is marked "position as of …" and shown without a
   fresh card (name, Kingdom, coordinates only). Paging with Previous/Next buttons on a memory-only session
   (`ReaperPages`, like `PickSessions`: 15 min, 500 max, owner only); pages redraw from the ranking already made, with no
-  new read. Without `all` only page 1 (3 closest) is shown. `list`: one embed per page of 20 lines (name, Kingdom,
+  new read. Without `all` only page 1 (3 closest) is shown. `list`: one embed per page of 8 lines (the most that always fits 4,096 characters) (name, Kingdom,
   reason, date), newest first, same paging. Texts in `src/discord/reaper-texts.ts`.
 - **D7 Remove**: autocomplete on the `exile` option from `ReaperStore.all()` (name and Kingdom shown, uid as value), no
   request. A typed value that is not a known uid → "not an Exile".

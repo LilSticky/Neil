@@ -30,7 +30,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
   coordinates, distance, reason, date, shield note; stale positions marked; quota refusal mid-read uses stored
   positions; spent with no stored position → quota message; none in Kingdom; rows refreshed; adder never shown.
 - [x] **T008** [US2, US4] Paging (D6): `src/discord/reaper-pages.ts` memory-only sessions (15 min, 500, owner only);
-  `closest all:true` 3 per page by distance; `list` 20 per page newest first, empty text; page buttons redraw without
+  `closest all:true` 3 per page by distance; `list` 8 per page newest first, empty text; page buttons redraw without
   a request; expired session message.
 - [ ] **T009** [US3] `remove` (D7, D8): autocomplete from REAPER without a request; removed → confirmation and log
   line; unknown → "not an Exile"; refusal for non-editors.

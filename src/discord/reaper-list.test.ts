@@ -46,7 +46,7 @@ const ADDER_ID = "310000000000000001";
 const NOW = new Date("2026-11-04T16:00:00Z");
 const EARLIER = new Date("2026-11-01T12:00:00Z");
 const ONE_HOUR_MS = 60 * 60_000;
-const LIST_PAGE_SIZE = 20;
+const LIST_PAGE_SIZE = 8;
 
 /** An Exile as the store keeps it: no position, added by an R5 who is never shown. */
 function exileOf(uid: Uid, name: string, kingdom: KingdomNumber, addedAt: Date, reason: string): Exile {
@@ -222,7 +222,7 @@ describe("handleReaperList", () => {
     expect(textsOf(interaction)).toContain("REAPER is empty.");
   });
 
-  test("shows 20 lines per page and offers a Next button to the rest", async () => {
+  test("shows 8 lines per page and offers a Next button to the rest", async () => {
     for (let index = 0; index < 25; index += 1) store.add(numberedExile(index));
     const { context } = listContext(store, pages);
     const interaction = new FakeReaperInteraction({}, VIEWER_ID);
@@ -232,10 +232,27 @@ describe("handleReaperList", () => {
     const lines = listLinesOf(lastAnswerOf(interaction).embeds);
     expect(lines).toHaveLength(LIST_PAGE_SIZE);
     expect(lines[0]).toContain("Exile 24");
-    expect(lines[LIST_PAGE_SIZE - 1]).toContain("Exile 05");
+    expect(lines[LIST_PAGE_SIZE - 1]).toContain("Exile 17");
     expect(JSON.stringify(lastAnswerOf(interaction).components ?? [])).toMatch(
       /"custom_id":"reaper:[^"]+:page:1"/,
     );
+  });
+
+  test("a full page of the longest names and reasons, all to be escaped, fits one embed description", async () => {
+    for (let index = 0; index < LIST_PAGE_SIZE; index += 1) {
+      const padded = index.toString().padStart(2, "0");
+      store.add(
+        exileOf(uidOf(`145563254${padded}1`), "*".repeat(32), HOME, new Date(EARLIER.getTime() + index * ONE_HOUR_MS), "_".repeat(200)),
+      );
+    }
+    const { context } = listContext(store, pages);
+    const interaction = new FakeReaperInteraction({}, VIEWER_ID);
+
+    await handleReaperList(interaction, context);
+
+    const [list] = embedsOf(lastAnswerOf(interaction).embeds);
+    expect(list?.description?.length ?? 0).toBeLessThanOrEqual(4096);
+    expect(listLinesOf(lastAnswerOf(interaction).embeds)).toHaveLength(LIST_PAGE_SIZE);
   });
 
   test("a page button by the viewer shows the rest of the list, with no Game API request", async () => {
@@ -251,9 +268,9 @@ describe("handleReaperList", () => {
     await handleReaperPage(press, pageContext(pages, NOW));
 
     const lines = listLinesOf(updateOf(press).embeds);
-    expect(lines).toHaveLength(5);
-    expect(lines[0]).toContain("Exile 04");
-    expect(lines[4]).toContain("Exile 00");
+    expect(lines).toHaveLength(LIST_PAGE_SIZE);
+    expect(lines[0]).toContain("Exile 16");
+    expect(lines[LIST_PAGE_SIZE - 1]).toContain("Exile 09");
     expect(getPlayer).not.toHaveBeenCalled();
   });
 

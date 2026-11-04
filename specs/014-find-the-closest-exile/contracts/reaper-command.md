@@ -14,7 +14,7 @@ One slash command, visible to every Member; all replies are ephemeral.
 - `closest`: header (origin and Kingdom, "Neil cannot see shields reliably", how many Exiles were left out and why),
   then up to 3 Exile cards: player card + Coordinates, Distance, Reason, Exiled on. Stale: "position as of <date>".
   With `all`: Previous/Next buttons, 3 per page. No Exiles: "No Exiles in Kingdom N."
-- `list`: 20 per page, newest first: name, Kingdom, reason, date. Empty: "REAPER is empty."
+- `list`: 8 per page, newest first: name, Kingdom, reason, date. Empty: "REAPER is empty."
 - `add`: "<name> (Kingdom N, [TAG]) is now an Exile." / "already an Exile: <reason>" / pick list / not found.
 - `remove`: "<name> is no longer an Exile." / "not an Exile".
 - Refusal for `add`/`remove`: "Only R5s of Home Kingdom Alliances may change REAPER."

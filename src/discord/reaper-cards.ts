@@ -19,7 +19,7 @@ import { reaperMessages } from "./reaper-texts.js";
 /** How many of the closest Exiles one page of /reaper closest shows. */
 export const CLOSEST_PAGE_SIZE = 3;
 /** How many Exiles one page of /reaper list shows. */
-export const LIST_PAGE_SIZE = 20;
+export const LIST_PAGE_SIZE = 8;
 
 /** What a /reaper answer edits in: the text, the embeds, the page buttons and the mentions it may ping. */
 export type ReaperAnswer = Pick<InteractionEditReplyOptions, "content" | "embeds" | "components" | "allowedMentions">;
