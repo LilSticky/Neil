@@ -29,6 +29,12 @@ capabilities and limitations. When they get close to that limit, include a warni
   requests in `/quota`.
 - Q: Dictionary? → A: "Daily Allowance" (with Expected Lookup Members) and "Lookup Member" approved 2026-11-04.
 
+### Session 2026-11-05
+
+- Q: Does `/reaper` (slice 014, merged after this spec) count against the Daily Allowance? → A: no. Its requests count
+  only towards the Daily Quota and still stop at the Quota Reserve. `/reaper` replies show no usage line, and a Member
+  who only uses `/reaper` is not a Lookup Member that day.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A Member's lookups stop at their Daily Allowance (Priority: P1)
@@ -59,6 +65,10 @@ refused with the reset time, and a cached lookup still answers.
    lookup is still refused as today (the Quota Reserve rule stays).
 9. **Given** an Onboarding Interview or the Daily Sync sends a request, **When** it is sent, **Then** it is not counted
    against any Member.
+10. **Given** a Member has used their whole Daily Allowance, **When** they run `/reaper closest`, **Then** it answers as
+    usual, and its requests are not counted against them.
+11. **Given** Neil reads a Player to apply a nickname and roles, **When** the request is sent, **Then** it is not counted
+    against any Member, although it uses the lookup budget.
 
 ---
 
@@ -174,8 +184,8 @@ when there are none.
 
 - **FR-001**: Neil MUST count, per Member and UTC day, every Game API request sent for that Member's lookups (`/player`,
   `/alliance`, Alliance Overview, and their pick lists and buttons), including failed ones.
-- **FR-002**: Answers from the cache, Onboarding Interview requests and Daily Sync requests MUST NOT be counted against a
-  Member.
+- **FR-002**: Answers from the cache, Onboarding Interview requests, Daily Sync requests, `/reaper` requests and the
+  requests Neil makes to apply nicknames and roles MUST NOT be counted against a Member.
 - **FR-003**: Neil MUST refuse a Member's lookup that needs a Game API request once the Member's count has reached their
   Daily Allowance, without sending the request, and say when it resets.
 - **FR-004**: Officers MUST be counted but never refused because of the Daily Allowance.
@@ -212,7 +222,8 @@ when there are none.
 
 ### Measurable Outcomes
 
-- **SC-001**: No Member (other than an Officer) causes more Game API requests in a day than that day's Daily Allowance.
+- **SC-001**: No Member (other than an Officer) causes more counted Game API requests (FR-001) in a day than that day's
+  Daily Allowance; `/reaper` is outside this count.
 - **SC-002**: 100% of lookup replies show the Member's current usage.
 - **SC-003**: With 150 Lookup Members on a day whose estimate was right, lookups never reach the Quota Reserve because of
   allowances alone (allowances sum to at most the lookup share).
@@ -230,3 +241,5 @@ when there are none.
   may delete finished threads, so the private message is the one that lasts).
 - The history needs four weeks to settle; until then fewer same-weekday days are averaged.
 - The usage line wording is final in the plan; the meaning above is binding.
+- `/reaper` draws on the same lookup budget without an allowance, so heavy `/reaper` use can reach the Quota Reserve
+  sooner. The 10-minute cache limits it: repeated calls by any Member reuse the same reads.
