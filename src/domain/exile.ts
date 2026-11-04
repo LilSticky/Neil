@@ -83,14 +83,14 @@ export interface ExileRanking {
 }
 
 /**
- * Ranks the Exiles of one Kingdom by distance from the origin. Leaves out the caller's own Exile, Exiles now in another
+ * Ranks the Exiles of one Kingdom by distance from the origin. Leaves out the caller's own Exile (none when the caller has no Link), Exiles now in another
  * Kingdom, shielded Exiles and Exiles with no position. A fresh read of the Player is preferred over the stored position.
  * Ties go to the Exile added earlier.
  */
 export function rankExiles(
   origin: Position,
   kingdom: KingdomNumber,
-  callerUid: Uid,
+  callerUid: Uid | undefined,
   candidates: readonly ExileCandidate[],
 ): ExileRanking {
   const ranking: RankedExile[] = [];

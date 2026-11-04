@@ -25,7 +25,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
 - [x] **T006** [US1] `add` in `src/discord/reaper.ts` (D5, D8): refusal before any request; bad reason refused; found
   → stored with position, private confirmation, log line with the R5; already an Exile; not found; 409 → pick list
   with the `exile` choice carrying the reason (`pick-sessions.ts`, `pick.ts`); quota spent → usual message.
-- [ ] **T007** [US2] `closest` (D4, D6): origin from the Linked Player or x/y (x without y refused; no Link and no x/y
+- [x] **T007** [US2] `closest` (D4, D6): origin from the Linked Player or x/y (x without y refused; no Link and no x/y
   asks for them; no Link with x/y → Home Kingdom); reads at most 4 at a time with `lookup`; 3 closest with card,
   coordinates, distance, reason, date, shield note; stale positions marked; quota refusal mid-read uses stored
   positions; spent with no stored position → quota message; none in Kingdom; rows refreshed; adder never shown.
