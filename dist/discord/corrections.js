@@ -6,6 +6,8 @@ import { parseUid } from "../domain/lookup-input.js";
 import { isOfficer } from "../domain/officer.js";
 import { linkByOfficer } from "../domain/onboarding-interview.js";
 import { leaderPing, pendingApprovalFor, storeLinkIfStep } from "./interview.js";
+import { keepsApprovalThread } from "./rank-approval.js";
+import { officerLinkPreferencesMessage } from "./preferences-texts.js";
 import { asApprovableRank, linkedMessage, officerLinkLogLine, rankSetLogLine, } from "./interview-texts.js";
 import { answer } from "./lookup.js";
 import { linkCardEndedMessage, linkCardMessage, linkEndedReply, linkInputReply, linkLookupFailureReply, linkNotYoursReply, linkRefusedReply, memberGoneReply, noAllianceReply, notHandedOffReply, notLinkedReply, notOfficerButtonReply, notOfficerReply, ownLinkReply, parseLinkCustomId, rankInputReply, rankSetReply, selfLinkReply, uidLinkedElsewhereReply, unlinkedByOfficerReply, unlinkedSelfReply, } from "./corrections-texts.js";
@@ -109,7 +111,10 @@ export function handleRank(interaction, deps) {
         const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: caller.memberId }, now);
         await logLine(deps.logError, () => deps.channels.log(rankSetLogLine(caller.memberId, memberId, rank)));
         if (settled !== undefined) {
-            await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deps.channels.deleteThread(settled.threadId));
+            const approval = { threadId: settled.threadId, linkedMemberId: memberId };
+            if (!keepsApprovalThread(deps.preferences, approval)) {
+                await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deps.channels.deleteThread(approval.threadId));
+            }
         }
         await interaction.editReply(rankSetReply(memberId, rank, decision.gameRank));
         await deps.nameAndRoles.onRankApproved(memberId);
@@ -231,6 +236,7 @@ async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
         await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
     }
     await logLine(deps.logError, () => deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)));
+    await answer("the /channels message after an Officer Link", { logError: deps.logError }, () => deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()));
     try {
         await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);
     }

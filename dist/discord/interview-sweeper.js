@@ -37,6 +37,7 @@ export function createSweeper(deps) {
                 deps.links.deleteEndedBefore(cutoff);
                 return Promise.resolve();
             });
+            await closeExpiredPreferences(deps, now);
             let due;
             try {
                 due = deps.interviews.due(now);
@@ -92,6 +93,29 @@ async function abandonSilent(deps, interview, now) {
     // The log comes first: a thread that is gone must not cost the line.
     await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
     await deps.channels.deleteThread(interview.threadId);
+}
+/**
+ * A Preferences message past the Interview timeout is closed and its thread deleted, unless the Member has a pending Rank
+ * Approval, whose thread stays. Never throws: a failing message is logged and the others are still closed.
+ */
+async function closeExpiredPreferences(deps, now) {
+    let expired;
+    try {
+        expired = deps.preferences.promptsPostedBefore(new Date(now.getTime() - deps.timeoutMs));
+    }
+    catch (error) {
+        deps.logError(`Sweeping Preferences messages failed: ${errorText(error)}`);
+        return;
+    }
+    for (const prompt of expired) {
+        await guarded(deps, `Closing the Preferences message of Member ${prompt.memberId}`, () => closeExpiredPreference(deps, prompt));
+    }
+}
+/** The thread goes first: when its deletion fails the prompt stays open, and the next sweep retries it. */
+async function closeExpiredPreference(deps, prompt) {
+    if (deps.links.pendingFor(prompt.memberId) === undefined)
+        await deps.channels.deleteThread(prompt.threadId);
+    deps.preferences.closePrompt(prompt.memberId);
 }
 async function guarded(deps, label, work) {
     try {

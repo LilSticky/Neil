@@ -66,6 +66,8 @@ export async function start(deps) {
             troopBracketLevels: config.troopBracketLevels,
             dailySync: store.dailySync,
             reaper: store.reaper,
+            preferences: store.preferences,
+            guidesForumId: config.guidesForumId,
             syncHourUtc: config.syncHourUtc,
             syncShare: config.syncShare,
         });

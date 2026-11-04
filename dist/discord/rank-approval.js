@@ -38,8 +38,21 @@ async function pressRankButton(deps, button) {
     await button.update({ components: [] });
     await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
     // A thread that cannot be deleted is logged; the approval, the log line and the name and roles stand.
-    await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deps.channels.deleteThread(approved.threadId));
+    await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deleteApprovalThread(deps, approved));
     await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
+}
+/**
+ * Whether a thread of a Rank Approval stays: the Member's Preferences message is still open in it (Done or the sweeper
+ * deletes it, FR-009). Shared by the approval buttons and /rank.
+ */
+export function keepsApprovalThread(preferences, approval) {
+    return preferences.prompt(approval.linkedMemberId)?.threadId === approval.threadId;
+}
+/** Deletes the approval's thread, unless the Member's Preferences message is still open in it. */
+async function deleteApprovalThread(deps, approval) {
+    if (keepsApprovalThread(deps.preferences, approval))
+        return;
+    await deps.channels.deleteThread(approval.threadId);
 }
 /** Gives the Member their name and roles with the approved rank; a failure is logged, the approval stands. */
 async function nameAndRolesAfterApproval(deps, memberId) {

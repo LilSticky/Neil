@@ -46,6 +46,7 @@ const schema = z.object({
     DISCORD_KING_ROLE_ID: snowflake,
     DISCORD_ONBOARDING_CHANNEL_ID: snowflake,
     DISCORD_LOG_CHANNEL_ID: snowflake,
+    DISCORD_GUIDES_FORUM_ID: snowflake.optional(),
     HOME_KINGDOM: z
         .string(required)
         .min(1, required)
@@ -120,6 +121,7 @@ export function loadConfig(env) {
         officerRoleIds: [result.data.DISCORD_MODERATOR_ROLE_ID, result.data.DISCORD_KING_ROLE_ID],
         onboardingChannelId: result.data.DISCORD_ONBOARDING_CHANNEL_ID,
         logChannelId: result.data.DISCORD_LOG_CHANNEL_ID,
+        guidesForumId: result.data.DISCORD_GUIDES_FORUM_ID,
         interviewTimeoutMs: (result.data.INTERVIEW_TIMEOUT_MINUTES ?? DEFAULT_INTERVIEW_TIMEOUT_MINUTES) * 60_000,
         gameApiKey: result.data.LAP_TRACKER_API_KEY,
         cacheTtlMs: (result.data.GAME_API_CACHE_MINUTES ?? DEFAULT_CACHE_MINUTES) * 60_000,

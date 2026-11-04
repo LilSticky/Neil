@@ -8,6 +8,10 @@ import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
 import { createNameAndRoles } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
+import { createPreferenceRoles } from "./preferences.js";
+import { createPreferencesAfterLink } from "./preferences-after-link.js";
+import { createPreferenceChoices, } from "./preferences-choices.js";
+import { PREFERENCES_PREFIX } from "./preferences-texts.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import { createRankApprovals } from "./rank-approval.js";
 import { createUnlink } from "./unlink.js";
@@ -109,6 +113,9 @@ export function createClient(handlers, options) {
                 case "quota":
                     void handlers.quota(interaction);
                     break;
+                case "channels":
+                    void handlers.channels(interaction);
+                    break;
                 case "interview":
                     void handlers.interview(interaction);
                     break;
@@ -158,6 +165,9 @@ export function createClient(handlers, options) {
             else if (interaction.customId.startsWith(REAPER_PREFIX)) {
                 void handlers.reaperPage(interaction);
             }
+            else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
+                void handlers.preferencesPress(interaction);
+            }
             return;
         }
         if (interaction.isStringSelectMenu()) {
@@ -166,6 +176,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(PICK_PREFIX)) {
                 void handlers.pick(interaction);
+            }
+            else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
+                void handlers.preferencesPress(interaction);
             }
         }
     });
@@ -357,6 +370,32 @@ function linkButtonLike(button) {
         },
     };
 }
+/** The discord.js /channels command as the choices read it: the caller, and the private reply. */
+function channelsCommandLike(command) {
+    return {
+        user: command.user,
+        reply: async (message) => {
+            await command.reply(message);
+        },
+    };
+}
+/**
+ * The discord.js button press or string select menu press on a Preferences message as the choices read it. A select menu
+ * press also carries the values picked; see buttonLike for why each method is passed on.
+ */
+function preferencesPressLike(press) {
+    const like = {
+        customId: press.customId,
+        user: press.user,
+        reply: async (message) => {
+            await press.reply(message);
+        },
+        update: async (options) => {
+            await press.update(options);
+        },
+    };
+    return press.isStringSelectMenu() ? { ...like, values: [...press.values] } : like;
+}
 /** The discord.js chat-input command as the Interview reads it; see buttonLike for why each method is passed on. */
 function commandLike(command) {
     return {
@@ -486,6 +525,8 @@ export async function connect(token, options) {
             const { rankApprovals } = await services;
             await rankApprovals.onButton(rankButtonLike(button));
         }),
+        channels: async (interaction) => (await services).preferenceChoices.showChannels(channelsCommandLike(interaction)),
+        preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
     }, { guildId: options.guildId, logError });
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
     // apply); both are stopped again on disconnect.
@@ -510,6 +551,37 @@ export async function connect(token, options) {
             links: options.links,
             logError,
             log: (message) => channels.log(message),
+            officerRoleIds: options.officerRoleIds,
+        });
+        // A private message to a Member, by Discord DM; Discord refuses it when the Member cannot be messaged.
+        const sendPrivateMessage = async (memberId, message) => {
+            const user = await client.users.fetch(memberId);
+            await user.send(message);
+        };
+        const preferenceRoles = createPreferenceRoles({
+            members: serverMembersOf(guild),
+            links: options.links,
+            preferences: options.preferences,
+            channels,
+            logError,
+            // A change of roles is one plain line in the log channel, without mentions; a refused post is logged and the change stands.
+            log: (line) => {
+                channels.log({ content: line, allowedMentions: { parse: [] } }).catch((error) => {
+                    const reason = error instanceof Error ? error.message : String(error);
+                    logError(`Logging a Preference Roles change failed: ${reason}`);
+                });
+            },
+            officerRoleIds: options.officerRoleIds,
+        });
+        // The Preferences message's presses and /channels: the same stores, roles and log as the Interview's Preferences.
+        const preferenceChoices = createPreferenceChoices({
+            roles: preferenceRoles,
+            preferences: options.preferences,
+            links: options.links,
+            rankApprovals: options.links,
+            channels,
+            guidesForumId: options.guidesForumId,
+            logError,
         });
         const unlink = createUnlink({
             links: options.links,
@@ -517,11 +589,9 @@ export async function connect(token, options) {
             channels,
             members: serverMembersOf(guild),
             onboardingRole,
+            preferenceRoles,
             now,
-            sendPrivateMessage: async (memberId, message) => {
-                const user = await client.users.fetch(memberId);
-                await user.send(message);
-            },
+            sendPrivateMessage,
             officerRoles,
             logError,
         });
@@ -531,6 +601,7 @@ export async function connect(token, options) {
             links: options.links,
             gameApi: options.gameApi,
             unlink,
+            preferenceRoles,
             homeKingdom: options.homeKingdom,
             troopBracketLevels: options.troopBracketLevels,
             officerRoleIds: options.officerRoleIds,
@@ -540,6 +611,7 @@ export async function connect(token, options) {
         });
         const rankApprovals = createRankApprovals({
             links: options.links,
+            preferences: options.preferences,
             channels,
             nameAndRoles,
             officerRoles,
@@ -558,13 +630,27 @@ export async function connect(token, options) {
             nameAndRoles,
             unlink,
             onboardingRole,
+            preferences: createPreferencesAfterLink({
+                preferences: options.preferences,
+                channels,
+                guidesForumId: options.guidesForumId,
+                now,
+            }),
             isOnServer,
             now,
             logError,
         });
         const corrections = {
             unlink: (interaction) => handleUnlink(interaction, { links: options.links, unlink, officerRoles, logError }),
-            rank: (interaction) => handleRank(interaction, { links: options.links, channels, nameAndRoles, officerRoles, now, logError }),
+            rank: (interaction) => handleRank(interaction, {
+                links: options.links,
+                preferences: options.preferences,
+                channels,
+                nameAndRoles,
+                officerRoles,
+                now,
+                logError,
+            }),
             link: (interaction) => handleLink(interaction, {
                 links: options.links,
                 interviews: options.interviews,
@@ -583,6 +669,7 @@ export async function connect(token, options) {
                 nameAndRoles,
                 onboardingRole,
                 isOnServer,
+                sendPrivateMessage,
                 confirmations: linkConfirmations,
                 now,
                 logError,
@@ -611,6 +698,7 @@ export async function connect(token, options) {
             interviews,
             rankApprovals,
             corrections,
+            preferenceChoices,
             reaperAdd: (interaction) => handleReaperAdd(interaction, {
                 ...reaperWrites,
                 gameApi: options.gameApi,
@@ -657,6 +745,7 @@ export async function connect(token, options) {
         const sweeper = createSweeper({
             interviews: options.interviews,
             links: options.links,
+            preferences: options.preferences,
             channels,
             timeoutMs: options.interviewTimeoutMs,
             now,

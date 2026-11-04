@@ -15,6 +15,8 @@ async function unlinkMember(deps, memberId, reason) {
     const applied = attempt(deps, memberId, "reading the applied state", () => deps.applied.get(memberId));
     // The Link goes first, so an apply that is under way finds no Link and gives the Member nothing more.
     const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
+    // Every Unlink forgets the Preferences, also a Member already gone from the server: their rows must not outlive the Link.
+    await attemptAsync(deps, memberId, "forgetting the Preferences", () => deps.preferenceRoles.forget(memberId));
     let notChanged = [];
     if (!removedByDiscord(reason)) {
         notChanged = await takeOffOnServer(deps, memberId, applied);

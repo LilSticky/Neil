@@ -22,7 +22,7 @@ async function changeFor(deps, memberId, change) {
 }
 /** Makes the change and logs a skip; returns the skip, or undefined when the change was made. */
 async function changeAndLog(deps, memberId, server, change) {
-    const skip = await change(server.guild, server.member, ONBOARDING_ROLE_NAME);
+    const skip = await change(server.guild, server.member, ONBOARDING_ROLE_NAME, deps.officerRoleIds);
     if (skip !== undefined) {
         deps.logError(`Changing the ${ONBOARDING_ROLE_NAME} Role of ${memberId} was skipped: ${skip.reason}`);
     }
