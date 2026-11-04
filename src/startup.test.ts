@@ -15,6 +15,7 @@ import { openDatabase } from "./storage/database.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { createPreferenceStore, type PreferenceStore } from "./storage/preference-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
 const FAKE_TOKEN = "fake-token-never-shown-7f3a9c";
@@ -93,9 +94,11 @@ function stubStores(): {
   readonly applied: AppliedStore;
   readonly knownAlliances: KnownAllianceStore;
   readonly dailySync: DailySyncStore;
+  readonly preferences: PreferenceStore;
 } {
   return {
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
+    preferences: createPreferenceStore(new DatabaseSync(":memory:")),
     interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
     links: new LinkStore(new DatabaseSync(":memory:")),
     applied: new AppliedStore(new DatabaseSync(":memory:")),

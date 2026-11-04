@@ -19,6 +19,7 @@ import { approve, cancel, type MemberId, type RankApproval } from "../domain/ran
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
+import { createPreferenceStore, type PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
   abandonedLogLine,
@@ -174,6 +175,7 @@ describe("createSweeper", () => {
   let clock: Date;
   let interviews: InterviewStore;
   let links: LinkStore;
+  let preferences: PreferenceStore;
   let channels: FakeChannels;
   let errors: string[];
   let sweeper: ReturnType<typeof createSweeper>;
@@ -184,11 +186,13 @@ describe("createSweeper", () => {
     clock = NOW;
     interviews = new InterviewStore(db, TIMEOUT_MS);
     links = new LinkStore(db);
+    preferences = createPreferenceStore(db, () => undefined);
     channels = new FakeChannels();
     errors = [];
     sweeper = createSweeper({
       interviews,
       links,
+      preferences,
       channels,
       timeoutMs: TIMEOUT_MS,
       now: () => clock,
@@ -314,6 +318,49 @@ describe("createSweeper", () => {
 
       expect(links.get(oldApproval.id)).toBeUndefined();
       expect(links.get(newerApproval.id)).toMatchObject({ state: "cancelled" });
+    });
+  });
+
+  describe("a Preferences message past the timeout", () => {
+    test("is closed and its thread deleted, when no Rank Approval is pending", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+
+      await sweeper.sweep();
+
+      expect(preferences.prompt(MEMBER)).toBeUndefined();
+      expect(channels.deleted).toEqual([THREAD]);
+    });
+
+    test("is closed, and its thread kept, while the Member has a pending Rank Approval", async () => {
+      pendingApprovalFor(links, MEMBER, UID, OVERDUE_START);
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+
+      await sweeper.sweep();
+
+      expect(preferences.prompt(MEMBER)).toBeUndefined();
+      expect(channels.deleted).toEqual([]);
+    });
+
+    test("posted after the deadline is left open, with its thread", async () => {
+      const recent = new Date(NOW.getTime() - TIMEOUT_MS + MINUTE_MS);
+      preferences.openPrompt(MEMBER, THREAD, recent);
+
+      await sweeper.sweep();
+
+      expect(preferences.prompt(MEMBER)).toEqual({ threadId: THREAD, postedAt: recent });
+      expect(channels.deleted).toEqual([]);
+    });
+
+    test("whose thread cannot be deleted is logged, and the other Preferences messages are still closed and deleted", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+      preferences.openPrompt(OTHER, OTHER_THREAD, OVERDUE_START);
+      channels.failingDeletes.add(THREAD);
+
+      await sweeper.sweep();
+
+      expect(errors).toHaveLength(1);
+      expect(preferences.prompt(OTHER)).toBeUndefined();
+      expect(channels.deleted).toEqual([OTHER_THREAD]);
     });
   });
 

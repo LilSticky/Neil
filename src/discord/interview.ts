@@ -29,6 +29,7 @@ import type { CreateOutcome, InterviewStore } from "../storage/interview-store.j
 import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { PreferencesAfterLink } from "./preferences-after-link.js";
 import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import type { Unlink } from "./unlink.js";
@@ -139,6 +140,7 @@ export interface InterviewDeps {
   readonly nameAndRoles: NameAndRoles;
   readonly unlink: Unlink;
   readonly onboardingRole: Pick<OnboardingRole, "give" | "takeOff">;
+  readonly preferences: PreferencesAfterLink;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -690,8 +692,9 @@ async function refuseConfirmation(
 
 /**
  * The Link is stored: the Onboarding Role is taken off and the log notes the Link with the leader's Member when present.
- * The Member's name and roles follow, without touching the Link. A pending Rank Approval is asked in the thread, which
- * says the Link is stored; otherwise the thread is deleted.
+ * The Member's name and roles follow, without touching the Link. The Preferences message is posted in the thread. A
+ * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted, unless
+ * the Preferences message is open in it.
  */
 async function finishLink(
   deps: InterviewDeps,
@@ -707,8 +710,20 @@ async function finishLink(
   }
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
   await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
+  const preferencesPosted = await postPreferencesAfterLink(deps, interview, link);
   if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, interview.player);
-  await deps.channels.deleteThread(interview.threadId);
+  if (!preferencesPosted) await deps.channels.deleteThread(interview.threadId);
+}
+
+/** Posts the Preferences message after a Link; a failure is logged, never thrown. True when the message is posted. */
+async function postPreferencesAfterLink(deps: InterviewDeps, interview: AwaitingConfirmation, link: Link): Promise<boolean> {
+  try {
+    await deps.preferences.postAfterLink(interview.memberId, interview.threadId, interview.player, link.allianceRank);
+    return true;
+  } catch (error) {
+    deps.logError(`Posting the Preferences message after a Link failed: ${errorText(error)}`);
+    return false;
+  }
 }
 
 /** Gives the Linked Member their name and roles; a failure is logged, never thrown, so the Link stands. */

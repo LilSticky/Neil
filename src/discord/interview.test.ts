@@ -13,6 +13,7 @@ import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
+import { createPreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels, ThreadMember } from "./onboarding-channels.js";
 import type { RankApprovals, RankButtonLike } from "./rank-approval.js";
 import {
@@ -48,6 +49,7 @@ import {
 import { createSweeper } from "./interview-sweeper.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
+import { FakePreferencesAfterLink } from "./__fakes__/preferences-after-link.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
 import {
   createInterviews,
@@ -429,6 +431,7 @@ interface Harness {
   readonly nameAndRoles: FakeNameAndRoles;
   readonly unlink: FakeUnlink;
   readonly onboardingRole: FakeOnboardingRole;
+  readonly preferences: FakePreferencesAfterLink;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
@@ -520,6 +523,7 @@ describe("createInterviews", () => {
     const nameAndRoles = new FakeNameAndRoles();
     const unlink = new FakeUnlink(links);
     const onboardingRole = new FakeOnboardingRole();
+    const preferences = new FakePreferencesAfterLink();
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const deps: InterviewDeps = {
@@ -531,6 +535,7 @@ describe("createInterviews", () => {
       nameAndRoles,
       unlink,
       onboardingRole,
+      preferences,
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
@@ -539,7 +544,7 @@ describe("createInterviews", () => {
       },
     };
     const service = createInterviews(deps);
-    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, unlink, onboardingRole, onServer, errors, service, deps };
+    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, unlink, onboardingRole, preferences, onServer, errors, service, deps };
   });
 
   afterEach(() => {
@@ -722,13 +727,13 @@ describe("createInterviews", () => {
       expect(button.updates[0]?.components).toEqual([]);
     });
 
-    test("deletes the thread with no last message in it, when no Rank Approval is pending", async () => {
+    test("keeps the thread open for the Preferences message when no Rank Approval is pending", async () => {
       const interviewId = await confirmationShown(h, PLAYER);
 
       await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
 
       expect(h.channels.posts).not.toContainEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("takes the Onboarding Role off the Member once the Link is stored", async () => {
@@ -864,7 +869,7 @@ describe("createInterviews", () => {
       });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
       expect(late.replies).toEqual([interviewEndedReply()]);
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
     });
 
@@ -894,7 +899,7 @@ describe("createInterviews", () => {
       expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
       expect(late.replies).toEqual([interviewEndedReply()]);
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
     });
   });
 
@@ -1283,7 +1288,7 @@ describe("createInterviews", () => {
 
       expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("a paused Interview is resumed by the sweeper and takes the Member's uid on the new service", async () => {
@@ -1296,6 +1301,7 @@ describe("createInterviews", () => {
       const sweeper = createSweeper({
         interviews: h.interviews,
         links: h.links,
+        preferences: createPreferenceStore(db),
         channels: h.channels,
         timeoutMs: TIMEOUT_MS,
         now: () => later,
@@ -1318,6 +1324,7 @@ describe("createInterviews", () => {
       await createSweeper({
         interviews: h.interviews,
         links: h.links,
+        preferences: createPreferenceStore(db),
         channels: h.channels,
         timeoutMs: TIMEOUT_MS,
         now: h.deps.now,
@@ -1596,7 +1603,7 @@ describe("createInterviews", () => {
       });
       expect(h.channels.posts).not.toContainEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("the uid of the recommended Player is acknowledged once", async () => {
@@ -1634,7 +1641,7 @@ describe("createInterviews", () => {
         allianceRank: { source: "game-api", rank: "R4" },
         madeBy: { kind: "in-game-proof" },
       });
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("a different uid after That's me goes through the usual lookup and asks Is this you", async () => {
@@ -1810,6 +1817,50 @@ describe("createInterviews", () => {
     });
   });
 
+  describe("the Preferences message after a Link", () => {
+    test("is posted for the Member in the thread, with the Player and the rank on the Link", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.preferences.posted).toEqual([
+        { memberId: MEMBER, threadId: THREAD, player: PLAYER, rank: { source: "game-api", rank: "R4" } },
+      ]);
+    });
+
+    test("is posted too with a pending Rank Approval, and the thread stays open for the approval", async () => {
+      await pendingRankApprovalOfMember(h);
+
+      expect(h.preferences.posted).toEqual([
+        { memberId: MEMBER, threadId: THREAD, player: PLAYER_WITH_LEADER_UNKNOWN_RANK, rank: { source: "unknown" } },
+      ]);
+      expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("when it cannot be posted, the Link stands, the failure is logged, and the thread is deleted as before", async () => {
+      h.preferences.failWith(new Error("Discord refused the post to the thread"));
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
+      expect(h.preferences.posted).toEqual([]);
+      expect(h.errors).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
+    test("when it cannot be posted with a pending Rank Approval, the approval is still asked and the thread stays open", async () => {
+      h.preferences.failWith(new Error("Discord refused the post to the thread"));
+
+      await pendingRankApprovalOfMember(h);
+
+      expect(h.preferences.posted).toEqual([]);
+      expect(h.errors).toHaveLength(1);
+      expect(h.rankApprovals.announced).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+    });
+  });
+
   describe("the Member's name and roles after a Link", () => {
     test("a card the Member confirms gives the Player and the rank on the Link to the name and roles", async () => {
       const interviewId = await confirmationShown(h, PLAYER);
@@ -1849,7 +1900,7 @@ describe("createInterviews", () => {
 
       expect(h.nameAndRoles.linked).toHaveLength(1);
       expect(linkOfMember(h)).toEqual({ memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" }, madeBy: { kind: "in-game-proof" } });
-      expect(h.channels.deleted).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([]);
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
     });
   });

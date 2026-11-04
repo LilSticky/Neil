@@ -7,6 +7,7 @@ import {
 } from "../domain/onboarding-interview.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { PostedPreferencePrompt, PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
   abandonedLogLine,
@@ -31,6 +32,7 @@ export type LinkChosen = (interview: AwaitingConfirmation) => Promise<"done" | "
 export interface SweeperDeps {
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
+  readonly preferences: PreferenceStore;
   readonly channels: OnboardingChannels;
   readonly timeoutMs: number;
   readonly now: () => Date;
@@ -82,6 +84,7 @@ export function createSweeper(deps: SweeperDeps): Sweeper {
         deps.links.deleteEndedBefore(cutoff);
         return Promise.resolve();
       });
+      await closeExpiredPreferences(deps, now);
       let due;
       try {
         due = deps.interviews.due(now);
@@ -137,6 +140,31 @@ async function abandonSilent(deps: SweeperDeps, interview: OpenInterview, now: D
   // The log comes first: a thread that is gone must not cost the line.
   await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
   await deps.channels.deleteThread(interview.threadId);
+}
+
+/**
+ * A Preferences message past the Interview timeout is closed and its thread deleted, unless the Member has a pending Rank
+ * Approval, whose thread stays. Never throws: a failing message is logged and the others are still closed.
+ */
+async function closeExpiredPreferences(deps: SweeperDeps, now: Date): Promise<void> {
+  let expired: PostedPreferencePrompt[];
+  try {
+    expired = deps.preferences.promptsPostedBefore(new Date(now.getTime() - deps.timeoutMs));
+  } catch (error) {
+    deps.logError(`Sweeping Preferences messages failed: ${errorText(error)}`);
+    return;
+  }
+  for (const prompt of expired) {
+    await guarded(deps, `Closing the Preferences message of Member ${prompt.memberId}`, () =>
+      closeExpiredPreference(deps, prompt),
+    );
+  }
+}
+
+async function closeExpiredPreference(deps: SweeperDeps, prompt: PostedPreferencePrompt): Promise<void> {
+  deps.preferences.closePrompt(prompt.memberId);
+  if (deps.links.pendingFor(prompt.memberId) !== undefined) return;
+  await deps.channels.deleteThread(prompt.threadId);
 }
 
 async function guarded(deps: SweeperDeps, label: string, work: () => Promise<void>): Promise<void> {

@@ -9,6 +9,7 @@ import type { DailySyncStore } from "./storage/daily-sync-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
+import type { PreferenceStore } from "./storage/preference-store.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
 export function formatStartupError(
@@ -45,6 +46,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly applied: AppliedStore;
   readonly knownAlliances: KnownAllianceStore;
   readonly dailySync: DailySyncStore;
+  readonly preferences: PreferenceStore;
 }
 
 export interface Connection {
@@ -131,6 +133,8 @@ export async function start(deps: StartupDeps): Promise<void> {
       homeKingdom: config.homeKingdom,
       troopBracketLevels: config.troopBracketLevels,
       dailySync: store.dailySync,
+      preferences: store.preferences,
+      guidesForumId: config.guidesForumId,
       syncHourUtc: config.syncHourUtc,
       syncShare: config.syncShare,
     });

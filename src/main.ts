@@ -12,6 +12,7 @@ import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { createPreferenceStore } from "./storage/preference-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
 import { start } from "./startup.js";
 
@@ -36,6 +37,7 @@ await start({
       applied: new AppliedStore(db),
       knownAlliances: new KnownAllianceStore(db),
       dailySync: new DailySyncStore(db),
+      preferences: createPreferenceStore(db),
     };
   },
   createGameApi: (apiKey, version, cacheTtlMs, quota, onAllianceSeen) =>

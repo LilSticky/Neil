@@ -24,6 +24,7 @@ import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import type { PreferenceStore } from "../storage/preference-store.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import {
   createInterviews,
@@ -39,6 +40,7 @@ import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
+import { createPreferencesAfterLink } from "./preferences-after-link.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
@@ -274,6 +276,10 @@ export interface ConnectOptions {
   readonly troopBracketLevels: readonly number[];
   /** The record of the last Daily Sync run: its day and the Members it left over. */
   readonly dailySync: Pick<DailySyncStore, "load" | "save">;
+  /** The Preferences and the open Preferences messages, in neil.db. */
+  readonly preferences: PreferenceStore;
+  /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
+  readonly guidesForumId: string | undefined;
   /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
   readonly syncHourUtc: number;
   /** The most Game API requests one Daily Sync run may send, from SYNC_SHARE. */
@@ -689,6 +695,12 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       nameAndRoles,
       unlink,
       onboardingRole,
+      preferences: createPreferencesAfterLink({
+        preferences: options.preferences,
+        channels,
+        guidesForumId: options.guidesForumId,
+        now,
+      }),
       isOnServer,
       now,
       logError,
@@ -764,6 +776,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const sweeper = createSweeper({
       interviews: options.interviews,
       links: options.links,
+      preferences: options.preferences,
       channels,
       timeoutMs: options.interviewTimeoutMs,
       now,

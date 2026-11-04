@@ -15,6 +15,7 @@ import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import { LinkStore } from "../storage/link-store.js";
+import { createPreferenceStore, type PreferenceStore } from "../storage/preference-store.js";
 import { FakeConnectGuild } from "./__fakes__/connect-guild.js";
 import { FakeClient } from "./__fakes__/discord-client.js";
 import { connect, type ConnectOptions } from "./client.js";
@@ -122,6 +123,7 @@ describe("connect", () => {
   let applied: AppliedStore;
   let interviews: InterviewStore;
   let dailySync: DailySyncStore;
+  let preferences: PreferenceStore;
   let gameApi: FakeGameApi;
   let connection: { disconnect(): Promise<void> } | undefined;
 
@@ -132,6 +134,7 @@ describe("connect", () => {
     applied = new AppliedStore(db);
     interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
     dailySync = new DailySyncStore(db);
+    preferences = createPreferenceStore(db);
     gameApi = new FakeGameApi();
     connection = undefined;
     FakeClient.served = undefined;
@@ -196,6 +199,8 @@ describe("connect", () => {
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       dailySync,
+      preferences,
+      guidesForumId: undefined,
       syncHourUtc: 3,
       syncShare: 500,
     };

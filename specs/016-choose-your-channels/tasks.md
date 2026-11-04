@@ -25,9 +25,9 @@ description: "Task list for slice 016, Choose your channels"
 - [x] **T005** [US1–3] Select and Done handling (R7): a change saves the answer, applies the roles, logs one line and
   updates the message; a press by another Member changes nothing; Done closes the prompt and deletes the thread unless
   a Rank Approval is pending.
-- [ ] **T006** [US1] `interview.ts` `finishLink`: post the Preferences message and open the prompt instead of deleting
+- [x] **T006** [US1] `interview.ts` `finishLink`: post the Preferences message and open the prompt instead of deleting
   the thread; with a pending Rank Approval the message is posted too; a failure to post deletes the thread as before.
-- [ ] **T007** [US1] `interview-sweeper.ts` (R4): prompts older than `timeoutMs` are closed and their thread deleted
+- [x] **T007** [US1] `interview-sweeper.ts` (R4): prompts older than `timeoutMs` are closed and their thread deleted
   unless a Rank Approval is pending; a gone thread is not an error.
 - [ ] **T008** [US3] `name-and-roles.ts` (R5): `onLinked`, `onRankApproved`, `syncMember`, `atStartup` call
   `preferences.apply` with the rank; R5 gets NaP discussions at Link; a rank change in the Daily Sync takes it off a

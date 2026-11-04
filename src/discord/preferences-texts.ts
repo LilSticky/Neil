@@ -111,7 +111,7 @@ export function guidesLine(experience: ExperienceKey | undefined, guidesForumId:
 }
 
 /** Whether nothing at all is stored in the Preferences, so the Player's language may be preselected. */
-function hasNoPreferences(preferences: Preferences): boolean {
+export function hasNoPreferences(preferences: Preferences): boolean {
   return (
     preferences.languages.size === 0 &&
     preferences.region === undefined &&
