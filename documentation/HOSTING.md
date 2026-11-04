@@ -3,7 +3,7 @@
 How Neil runs: one bot application, Neil, on Wispbyte (ADR 6), and locally for development with the same
 token while the Wispbyte server is stopped.
 Why it is set up this way: [specs/001-greet-the-test-server/research.md](../specs/001-greet-the-test-server/research.md)
-(R1, R2, R8). Never paste tokens into chats, issues or commits.
+(R1, R2, R8). Setting up the Discord server itself (roles, channels, permissions): [SERVER-SETUP.md](SERVER-SETUP.md).. Never paste tokens into chats, issues or commits.
 
 ## 1. Discord application (once)
 
