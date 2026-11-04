@@ -28,7 +28,7 @@ description: "Task list for slice 013, Keep newcomers in onboarding"
   Approval keeps it; the log lines stay; unused `archive` / `lockAndArchive` removed.
 - [x] **T008** [US1–4] `client.ts` (D4): build the Onboarding Role service, pass it to the Interview, corrections and
   Unlink, run `atStartup()` in the background; `RolesMember.bot`, `ServerMembers.all()` mapped from discord.js.
-- [ ] **T009** Docs (D6): HOSTING.md server setup, ADR 8 note, TEST-RUN.md §6i, STATUS, ROADMAP.
-- [ ] **T010** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.
-- [ ] **T011** `spec-auditor` against spec.md; findings into `audit.md`; close gaps.
+- [x] **T009** Docs (D6): HOSTING.md server setup, ADR 8 note, TEST-RUN.md §6i, STATUS, ROADMAP.
+- [x] **T010** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.
+- [x] **T011** `spec-auditor` against spec.md; findings into `audit.md`; close gaps.
 - [ ] **T012** Manual check collected in TEST-RUN.md §6i, run later by the user.

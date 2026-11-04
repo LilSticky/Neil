@@ -7,14 +7,20 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-None in progress. Slices 001–012 are done: on `main`, deployed to Wispbyte, and the manual checks
-([TEST-RUN.md](TEST-RUN.md), and the manual-check tasks of 005–012) were run by the user on 2026-11-03.
+Slice 013, Keep newcomers in onboarding ([specs](../specs/013-keep-newcomers-in-onboarding/)): the Onboarding Role
+(given on join and Unlink, taken off at Link, put right at startup) and deletion of finished Interview threads. Merged
+to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task T012) is open.
 
-**Next step:** pick the next slice with the user. The only candidate is REAPER (ROADMAP, Later), which
-waits on the open questions in [#35](https://github.com/LilSticky/Neil/issues/35).
+Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03.
+
+**Next step:** the user sets the channel permissions from [HOSTING.md](HOSTING.md) ("Onboarding Role for slice 013")
+after Neil's first restart with slice 013 has created the `Onboarding` role, then runs TEST-RUN.md §6i. After that,
+pick the next slice; the only candidate is REAPER, waiting on [#35](https://github.com/LilSticky/Neil/issues/35).
 
 ## Known broken / WIP
 
+- Slice 013 manual check open (T012, TEST-RUN.md §6i).
+- Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).
 - Officer commands are now hidden from Members (slice 011 C3 fixed). After deploying, run `npm run commands:register`
   and do the Integrations step in [HOSTING.md](HOSTING.md) (allow Moderator and King, limit to the moderator channel).
 - Slice 005: T033 (`bot-reviewer` on the Phase 9–10 diff) and T034 (`spec-auditor` against FR-021–FR-027) are unticked.

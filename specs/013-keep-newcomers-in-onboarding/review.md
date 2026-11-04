@@ -26,6 +26,11 @@
   re-check `linkFor` just before giving.
 - **C2** `onboarding-role.ts` sweep: `bot` is always false after the bot skip; simplify.
 
+## Outcome
+
+S1–S3, C1 and C2 fixed with tests (2097 tests green). Left as is: `wantsOnboardingRole` now has no production
+caller after C2 (kept as the domain rule, tested); the rank button's log post is unguarded, as before this slice.
+
 ## Audit gaps (spec-auditor, audit.md)
 
 - US5.5 has no test for an already-gone thread (covered by S1).
