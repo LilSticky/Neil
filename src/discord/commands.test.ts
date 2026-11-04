@@ -95,14 +95,14 @@ describe("commands", () => {
     expect(options?.[2]).not.toHaveProperty("autocomplete", true);
   });
 
-  test("hold /quota, guild only, without options and without default member permissions (Officers are checked by Neil)", () => {
+  test("hold /quota, hidden from Members (default member permissions '0', allowed per role in Integrations), guild only, without options", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "quota",
         description: "Show today's Daily Quota of Game API requests (Officers)",
         type: ApplicationCommandType.ChatInput,
         options: [],
-        default_member_permissions: undefined,
+        default_member_permissions: "0",
         contexts: [InteractionContextType.Guild],
       }),
     );
@@ -137,12 +137,12 @@ describe("commands", () => {
     );
   });
 
-  test("hold /rank, open to anyone, guild only, with a required user option member first, then a required rank from R1 to R5", () => {
+  test("hold /rank, hidden from Members, guild only, with a required user option member first, then a required rank from R1 to R5", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "rank",
         type: ApplicationCommandType.ChatInput,
-        default_member_permissions: undefined,
+        default_member_permissions: "0",
         contexts: [InteractionContextType.Guild],
         options: [
           expect.objectContaining({
@@ -167,12 +167,12 @@ describe("commands", () => {
     );
   });
 
-  test("hold /link, open to anyone, guild only, with a required user option member first, then a required uid of at most 32 characters, as /player has", () => {
+  test("hold /link, hidden from Members, guild only, with a required user option member first, then a required uid of at most 32 characters, as /player has", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "link",
         type: ApplicationCommandType.ChatInput,
-        default_member_permissions: undefined,
+        default_member_permissions: "0",
         contexts: [InteractionContextType.Guild],
         options: [
           expect.objectContaining({
