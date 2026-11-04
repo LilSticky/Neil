@@ -1,4 +1,4 @@
-import { Events, GatewayIntentBits, IntentsBitField, Partials } from "discord.js";
+import { Events, GatewayIntentBits, IntentsBitField, MessageFlags, Partials } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { createClient, memberRoleIds } from "./client.js";
 
@@ -176,6 +176,21 @@ describe("createClient", () => {
     }
     expect(routed.alliance).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("answers a /reaper subcommand it does not know privately, and hands it to no handler", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const reply = vi.fn(() => Promise.resolve());
+    const interaction = { ...reaperCommand("unknown"), reply };
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }));
+    for (const handler of ["reaperClosest", "reaperList", "reaperAdd", "reaperRemove"] as const) {
+      expect(routed[handler]).not.toHaveBeenCalled();
+    }
   });
 
   test("hands an autocomplete request of /reaper to the reaper autocomplete handler and nothing else", () => {

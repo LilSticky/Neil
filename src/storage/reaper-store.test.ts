@@ -40,14 +40,13 @@ const POSITION: Position = { x: 120, y: 340 };
 /** An Exile with no position unless one is given; the stored values are what the store must give back. */
 function exileOf(
   uid: Uid,
-  overrides: Partial<Pick<Exile, "name" | "kingdom" | "position" | "positionAt" | "reason" | "addedAt">> = {},
+  overrides: Partial<Pick<Exile, "name" | "kingdom" | "lastPosition" | "reason" | "addedAt">> = {},
 ): Exile {
   return {
     uid,
     name: "Alice",
     kingdom: HOME_KINGDOM,
-    position: undefined,
-    positionAt: undefined,
+    lastPosition: undefined,
     reason: reasonOf("Deserted the alliance"),
     addedAt: T0,
     addedBy: ADDED_BY,
@@ -78,7 +77,7 @@ describe("ReaperStore", () => {
 
   test("adds an Exile with its position, reason, time and adder, and finds it by uid", () => {
     const store = new ReaperStore(db);
-    const alice = exileOf(ALICE_UID, { position: POSITION, positionAt: T1 });
+    const alice = exileOf(ALICE_UID, { lastPosition: { position: POSITION, at: T1 } });
 
     expect(store.add(alice)).toBe("added");
     expect(store.find(ALICE_UID)).toEqual(alice);
@@ -147,8 +146,7 @@ describe("ReaperStore", () => {
       exileOf(ALICE_UID, {
         name: "Alice Renamed",
         kingdom: OTHER_KINGDOM,
-        position: POSITION,
-        positionAt: T1,
+        lastPosition: { position: POSITION, at: T1 },
         reason: reasonOf("Deserted the alliance"),
         addedAt: T0,
       }),
@@ -157,7 +155,7 @@ describe("ReaperStore", () => {
 
   test("survives reopening the database with its Exiles and their order", () => {
     const store = new ReaperStore(db);
-    store.add(exileOf(ALICE_UID, { position: POSITION, positionAt: T1, addedAt: T0 }));
+    store.add(exileOf(ALICE_UID, { lastPosition: { position: POSITION, at: T1 }, addedAt: T0 }));
     store.add(exileOf(BOB_UID, { addedAt: T2 }));
     db.close();
 
@@ -165,7 +163,7 @@ describe("ReaperStore", () => {
 
     expect(new ReaperStore(db).all()).toEqual([
       exileOf(BOB_UID, { addedAt: T2 }),
-      exileOf(ALICE_UID, { position: POSITION, positionAt: T1, addedAt: T0 }),
+      exileOf(ALICE_UID, { lastPosition: { position: POSITION, at: T1 }, addedAt: T0 }),
     ]);
   });
 

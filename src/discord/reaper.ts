@@ -83,15 +83,20 @@ export interface ReaperPageInteraction {
   update(options: InteractionUpdateOptions): Promise<unknown>;
 }
 
+/** The position of a Player as the Game read it, or undefined when it gave none. */
+function positionOf(player: Player): Position | undefined {
+  const location = player.details?.location;
+  return location === undefined ? undefined : { x: location.x, y: location.y };
+}
+
 /** The Exile a found Player makes: its position when the Game read one, the reason and the adder. */
 function exileOf(player: Player, fetchedAt: Date, reason: ExileReason, adderId: MemberId, addedAt: Date): Exile {
-  const location = player.details?.location;
+  const position = positionOf(player);
   return {
     uid: player.uid,
     name: player.name,
     kingdom: player.kingdom,
-    position: location === undefined ? undefined : { x: location.x, y: location.y },
-    positionAt: location === undefined ? undefined : fetchedAt,
+    lastPosition: position === undefined ? undefined : { position, at: fetchedAt },
     reason,
     addedAt,
     addedBy: adderId,
@@ -121,7 +126,9 @@ export async function recordFoundExile(
   const exile = exileOf(player, fetchedAt, reason, adderId, context.now());
   context.reaper.add(exile);
   const logged = reaperMessages.addLog(player.name, player.uid, player.kingdom, adderId, reason);
-  await answer("the log line of a REAPER change", context, () => context.channels.log({ content: logged }));
+  await answer("the log line of a REAPER change", context, () =>
+    context.channels.log({ content: logged, allowedMentions }),
+  );
   return reaperMessages.added(player.name, player.kingdom, allianceText(player));
 }
 
@@ -246,31 +253,27 @@ export interface ReaperClosestContext {
   readonly logError: (message: string) => void;
 }
 
-/** What /reaper list needs: REAPER, the paged answers, the clock and the error log (console.error when left out). */
+/** What /reaper list needs: REAPER, the paged answers, the clock and the error log. */
 export interface ReaperListContext {
   readonly reaper: Pick<ReaperStore, "all">;
   readonly pages: Pick<ReaperPages<ReaperPageContent>, "open">;
   readonly now: () => Date;
-  readonly logError?: (message: string) => void;
+  readonly logError: (message: string) => void;
 }
 
-/** What a page button of /reaper needs: the paged answers, the clock the press is answered at and the error log (console.error when left out). */
+/** What a page button of /reaper needs: the paged answers, the clock the press is answered at and the error log. */
 export interface ReaperPageContext {
   readonly pages: Pick<ReaperPages<ReaperPageContent>, "get">;
   readonly now: () => Date;
-  readonly logError?: (message: string) => void;
+  readonly logError: (message: string) => void;
 }
 
 /** Reads REAPER for a /reaper answer; a read that throws is logged and gives undefined, which the answer tells as unavailable. */
-function readOrLog<T>(
-  command: string,
-  read: () => T,
-  logError: ((message: string) => void) | undefined,
-): T | undefined {
+function readOrLog<T>(command: string, read: () => T, logError: (message: string) => void): T | undefined {
   try {
     return read();
   } catch (error) {
-    (logError ?? console.error)(`Reading REAPER for ${command} failed: ${errorText(error)}`);
+    logError(`Reading REAPER for ${command} failed: ${errorText(error)}`);
     return undefined;
   }
 }
@@ -286,12 +289,6 @@ async function readPlayer(
     context.logError(`Reading an Exile for REAPER failed: ${errorText(error)}`);
     return { kind: "unavailable", reason: "unexpected" };
   }
-}
-
-/** The position of a Player as the Game read it, or undefined when it gave none. */
-function positionOf(player: Player): Position | undefined {
-  const location = player.details?.location;
-  return location === undefined ? undefined : { x: location.x, y: location.y };
 }
 
 /** The REAPER row a fresh read of a Player leaves behind. */
@@ -354,26 +351,36 @@ interface ClosestOrigin {
   readonly callerUid: Uid | undefined;
 }
 
+/** Where /reaper closest starts: measured from an origin, refused by the quota, or with no origin to measure from. */
+type ClosestStart =
+  | ({ readonly kind: "measured" } & ClosestOrigin)
+  | { readonly kind: "refused"; readonly refusal: QuotaRefusal }
+  | { readonly kind: "unmeasurable" };
+
 /**
  * x and y win over the Linked Player's position. Without a Link the Kingdom is the Home Kingdom, and so it is when the
- * Linked Player cannot be read but x and y are given; a caller with no Link and no x and y, or whose Linked Player
- * cannot be read and who gives no x and y, has no origin.
+ * Linked Player cannot be read but x and y are given. A caller with no Link and no x and y, or whose Linked Player
+ * cannot be read and who gives no x and y, has no origin; when the quota kept that read, the refusal is returned.
  */
 async function closestOriginOf(
   given: Position | undefined,
   memberId: MemberId,
   context: ReaperClosestContext,
-): Promise<ClosestOrigin | undefined> {
+): Promise<ClosestStart> {
   const link = context.links.linkFor(memberId);
   if (link === undefined) {
-    return given === undefined ? undefined : { origin: given, kingdom: context.homeKingdom, callerUid: undefined };
+    if (given === undefined) return { kind: "unmeasurable" };
+    return { kind: "measured", origin: given, kingdom: context.homeKingdom, callerUid: undefined };
   }
   const caller = await readPlayer(link.uid, context);
   if (caller.kind !== "found") {
-    return given === undefined ? undefined : { origin: given, kingdom: context.homeKingdom, callerUid: link.uid };
+    if (given !== undefined) return { kind: "measured", origin: given, kingdom: context.homeKingdom, callerUid: link.uid };
+    if (caller.kind === "quota-spent" || caller.kind === "reserve-kept") return { kind: "refused", refusal: caller };
+    return { kind: "unmeasurable" };
   }
   const origin = given ?? positionOf(caller.value);
-  return origin === undefined ? undefined : { origin, kingdom: caller.value.kingdom, callerUid: link.uid };
+  if (origin === undefined) return { kind: "unmeasurable" };
+  return { kind: "measured", origin, kingdom: caller.value.kingdom, callerUid: link.uid };
 }
 
 /** Answers /reaper closest, privately. Mismatched coordinates are refused before any Game API request. With all, the answer is paged. */
@@ -389,12 +396,16 @@ export async function handleReaperClosest(interaction: ReaperInteraction, contex
     const all = interaction.options.getBoolean("all") === true;
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const closestFrom = await closestOriginOf(given, interaction.user.id, context);
-    if (closestFrom === undefined) {
+    const start = await closestOriginOf(given, interaction.user.id, context);
+    if (start.kind === "refused") {
+      await interaction.editReply({ content: sharedPlayerFailureText(start.refusal, context.now()), allowedMentions });
+      return;
+    }
+    if (start.kind === "unmeasurable") {
       await interaction.editReply({ content: reaperMessages.askXAndY, allowedMentions });
       return;
     }
-    const ranking = await rankClosest(closestFrom.origin, closestFrom.kingdom, closestFrom.callerUid, context);
+    const ranking = await rankClosest(start.origin, start.kingdom, start.callerUid, context);
     const now = context.now();
     const paged = all && reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE) > 1;
     const sessionId = paged ? context.pages.open(interaction.user.id, { kind: "closest", ranking }, now) : undefined;
@@ -404,19 +415,21 @@ export async function handleReaperClosest(interaction: ReaperInteraction, contex
 
 /** Answers /reaper list, privately: every Exile of REAPER, newest first, 8 per page. */
 export async function handleReaperList(interaction: ReaperInteraction, context: ReaperListContext): Promise<void> {
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const exiles = readOrLog("/reaper list", () => context.reaper.all(), context.logError);
-  if (exiles === undefined) {
-    await interaction.editReply({ content: lookupMessages.unavailable, allowedMentions });
-    return;
-  }
-  if (exiles.length === 0) {
-    await interaction.editReply({ content: reaperMessages.empty, allowedMentions });
-    return;
-  }
-  const paged = reaperPageCount(exiles.length, LIST_PAGE_SIZE) > 1;
-  const sessionId = paged ? context.pages.open(interaction.user.id, { kind: "list", exiles }, context.now()) : undefined;
-  await interaction.editReply(listAnswer(exiles, 0, sessionId));
+  await answer("/reaper list", context, async () => {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const exiles = readOrLog("/reaper list", () => context.reaper.all(), context.logError);
+    if (exiles === undefined) {
+      await interaction.editReply({ content: lookupMessages.unavailable, allowedMentions });
+      return;
+    }
+    if (exiles.length === 0) {
+      await interaction.editReply({ content: reaperMessages.empty, allowedMentions });
+      return;
+    }
+    const paged = reaperPageCount(exiles.length, LIST_PAGE_SIZE) > 1;
+    const sessionId = paged ? context.pages.open(interaction.user.id, { kind: "list", exiles }, context.now()) : undefined;
+    await interaction.editReply(listAnswer(exiles, 0, sessionId));
+  });
 }
 
 /**
@@ -424,28 +437,30 @@ export async function handleReaperList(interaction: ReaperInteraction, context: 
  * redrawn from what was answered, with no Game API call.
  */
 export async function handleReaperPage(interaction: ReaperPageInteraction, context: ReaperPageContext): Promise<void> {
-  const parsed = parseReaperCustomId(interaction.customId);
-  if (parsed === undefined) {
-    await replyPrivately(interaction, reaperMessages.pageExpired);
-    return;
-  }
-  const session = readOrLog("/reaper page", () => context.pages.get(parsed.sessionId, context.now()), context.logError);
-  if (session === undefined) {
-    await replyPrivately(interaction, lookupMessages.unavailable);
-    return;
-  }
-  if (session === "expired") {
-    await replyPrivately(interaction, reaperMessages.pageExpired);
-    return;
-  }
-  if (!isOwner(session, interaction.user.id)) {
-    await replyPrivately(interaction, reaperMessages.pageNotYours);
-    return;
-  }
-  const { content } = session;
-  const redraw: ReaperAnswer =
-    content.kind === "closest"
-      ? closestAnswer(content.ranking, context.now(), parsed.page, parsed.sessionId)
-      : listAnswer(content.exiles, parsed.page, parsed.sessionId);
-  await interaction.update(redraw);
+  await answer("/reaper page", context, async () => {
+    const parsed = parseReaperCustomId(interaction.customId);
+    if (parsed === undefined) {
+      await replyPrivately(interaction, reaperMessages.pageExpired);
+      return;
+    }
+    const session = readOrLog("/reaper page", () => context.pages.get(parsed.sessionId, context.now()), context.logError);
+    if (session === undefined) {
+      await replyPrivately(interaction, lookupMessages.unavailable);
+      return;
+    }
+    if (session === "expired") {
+      await replyPrivately(interaction, reaperMessages.pageExpired);
+      return;
+    }
+    if (!isOwner(session, interaction.user.id)) {
+      await replyPrivately(interaction, reaperMessages.pageNotYours);
+      return;
+    }
+    const { content } = session;
+    const redraw: ReaperAnswer =
+      content.kind === "closest"
+        ? closestAnswer(content.ranking, context.now(), parsed.page, parsed.sessionId)
+        : listAnswer(content.exiles, parsed.page, parsed.sessionId);
+    await interaction.update(redraw);
+  });
 }

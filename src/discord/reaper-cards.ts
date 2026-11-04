@@ -86,7 +86,7 @@ function closestCard(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, now
   const reaperFields: APIEmbedField[] = [
     {
       name: reaperMessages.fields.coordinates,
-      value: reaperMessages.coordinates(entry.position, entry.stale ? exile.positionAt : undefined),
+      value: reaperMessages.coordinates(entry.position, entry.stale ? exile.lastPosition?.at : undefined),
       inline: true,
     },
     { name: reaperMessages.fields.distance, value: reaperMessages.distance(entry.distance), inline: true },

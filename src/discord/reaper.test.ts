@@ -111,8 +111,7 @@ function exileOf(overrides: Partial<Exile> = {}): Exile {
     uid: UID,
     name: "Vex",
     kingdom: HOME,
-    position: { x: 1, y: 2 },
-    positionAt: EARLIER,
+    lastPosition: { position: { x: 1, y: 2 }, at: EARLIER },
     reason: reasonOf("Old reason"),
     addedAt: EARLIER,
     addedBy: OTHER_ID,
@@ -198,8 +197,7 @@ describe("handleReaperAdd", () => {
       uid: UID,
       name: "Vex",
       kingdom: HOME,
-      position: { x: 120, y: 340 },
-      positionAt: FETCHED_AT,
+      lastPosition: { position: { x: 120, y: 340 }, at: FETCHED_AT },
       reason: "Hoarding gold",
       addedAt: NOW,
       addedBy: ADDER_ID,
@@ -229,6 +227,49 @@ describe("handleReaperAdd", () => {
         content: `🔥 Vex (${UID_TEXT}, Kingdom 330) added to REAPER by <@${ADDER_ID}>: Hoarding gold`,
       }),
     );
+  });
+
+  test("posts the log line with no mentions allowed, so a reason with @everyone or a role pings nobody", async () => {
+    const { context, log } = addContext(store);
+    const interaction = new FakeReaperInteraction({ strings: { name: "Vex", reason: "@everyone Hoarding gold" } }, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ allowedMentions: { parse: [] } }));
+  });
+
+  test("refuses a 201-character reason before any Game API request, and stores nothing", async () => {
+    const { context, findPlayer, log } = addContext(store);
+    const interaction = new FakeReaperInteraction({ strings: { name: "Vex", reason: "a".repeat(201) } }, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(findPlayer).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+    expect(store.all()).toEqual([]);
+    expect(repliesOf(interaction)).toEqual(["Give a reason of 1 to 200 characters."]);
+  });
+
+  test("keeps the confirmation within 2,000 characters for a 200-character name of characters to escape", async () => {
+    const starred = { ...VEX, name: "*".repeat(200) };
+    const { context } = addContext(store, { lookup: { kind: "found", value: starred, fetchedAt: FETCHED_AT } });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(repliesOf(interaction)).toHaveLength(1);
+    expect(repliesOf(interaction)[0]?.length ?? 0).toBeLessThanOrEqual(2000);
+  });
+
+  test("keeps the already-an-Exile text within 2,000 characters for a 200-character name and reason of characters to escape", async () => {
+    store.add(exileOf({ name: "*".repeat(200), reason: reasonOf("_".repeat(200)) }));
+    const { context } = addContext(store);
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(repliesOf(interaction)).toHaveLength(1);
+    expect(repliesOf(interaction)[0]?.length ?? 0).toBeLessThanOrEqual(2000);
   });
 
   test("says an Exile already on REAPER with her stored reason, and changes nothing", async () => {
@@ -325,6 +366,8 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       logError: vi.fn<(message: string) => void>(),
       reaper: store,
       channels: { log },
+      editorOf: () => R5_EDITOR,
+      homeKingdom: HOME,
     });
 
     expect(getPlayer).toHaveBeenCalledWith(UID, "lookup");
@@ -332,8 +375,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       uid: UID,
       name: "Vex",
       kingdom: HOME,
-      position: { x: 120, y: 340 },
-      positionAt: FETCHED_AT,
+      lastPosition: { position: { x: 120, y: 340 }, at: FETCHED_AT },
       reason: "Hoarding gold",
       addedAt: NOW,
       addedBy: ADDER_ID,
@@ -344,5 +386,37 @@ describe("picking an Exile from the pick list of /reaper add", () => {
         content: `🔥 Vex (${UID_TEXT}, Kingdom 330) added to REAPER by <@${ADDER_ID}>: Hoarding gold`,
       }),
     );
+  });
+
+  test("refuses a pick by a Member who is no longer a Home Kingdom R5, before any Game API request, and stores nothing", async () => {
+    const sessions = new PickSessions();
+    const sessionId = sessions.open(
+      ADDER_ID,
+      { kind: "exile", matches: MATCHES, reason: reasonOf("Hoarding gold") },
+      NOW,
+    );
+    const getPlayer = vi.fn<GetPlayer>(() => Promise.resolve(FOUND));
+    const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
+    const interaction = new FakePickInteraction({
+      customId: `pick:${sessionId}:select`,
+      userId: ADDER_ID,
+      values: ["1"],
+    });
+
+    await handlePick(interaction, {
+      gameApi: { getPlayer, getAlliance: () => Promise.reject(new Error("no Alliance lookup when picking an Exile")) },
+      pickSessions: sessions,
+      now: () => NOW,
+      logError: vi.fn<(message: string) => void>(),
+      reaper: store,
+      channels: { log },
+      editorOf: () => R4_EDITOR,
+      homeKingdom: HOME,
+    });
+
+    expect(getPlayer).not.toHaveBeenCalled();
+    expect(store.all()).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+    expect(JSON.stringify(interaction.calls)).toContain("Only R5s of Home Kingdom Alliances may change REAPER.");
   });
 });

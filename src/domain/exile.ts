@@ -22,17 +22,15 @@ export interface Position {
   readonly y: number;
 }
 
-/** An Exile as REAPER stores it. The position, when present, was read at positionAt. */
+/** An Exile as REAPER stores it. */
 export interface Exile {
   readonly uid: Uid;
   /** The latest Player Name read; follows renames. */
   readonly name: string;
   /** The latest Kingdom read. */
   readonly kingdom: KingdomNumber;
-  /** The latest position read; undefined when it was never read with one. */
-  readonly position: Position | undefined;
-  /** When position was read; present exactly when position is. */
-  readonly positionAt: Date | undefined;
+  /** The latest position read and when it was read; undefined when it was never read with one. */
+  readonly lastPosition: { readonly position: Position; readonly at: Date } | undefined;
   readonly reason: ExileReason;
   readonly addedAt: Date;
   /** The R5 who added the Exile. Never shown to Members; only the log channel names them. */
@@ -121,7 +119,7 @@ export function rankExiles(
 function currentPositionOf(candidate: ExileCandidate): { readonly position: Position; readonly stale: boolean } | undefined {
   const read = candidate.player?.details?.location;
   if (read !== undefined) return { position: { x: read.x, y: read.y }, stale: false };
-  const stored = candidate.exile.position;
+  const stored = candidate.exile.lastPosition?.position;
   if (stored !== undefined) return { position: stored, stale: true };
   return undefined;
 }

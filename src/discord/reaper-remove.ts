@@ -3,7 +3,7 @@ import { parseUid, type KingdomNumber } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { ReaperStore } from "../storage/reaper-store.js";
 import type { AutocompleteChoice, FocusedOption } from "./alliance-autocomplete.js";
-import { answer, replyPrivately } from "./lookup.js";
+import { allowedMentions, answer, replyPrivately } from "./lookup.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { ReaperInteraction } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
@@ -56,8 +56,13 @@ export async function handleReaperRemove(interaction: ReaperRemoveInteraction, c
 
     context.reaper.remove(uid.value);
     const logged = reaperMessages.removeLog(exile.name, exile.uid, exile.kingdom, interaction.user.id);
-    await answer("the log line of a REAPER change", context, () => context.channels.log({ content: logged }));
-    await replyPrivately(interaction, reaperMessages.removed(exile.name));
+    try {
+      await replyPrivately(interaction, reaperMessages.removed(exile.name));
+    } finally {
+      await answer("the log line of a REAPER change", context, () =>
+        context.channels.log({ content: logged, allowedMentions }),
+      );
+    }
   });
 }
 

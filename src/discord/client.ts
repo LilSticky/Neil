@@ -61,6 +61,7 @@ import {
   answer,
   handleAlliance,
   handlePlayer,
+  replyPrivately,
   type AllianceLookupContext,
   type LookupApi,
   type LookupInteraction,
@@ -75,6 +76,7 @@ import {
   handleReaperPage,
 } from "./reaper.js";
 import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
+import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
 
 /** The Game API client as connect uses it: the lookups and the Daily Quota figures. */
@@ -187,7 +189,11 @@ export interface ClientOptions {
 }
 
 /** Hands a /reaper command to the handler of its subcommand. */
-function routeReaper(handlers: CommandHandlers, interaction: ChatInputCommandInteraction): void {
+function routeReaper(
+  handlers: CommandHandlers,
+  interaction: ChatInputCommandInteraction,
+  logError: (message: string) => void,
+): void {
   switch (interaction.options.getSubcommand()) {
     case "closest":
       void handlers.reaperClosest(interaction);
@@ -201,6 +207,8 @@ function routeReaper(handlers: CommandHandlers, interaction: ChatInputCommandInt
     case "remove":
       void handlers.reaperRemove(interaction);
       break;
+    default:
+      void answer("/reaper", { logError }, () => replyPrivately(interaction, reaperMessages.unknownSubcommand));
   }
 }
 
@@ -258,7 +266,7 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
           void handlers.link(interaction);
           break;
         case "reaper":
-          routeReaper(handlers, interaction);
+          routeReaper(handlers, interaction, logError);
           break;
       }
       return;
@@ -815,6 +823,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
       reaper: options.reaper,
       channels,
+      editorOf: editorOfMember,
+      homeKingdom: options.homeKingdom,
     };
     openServices({
       interviews,

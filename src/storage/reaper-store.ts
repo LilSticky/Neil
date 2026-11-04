@@ -73,9 +73,9 @@ export class ReaperStore {
         exile.uid,
         exile.name,
         exile.kingdom,
-        exile.position === undefined ? null : exile.position.x,
-        exile.position === undefined ? null : exile.position.y,
-        exile.positionAt === undefined ? null : exile.positionAt.toISOString(),
+        exile.lastPosition === undefined ? null : exile.lastPosition.position.x,
+        exile.lastPosition === undefined ? null : exile.lastPosition.position.y,
+        exile.lastPosition === undefined ? null : exile.lastPosition.at.toISOString(),
         exile.reason,
         exile.addedAt.toISOString(),
         exile.addedBy,
@@ -139,13 +139,15 @@ function exileOf(raw: unknown): Exile {
   const parsed = reaperRow.safeParse(raw);
   if (!parsed.success) throw corruptReaperError();
   const row = parsed.data;
-  const position = row.x === null || row.y === null ? undefined : { x: row.x, y: row.y };
+  const lastPosition =
+    row.x === null || row.y === null || row.position_at === null
+      ? undefined
+      : { position: { x: row.x, y: row.y }, at: row.position_at };
   return {
     uid: row.uid,
     name: row.name,
     kingdom: row.kingdom,
-    position,
-    positionAt: row.position_at ?? undefined,
+    lastPosition,
     reason: row.reason,
     addedAt: row.added_at,
     addedBy: row.added_by,

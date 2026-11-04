@@ -19,7 +19,7 @@ import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
 import { FakeReaperPageInteraction } from "./__fakes__/reaper-page-interaction.js";
-import { lookupMessages, renderPlayerCard } from "./lookup-cards.js";
+import { embedCharacters, lookupMessages, renderPlayerCard } from "./lookup-cards.js";
 import { handleReaperClosest, handleReaperPage, type ReaperClosestContext } from "./reaper.js";
 import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 
@@ -99,8 +99,7 @@ function exileOf(uid: Uid, name: string, position: Position | undefined, addedAt
     uid,
     name,
     kingdom: HOME,
-    position,
-    positionAt: position === undefined ? undefined : EARLIER,
+    lastPosition: position === undefined ? undefined : { position, at: EARLIER },
     reason: reasonOf(`Reason of ${name}`),
     addedAt,
     addedBy: ADDER_ID,
@@ -424,6 +423,23 @@ describe("handleReaperClosest", () => {
     expect(JSON.stringify(shown[2])).not.toContain("position as of");
   });
 
+  test.each([
+    { refusal: { kind: "quota-spent", resetsAt: RESETS_AT }, text: lookupMessages.quotaSpent(RESETS_AT, NOW) },
+    { refusal: { kind: "reserve-kept", resetsAt: RESETS_AT }, text: lookupMessages.reserveKept(RESETS_AT, NOW) },
+  ] as const)(
+    "says the usual quota text, not the ask for x and y, when the caller's Linked Player is refused as $refusal.kind and no x and y are given",
+    async ({ refusal, text }) => {
+      store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+      const { context, getPlayer } = closestContext(store, { link: CALLER_LINK, read: () => Promise.resolve(refusal) });
+      const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup");
+      expect(repliesOf(interaction)).toEqual([text]);
+    },
+  );
+
   test("says the usual quota text when the Daily Quota is spent and no Exile has a stored position", async () => {
     store.add(exileOf(NEAR, "Near", undefined));
     store.add(exileOf(MID, "Mid", undefined));
@@ -448,8 +464,7 @@ describe("handleReaperClosest", () => {
     expect(store.find(NEAR)).toEqual({
       ...stored,
       name: "Vex",
-      position: { x: 120, y: 340 },
-      positionAt: FETCHED_AT,
+      lastPosition: { position: { x: 120, y: 340 }, at: FETCHED_AT },
     });
   });
 
@@ -521,6 +536,58 @@ describe("handleReaperClosest", () => {
     await handleReaperClosest(interaction, context);
 
     expect(JSON.stringify(interaction.calls)).not.toContain(ADDER_ID);
+  });
+
+  test("reads the caller's Player and every Exile with the lookup purpose, never the Quota Reserve", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
+    const { context, getPlayer } = closestContext(store, {
+      link: CALLER_LINK,
+      read: readsOf(
+        playerOf(CALLER_UID, "Caller", HOME, { x: 0, y: 0 }),
+        playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }),
+        playerOf(MID, "Mid", HOME, { x: 0, y: 2 }),
+      ),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(getPlayer.mock.calls.map(([, purpose]) => purpose)).toEqual(["lookup", "lookup", "lookup"]);
+  });
+
+  test("keeps the 3 closest Exiles with the longest names and reasons within 6,000 characters across all embeds", async () => {
+    const longest = "*".repeat(200);
+    const exiles: [Uid, Position][] = [
+      [NEAR, { x: 1, y: 0 }],
+      [MID, { x: 0, y: 2 }],
+      [FAR, { x: 3, y: 4 }],
+    ];
+    for (const [uid, position] of exiles) {
+      store.add({
+        uid,
+        name: longest,
+        kingdom: HOME,
+        lastPosition: { position, at: EARLIER },
+        reason: reasonOf(longest),
+        addedAt: EARLIER,
+        addedBy: ADDER_ID,
+      });
+    }
+    const { context } = closestContext(store, {
+      read: readsOf(
+        playerOf(NEAR, longest, HOME, { x: 1, y: 0 }),
+        playerOf(MID, longest, HOME, { x: 0, y: 2 }),
+        playerOf(FAR, longest, HOME, { x: 3, y: 4 }),
+      ),
+    });
+    const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    const total = embedsOf(answerOf(interaction)).reduce((sum, embed) => sum + embedCharacters(embed), 0);
+    expect(exileEmbedsOf(interaction)).toHaveLength(3);
+    expect(total).toBeLessThanOrEqual(6000);
   });
 
   describe("the header and the Exiles left out", () => {
@@ -715,7 +782,7 @@ function sessionIdOf(answer: InteractionEditReplyOptions): string {
 
 /** The context a page button of /reaper is handled with: the listings opened, and the clock the press is answered at. */
 function pageContext(pages: ReaperPages<ReaperPageContent>, now: Date) {
-  return { pages, now: () => now };
+  return { pages, now: () => now, logError: vi.fn<(message: string) => void>() };
 }
 
 /** The last redraw of a page button: the answer the Member sees after the press. */

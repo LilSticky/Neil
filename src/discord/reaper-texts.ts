@@ -1,16 +1,28 @@
 import { utcDayOf } from "../domain/daily-quota.js";
 import type { Exile, ExileRanking, Position } from "../domain/exile.js";
-import { escapeText, utcTime } from "./lookup-cards.js";
+import { escapeText, fitEscaped, utcTime } from "./lookup-cards.js";
 
 type LeftOut = ExileRanking["leftOut"];
+
+/**
+ * An escaped Exile name is cut to 50 characters where a line or a confirmation shows it. With a reason of 200 characters
+ * escaped to 400, eight list lines of this size stay within a 4,096-character embed description.
+ */
+const NAME_MAX_LENGTH = 50;
+
+/** The escaped name of an Exile, cut to NAME_MAX_LENGTH. */
+function fittedName(name: string): string {
+  return fitEscaped(escapeText(name), NAME_MAX_LENGTH);
+}
 
 /** The texts of /reaper: add, closest, list, paging and their refusals and answers. Names and reasons are escaped. */
 export const reaperMessages = {
   refused: "Only R5s of Home Kingdom Alliances may change REAPER.",
+  unknownSubcommand: "Neil does not know this /reaper subcommand.",
   invalidReason: "Give a reason of 1 to 200 characters.",
   added: (name: string, kingdom: number, allianceText: string): string =>
-    `${escapeText(name)} (Kingdom ${kingdom.toString()}, ${allianceText}) is now an Exile.`,
-  alreadyExile: (name: string, reason: string): string => `${escapeText(name)} is already an Exile: ${escapeText(reason)}`,
+    `${fittedName(name)} (Kingdom ${kingdom.toString()}, ${allianceText}) is now an Exile.`,
+  alreadyExile: (name: string, reason: string): string => `${fittedName(name)} is already an Exile: ${escapeText(reason)}`,
   addLog: (name: string, uid: string, kingdom: number, adderId: string, reason: string): string =>
     `🔥 ${escapeText(name)} (${uid}, Kingdom ${kingdom.toString()}) added to REAPER by <@${adderId}>: ${escapeText(reason)}`,
   removed: (name: string): string => `${escapeText(name)} is no longer an Exile.`,
@@ -40,17 +52,17 @@ export const reaperMessages = {
     exiledOn: "Exiled on",
   },
   /** Coordinates as "X:3 Y:4"; a stored position also says when it was read. */
-  coordinates: (position: Position, positionAt?: Date): string =>
-    positionAt === undefined
+  coordinates: (position: Position, readAt?: Date): string =>
+    readAt === undefined
       ? coordinates(position)
-      : `${coordinates(position)} (position as of ${utcDayOf(positionAt)} ${utcTime(positionAt)})`,
+      : `${coordinates(position)} (position as of ${utcDayOf(readAt)} ${utcTime(readAt)})`,
   /** A distance rounded to one decimal place, the ".0" dropped. */
   distance: (value: number): string => (Math.round(value * 10) / 10).toString(),
   empty: "REAPER is empty.",
   listTitle: "Exiles in REAPER",
   /** One Exile of the list: name, Kingdom, reason and the day it was added. */
   listLine: (exile: Exile): string =>
-    `**${escapeText(exile.name)}** · Kingdom ${exile.kingdom.toString()} · ${escapeText(exile.reason)} · exiled ${utcDayOf(exile.addedAt)}`,
+    `**${fittedName(exile.name)}** · Kingdom ${exile.kingdom.toString()} · ${escapeText(exile.reason)} · exiled ${utcDayOf(exile.addedAt)}`,
   pageExpired: "This list has expired, run /reaper again.",
   pageNotYours: "Only the Member who ran /reaper can turn its pages.",
   previous: "◀ Previous",

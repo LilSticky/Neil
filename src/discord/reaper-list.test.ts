@@ -55,8 +55,7 @@ function exileOf(uid: Uid, name: string, kingdom: KingdomNumber, addedAt: Date, 
     uid,
     name,
     kingdom,
-    position: undefined,
-    positionAt: undefined,
+    lastPosition: undefined,
     reason: reasonOf(reason),
     addedAt,
     addedBy: ADDER_ID,
@@ -75,12 +74,13 @@ function listContext(store: ReaperStore, pages: ReaperPages<ReaperPageContent>) 
   const getPlayer = vi.fn<(uid: Uid) => Promise<never>>(() =>
     Promise.reject(new Error("no Game API request was expected")),
   );
-  return { context: { reaper: store, pages, now: () => NOW, gameApi: { getPlayer } }, getPlayer };
+  const logError = vi.fn<(message: string) => void>();
+  return { context: { reaper: store, pages, now: () => NOW, gameApi: { getPlayer }, logError }, getPlayer };
 }
 
 /** The context a page button is handled with: the listings opened, and the clock the press is answered at. */
 function pageContext(pages: ReaperPages<ReaperPageContent>, now: Date) {
-  return { pages, now: () => now };
+  return { pages, now: () => now, logError: vi.fn<(message: string) => void>() };
 }
 
 /** Every answer the handler sent with reply or editReply, in order. */
@@ -256,6 +256,23 @@ describe("handleReaperList", () => {
     expect(listLinesOf(lastAnswerOf(interaction).embeds)).toHaveLength(LIST_PAGE_SIZE);
   });
 
+  test("a full page of 200-character names and reasons, all to be escaped, still fits one embed description", async () => {
+    for (let index = 0; index < LIST_PAGE_SIZE; index += 1) {
+      const padded = index.toString().padStart(2, "0");
+      store.add(
+        exileOf(uidOf(`145563254${padded}1`), "*".repeat(200), HOME, new Date(EARLIER.getTime() + index * ONE_HOUR_MS), "_".repeat(200)),
+      );
+    }
+    const { context } = listContext(store, pages);
+    const interaction = new FakeReaperInteraction({}, VIEWER_ID);
+
+    await handleReaperList(interaction, context);
+
+    const [list] = embedsOf(lastAnswerOf(interaction).embeds);
+    expect(list?.description?.length ?? 0).toBeLessThanOrEqual(4096);
+    expect(listLinesOf(lastAnswerOf(interaction).embeds)).toHaveLength(LIST_PAGE_SIZE);
+  });
+
   test("a page button by the viewer shows the rest of the list, with no Game API request", async () => {
     for (let index = 0; index < 25; index += 1) store.add(numberedExile(index));
     const { context, getPlayer } = listContext(store, pages);
@@ -289,6 +306,34 @@ describe("handleReaperList", () => {
 
     expect(press.calls).toHaveLength(1);
     expect(press.calls[0]).toMatchObject({ method: "reply", options: { flags: MessageFlags.Ephemeral } });
+  });
+
+  test("a failing page redraw is logged, instead of failing the handler", async () => {
+    for (let index = 0; index < 25; index += 1) store.add(numberedExile(index));
+    const { context } = listContext(store, pages);
+    const interaction = new FakeReaperInteraction({}, VIEWER_ID);
+    await handleReaperList(interaction, context);
+    const press = new FakeReaperPageInteraction({
+      customId: `reaper:${sessionIdOf(lastAnswerOf(interaction))}:page:1`,
+      userId: VIEWER_ID,
+    });
+    vi.spyOn(press, "update").mockRejectedValue(new Error("Unknown interaction"));
+    const logError = vi.fn<(message: string) => void>();
+
+    await expect(handleReaperPage(press, { pages, now: () => NOW, logError })).resolves.toBeUndefined();
+
+    expect(logError).toHaveBeenCalledTimes(1);
+  });
+
+  test("a failing deferral is logged, instead of failing the handler", async () => {
+    const logError = vi.fn<(message: string) => void>();
+    const { context } = listContext(store, pages);
+    const interaction = new FakeReaperInteraction({}, VIEWER_ID);
+    vi.spyOn(interaction, "deferReply").mockRejectedValue(new Error("Unknown interaction"));
+
+    await expect(handleReaperList(interaction, { ...context, logError })).resolves.toBeUndefined();
+
+    expect(logError).toHaveBeenCalledTimes(1);
   });
 
   test("a list that cannot read REAPER is logged and answered as unavailable, instead of failing", async () => {

@@ -21,6 +21,7 @@ import { FakeConnectGuild } from "./__fakes__/connect-guild.js";
 import { FakeClient } from "./__fakes__/discord-client.js";
 import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
+import { FakeReaperPageInteraction } from "./__fakes__/reaper-page-interaction.js";
 import { connect, type ConnectOptions } from "./client.js";
 import { unlinkedLogLine, unlinkedPrivateMessage } from "./unlink-texts.js";
 
@@ -512,8 +513,7 @@ describe("connect", () => {
         uid: UID,
         name: "Vex",
         kingdom: HOME_KINGDOM,
-        position: undefined,
-        positionAt: undefined,
+        lastPosition: undefined,
         reason: reasoned.value,
         addedAt: NOW,
         addedBy: BOB,
@@ -552,6 +552,52 @@ describe("connect", () => {
       });
       expect(reaper.find(UID)).toMatchObject({ name: "Vex", reason: "Hoarding gold", addedBy: ALICE });
       expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toContain("Vex");
+    });
+
+    test("a /reaper list whose answer Discord refuses is logged, not left as an unhandled rejection", async () => {
+      FakeClient.served = serverWith(SERVER_PERMISSIONS);
+      recordDailySyncRunToday();
+      connection = await connect(TOKEN, connectOptions());
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      try {
+        const list = new FakeReaperInteraction({}, ALICE);
+        list.editReply = () => Promise.reject(new Error("Discord refused the reply"));
+        deliver(reaperCommandOf(list, "list"));
+
+        await vi.waitFor(() => {
+          expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("/reaper list"));
+        });
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test("a /reaper page button whose reply Discord refuses is logged, not left as an unhandled rejection", async () => {
+      FakeClient.served = serverWith(SERVER_PERMISSIONS);
+      recordDailySyncRunToday();
+      connection = await connect(TOKEN, connectOptions());
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      try {
+        const press = new FakeReaperPageInteraction({ customId: "reaper:0123456789abcdef:page:1", userId: ALICE });
+        press.reply = () => Promise.reject(new Error("Discord refused the reply"));
+        deliver(
+          Object.assign(press, {
+            isChatInputCommand: () => false,
+            isAutocomplete: () => false,
+            isButton: () => true,
+            isStringSelectMenu: () => false,
+            isModalSubmit: () => false,
+          }),
+        );
+
+        await vi.waitFor(() => {
+          expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("/reaper page"));
+        });
+      } finally {
+        errorSpy.mockRestore();
+      }
     });
   });
 });

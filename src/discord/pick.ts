@@ -1,6 +1,7 @@
 import { MessageFlags, type InteractionReplyOptions, type InteractionUpdateOptions } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
-import type { ExileReason } from "../domain/exile.js";
+import { mayChangeReaper, type Editor, type ExileReason } from "../domain/exile.js";
+import type { MemberId } from "../domain/rank-approval.js";
 import { parseAllianceKey, parseKingdom, parseUid, type AllianceKey, type KingdomNumber } from "../domain/lookup-input.js";
 import {
   listedPlayerMatches,
@@ -37,6 +38,7 @@ import {
   type PrivateMessage,
 } from "./lookup.js";
 import { recordFoundExile, type ReaperRecordContext } from "./reaper.js";
+import { reaperMessages } from "./reaper-texts.js";
 import {
   isOwner,
   pageOf,
@@ -65,6 +67,9 @@ export interface PickContext {
   /** REAPER and the log channel, which a pick of the /reaper add pick list stores into; without them that pick is unavailable. */
   readonly reaper?: ReaperRecordContext["reaper"];
   readonly channels?: ReaperRecordContext["channels"];
+  /** The Editor check of /reaper add, made again when the pick is made; without it that pick is unavailable. */
+  readonly editorOf?: (memberId: MemberId) => Editor | undefined;
+  readonly homeKingdom?: KingdomNumber;
 }
 
 const pickMessages = {
@@ -165,9 +170,22 @@ async function pickExileMatch(
   context: PickContext,
 ): Promise<void> {
   const parsedUid = match === undefined ? undefined : parseUid(match.uid);
-  const { reaper, channels } = context;
-  if (match === undefined || parsedUid === undefined || !parsedUid.ok || reaper === undefined || channels === undefined) {
+  const { reaper, channels, editorOf, homeKingdom } = context;
+  if (
+    match === undefined ||
+    parsedUid === undefined ||
+    !parsedUid.ok ||
+    reaper === undefined ||
+    channels === undefined ||
+    editorOf === undefined ||
+    homeKingdom === undefined
+  ) {
     await replyPrivately(interaction, lookupMessages.unavailable);
+    return;
+  }
+  const editor = editorOf(interaction.user.id);
+  if (editor === undefined || !mayChangeReaper(editor, homeKingdom)) {
+    await replyPrivately(interaction, reaperMessages.refused);
     return;
   }
 

@@ -55,8 +55,7 @@ const UNKNOWN_UID = uidOf("145563254999");
 function exileOf(overrides: Partial<Exile> & Pick<Exile, "uid" | "name">): Exile {
   return {
     kingdom: HOME,
-    position: { x: 1, y: 2 },
-    positionAt: EARLIEST,
+    lastPosition: { position: { x: 1, y: 2 }, at: EARLIEST },
     reason: reasonOf("Hoarding gold"),
     addedAt: EARLIEST,
     addedBy: R5_ID,
@@ -135,6 +134,27 @@ describe("handleReaperRemove", () => {
     const [logged] = vi.mocked(context.channels.log).mock.calls[0] ?? [];
     expect(logged?.content).toContain(`Vex (${VEX_UID}, Kingdom 330) removed from REAPER by <@${R5_ID}>`);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test("posts the removal log line with no mentions allowed, so a name with @everyone or a role pings nobody", async () => {
+    const context = removeContext(store);
+    const interaction = new FakeReaperInteraction({ strings: { exile: VEX_UID } }, R5_ID);
+
+    await handleReaperRemove(interaction, context);
+
+    expect(context.channels.log).toHaveBeenCalledWith(expect.objectContaining({ allowedMentions: { parse: [] } }));
+  });
+
+  test("replies to the removal before it sends the log line, so the reply is not held up by the log channel", async () => {
+    const context = removeContext(store);
+    const interaction = new FakeReaperInteraction({ strings: { exile: VEX_UID } }, R5_ID);
+    const reply = vi.spyOn(interaction, "reply");
+
+    await handleReaperRemove(interaction, context);
+
+    const replied = reply.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY;
+    const logged = vi.mocked(context.channels.log).mock.invocationCallOrder[0] ?? Number.NEGATIVE_INFINITY;
+    expect(replied).toBeLessThan(logged);
   });
 
   test("leaves the other Exiles as they are when one is removed", async () => {
