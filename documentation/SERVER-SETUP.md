@@ -58,7 +58,7 @@ keeps their nickname and roles matching the game.
 | **Moderator** | you | 🔴 REQUIRED | Officers. Can use the Officer commands and see the Daily Quota. |
 | **King** | you | 🔴 REQUIRED | Officers too, treated the same as Moderator. |
 | **Onboarding** | Neil, at its first start | created automatically | Held by every Member who isn't Linked yet. |
-| **Doctor** | Neil, at its first start | created automatically | Held by every Linked Member, Guests included. |
+| **Doctor** | Neil, at its first start if anyone is Linked, otherwise at the first Link | created automatically | Held by every Linked Member, Guests included. |
 | Alliance tags (e.g. `NML`) | Neil, when first needed | created automatically | One per Home Kingdom Alliance. |
 | `R1`–`R5` | Neil, when first needed | created automatically | Alliance Rank, for Home Kingdom Alliances only. |
 | `#330`, `#331`, … | Neil, when first needed | created automatically | The Kingdom a Member's Player is in. |
@@ -262,24 +262,28 @@ Threads ✅ on that forum.
 Home Kingdom apart from what is for everyone, and give everyone a way to get in touch.
 
 🔴 **REQUIRED order:** restart Neil **first** and check that Linked Members hold **Doctor** (`#neil-log` has one line with
-the counts). Only then move channels to Doctor, or Linked Members lose them until the restart.
+the counts). Only then move channels to Doctor, or Linked Members lose them until the restart. On a new server with
+nobody Linked yet, the role doesn't exist: Link one Member first, or create a role named `Doctor` yourself, with no
+permissions.
 
 Set each category as in step 8, with **@everyone** View Channel ❌ and:
 
 | Category | Holds | Role | Permission | Setting |
 |----------|-------|------|------------|---------|
-| Basic information | e.g. `#rules`, `#welcome` | **Doctor** | View Channel | ✅ |
+| Basic information | e.g. `#rules`, `#welcome` | **Doctor** | View Channel ✅, Send Messages ❌ (read only) | as listed |
 | Alliance hall | `#alliance-hall` | **Doctor** | View Channel, Send Messages | ✅ |
 | Home Kingdom | Home Kingdom channels, Home Kingdom announcements | `#330` | View Channel | ✅ |
 | Shared | text and voice channels, Shared announcements | **Doctor** | View Channel, Send Messages, Connect, Speak | ✅ |
 
 **King announcements.** Create one announcements channel in the Home Kingdom category and one in the Shared category. The
-Home Kingdom one is the usual place; a King posts in the Shared one when everyone should read it. On **both** channels:
+Home Kingdom one is the usual place; a King posts in the Shared one when everyone should read it. On **both** channels,
+set the channel itself, not only its category. A role's ✅ beats the ❌ on @everyone, so the role that sees the channel
+needs its own ❌:
 
 | Role | Permission | Setting |
 |------|------------|---------|
-| **@everyone** | Send Messages | ❌ |
-| **King** | Send Messages | ✅ |
+| **Doctor** on the Shared one, `#330` on the Home Kingdom one | Send Messages, Send Messages in Threads, Create Public Threads, Create Private Threads | ❌ |
+| **King** | View Channel, Send Messages | ✅ |
 
 Tip: check with **View Server As Role**: **Doctor** alone is what a Guest sees, and **Doctor** plus `#330` is what a Home
 Kingdom Member sees.
@@ -302,10 +306,12 @@ powers.
 
 | Command | **Channels** |
 |---------|--------------|
-| `/player`, `/alliance`, `/unlink`, `/channels`, `/reaper`, `/ping` | turn off **All Channels**, add `#alliance-hall` |
+| `/player`, `/alliance`, `/channels`, `/reaper`, `/ping` | turn off **All Channels**, add `#alliance-hall` |
+| `/unlink` | turn off **All Channels**, add `#alliance-hall` and the moderator-only channel, where Officers use it |
 | `/interview` | turn off **All Channels**, add `#onboarding`, or newcomers can't start a new Interview |
 
-Neil doesn't check the channel itself, so this setting is all there is.
+Neil doesn't check the channel itself, so this setting is all there is. Administrators can use every command everywhere,
+so test this with an account that isn't one.
 
 ### Step 10: Test it
 

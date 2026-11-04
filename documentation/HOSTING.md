@@ -81,6 +81,9 @@ has created the role (at its first start with slice 013):
 
 Finished Interview threads are deleted, so Neil needs Manage Threads in `#onboarding` (already required).
 
+**Doctor Role for slice 017**: Neil gives the `Doctor` role (created by Neil, without permissions) to every Linked Member.
+Restart Neil before moving channels to it: [SERVER-SETUP.md](SERVER-SETUP.md) step 8c.
+
 Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
 startup. Don't delete `.env` in the file manager.
 
