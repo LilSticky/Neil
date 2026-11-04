@@ -1,6 +1,5 @@
 import type { RankOnLink } from "../domain/link.js";
-import { ALL_PREFERENCE_ROLE_NAMES, preferenceRolesFor } from "../domain/preferences.js";
-import type { AllianceRank } from "../domain/player.js";
+import { ALL_PREFERENCE_ROLE_NAMES, allianceRankOf, preferenceRolesFor } from "../domain/preferences.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import { giveNamedRole, takeOffNamedRole, type RolesGuild, type RolesMember, type Skipped } from "./member-roles.js";
@@ -41,7 +40,7 @@ async function applyTo(deps: PreferenceRolesDeps, memberId: MemberId, rank: Rank
   try {
     const server = await deps.members.memberOf(memberId);
     if (server === undefined) return;
-    const wanted = preferenceRolesFor(deps.preferences.get(memberId), rankOf(rank));
+    const wanted = preferenceRolesFor(deps.preferences.get(memberId), allianceRankOf(rank));
     const held = heldNames(server.member);
     const unwanted = ALL_PREFERENCE_ROLE_NAMES.filter((name) => held.has(name) && !wanted.includes(name));
     const missing = wanted.filter((name) => !held.has(name));
@@ -88,11 +87,6 @@ async function changeAndLog(
 /** The names of the roles a Member holds. */
 function heldNames(member: RolesMember): Set<string> {
   return new Set(member.roles.map((role) => role.name));
-}
-
-/** The Alliance Rank a Link carries, when it has one: a Link waiting for a Rank Approval or outside an Alliance has none. */
-function rankOf(rank: RankOnLink): AllianceRank | undefined {
-  return rank.source === "game-api" || rank.source === "rank-approval" ? rank.rank : undefined;
 }
 
 function reasonOf(error: unknown): string {

@@ -1,3 +1,4 @@
+import type { RankOnLink } from "./link.js";
 import type { AllianceRank } from "./player.js";
 
 /** The code of a Game Language offered in the Preferences message (plan R2). */
@@ -137,6 +138,11 @@ export function preferenceRolesFor(preferences: Preferences, rank: AllianceRank 
     if (preferences.experience === experience.key) names.push(experience.roleName);
   }
   return names;
+}
+
+/** The Alliance Rank a Link carries, when it has one: a Link waiting for a Rank Approval or outside an Alliance has none. */
+export function allianceRankOf(rank: RankOnLink): AllianceRank | undefined {
+  return rank.source === "game-api" || rank.source === "rank-approval" ? rank.rank : undefined;
 }
 
 /** The Interests offered to a Member of a rank: all of them for R4, the others for everyone else (plan R3, R5). */

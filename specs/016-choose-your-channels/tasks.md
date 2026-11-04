@@ -22,7 +22,7 @@ description: "Task list for slice 016, Choose your channels"
 - [ ] **T004** [US1–3] `src/discord/preferences-texts.ts` and the message (contracts): four menus with preselection
   (stored answers, else the game Language), Interests by rank, Done button, custom IDs with the Member ID; the guides
   line for Veteran and New (`DISCORD_GUIDES_FORUM_ID` in `config.ts`, optional).
-- [ ] **T005** [US1–3] Select and Done handling (R7): a change saves the answer, applies the roles, logs one line and
+- [x] **T005** [US1–3] Select and Done handling (R7): a change saves the answer, applies the roles, logs one line and
   updates the message; a press by another Member changes nothing; Done closes the prompt and deletes the thread unless
   a Rank Approval is pending.
 - [ ] **T006** [US1] `interview.ts` `finishLink`: post the Preferences message and open the prompt instead of deleting

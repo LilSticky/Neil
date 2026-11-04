@@ -88,6 +88,20 @@ export function notYoursReply(): PrivateReply {
   };
 }
 
+/** The Preferences message once Done is pressed: a saved text, with no menus left. */
+export interface SavedMessage extends Message {
+  readonly components: never[];
+}
+
+/** The message that replaces the Preferences message when Done is pressed. */
+export function savedMessage(): SavedMessage {
+  return {
+    content: "Your choices are saved. Run /channels any time to change them.",
+    components: [],
+    allowedMentions: noMentions(),
+  };
+}
+
 /** The guides line for a Member's Experience: Veteran is invited to write guides, New to read them; none otherwise. */
 export function guidesLine(experience: ExperienceKey | undefined, guidesForumId: string | undefined): string | undefined {
   const forum = guidesForumId === undefined ? GUIDES_FORUM_NAME : `<#${guidesForumId}>`;
