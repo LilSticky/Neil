@@ -8,7 +8,7 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 ## Current slice
 
 Slice 014, Find the closest Exile (REAPER) ([specs](../specs/014-find-the-closest-exile/), [#35](https://github.com/LilSticky/Neil/issues/35)),
-on branch `014-find-the-closest-exile`: `/reaper add|remove` for Home Kingdom R5s, `/reaper closest|list` for any
+merged to `main` as #44: `/reaper add|remove` for Home Kingdom R5s, `/reaper closest|list` for any
 Member. T001–T013 done (review and audit in the spec folder, ADR 9 for its personal data); the manual check T014
 (TEST-RUN.md §6j) is open. Parallel sessions: 015 Daily Allowance (`../Neil-015`, migration 12) and 016 Choose your
 channels (`../Neil-016-choose-channels`, migration 13); 015 will change the lookup signature `/reaper` uses, so it
