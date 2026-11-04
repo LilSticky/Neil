@@ -344,7 +344,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R5);
 
-      expect(h.preferenceRoles.applied).toEqual([{ memberId: ALICE, rank: GAME_RANK_R5 }]);
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
     });
 
     test("when the Preference Roles cannot be applied, the name and roles stand and the failure is logged with the Member", async () => {
@@ -473,7 +473,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.atStartup();
 
-      expect(h.preferenceRoles.applied).toEqual([{ memberId: ALICE, rank: GAME_RANK_R5 }]);
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
     });
 
     test("a Link ended while the lookup is in flight at startup gives the Member no nickname or roles", async () => {
@@ -748,7 +748,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.syncMember(ALICE, { ...ROGUE_R4, allianceRank: "R3" }, GAME_RANK_R3);
 
-      expect(h.preferenceRoles.applied).toEqual([{ memberId: ALICE, rank: GAME_RANK_R3 }]);
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
     });
 
     test("when the Preference Roles cannot be applied, the Daily Sync still reports the change", async () => {
@@ -784,7 +784,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.onRankApproved(ALICE);
 
-      expect(h.preferenceRoles.applied).toEqual([{ memberId: ALICE, rank: APPROVED_R4 }]);
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
     });
 
     test("looks the Player up once with the lookup purpose, and gives the rank of the Link", async () => {

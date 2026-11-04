@@ -1,21 +1,22 @@
 import { parseUid } from "../../domain/lookup-input.js";
-import type { Link } from "../../domain/link.js";
+import type { Link, RankOnLink } from "../../domain/link.js";
 import type { MemberId } from "../../domain/rank-approval.js";
 import type { LinkStore } from "../../storage/link-store.js";
 
 /**
- * The part of the Link store the Preference Roles read: a Member is Linked once `link` is called, and no longer after
- * `unlink`. The store itself is tested in link-store.test.ts.
+ * The part of the Link store the Preference Roles read: a Member is Linked once `link` is called, with the Alliance Rank
+ * the Link carries (unknown when none is given), and no longer after `unlink`. The store itself is tested in
+ * link-store.test.ts.
  */
 export class FakeLinkStore implements Pick<LinkStore, "linkFor"> {
   private readonly linked = new Map<MemberId, Link>();
 
-  link(memberId: MemberId): void {
+  link(memberId: MemberId, allianceRank: RankOnLink = { source: "unknown" }): void {
     this.linked.set(memberId, {
       memberId,
       uid: parsedUid(),
       linkedAt: new Date("2026-11-04T10:00:00Z"),
-      allianceRank: { source: "unknown" },
+      allianceRank,
       madeBy: { kind: "in-game-proof" },
     });
   }

@@ -1,12 +1,12 @@
-import { EMPTY_PREFERENCES, type Preferences } from "../../domain/preferences.js";
+import { EMPTY_PREFERENCES, type InterestKey, type Preferences } from "../../domain/preferences.js";
 import type { MemberId } from "../../domain/rank-approval.js";
 import type { PreferenceStore } from "../../storage/preference-store.js";
 
 /**
- * The part of the Preference store the Preference Roles use: Preferences a test sets, and every forget recorded in order.
- * The store itself is tested in preference-store.test.ts.
+ * The part of the Preference store the Preference Roles use: Preferences a test sets, the Interests the apply stores, and
+ * every forget recorded in order. The store itself is tested in preference-store.test.ts.
  */
-export class FakePreferenceStore implements Pick<PreferenceStore, "get" | "forget"> {
+export class FakePreferenceStore implements Pick<PreferenceStore, "get" | "setInterests" | "forget"> {
   /** Every Member a forget was asked for, in order: a test checks the rows are deleted even when the server is not reached. */
   readonly forgotten: MemberId[] = [];
   private readonly stored = new Map<MemberId, Preferences>();
@@ -17,6 +17,10 @@ export class FakePreferenceStore implements Pick<PreferenceStore, "get" | "forge
 
   get(memberId: MemberId): Preferences {
     return this.stored.get(memberId) ?? EMPTY_PREFERENCES;
+  }
+
+  setInterests(memberId: MemberId, interests: ReadonlySet<InterestKey>): void {
+    this.set(memberId, { ...this.get(memberId), interests: new Set(interests) });
   }
 
   forget(memberId: MemberId): void {

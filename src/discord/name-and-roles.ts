@@ -227,7 +227,7 @@ async function syncTo(
   });
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
   deps.links.updateRank(memberId, rank);
-  await givePreferenceRoles(deps, memberId, rank);
+  await givePreferenceRoles(deps, memberId);
   const nicknameChanged = report.nickname === "set" && currentNickname !== nickname;
   // The owner's nickname skip is the same on every run and never a change, so it is not logged.
   const otherSkips = report.skipped.filter((skip) => !isOwnerNicknameSkip(skip));
@@ -260,15 +260,18 @@ async function applyTo(
   });
   // An Unlink may still end the Link during the apply: the foreign key then rejects this record, and the caller logs it.
   deps.applied.record(appliedStateOf(memberId, nickname, previous, roles, report, deps.now(), allianceRefOf(player)));
-  await givePreferenceRoles(deps, memberId, rank);
+  await givePreferenceRoles(deps, memberId);
   if (!hasChange(report, previous, nickname)) return;
   await deps.log(nameAndRolesLogLine(memberId, report, nickname ?? ""));
 }
 
-/** Gives the Preference Roles of the rank; a failure is logged with the Member, and the name and roles stand. */
-async function givePreferenceRoles(deps: NameAndRolesDeps, memberId: MemberId, rank: RankOnLink): Promise<void> {
+/**
+ * Gives the Preference Roles of the Member's Link, which already holds the rank. A failure is logged with the Member, and
+ * the name and roles stand.
+ */
+async function givePreferenceRoles(deps: NameAndRolesDeps, memberId: MemberId): Promise<void> {
   try {
-    await deps.preferenceRoles.apply(memberId, rank);
+    await deps.preferenceRoles.apply(memberId);
   } catch (error) {
     deps.logError(`Giving ${memberId} their Preference Roles failed: ${reasonOf(error)}`);
   }

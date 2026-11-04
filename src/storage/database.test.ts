@@ -581,9 +581,24 @@ describe("openDatabase", () => {
       expect(columns).toEqual(["member_id", "kind", "value"]);
 
       const insert = db.prepare("INSERT INTO preference (member_id, kind, value) VALUES (?, ?, ?)");
-      insert.run("member-1", "language", "en");
-      insert.run("member-1", "language", "de");
-      expect(() => insert.run("member-1", "language", "en")).toThrow(/UNIQUE/);
+      insert.run("111111111111111111", "language", "en");
+      insert.run("111111111111111111", "language", "de");
+      expect(() => insert.run("111111111111111111", "language", "en")).toThrow(/UNIQUE/);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 11 lets member_id of preference and preference_prompt be a snowflake only", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const preference = db.prepare("INSERT INTO preference (member_id, kind, value) VALUES (?, ?, ?)");
+      expect(() => preference.run("member-1", "language", "en")).toThrow();
+      preference.run("111111111111111111", "language", "en");
+
+      const prompt = db.prepare("INSERT INTO preference_prompt (member_id, thread_id, posted_at) VALUES (?, ?, ?)");
+      expect(() => prompt.run("member-1", "thread-1", "2026-11-04T12:00:00.000Z")).toThrow();
+      prompt.run("111111111111111111", "thread-1", "2026-11-04T12:00:00.000Z");
     } finally {
       db.close();
     }
@@ -599,8 +614,8 @@ describe("openDatabase", () => {
       expect(columns).toEqual(["member_id", "thread_id", "posted_at"]);
 
       const insert = db.prepare("INSERT INTO preference_prompt (member_id, thread_id, posted_at) VALUES (?, ?, ?)");
-      insert.run("member-1", "thread-1", "2026-11-04T12:00:00.000Z");
-      expect(() => insert.run("member-1", "thread-2", "2026-11-04T13:00:00.000Z")).toThrow(/UNIQUE/);
+      insert.run("111111111111111111", "thread-1", "2026-11-04T12:00:00.000Z");
+      expect(() => insert.run("111111111111111111", "thread-2", "2026-11-04T13:00:00.000Z")).toThrow(/UNIQUE/);
     } finally {
       db.close();
     }

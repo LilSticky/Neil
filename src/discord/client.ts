@@ -690,6 +690,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       logError,
       log: (message) => channels.log(message),
+      officerRoleIds: options.officerRoleIds,
     });
     // A private message to a Member, by Discord DM; Discord refuses it when the Member cannot be messaged.
     const sendPrivateMessage = async (memberId: string, message: BaseMessageOptions): Promise<void> => {
@@ -701,6 +702,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       preferences: options.preferences,
       logError,
+      // A change of roles is one plain line in the log channel, without mentions; a refused post is logged and the change stands.
+      log: (line) => {
+        channels.log({ content: line, allowedMentions: { parse: [] } }).catch((error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          logError(`Logging a Preference Roles change failed: ${reason}`);
+        });
+      },
+      officerRoleIds: options.officerRoleIds,
     });
     // The Preferences message's presses and /channels: the same stores, roles and log as the Interview's Preferences.
     const preferenceChoices = createPreferenceChoices({

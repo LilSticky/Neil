@@ -158,7 +158,7 @@ async function change(
   }
   const preferences: Preferences = deps.preferences.get(memberId);
   await press.update(messageFor(deps, memberId, preferences, alliance));
-  await deps.roles.apply(memberId, rank);
+  await deps.roles.apply(memberId);
   await deps.channels.log(preferencesLogLine(memberId, preferences));
 }
 

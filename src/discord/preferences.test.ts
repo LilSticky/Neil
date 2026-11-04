@@ -11,9 +11,11 @@ import { createPreferenceRoles } from "./preferences.js";
 const OWNER = "900000000000000001";
 const ALICE: MemberId = "111111111111111111";
 const BOB: MemberId = "222222222222222222";
+const APPROVER: MemberId = "555555555555555555";
+/** The Officer role of the Moderators, as the configuration gives it. */
+const OFFICER_ROLE_ID = "700000000000000001";
 /** The Administrator permission bit: a role with it is refused. */
 const ADMINISTRATOR = 8n;
-const APPROVER: MemberId = "555555555555555555";
 const NOW = new Date("2026-11-04T10:00:00Z");
 
 const R3: RankOnLink = { source: "game-api", rank: "R3" };
@@ -34,24 +36,39 @@ function heldNames(member: FakeRolesMember): string[] {
   return member.roles.map((role) => role.name).sort();
 }
 
-function setUp() {
+/** A gate a test holds closed until it opens it: a change waiting on the gate finishes only after `open`. */
+function gate(): { readonly closed: Promise<void>; readonly open: () => void } {
+  let openGate: () => void = () => undefined;
+  const closed = new Promise<void>((resolve) => {
+    openGate = resolve;
+  });
+  return {
+    closed,
+    open: () => {
+      openGate();
+    },
+  };
+}
+
+function setUp(officerRoleIds: readonly string[] = []) {
   const guild = new FakeRolesGuild(OWNER);
   const members = new FakeServerMembers();
   const preferences = new FakePreferenceStore();
   const links = new FakeLinkStore();
   const logError = vi.fn<(line: string) => void>();
-  const service = createPreferenceRoles({ members, preferences, links, logError });
+  const log = vi.fn<(line: string) => void>();
+  const service = createPreferenceRoles({ members, preferences, links, logError, log, officerRoleIds });
   /**
-   * Puts a Member on the server, holding the given roles, as the discord.js adapter would find them. A Member put on the
-   * server is Linked too, unless the test unlinks them.
+   * Puts a Member on the server, holding the given roles, as the discord.js adapter would find them, and Links them at
+   * the given rank. A Member put on the server is Linked too, unless the test unlinks them.
    */
-  const join = (memberId: MemberId, roles: readonly string[] = []): FakeRolesMember => {
+  const join = (memberId: MemberId, roles: readonly string[] = [], rank: RankOnLink = R3): FakeRolesMember => {
     const member = guild.member(memberId, roles);
     members.join(memberId, guild, member);
-    links.link(memberId);
+    links.link(memberId, rank);
     return member;
   };
-  return { guild, members, preferences, links, logError, service, join };
+  return { guild, members, preferences, links, logError, log, service, join };
 }
 
 describe("apply", () => {
@@ -62,7 +79,7 @@ describe("apply", () => {
     const alice = join(ALICE);
     preferences.set(ALICE, preferencesWith({ languages: languages("en"), region: "americas" }));
 
-    await service.apply(ALICE, R3);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual(["Americas", "English"]);
   });
@@ -72,7 +89,7 @@ describe("apply", () => {
     join(ALICE);
     preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
 
-    await service.apply(ALICE, R3);
+    await service.apply(ALICE);
 
     expect(guild.createdRoleNames()).toEqual(["English"]);
     expect(guild.createdOptions[0]?.permissions).toBe(0n);
@@ -86,7 +103,7 @@ describe("apply", () => {
     const alice = join(ALICE, ["French", "Onboarding"]);
     preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
 
-    await service.apply(ALICE, R3);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual(["English", "Onboarding"]);
   });
@@ -94,9 +111,9 @@ describe("apply", () => {
   test("gives NaP discussions to an R5 who chose nothing", async () => {
     const { guild, service, join } = setUp();
     guild.defineRole("NaP discussions");
-    const alice = join(ALICE);
+    const alice = join(ALICE, [], R5);
 
-    await service.apply(ALICE, R5);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual(["NaP discussions"]);
   });
@@ -104,10 +121,10 @@ describe("apply", () => {
   test("gives NaP discussions to an R4 who chose it", async () => {
     const { guild, preferences, service, join } = setUp();
     guild.defineRole("NaP discussions");
-    const alice = join(ALICE);
+    const alice = join(ALICE, [], R4);
     preferences.set(ALICE, preferencesWith({ interests: new Set(["nap"]) }));
 
-    await service.apply(ALICE, R4);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual(["NaP discussions"]);
   });
@@ -115,10 +132,10 @@ describe("apply", () => {
   test("takes NaP discussions off an R4 who chose it and became R3", async () => {
     const { guild, preferences, service, join } = setUp();
     guild.defineRole("NaP discussions");
-    const alice = join(ALICE, ["NaP discussions"]);
+    const alice = join(ALICE, ["NaP discussions"], R3);
     preferences.set(ALICE, preferencesWith({ interests: new Set(["nap"]) }));
 
-    await service.apply(ALICE, R3);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual([]);
   });
@@ -126,19 +143,54 @@ describe("apply", () => {
   test("reads the rank a Rank Approval recorded: an approved R5 is given NaP discussions", async () => {
     const { guild, service, join } = setUp();
     guild.defineRole("NaP discussions");
-    const alice = join(ALICE);
     const approved: RankOnLink = { source: "rank-approval", rank: "R5", approvedBy: APPROVER, approvedAt: NOW };
+    const alice = join(ALICE, [], approved);
 
-    await service.apply(ALICE, approved);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual(["NaP discussions"]);
+  });
+
+  test("stores NaP discussions as the Member's Interest when an R5 is applied", async () => {
+    const { guild, preferences, service, join } = setUp();
+    guild.defineRole("NaP discussions");
+    join(ALICE, [], R5);
+
+    await service.apply(ALICE);
+
+    expect(preferences.get(ALICE).interests.has("nap")).toBe(true);
+  });
+
+  test("keeps NaP discussions for an R5 demoted to R4, since they were stored as the Member's Interest", async () => {
+    const { guild, service, links, join } = setUp();
+    guild.defineRole("NaP discussions");
+    const alice = join(ALICE, [], R5);
+    await service.apply(ALICE);
+
+    links.link(ALICE, R4);
+    await service.apply(ALICE);
+
+    expect(heldNames(alice)).toEqual(["NaP discussions"]);
+  });
+
+  test("takes NaP discussions off an R5 demoted to R3, and keeps them stored as the Member's Interest", async () => {
+    const { guild, preferences, service, links, join } = setUp();
+    guild.defineRole("NaP discussions");
+    const alice = join(ALICE, [], R5);
+    await service.apply(ALICE);
+
+    links.link(ALICE, R3);
+    await service.apply(ALICE);
+
+    expect(heldNames(alice)).toEqual([]);
+    expect(preferences.get(ALICE).interests.has("nap")).toBe(true);
   });
 
   test("changes nothing for a Member who is not on the server", async () => {
     const { guild, preferences, logError, service } = setUp();
     preferences.set(BOB, preferencesWith({ languages: languages("en") }));
 
-    await expect(service.apply(BOB, R5)).resolves.toBeUndefined();
+    await expect(service.apply(BOB)).resolves.toBeUndefined();
 
     expect(guild.createdRoleNames()).toEqual([]);
     expect(logError).not.toHaveBeenCalled();
@@ -151,7 +203,7 @@ describe("apply", () => {
     const alice = join(ALICE);
     preferences.set(ALICE, preferencesWith({ languages: languages("en"), region: "americas" }));
 
-    await expect(service.apply(ALICE, R3)).resolves.toBeUndefined();
+    await expect(service.apply(ALICE)).resolves.toBeUndefined();
 
     expect(heldNames(alice)).toEqual(["Americas"]);
     expect(logError).toHaveBeenCalledTimes(1);
@@ -164,11 +216,11 @@ describe("apply", () => {
     guild.defineRole("English");
     guild.defineRole("NaP discussions");
     guild.defineRole("Onboarding");
-    const alice = join(ALICE, ["English", "NaP discussions", "Onboarding"]);
+    const alice = join(ALICE, ["English", "NaP discussions", "Onboarding"], R5);
     preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
     links.unlink(ALICE);
 
-    await service.apply(ALICE, R5);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual(["Onboarding"]);
   });
@@ -176,22 +228,75 @@ describe("apply", () => {
   test("gives nothing to a Member who is not Linked, even an R5 who would get NaP discussions", async () => {
     const { guild, links, service, join } = setUp();
     guild.defineRole("NaP discussions");
-    const alice = join(ALICE);
+    const alice = join(ALICE, [], R5);
     links.unlink(ALICE);
 
-    await service.apply(ALICE, R5);
+    await service.apply(ALICE);
 
     expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("logs one line naming the Member, the roles given and the roles taken off", async () => {
+    const { guild, preferences, log, service, join } = setUp();
+    guild.defineRole("English");
+    guild.defineRole("French");
+    join(ALICE, ["French"]);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
+
+    await service.apply(ALICE);
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const [line] = log.mock.calls[0] ?? [];
+    expect(line).toEqual(expect.stringContaining(ALICE));
+    expect(line).toEqual(expect.stringContaining("English"));
+    expect(line).toEqual(expect.stringContaining("French"));
+  });
+
+  test("logs nothing when the apply changes no role", async () => {
+    const { guild, preferences, log, service, join } = setUp();
+    guild.defineRole("English");
+    join(ALICE, ["English"]);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
+
+    await service.apply(ALICE);
+
+    expect(log).not.toHaveBeenCalled();
   });
 
   test("logs a failure to reach the server and does not throw", async () => {
     const { members, logError, service } = setUp();
     members.failWith(new Error("socket hang up"));
 
-    await expect(service.apply(ALICE, R5)).resolves.toBeUndefined();
+    await expect(service.apply(ALICE)).resolves.toBeUndefined();
 
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError).toHaveBeenCalledWith(expect.stringContaining(ALICE));
+  });
+});
+
+describe("one change at a time for a Member", () => {
+  test("a forget that starts while an apply is giving a role takes that role off once the apply is done", async () => {
+    const { guild, preferences, links, service, join } = setUp();
+    guild.defineRole("English");
+    const alice = join(ALICE);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
+    const addRole = alice.addRole.bind(alice);
+    const roleGiven = gate();
+    const addRoleSpy = vi.spyOn(alice, "addRole").mockImplementationOnce(async (role) => {
+      await roleGiven.closed;
+      await addRole(role);
+    });
+
+    const applying = service.apply(ALICE);
+    await vi.waitFor(() => {
+      expect(addRoleSpy).toHaveBeenCalledTimes(1);
+    });
+    links.unlink(ALICE);
+    const forgetting = service.forget(ALICE);
+    roleGiven.open();
+    await Promise.all([applying, forgetting]);
+
+    expect(heldNames(alice)).toEqual([]);
   });
 });
 
@@ -208,6 +313,16 @@ describe("forget", () => {
 
     expect(heldNames(alice)).toEqual(["Onboarding"]);
     expect(preferences.forgotten).toEqual([ALICE]);
+  });
+
+  test("never takes off an Officer role named like a Preference Role", async () => {
+    const { guild, service, join } = setUp([OFFICER_ROLE_ID]);
+    guild.defineRole("English", { id: OFFICER_ROLE_ID });
+    const alice = join(ALICE, ["English"]);
+
+    await service.forget(ALICE);
+
+    expect(heldNames(alice)).toEqual(["English"]);
   });
 
   test("deletes the Preferences of a Member who is not on the server, and does not throw", async () => {

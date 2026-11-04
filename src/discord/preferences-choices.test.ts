@@ -121,13 +121,13 @@ class FakeChoicesStore
 
 /** The Preference Roles as the choices use them: records every apply and forget. */
 class FakeRoles implements PreferenceRoles {
-  readonly applied: { readonly memberId: MemberId; readonly rank: RankOnLink }[] = [];
+  readonly applied: MemberId[] = [];
 
   constructor(private readonly trace: string[]) {}
 
-  apply(memberId: MemberId, rank: RankOnLink): Promise<void> {
+  apply(memberId: MemberId): Promise<void> {
     this.trace.push("roles.apply");
-    this.applied.push({ memberId, rank });
+    this.applied.push(memberId);
     return Promise.resolve();
   }
 
@@ -294,7 +294,7 @@ describe("a select change", () => {
 
     await choices.press(selectOf("interests", ["nap"]));
 
-    expect(roles.applied).toEqual([{ memberId: ALICE, rank: R4 }]);
+    expect(roles.applied).toEqual([ALICE]);
   });
 
   test("logs one Preferences line after the change", async () => {
@@ -400,6 +400,18 @@ describe("Done", () => {
 
     expect(store.prompt(ALICE)).toBeUndefined();
     expect(channels.deleted).toEqual([ALICE_THREAD]);
+  });
+
+  test("with no menu touched, gives no Preference Role and logs no error", async () => {
+    const { store, roles, logError, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+
+    await choices.press(doneOf());
+
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(logError).not.toHaveBeenCalled();
   });
 
   test("answers the press before the thread is deleted", async () => {
