@@ -13,7 +13,7 @@ description: "Task list for slice 016, Choose your channels"
   experiences with role names; `preferenceRolesFor(preferences, rank)` (NaP only for R4 when chosen, always for R5,
   never otherwise); `interestOptions(rank)`; `preselectedLanguage(code)` (`zh-TW` → `zh`, unknown → undefined);
   `ALL_PREFERENCE_ROLE_NAMES`; no name is a Managed Role name.
-- [ ] **T002** [US1–4] Storage: migration (`preference`, `preference_prompt`) and `src/storage/preference-store.ts`:
+- [x] **T002** [US1–4] Storage: migration (`preference`, `preference_prompt`) and `src/storage/preference-store.ts`:
   `get(memberId)`, `setAnswer(memberId, question, values)`, `forget(memberId)`, `openPrompt`/`closePrompt`/
   `promptsPostedBefore(date)`; unknown stored values dropped; migration test from the latest schema fixture.
 - [ ] **T003** [US1–3] `src/discord/preferences.ts` apply (R5): `apply(memberId, rank)` gives the wanted Preference

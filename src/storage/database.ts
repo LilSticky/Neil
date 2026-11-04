@@ -112,6 +112,19 @@ const migrations: readonly string[] = [
    CREATE TRIGGER link_linked_by_on_update BEFORE UPDATE OF linked_by ON link
      WHEN NEW.linked_by IS NOT NULL AND (NEW.linked_by = '' OR NEW.linked_by GLOB '*[^0-9]*')
      BEGIN SELECT RAISE(ABORT, 'link.linked_by must be a snowflake or NULL'); END`,
+  // Migration 11: Preferences and the open Preferences message (slice 016). A Preference is one row per Member, kind and
+  // value; a preference_prompt row marks the Preferences message still open in the Member's Interview thread.
+  `CREATE TABLE preference (
+     member_id TEXT NOT NULL,
+     kind TEXT NOT NULL,
+     value TEXT NOT NULL,
+     PRIMARY KEY (member_id, kind, value)
+   );
+   CREATE TABLE preference_prompt (
+     member_id TEXT PRIMARY KEY,
+     thread_id TEXT NOT NULL,
+     posted_at TEXT NOT NULL
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
