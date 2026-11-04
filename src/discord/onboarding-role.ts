@@ -1,6 +1,6 @@
 import { ONBOARDING_ROLE_NAME, wantsOnboardingRole } from "../domain/onboarding-role.js";
 import { createLinkStateRole, type LinkStateRole, type LinkStateRoleDeps, type LinkStateRoleLinks } from "./link-state-role.js";
-import { onboardingRoleStartupLogLine } from "./onboarding-role-texts.js";
+import { onboardingRoleSkippedLogLine, onboardingRoleStartupLogLine } from "./onboarding-role-texts.js";
 
 /** The Links the Onboarding Role reads. */
 export type OnboardingRoleLinks = LinkStateRoleLinks;
@@ -19,5 +19,6 @@ export function createOnboardingRole(deps: OnboardingRoleDeps): OnboardingRole {
     name: ONBOARDING_ROLE_NAME,
     wants: wantsOnboardingRole,
     startupLogLine: onboardingRoleStartupLogLine,
+    skippedLogLine: onboardingRoleSkippedLogLine,
   });
 }

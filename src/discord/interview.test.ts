@@ -590,6 +590,17 @@ describe("createInterviews", () => {
       expect(h.interviews.openFor(MEMBER)).toBeUndefined();
     });
 
+    test("gives the Doctor Role to a Member who rejoins with a stored Link, with no Onboarding Role and no Interview", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.doctorRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
     test("ignores a Member who has an open Interview", async () => {
       h.interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
 

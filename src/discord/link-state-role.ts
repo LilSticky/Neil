@@ -2,7 +2,14 @@ import type { BaseMessageOptions } from "discord.js";
 import type { Link } from "../domain/link.js";
 import { planRoleStep } from "../domain/link-state-role.js";
 import type { MemberId } from "../domain/rank-approval.js";
-import { giveNamedRole, takeOffNamedRole, type RolesGuild, type RolesMember, type Skipped } from "./member-roles.js";
+import {
+  giveNamedRole,
+  takeOffNamedRole,
+  type RolesGuild,
+  type RolesMember,
+  type SkipReason,
+  type Skipped,
+} from "./member-roles.js";
 import type { ServerMember, ServerMembers } from "./name-and-roles.js";
 
 /** The Links the service reads: a Member is Linked when a Link is recorded for them. */
@@ -38,6 +45,8 @@ export interface LinkStateRoleSpec {
   readonly name: string;
   readonly wants: (member: LinkStateMember) => boolean;
   readonly startupLogLine: (counts: RoleCounts) => BaseMessageOptions;
+  /** The line logged when a give or take-off outside the startup sweep is skipped: the Member, the role and the reason. */
+  readonly skippedLogLine: (memberId: MemberId, reason: SkipReason) => BaseMessageOptions;
 }
 
 /**
@@ -77,9 +86,19 @@ async function changeFor(deps: LinkStateRoleDeps, spec: LinkStateRoleSpec, membe
   try {
     const server = await deps.members.memberOf(memberId);
     if (server === undefined) return;
-    await changeAndLog(deps, spec, memberId, server, change);
+    const skip = await changeAndLog(deps, spec, memberId, server, change);
+    if (skip !== undefined) await postSkip(deps, spec, memberId, skip);
   } catch (error) {
     deps.logError(`Changing the ${spec.name} Role of ${memberId} failed: ${reasonOf(error)}`);
+  }
+}
+
+/** Posts the skip of a change made outside the startup sweep. A refused line is logged; the change stands. */
+async function postSkip(deps: LinkStateRoleDeps, spec: LinkStateRoleSpec, memberId: MemberId, skip: Skipped): Promise<void> {
+  try {
+    await deps.log(spec.skippedLogLine(memberId, skip.reason));
+  } catch (error) {
+    deps.logError(`Logging the ${spec.name} Role skip of ${memberId} failed: ${reasonOf(error)}`);
   }
 }
 
@@ -115,7 +134,9 @@ async function sweep(deps: LinkStateRoleDeps, spec: LinkStateRoleSpec): Promise<
     if (server.member.bot) continue;
     const memberId = server.member.id;
     try {
-      const holds = server.member.roles.some((role) => role.name === spec.name);
+      const holds = server.member.roles.some(
+        (role) => role.name === spec.name && !deps.officerRoleIds.includes(role.id),
+      );
       const step = planRoleStep(holds, spec.wants({ bot: false, linked: deps.links.linkFor(memberId) !== undefined }));
       if (step === "give") {
         // Checked again just before the give: a Member whose Link changed after the listing must not get the role it no

@@ -1,6 +1,6 @@
 import { DOCTOR_ROLE_NAME, wantsDoctorRole } from "../domain/doctor-role.js";
 import { createLinkStateRole, type LinkStateRole, type LinkStateRoleDeps, type LinkStateRoleLinks } from "./link-state-role.js";
-import { doctorRoleStartupLogLine } from "./doctor-role-texts.js";
+import { doctorRoleSkippedLogLine, doctorRoleStartupLogLine } from "./doctor-role-texts.js";
 
 /** The Links the Doctor Role reads. */
 export type DoctorRoleLinks = LinkStateRoleLinks;
@@ -19,5 +19,6 @@ export function createDoctorRole(deps: DoctorRoleDeps): DoctorRole {
     name: DOCTOR_ROLE_NAME,
     wants: wantsDoctorRole,
     startupLogLine: doctorRoleStartupLogLine,
+    skippedLogLine: doctorRoleSkippedLogLine,
   });
 }

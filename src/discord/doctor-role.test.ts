@@ -114,6 +114,34 @@ describe("give", () => {
     expect(logError).toHaveBeenCalledWith(expect.stringContaining("has-permissions"));
   });
 
+  test("posts one line naming the Member, the role and the reason to the log channel, mentioning nobody, when the Doctor Role has permissions", async () => {
+    const { guild, logError, log, service, join } = setUp();
+    guild.defineRole(DOCTOR, { permissions: ADMINISTRATOR });
+    join(ALICE);
+
+    await service.give(ALICE);
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith({
+      content: `Changing the Doctor Role of ${ALICE} was skipped: has-permissions.`,
+      allowedMentions: { parse: [] },
+    });
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining("has-permissions"));
+  });
+
+  test("logs the refused post and changes nothing when the log channel refuses the line", async () => {
+    const { guild, logError, log, service, join } = setUp();
+    guild.defineRole(DOCTOR, { permissions: ADMINISTRATOR });
+    const alice = join(ALICE);
+    log.mockRejectedValueOnce(new Error("Missing Access"));
+
+    await expect(service.give(ALICE)).resolves.toBeUndefined();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining("Missing Access"));
+    expect(heldNames(alice)).toEqual([]);
+  });
+
   test("never throws: a Member that cannot be fetched is logged and the call resolves", async () => {
     const { logError, service, members } = setUp();
     members.failFor(ALICE, new Error("socket hang up"));
@@ -142,6 +170,44 @@ describe("takeOff", () => {
     await expect(service.takeOff(BOB)).resolves.toBeUndefined();
 
     expect(guild.createdRoleNames()).toEqual([]);
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  test("posts one line naming the Member, the role and the reason to the log channel, mentioning nobody, when the held Doctor Role has permissions", async () => {
+    const { guild, logError, log, service, join } = setUp();
+    guild.defineRole(DOCTOR, { permissions: ADMINISTRATOR });
+    join(ALICE, [DOCTOR]);
+
+    await service.takeOff(ALICE);
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith({
+      content: `Changing the Doctor Role of ${ALICE} was skipped: has-permissions.`,
+      allowedMentions: { parse: [] },
+    });
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining("has-permissions"));
+  });
+
+  test("give, takeOff, give again ends with the Member holding the Doctor Role once", async () => {
+    const { service, join } = setUp();
+    const alice = join(ALICE);
+
+    await service.give(ALICE);
+    await service.takeOff(ALICE);
+    await service.give(ALICE);
+
+    expect(heldNames(alice)).toEqual([DOCTOR]);
+  });
+
+  test("never takes off an Officer role named Doctor", async () => {
+    const { guild, logError, log, service, join } = setUp([OFFICER_ROLE_ID]);
+    guild.defineRole(DOCTOR, { id: OFFICER_ROLE_ID });
+    const alice = join(ALICE, [DOCTOR]);
+
+    await service.takeOff(ALICE);
+
+    expect(heldNames(alice)).toEqual([DOCTOR]);
+    expect(log).not.toHaveBeenCalled();
     expect(logError).not.toHaveBeenCalled();
   });
 });
@@ -182,6 +248,18 @@ describe("atStartup", () => {
     expect(botAdd).not.toHaveBeenCalled();
     expect(heldNames(bot)).toEqual([]);
     expect(heldNames(botHolding)).toEqual([DOCTOR]);
+  });
+
+  test("never takes off an Officer role named Doctor, and logs nothing for a Member who holds only that role", async () => {
+    const { guild, log, logError, service, join } = setUp([OFFICER_ROLE_ID]);
+    guild.defineRole(DOCTOR, { id: OFFICER_ROLE_ID });
+    const bob = join(BOB, [DOCTOR]);
+
+    await service.atStartup();
+
+    expect(heldNames(bob)).toEqual([DOCTOR]);
+    expect(log).not.toHaveBeenCalled();
+    expect(logError).not.toHaveBeenCalled();
   });
 
   test("a failure for one Member is logged and does not stop the others", async () => {
@@ -251,6 +329,20 @@ describe("atStartup: the summary line", () => {
 
     expect(log).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(doctorRoleStartupLogLine({ given: 0, takenOff: 0, skipped: 1 }));
+  });
+
+  test("counts every refused give in the one counts line, with no line per Member", async () => {
+    const { guild, links, log, service, join } = setUp();
+    guild.defineRole(DOCTOR, { permissions: ADMINISTRATOR });
+    join(ALICE);
+    join(BOB);
+    links.link(ALICE);
+    links.link(BOB);
+
+    await service.atStartup();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(doctorRoleStartupLogLine({ given: 0, takenOff: 0, skipped: 2 }));
   });
 
   test("posts nothing when every Member is already in the right state", async () => {

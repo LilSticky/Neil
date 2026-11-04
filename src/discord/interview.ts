@@ -270,7 +270,10 @@ function errorText(error: unknown): string {
 
 async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<void> {
   if (member.bot) return;
-  if (deps.links.linkFor(member.id) !== undefined) return;
+  if (deps.links.linkFor(member.id) !== undefined) {
+    await deps.doctorRole.give(member.id);
+    return;
+  }
   if (deps.interviews.openFor(member.id) !== undefined) return;
   await deps.onboardingRole.give(member.id);
   await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
