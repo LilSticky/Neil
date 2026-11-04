@@ -18,7 +18,16 @@ discovery.
 
 ## Managed Role
 * A Discord role Neil may give and remove: the Alliance, Alliance Rank, Kingdom and Troop Bracket roles
-* Neil creates a missing Managed Role on first use; apart from the Onboarding Role and the Preference Roles, it never touches any other role
+* Neil creates a missing Managed Role on first use; apart from the Onboarding Role, the Doctor Role and the Preference Roles, it never touches any other role
+
+## Home Kingdom information
+* Channels only Members of the Home Kingdom see, shown to its Kingdom role (e.g. `#330`)
+* King announcements go here by default
+* Set up by hand; Neil does not change channel permissions
+
+## Shared information
+* Channels every Doctor sees, Guests included, with the text and voice channels where everyone can get in touch
+* Set up by hand; Neil does not change channel permissions
 
 # Game
 
@@ -158,6 +167,12 @@ discovery.
 ## Onboarding Role
 * The Discord role a Member holds while they are not Linked; it lets them see and write in `#onboarding`
 * Neil gives it when a Member joins and when a Member still on the server is Unlinked, removes it at Link, and puts every Member right at startup
+* Not a Managed Role; Neil creates it without permissions on first use
+
+## Doctor Role
+* The Discord role a Member holds while they are Linked, Guests included; it shows the basic information and `#alliance-hall`
+* A Member holding it is a Doctor
+* Neil gives it at Link, removes it at Unlink, and puts every Member right at startup
 * Not a Managed Role; Neil creates it without permissions on first use
 
 ## Preference
