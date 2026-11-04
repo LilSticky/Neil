@@ -205,6 +205,21 @@ Branch `012-see-a-fuller-card`. No new commands, no `commands:register` needed.
 | 6h.13 | Another Member presses a sort button on your Overview | Not possible (the Overview is private); if it were, "Only the Member who ran this command…" | | |
 | 6h.14 | Read the table on a phone | Rows may wrap on narrow screens; note whether it is still readable | | |
 
+## 6i. Keep newcomers in onboarding (slice 013, collected 2026-11-04)
+
+Branch `013-keep-newcomers-in-onboarding`. No new commands. Before: set the channel permissions from HOSTING.md
+(Onboarding Role for slice 013) once Neil has created the `Onboarding` role.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6i.1 | Restart Neil | An `Onboarding` role exists without permissions; every Member who is not Linked has it, no Linked Member has it, bots are untouched | | |
+| 6i.2 | Join with a test account | It gets `Onboarding`, sees only `#onboarding` and its Interview thread (SC-002) | | |
+| 6i.3 | Finish the Interview with a Link (known rank) | `Onboarding` is gone, `#onboarding` is no longer visible, the thread is deleted, the log line is there (SC-003) | | |
+| 6i.4 | `/unlink` the test account as an Officer | Managed Roles and nickname gone, `Onboarding` back, `#onboarding` visible again | | |
+| 6i.5 | `/interview`, then let it time out (or leave the server) | The thread is deleted; the log line says abandoned | | |
+| 6i.6 | An Interview with an unknown rank (Rank Approval) | `Onboarding` gone at Link; the thread stays until the Rank Approval is given, then is deleted | | |
+| 6i.7 | Hand-off, then `/link` by an Officer | `Onboarding` stays during the hand-off; gone after the Officer Link; thread deleted | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

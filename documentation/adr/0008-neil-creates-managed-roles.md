@@ -17,7 +17,8 @@ every new Alliance or Kingdom. Giving a bot Manage Roles is risky: it can give a
 - Neil finds Managed Roles by name: the Alliance tag (Home Kingdom Alliances only), `R1`–`R5`, `#<kingdom>`,
   `T1`–`T10`. A missing one is created on first use with no permissions, not hoisted, not mentionable.
 - Neil uses an existing role with such a name only if it grants no permissions; otherwise it logs and skips it.
-- Neil adds and removes only Managed Roles; every other role of a Member is never touched.
+- Neil adds and removes only Managed Roles; every other role of a Member is never touched. Amended in slice 013: the
+  Onboarding Role is the one other role Neil gives and takes, found, created and refused by the same rules.
 - Neil's role sits above the Managed Roles and below Officer roles (server setup, HOSTING.md).
 - Per Link, Neil stores the nickname and Managed Role names it last applied, when, and whether the apply was
   complete. This is personal data under ADR 7 and is deleted with the Link.
