@@ -6,6 +6,7 @@ import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
 import { createNameAndRoles } from "./name-and-roles.js";
+import { createOnboardingRole } from "./onboarding-role.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import { createRankApprovals } from "./rank-approval.js";
 import { createUnlink } from "./unlink.js";
@@ -175,6 +176,7 @@ function rolesGuildOf(guild, botTopRolePosition) {
 function rolesMemberOf(member) {
     return {
         id: member.id,
+        bot: member.user.bot,
         get nickname() {
             return member.nickname;
         },
@@ -226,6 +228,15 @@ function serverMembersOf(guild) {
                 return undefined;
             const me = guild.members.me ?? (await guild.members.fetchMe());
             return { guild: rolesGuildOf(guild, me.roles.highest.position), member: rolesMemberOf(member) };
+        },
+        all: async () => {
+            const members = await guild.members.fetch();
+            const me = guild.members.me ?? (await guild.members.fetchMe());
+            const botTopRolePosition = me.roles.highest.position;
+            return [...members.values()].map((member) => ({
+                guild: rolesGuildOf(guild, botTopRolePosition),
+                member: rolesMemberOf(member),
+            }));
         },
     };
 }
@@ -443,11 +454,19 @@ export async function connect(token, options) {
         const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
         const officerRoles = { moderatorRoleId, kingRoleId };
         const channels = createOnboardingChannels(guild, channelIds);
+        // One Onboarding Role service for every path that gives or takes the role off.
+        const onboardingRole = createOnboardingRole({
+            members: serverMembersOf(guild),
+            links: options.links,
+            logError,
+            log: (message) => channels.log(message),
+        });
         const unlink = createUnlink({
             links: options.links,
             applied: options.applied,
             channels,
             members: serverMembersOf(guild),
+            onboardingRole,
             now,
             sendPrivateMessage: async (memberId, message) => {
                 const user = await client.users.fetch(memberId);
@@ -488,6 +507,7 @@ export async function connect(token, options) {
             rankApprovals,
             nameAndRoles,
             unlink,
+            onboardingRole,
             isOnServer,
             now,
             logError,
@@ -511,6 +531,7 @@ export async function connect(token, options) {
                 channels,
                 rankApprovals,
                 nameAndRoles,
+                onboardingRole,
                 isOnServer,
                 confirmations: linkConfirmations,
                 now,
@@ -518,8 +539,11 @@ export async function connect(token, options) {
             }),
         };
         openServices({ interviews, rankApprovals, corrections });
-        // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
-        // starts once the startup apply has settled, so their Game API lookups do not overlap.
+        // The startup sweep of the Onboarding Role and the startup apply run in the background, so login does not wait for
+        // them. The Daily Sync starts once the startup apply has settled, so their Game API lookups do not overlap.
+        void onboardingRole.atStartup().catch((error) => {
+            logError(`Bringing the Onboarding Role of the Members up to date at startup failed: ${String(error)}`);
+        });
         void nameAndRoles
             .atStartup()
             .catch((error) => {

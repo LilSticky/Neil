@@ -1,6 +1,7 @@
 import { isOfficer } from "../domain/officer.js";
 import { approve, mayApprove } from "../domain/rank-approval.js";
-import { parseRankCustomId, rankApprovedMessage, rankAskedMessage, rankNotAllowedReply, rankSetLogLine, } from "./interview-texts.js";
+import { answer } from "./lookup.js";
+import { parseRankCustomId, rankAskedMessage, rankNotAllowedReply, rankSetLogLine, } from "./interview-texts.js";
 export function createRankApprovals(deps) {
     return {
         announce: (approval, player) => announce(deps, approval, player),
@@ -36,8 +37,8 @@ async function pressRankButton(deps, button) {
         return button.reply(rankNotAllowedReply());
     await button.update({ components: [] });
     await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
-    await deps.channels.post(approved.threadId, rankApprovedMessage(approved));
-    await deps.channels.archive(approved.threadId);
+    // A thread that cannot be deleted is logged; the approval, the log line and the name and roles stand.
+    await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deps.channels.deleteThread(approved.threadId));
     await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
 }
 /** Gives the Member their name and roles with the approved rank; a failure is logged, the approval stands. */

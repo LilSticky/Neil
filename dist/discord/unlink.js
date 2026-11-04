@@ -1,7 +1,7 @@
 import { DiscordAPIError, RESTJSONErrorCodes } from "discord.js";
 import { cancel } from "../domain/rank-approval.js";
 import { applyNameAndRoles } from "./member-roles.js";
-import { rankCancelledByUnlinkMessage, rankHandedToOfficersMessage, unlinkedByOfficerPrivateMessage, unlinkedLogLine, unlinkedPrivateMessage, } from "./unlink-texts.js";
+import { rankHandedToOfficersMessage, unlinkedByOfficerPrivateMessage, unlinkedLogLine, unlinkedPrivateMessage, } from "./unlink-texts.js";
 export function createUnlink(deps) {
     return { unlink: (member, reason) => unlinkMember(deps, member.id, reason) };
 }
@@ -18,6 +18,7 @@ async function unlinkMember(deps, memberId, reason) {
     let notChanged = [];
     if (!removedByDiscord(reason)) {
         notChanged = await takeOffOnServer(deps, memberId, applied);
+        await deps.onboardingRole.give(memberId);
         await cancelOwnApproval(deps, memberId);
     }
     if (removed !== undefined) {
@@ -64,7 +65,7 @@ async function cancelOwnApproval(deps, memberId) {
     const saved = attempt(deps, memberId, `cancelling Rank Approval ${pending.id.toString()}`, () => deps.links.saveIfPending(cancelled));
     if (saved !== true)
         return;
-    await attemptAsync(deps, memberId, `posting in the thread of Rank Approval ${pending.id.toString()}`, () => deps.channels.post(pending.threadId, rankCancelledByUnlinkMessage()));
+    await attemptAsync(deps, memberId, `deleting the thread of Rank Approval ${pending.id.toString()}`, () => deps.channels.deleteThread(pending.threadId));
 }
 /**
  * The private message to the Member: an Officer's Unlink tells them to run /interview, a leave or a missing Member gets

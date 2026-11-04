@@ -8,7 +8,7 @@ import { linkByOfficer } from "../domain/onboarding-interview.js";
 import { leaderPing, pendingApprovalFor, storeLinkIfStep } from "./interview.js";
 import { asApprovableRank, linkedMessage, officerLinkLogLine, rankSetLogLine, } from "./interview-texts.js";
 import { answer } from "./lookup.js";
-import { linkCardEndedMessage, linkCardMessage, linkEndedReply, linkInputReply, linkLookupFailureReply, linkNotYoursReply, linkRefusedReply, memberGoneReply, noAllianceReply, notHandedOffReply, notLinkedReply, notOfficerButtonReply, notOfficerReply, ownLinkReply, parseLinkCustomId, rankInputReply, rankSetInThreadMessage, rankSetReply, selfLinkReply, uidLinkedElsewhereReply, unlinkedByOfficerReply, unlinkedSelfReply, } from "./corrections-texts.js";
+import { linkCardEndedMessage, linkCardMessage, linkEndedReply, linkInputReply, linkLookupFailureReply, linkNotYoursReply, linkRefusedReply, memberGoneReply, noAllianceReply, notHandedOffReply, notLinkedReply, notOfficerButtonReply, notOfficerReply, ownLinkReply, parseLinkCustomId, rankInputReply, rankSetReply, selfLinkReply, uidLinkedElsewhereReply, unlinkedByOfficerReply, unlinkedSelfReply, } from "./corrections-texts.js";
 /** How long the Confirm and Cancel buttons of an Officer Link stay usable. */
 const CONFIRMATION_MS = 5 * 60_000;
 /**
@@ -107,10 +107,10 @@ export function handleRank(interaction, deps) {
             return interaction.editReply(decision.reason === "own-link" ? ownLinkReply() : noAllianceReply(memberId));
         }
         const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: caller.memberId }, now);
-        if (settled !== undefined) {
-            await deps.channels.post(settled.threadId, rankSetInThreadMessage(caller.memberId, memberId, rank));
-        }
         await logLine(deps.logError, () => deps.channels.log(rankSetLogLine(caller.memberId, memberId, rank)));
+        if (settled !== undefined) {
+            await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deps.channels.deleteThread(settled.threadId));
+        }
         await interaction.editReply(rankSetReply(memberId, rank, decision.gameRank));
         await deps.nameAndRoles.onRankApproved(memberId);
     });
@@ -220,12 +220,16 @@ async function confirmLink(button, pending, deps) {
     await finishOfficerLink(deps, pending, latest.threadId, link, outcome.rankApproval);
 }
 /**
- * The stored Officer Link is said in the Interview thread, logged with its Officer, and its name and roles applied. A
- * pending Rank Approval is asked in the thread; otherwise the thread is archived. A failed name and roles step is logged;
- * the Link stands.
+ * The Onboarding Role is taken off, the stored Officer Link is logged with its Officer, and its name and roles applied. A
+ * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted. A failed
+ * name and roles step is logged; the Link stands.
  */
 async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
-    await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
+    const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+    await deps.onboardingRole.takeOff(pending.memberId);
+    if (pendingApproval !== undefined) {
+        await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
+    }
     await logLine(deps.logError, () => deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)));
     try {
         await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);
@@ -233,8 +237,8 @@ async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
     catch (error) {
         deps.logError(`Giving the name and roles after an Officer Link failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    if (rankApproval?.state === "pending")
-        return deps.rankApprovals.announce(rankApproval, pending.player);
-    await deps.channels.archive(threadId);
+    if (pendingApproval !== undefined)
+        return deps.rankApprovals.announce(pendingApproval, pending.player);
+    await deps.channels.deleteThread(threadId);
 }
 //# sourceMappingURL=corrections.js.map

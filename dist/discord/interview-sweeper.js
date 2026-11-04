@@ -1,5 +1,5 @@
 import { quotaReset, recoverAfterRestart, timeOut, } from "../domain/onboarding-interview.js";
-import { abandonedLogLine, askUidMessage, foundCardMessage, quotaResetMessage, timedOutMessage, } from "./interview-texts.js";
+import { abandonedLogLine, askUidMessage, foundCardMessage, quotaResetMessage, } from "./interview-texts.js";
 const SWEEP_EVERY_MS = 60_000;
 const ENDED_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 export function createSweeper(deps) {
@@ -82,7 +82,7 @@ async function resume(deps, interview, now) {
         return;
     await deps.channels.post(interview.threadId, quotaResetMessage(interview.id, interview.memberId));
 }
-/** No answer within the timeout: the Interview is abandoned, its thread locked and the log told. */
+/** No answer within the timeout: the Interview is abandoned, its thread deleted and the log told. */
 async function abandonSilent(deps, interview, now) {
     const transition = timeOut(interview, now);
     if (transition.event.kind !== "abandoned")
@@ -91,8 +91,7 @@ async function abandonSilent(deps, interview, now) {
         return;
     // The log comes first: a thread that is gone must not cost the line.
     await deps.channels.log(abandonedLogLine(interview.memberId, "timed-out"));
-    await deps.channels.post(interview.threadId, timedOutMessage(deps.timeoutMs));
-    await deps.channels.lockAndArchive(interview.threadId);
+    await deps.channels.deleteThread(interview.threadId);
 }
 async function guarded(deps, label, work) {
     try {

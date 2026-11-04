@@ -37,13 +37,6 @@ export function unlinkedByOfficerPrivateMessage() {
         allowedMentions: { parse: [] },
     };
 }
-/** The message in a Rank Approval's thread when the Link it is for ended by an Unlink of the Member themselves or by an Officer. */
-export function rankCancelledByUnlinkMessage() {
-    return {
-        content: "The Link this Rank Approval is for has ended, so the rank approval is cancelled.",
-        allowedMentions: { parse: [] },
-    };
-}
 /** The message in a Rank Approval's thread once it went to the Officers; it pings the Officer roles. */
 export function rankHandedToOfficersMessage(officers) {
     const { moderatorRoleId, kingRoleId } = officers;

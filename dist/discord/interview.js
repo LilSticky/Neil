@@ -5,7 +5,7 @@ import { parseUid } from "../domain/lookup-input.js";
 import { listedPlayerMatches } from "../domain/player.js";
 import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover } from "../domain/rank-approval.js";
-import { abandonedLogLine, alreadyLinkedMessage, askUidMessage, askUidOfPlayerMessage, buttonOfSomeoneElseReply, checkingReply, foundCardMessage, handedOffLogLine, handedOffMessage, interviewAlreadyOpenReply, interviewEndedReply, interviewLinkedReply, interviewOpenedReply, leftMessage, linkedMessage, linkLogLine, malformedUidMessage, notFoundMessage, parseInterviewCustomId, pickListMessage, quotaSpentMessage, rankCancelledLeftMessage, rankCancelledLogLine, recommendationMessage, refusedLogLine, rejectedMessage, somethingWentWrongReply, unavailableMessage, uidModal, } from "./interview-texts.js";
+import { abandonedLogLine, alreadyLinkedMessage, askUidMessage, askUidOfPlayerMessage, buttonOfSomeoneElseReply, checkingReply, foundCardMessage, handedOffLogLine, handedOffMessage, interviewAlreadyOpenReply, interviewEndedReply, interviewLinkedReply, interviewOpenedReply, linkedMessage, linkLogLine, malformedUidMessage, notFoundMessage, parseInterviewCustomId, pickListMessage, quotaSpentMessage, rankCancelledLogLine, recommendationMessage, refusedLogLine, rejectedMessage, somethingWentWrongReply, unavailableMessage, uidModal, } from "./interview-texts.js";
 export function createInterviews(deps) {
     return {
         onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
@@ -100,6 +100,7 @@ async function joinMember(deps, member) {
         return;
     if (deps.interviews.openFor(member.id) !== undefined)
         return;
+    await deps.onboardingRole.give(member.id);
     await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
 }
 /** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
@@ -250,11 +251,11 @@ async function leaveServer(deps, member) {
     const now = deps.now();
     const interview = deps.interviews.openFor(member.id);
     if (interview !== undefined) {
-        await leaveStep(deps, `Abandoning the Interview of ${member.id}`, () => abandonOnLeave(deps, interview, member.username, now));
+        await leaveStep(deps, `Abandoning the Interview of ${member.id}`, () => abandonOnLeave(deps, interview, now));
     }
     const approval = deps.links.pendingFor(member.id);
     if (approval !== undefined) {
-        await leaveStep(deps, `Cancelling the Rank Approval of ${member.id}`, () => cancelRankApproval(deps, approval, member.username, now));
+        await leaveStep(deps, `Cancelling the Rank Approval of ${member.id}`, () => cancelRankApproval(deps, approval, now));
     }
     await deps.unlink.unlink({ id: member.id }, "left");
 }
@@ -267,25 +268,23 @@ async function leaveStep(deps, label, work) {
         deps.logError(`${label} failed when the Member left: ${errorText(error)}`);
     }
 }
-async function abandonOnLeave(deps, interview, username, now) {
+async function abandonOnLeave(deps, interview, now) {
     const transition = memberLeft(interview, now);
     if (transition.event.kind !== "abandoned")
         return;
     deps.interviews.save(transition.interview);
     // The log comes first: a thread that is gone must not cost the line.
     await deps.channels.log(abandonedLogLine(interview.memberId, "left"));
-    await deps.channels.post(interview.threadId, leftMessage(username));
-    await deps.channels.lockAndArchive(interview.threadId);
+    await deps.channels.deleteThread(interview.threadId);
 }
-async function cancelRankApproval(deps, approval, username, now) {
+async function cancelRankApproval(deps, approval, now) {
     const change = cancel(approval, now);
     if (!change.ok)
         return;
     deps.links.save(change.approval);
     // The log comes first: a thread that is gone must not cost the line.
     await deps.channels.log(rankCancelledLogLine(approval.linkedMemberId));
-    await deps.channels.post(approval.threadId, rankCancelledLeftMessage(username));
-    await deps.channels.archive(approval.threadId);
+    await deps.channels.deleteThread(approval.threadId);
 }
 async function pressButton(deps, button) {
     const parsed = parseInterviewCustomId(button.customId);
@@ -515,17 +514,21 @@ async function refuseConfirmation(deps, interview, now) {
     return "done";
 }
 /**
- * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The Member's
- * name and roles follow, without touching the Link or the thread. The thread closes, unless a Rank Approval is asked in
- * it: then the thread is archived when the approval ends.
+ * The Link is stored: the Onboarding Role is taken off and the log notes the Link with the leader's Member when present.
+ * The Member's name and roles follow, without touching the Link. A pending Rank Approval is asked in the thread, which
+ * says the Link is stored; otherwise the thread is deleted.
  */
 async function finishLink(deps, interview, leaderMemberId, link, rankApproval) {
-    await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
+    const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+    await deps.onboardingRole.takeOff(interview.memberId);
+    if (pendingApproval !== undefined) {
+        await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
+    }
     await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
     await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
-    if (rankApproval?.state === "pending")
-        return deps.rankApprovals.announce(rankApproval, interview.player);
-    await deps.channels.archive(interview.threadId);
+    if (pendingApproval !== undefined)
+        return deps.rankApprovals.announce(pendingApproval, interview.player);
+    await deps.channels.deleteThread(interview.threadId);
 }
 /** Gives the Linked Member their name and roles; a failure is logged, never thrown, so the Link stands. */
 async function nameAndRolesAfterLink(deps, memberId, player, link) {

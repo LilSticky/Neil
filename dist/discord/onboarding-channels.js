@@ -1,4 +1,5 @@
 import { ChannelType, PermissionFlagsBits, ThreadAutoArchiveDuration, } from "discord.js";
+import { z } from "zod";
 import { interviewThreadName } from "./interview-texts.js";
 /** The bot permissions the onboarding channel needs (research R2). */
 const ONBOARDING_PERMISSIONS = [
@@ -26,6 +27,24 @@ async function fetchTextChannel(guild, id, channel) {
         throw new Error(`The ${channel} channel is missing or is not a text channel.`);
     }
     return found;
+}
+/** Discord's code for an unknown channel: a thread that was deleted or never existed. */
+const UNKNOWN_CHANNEL = 10003;
+const discordError = z.object({ code: z.number() });
+/**
+ * The channel with this id, or null when it is gone. discord.js rejects a fetch of a deleted thread with Unknown Channel
+ * (10003) rather than resolving null, so that rejection means gone too; any other failure is thrown.
+ */
+async function fetchIfThere(guild, id) {
+    try {
+        return await guild.channels.fetch(id);
+    }
+    catch (error) {
+        const parsed = discordError.safeParse(error);
+        if (parsed.success && parsed.data.code === UNKNOWN_CHANNEL)
+            return null;
+        throw error;
+    }
 }
 async function fetchThread(guild, threadId) {
     const found = await guild.channels.fetch(threadId);
@@ -64,17 +83,8 @@ export function createOnboardingChannels(guild, ids) {
             const thread = await fetchThread(guild, threadId);
             await thread.members.add(memberId);
         },
-        async lockAndArchive(threadId) {
-            const thread = await fetchThread(guild, threadId);
-            await thread.setLocked(true);
-            await thread.setArchived(true);
-        },
-        async archive(threadId) {
-            const thread = await fetchThread(guild, threadId);
-            await thread.setArchived(true);
-        },
         async deleteThread(threadId) {
-            const found = await guild.channels.fetch(threadId);
+            const found = await fetchIfThere(guild, threadId);
             if (found === null)
                 return;
             if (!isThread(found))
