@@ -65,6 +65,7 @@ export async function start(deps) {
             homeKingdom: config.homeKingdom,
             troopBracketLevels: config.troopBracketLevels,
             dailySync: store.dailySync,
+            reaper: store.reaper,
             syncHourUtc: config.syncHourUtc,
             syncShare: config.syncShare,
         });

@@ -1,10 +1,13 @@
 import { MessageFlags } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { mayChangeReaper } from "../domain/exile.js";
 import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
 import { listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderAllianceComponents, } from "./lookup-cards.js";
 import { parseOverviewCustomId, renderOverview } from "./overview-texts.js";
 import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, } from "./lookup.js";
+import { recordFoundExile } from "./reaper.js";
+import { reaperMessages } from "./reaper-texts.js";
 import { isOwner, pageOf, parseCustomId, } from "./pick-sessions.js";
 const pickMessages = {
     notOwner: "Only the Member who ran this command can use this menu. Run /player or /alliance yourself.",
@@ -66,6 +69,51 @@ async function pickPlayerMatch(interaction, match, context) {
     await answerPick(interaction, context, () => context.gameApi.getPlayer(uid, "lookup"), playerCardMessage, (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
 }
 /**
+ * The owner picked a Player of the /reaper add pick list: the Player is looked up by uid, stored as an Exile with the
+ * reason the list carries, and logged. The answer is private, since REAPER is not a public card.
+ */
+async function pickExileMatch(interaction, match, reason, context) {
+    const parsedUid = match === undefined ? undefined : parseUid(match.uid);
+    const { reaper, channels, editorOf, homeKingdom } = context;
+    if (match === undefined ||
+        parsedUid === undefined ||
+        !parsedUid.ok ||
+        reaper === undefined ||
+        channels === undefined ||
+        editorOf === undefined ||
+        homeKingdom === undefined) {
+        await replyPrivately(interaction, lookupMessages.unavailable);
+        return;
+    }
+    const editor = editorOf(interaction.user.id);
+    if (editor === undefined || !mayChangeReaper(editor, homeKingdom)) {
+        await replyPrivately(interaction, reaperMessages.refused);
+        return;
+    }
+    await showPicked(interaction, playerPickLabel(match));
+    const uid = parsedUid.value;
+    let result;
+    try {
+        result = await context.gameApi.getPlayer(uid, "lookup");
+    }
+    catch (error) {
+        context.logError(`Looking up the picked Player for REAPER failed: ${errorText(error)}`);
+        await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+        return;
+    }
+    if (result.kind !== "found") {
+        await followUpPrivately(interaction, { content: playerFailureText(result, uid, context.now()) });
+        return;
+    }
+    const content = await recordFoundExile(result.value, result.fetchedAt, reason, interaction.user.id, {
+        reaper,
+        channels,
+        now: context.now,
+        logError: context.logError,
+    });
+    await followUpPrivately(interaction, { content });
+}
+/**
  * The owner picked an Alliance match: its card is posted publicly with its roster menu, looked up by tag and Kingdom.
  * An ambiguous answer opens a pick list for the owner, as the command does.
  */
@@ -108,6 +156,9 @@ async function pickFrom(interaction, session, menuPage, context) {
             return;
         case "roster":
             await pickRosterMember(interaction, pageOf(choice.entries, menuPage ?? session.page), value, context);
+            return;
+        case "exile":
+            await pickExileMatch(interaction, pickedAt(listedPlayerMatches(choice.matches).listed, value), choice.reason, context);
             return;
     }
 }

@@ -12,6 +12,7 @@ import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { ReaperStore } from "./storage/reaper-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
 import { start } from "./startup.js";
 // Wispbyte writes its panel variables to .env instead of exporting them; exported variables win.
@@ -35,6 +36,7 @@ await start({
             applied: new AppliedStore(db),
             knownAlliances: new KnownAllianceStore(db),
             dailySync: new DailySyncStore(db),
+            reaper: new ReaperStore(db),
         };
     },
     createGameApi: (apiKey, version, cacheTtlMs, quota, onAllianceSeen) => new GameApiClient({

@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits, GuildMember, Partials, } from "discord.js";
 import { z } from "zod";
+import { editorOf } from "../storage/reaper-editor.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createInterviews, } from "./interview.js";
 import { startDailySync } from "./daily-sync.js";
@@ -12,14 +13,20 @@ import { createRankApprovals } from "./rank-approval.js";
 import { createUnlink } from "./unlink.js";
 import { handleLink, handleLinkButton, handleRank, handleUnlink, PendingLinkConfirmations, } from "./corrections.js";
 import { handlePing } from "./ping.js";
-import { answer, handleAlliance, handlePlayer, } from "./lookup.js";
+import { answer, handleAlliance, handlePlayer, replyPrivately, } from "./lookup.js";
 import { handleOverview, handlePick } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
+import { ReaperPages } from "./reaper-pages.js";
+import { handleReaperAdd, handleReaperClosest, handleReaperList, handleReaperPage, } from "./reaper.js";
+import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
+import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
 const PICK_PREFIX = "pick:";
 /** The custom id prefix of every Alliance Overview page button. */
 const OVERVIEW_PREFIX = "overview:";
+/** The custom id prefix of every paged /reaper answer button. */
+const REAPER_PREFIX = "reaper:";
 /** The custom id prefix of every Onboarding Interview button and modal. */
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
@@ -39,6 +46,25 @@ const memberSchema = z.union([
 export function memberRoleIds(member) {
     const parsed = memberSchema.safeParse(member);
     return parsed.success ? parsed.data : [];
+}
+/** Hands a /reaper command to the handler of its subcommand. */
+function routeReaper(handlers, interaction, logError) {
+    switch (interaction.options.getSubcommand()) {
+        case "closest":
+            void handlers.reaperClosest(interaction);
+            break;
+        case "list":
+            void handlers.reaperList(interaction);
+            break;
+        case "add":
+            void handlers.reaperAdd(interaction);
+            break;
+        case "remove":
+            void handlers.reaperRemove(interaction);
+            break;
+        default:
+            void answer("/reaper", { logError }, () => replyPrivately(interaction, reaperMessages.unknownSubcommand));
+    }
 }
 /** A discord.js client with the Guilds and GuildMembers intents that routes each event to its handler. */
 export function createClient(handlers, options) {
@@ -95,12 +121,17 @@ export function createClient(handlers, options) {
                 case "link":
                     void handlers.link(interaction);
                     break;
+                case "reaper":
+                    routeReaper(handlers, interaction, logError);
+                    break;
             }
             return;
         }
         if (interaction.isAutocomplete()) {
             if (interaction.commandName === "alliance")
                 void handlers.allianceAutocomplete(interaction);
+            if (interaction.commandName === "reaper")
+                void handlers.reaperAutocomplete(interaction);
             return;
         }
         if (interaction.isModalSubmit()) {
@@ -123,6 +154,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
                 void handlers.overview(interaction);
+            }
+            else if (interaction.customId.startsWith(REAPER_PREFIX)) {
+                void handlers.reaperPage(interaction);
             }
             return;
         }
@@ -384,6 +418,8 @@ export async function connect(token, options) {
     // The Officer Link confirmations waiting for their Officer's button press.
     const linkConfirmations = new PendingLinkConfirmations();
     const now = options.now;
+    // One store for every paged /reaper answer: the list and closest answers open them, the page buttons turn them.
+    const reaperPages = new ReaperPages();
     const allianceContext = {
         gameApi: options.gameApi,
         pickSessions,
@@ -408,7 +444,21 @@ export async function connect(token, options) {
         player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
         alliance: (interaction) => handleAlliance(interaction, allianceContext),
         allianceAutocomplete: (interaction) => answer("/alliance autocomplete", { logError }, () => handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError })),
-        pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+        pick: async (interaction) => (await services).pick(interaction),
+        reaperClosest: (interaction) => handleReaperClosest(interaction, {
+            links: options.links,
+            gameApi: options.gameApi,
+            reaper: options.reaper,
+            pages: reaperPages,
+            homeKingdom: options.homeKingdom,
+            now,
+            logError,
+        }),
+        reaperList: (interaction) => handleReaperList(interaction, { reaper: options.reaper, pages: reaperPages, now, logError }),
+        reaperAdd: async (interaction) => (await services).reaperAdd(interaction),
+        reaperRemove: async (interaction) => (await services).reaperRemove(interaction),
+        reaperAutocomplete: (interaction) => answer("/reaper autocomplete", { logError }, () => handleReaperAutocomplete(interaction, { reaper: options.reaper })),
+        reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
         overview: (interaction) => handleOverview(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
         quota: (interaction) => handleQuota({
             memberRoleIds: () => memberRoleIds(interaction.member),
@@ -538,7 +588,38 @@ export async function connect(token, options) {
                 logError,
             }),
         };
-        openServices({ interviews, rankApprovals, corrections });
+        // The /reaper add and remove contexts and the pick context share the channels, so they are built once the checks pass.
+        const editorOfMember = (memberId) => editorOf({ links: options.links, applied: options.applied }, memberId);
+        const reaperWrites = {
+            editorOf: editorOfMember,
+            homeKingdom: options.homeKingdom,
+            reaper: options.reaper,
+            channels,
+            logError,
+        };
+        const pickContext = {
+            gameApi: options.gameApi,
+            pickSessions,
+            now,
+            logError,
+            reaper: options.reaper,
+            channels,
+            editorOf: editorOfMember,
+            homeKingdom: options.homeKingdom,
+        };
+        openServices({
+            interviews,
+            rankApprovals,
+            corrections,
+            reaperAdd: (interaction) => handleReaperAdd(interaction, {
+                ...reaperWrites,
+                gameApi: options.gameApi,
+                pickSessions,
+                now,
+            }),
+            reaperRemove: (interaction) => handleReaperRemove(interaction, reaperWrites),
+            pick: (interaction) => handlePick(interaction, pickContext),
+        });
         // The startup sweep of the Onboarding Role and the startup apply run in the background, so login does not wait for
         // them. The Daily Sync starts once the startup apply has settled, so their Game API lookups do not overlap.
         void onboardingRole.atStartup().catch((error) => {

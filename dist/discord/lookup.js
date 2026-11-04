@@ -13,7 +13,7 @@ function quotaFailureText(failure, now) {
         : lookupMessages.reserveKept(failure.resetsAt, now);
 }
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
-function sharedPlayerFailureText(failure, now) {
+export function sharedPlayerFailureText(failure, now) {
     switch (failure.kind) {
         case "quota-spent":
         case "reserve-kept":
@@ -155,7 +155,7 @@ export async function showLookup(interaction, context, ask, card, failureMessage
     }
 }
 /** A Kingdom option that may be left out: none is valid, an invalid one is not. */
-function parseOptionalKingdom(value) {
+export function parseOptionalKingdom(value) {
     if (value === null)
         return { ok: true, value: undefined };
     const parsed = parseKingdom(value);

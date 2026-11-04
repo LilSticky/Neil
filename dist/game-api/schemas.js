@@ -13,6 +13,8 @@ const languageSchema = z
     .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/)
     .optional()
     .catch(undefined);
+/** The shield reading: any number (0 means no shield); any other value reads as undefined (unknown). */
+const shieldingSchema = z.number().optional().catch(undefined);
 /** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
 const MAX_DATE_SECONDS = 8_640_000_000_000;
 /** A Unix time in seconds a Date holds, above the Unix epoch; 0 and any other value reads as undefined (unknown). */
@@ -28,7 +30,7 @@ const rosterRowSchema = z.object({
 });
 /**
  * The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us.
- * The Player details (`kills` to `server_badge_url`) each read as undefined when unreadable; the body is still accepted.
+ * The Player details (`kills` to `shielding`) each read as undefined when unreadable; the body is still accepted.
  */
 export const playerBodySchema = z.object({
     uid: idSchema,
@@ -54,6 +56,7 @@ export const playerBodySchema = z.object({
     y: wholeCountSchema,
     avatar_url: picturePathSchema,
     server_badge_url: picturePathSchema,
+    shielding: shieldingSchema,
 });
 /**
  * One row of an Alliance's `members`; the name and the rank label may be null. The Kingdom (`kid`) and sanctuary level

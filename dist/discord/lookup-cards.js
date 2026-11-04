@@ -130,9 +130,16 @@ export function escapeText(text) {
  * limit counts what Discord shows, and it never leaves a backslash without the character it escapes.
  */
 export function fitTitle(escaped) {
-    if (escaped.length <= TITLE_MAX_LENGTH)
+    return fitEscaped(escaped, TITLE_MAX_LENGTH);
+}
+/**
+ * Fits an escaped text into maxLength characters, ending with an ellipsis when it is cut. It cuts after escaping, so the
+ * limit counts what Discord shows, and it never leaves a backslash without the character it escapes.
+ */
+export function fitEscaped(escaped, maxLength) {
+    if (escaped.length <= maxLength)
         return escaped;
-    let kept = escaped.slice(0, TITLE_MAX_LENGTH - 1);
+    let kept = escaped.slice(0, maxLength - 1);
     const trailingBackslashes = /\\*$/.exec(kept)?.[0] ?? "";
     if (trailingBackslashes.length % 2 === 1)
         kept = kept.slice(0, -1);

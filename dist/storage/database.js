@@ -111,6 +111,20 @@ const migrations = [
    CREATE TRIGGER link_linked_by_on_update BEFORE UPDATE OF linked_by ON link
      WHEN NEW.linked_by IS NOT NULL AND (NEW.linked_by = '' OR NEW.linked_by GLOB '*[^0-9]*')
      BEGIN SELECT RAISE(ABORT, 'link.linked_by must be a snowflake or NULL'); END`,
+    // Migration 11: the Exiles of REAPER (slice 014). A position has both coordinates and its read time, or none of them.
+    `CREATE TABLE reaper (
+     uid TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     kingdom INTEGER NOT NULL,
+     x REAL,
+     y REAL,
+     position_at TEXT,
+     reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 200),
+     added_at TEXT NOT NULL,
+     added_by TEXT NOT NULL,
+     CHECK ((x IS NULL) = (y IS NULL) AND (x IS NULL) = (position_at IS NULL))
+   );
+   CREATE INDEX reaper_kingdom ON reaper (kingdom)`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {
