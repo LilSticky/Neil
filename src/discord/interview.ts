@@ -30,6 +30,7 @@ import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../sto
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { PreferencesAfterLink } from "./preferences-after-link.js";
+import type { DoctorRole } from "./doctor-role.js";
 import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import type { Unlink } from "./unlink.js";
@@ -140,6 +141,8 @@ export interface InterviewDeps {
   readonly nameAndRoles: NameAndRoles;
   readonly unlink: Unlink;
   readonly onboardingRole: Pick<OnboardingRole, "give" | "takeOff">;
+  /** Gives the Doctor Role to a Member once their Link is stored, before the Onboarding Role is taken off. */
+  readonly doctorRole: Pick<DoctorRole, "give">;
   readonly preferences: PreferencesAfterLink;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
@@ -691,10 +694,10 @@ async function refuseConfirmation(
 }
 
 /**
- * The Link is stored: the Onboarding Role is taken off and the log notes the Link with the leader's Member when present.
- * The Member's name and roles follow, without touching the Link. The Preferences message is posted in the thread. A
- * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted, unless
- * the Preferences message is open in it.
+ * The Link is stored: the Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither
+ * role; the log notes the Link with the leader's Member when present. The Member's name and roles follow, without touching
+ * the Link. The Preferences message is posted in the thread. A pending Rank Approval is asked in the thread, which says the
+ * Link is stored; otherwise the thread is deleted, unless the Preferences message is open in it.
  */
 async function finishLink(
   deps: InterviewDeps,
@@ -704,6 +707,7 @@ async function finishLink(
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
   const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+  await deps.doctorRole.give(interview.memberId);
   await deps.onboardingRole.takeOff(interview.memberId);
   if (pendingApproval !== undefined) {
     await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));

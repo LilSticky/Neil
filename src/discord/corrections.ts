@@ -13,6 +13,7 @@ import type { PreferenceStore } from "../storage/preference-store.js";
 import { leaderPing, pendingApprovalFor, storeLinkIfStep, type InterviewGameApi } from "./interview.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { DoctorRole } from "./doctor-role.js";
 import type { OnboardingRole } from "./onboarding-role.js";
 import { keepsApprovalThread, type RankApprovals } from "./rank-approval.js";
 import { officerLinkPreferencesMessage } from "./preferences-texts.js";
@@ -136,6 +137,8 @@ export interface LinkButtonDeps {
   readonly rankApprovals: Pick<RankApprovals, "announce">;
   readonly nameAndRoles: Pick<NameAndRoles, "onLinked">;
   readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
+  /** Gives the Doctor Role to the Member an Officer Links, before the Onboarding Role is taken off. */
+  readonly doctorRole: Pick<DoctorRole, "give">;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
   /** Privately tells the Member an Officer Linked about /channels; Discord may refuse it. */
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
@@ -387,9 +390,9 @@ async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, 
 }
 
 /**
- * The Onboarding Role is taken off, the stored Officer Link is logged with its Officer, and its name and roles applied. A
- * pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread is deleted. A failed
- * name and roles step is logged; the Link stands.
+ * The Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither role. The stored
+ * Officer Link is logged with its Officer, and its name and roles applied. A pending Rank Approval is asked in the thread,
+ * which says the Link is stored; otherwise the thread is deleted. A failed name and roles step is logged; the Link stands.
  */
 async function finishOfficerLink(
   deps: LinkButtonDeps,
@@ -399,6 +402,7 @@ async function finishOfficerLink(
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
   const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+  await deps.doctorRole.give(pending.memberId);
   await deps.onboardingRole.takeOff(pending.memberId);
   if (pendingApproval !== undefined) {
     await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));

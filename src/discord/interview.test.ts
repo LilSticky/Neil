@@ -48,6 +48,7 @@ import {
 } from "./interview-texts.js";
 import { createSweeper } from "./interview-sweeper.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { FakeDoctorRole, type DoctorRoleCall } from "./__fakes__/doctor-role.js";
 import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 import { FakePreferencesAfterLink } from "./__fakes__/preferences-after-link.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
@@ -431,6 +432,7 @@ interface Harness {
   readonly nameAndRoles: FakeNameAndRoles;
   readonly unlink: FakeUnlink;
   readonly onboardingRole: FakeOnboardingRole;
+  readonly doctorRole: FakeDoctorRole;
   readonly preferences: FakePreferencesAfterLink;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
@@ -524,6 +526,7 @@ describe("createInterviews", () => {
     const nameAndRoles = new FakeNameAndRoles(trace);
     const unlink = new FakeUnlink(links);
     const onboardingRole = new FakeOnboardingRole();
+    const doctorRole = new FakeDoctorRole();
     const preferences = new FakePreferencesAfterLink(trace);
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
@@ -536,6 +539,7 @@ describe("createInterviews", () => {
       nameAndRoles,
       unlink,
       onboardingRole,
+      doctorRole,
       preferences,
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
@@ -545,7 +549,22 @@ describe("createInterviews", () => {
       },
     };
     const service = createInterviews(deps);
-    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, unlink, onboardingRole, preferences, onServer, errors, service, deps };
+    h = {
+      interviews,
+      links,
+      channels,
+      gameApi,
+      rankApprovals,
+      nameAndRoles,
+      unlink,
+      onboardingRole,
+      doctorRole,
+      preferences,
+      onServer,
+      errors,
+      service,
+      deps,
+    };
   });
 
   afterEach(() => {
@@ -755,6 +774,37 @@ describe("createInterviews", () => {
         { kind: "give", memberId: MEMBER },
         { kind: "takeOff", memberId: MEMBER },
       ]);
+    });
+
+    test("gives the Doctor Role to the Member once the Link is stored", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.doctorRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+    });
+
+    test("gives the Doctor Role before the Onboarding Role is taken off, so the Member is never in neither role", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+      let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
+      h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+        if (call.kind === "takeOff") doctorCallsAtTakeOff = [...h.doctorRole.calls];
+      };
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: MEMBER }]);
+    });
+
+    test("gives the Doctor Role before the Onboarding Role is taken off, also with a pending Rank Approval", async () => {
+      let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
+      h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+        if (call.kind === "takeOff") doctorCallsAtTakeOff = [...h.doctorRole.calls];
+      };
+
+      await pendingRankApprovalOfMember(h);
+
+      expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: MEMBER }]);
     });
 
     test("logs the Link and pings the leader's Member when that Member is Linked and on the server", async () => {
