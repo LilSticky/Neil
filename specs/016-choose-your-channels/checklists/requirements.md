@@ -31,6 +31,6 @@
 
 ## Notes
 
-- Proposed terms (Channel Choice, Choice Role, NaP discussions) need user approval in `/speckit-clarify` before
+- Proposed terms (Preference, Preference Role, NaP discussions) need user approval in `/speckit-clarify` before
   DICTIONARY.md changes.
 - Assumptions to confirm in clarify: R1–R3 are not offered NaP discussions; Unlink forgets Channel Choices.

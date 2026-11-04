@@ -25,13 +25,20 @@ showing the Italian auto-translated channel to someone not speaking Italian." Is
 - Experience: New / Intermediate / Veteran. Veterans are invited to write guides in the guides forum; New players are
   pointed to those guides.
 
-### Terms (proposed, not yet in DICTIONARY.md)
+### Clarifications 2026-11-04
 
-- **Channel Choice** *(proposed)*: one optional answer a Member gives about themselves (a Language, a Region, an
+- Q: Are R1–R3 offered NaP discussions? → A: no; only R4 (opt in) and R5 (automatic).
+- Q: What happens to Preferences at Unlink? → A: the Preference Roles are removed and the Preferences forgotten.
+- Q: Term names? → A: Preference, Preference Role, NaP discussions (approved; added to DICTIONARY.md).
+- Q: Command name? → A: `/channels`.
+
+### Terms
+
+- **Preference**: one optional answer a Member gives about themselves (a Language, a Region, an
   Interest or an Experience level), which decides which channels they see.
-- **Choice Role** *(proposed)*: the Discord role Neil gives for one Channel Choice (for example `Italian`, `Europe/Africa`,
+- **Preference Role**: the Discord role Neil gives for one Preference (for example `Italian`, `Europe/Africa`,
   `PvP`, `Veteran`). Neil creates it without permissions; channel permissions are set by hand.
-- **NaP discussions** *(proposed)*: the Interest for talking about non-aggression pacts (NaP) between Alliances; limited
+- **NaP discussions**: the Interest for talking about non-aggression pacts (NaP) between Alliances; limited
   to R4s and R5s.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -40,18 +47,18 @@ showing the Italian auto-translated channel to someone not speaking Italian." Is
 
 Right after a Member is Linked in the Onboarding Interview, Neil asks in the same thread which languages they speak. The
 Language their Player has set in the game is already ticked. The Member confirms, changes the selection, or skips. Neil
-gives the Choice Roles for the chosen Languages, so only those auto-translated channels show up for them.
+gives the Preference Roles for the chosen Languages, so only those auto-translated channels show up for them.
 
 **Why this priority**: it is the example in the request and removes the most noise (one channel per language).
 
 **Independent Test**: automated: Link → language question with the game Language preselected → choosing Italian and
-English gives exactly those two Choice Roles; skipping gives none.
+English gives exactly those two Preference Roles; skipping gives none.
 
 **Acceptance Scenarios**:
 
 1. **Given** a Member was just Linked and their Player's Language is Italian, **When** Neil asks the language question,
    **Then** Italian is preselected.
-2. **Given** the language question, **When** the Member picks Italian and English, **Then** they get those two Choice
+2. **Given** the language question, **When** the Member picks Italian and English, **Then** they get those two Preference
    Roles and no other language role.
 3. **Given** the language question, **When** the Member skips it, **Then** they get no language role and Neil moves on.
 4. **Given** the Player has no Language set, **When** Neil asks, **Then** nothing is preselected.
@@ -61,22 +68,22 @@ English gives exactly those two Choice Roles; skipping gives none.
 ### User Story 2 - Pick region, interests and experience (Priority: P1)
 
 After the languages, Neil asks for the Member's Region (one), Interests (several) and Experience (one), each skippable.
-Each answer gives the matching Choice Role. A Veteran gets an invitation to write guides in the guides forum; a New player
+Each answer gives the matching Preference Role. A Veteran gets an invitation to write guides in the guides forum; a New player
 gets a pointer to those guides.
 
 **Why this priority**: completes the request; Region and Interests also cut noise, Experience connects new and experienced
 players.
 
-**Independent Test**: automated: answers Europe/Africa, PvP + Events, Veteran → those four Choice Roles and the guide
+**Independent Test**: automated: answers Europe/Africa, PvP + Events, Veteran → those four Preference Roles and the guide
 invitation; New → the pointer to the guides.
 
 **Acceptance Scenarios**:
 
-1. **Given** the Region question, **When** the Member picks Europe/Africa, **Then** they get that Choice Role only.
-2. **Given** the Interests question, **When** the Member picks PvP/wars and Events, **Then** they get both Choice Roles.
-3. **Given** the Experience question, **When** the Member picks Veteran, **Then** they get the Veteran Choice Role and an
+1. **Given** the Region question, **When** the Member picks Europe/Africa, **Then** they get that Preference Role only.
+2. **Given** the Interests question, **When** the Member picks PvP/wars and Events, **Then** they get both Preference Roles.
+3. **Given** the Experience question, **When** the Member picks Veteran, **Then** they get the Veteran Preference Role and an
    invitation to write guides in the guides forum.
-4. **Given** the Experience question, **When** the Member picks New, **Then** they get the New Choice Role and a pointer to
+4. **Given** the Experience question, **When** the Member picks New, **Then** they get the New Preference Role and a pointer to
    the guides forum.
 5. **Given** any question, **When** the Member skips it, **Then** Neil asks the next one; after the last, the Interview
    ends.
@@ -86,7 +93,7 @@ invitation; New → the pointer to the guides.
 ### User Story 3 - NaP discussions only for R4s and R5s (Priority: P1)
 
 The Interests question offers NaP discussions only to a Member whose Linked Player is an R4. A Member Linked to an R5 gets
-the NaP discussions Choice Role automatically at Link, without being asked. Everyone else is not offered it.
+the NaP discussions Preference Role automatically at Link, without being asked. Everyone else is not offered it.
 
 **Why this priority**: NaP talks are between alliance leaders; giving the role to the wrong Member leaks them.
 
@@ -96,11 +103,11 @@ Alliance do not see the option; a rank change in the Daily Sync takes the role a
 **Acceptance Scenarios**:
 
 1. **Given** a Member Linked to an R4, **When** Neil asks for Interests, **Then** NaP discussions is one of the options.
-2. **Given** a Member Linked to an R5, **When** the Link is made, **Then** they get the NaP discussions Choice Role, and the
+2. **Given** a Member Linked to an R5, **When** the Link is made, **Then** they get the NaP discussions Preference Role, and the
    Interests question does not list it.
 3. **Given** a Member Linked to an R1–R3, to a Player with unknown rank or without Alliance, **When** Neil asks for
    Interests, **Then** NaP discussions is not offered.
-4. **Given** a Member holds the NaP discussions Choice Role, **When** the Daily Sync or a Rank Approval sees they are no
+4. **Given** a Member holds the NaP discussions Preference Role, **When** the Daily Sync or a Rank Approval sees they are no
    longer R4 or R5, **Then** the role is removed; an R5 who becomes R4 keeps it.
 5. **Given** a Member becomes R5, **When** the Daily Sync or a Rank Approval sees it, **Then** they get the role.
 
@@ -108,7 +115,7 @@ Alliance do not see the option; a rank change in the Daily Sync takes the role a
 
 ### User Story 4 - Change choices later (Priority: P2)
 
-A Linked Member runs a command to see their current Channel Choices and change any of them, with the same questions and
+A Linked Member runs `/channels` to see their current Preferences and change any of them, with the same questions and
 rules as in the Interview (their current answers preselected).
 
 **Why this priority**: people learn languages, move or lose interest; without it only Officers could fix roles.
@@ -120,7 +127,7 @@ given; a Member who is not Linked is told to finish onboarding first.
 
 1. **Given** a Linked Member, **When** they run the command, **Then** they see the questions with their current choices
    preselected, privately.
-2. **Given** they deselect Italian and select English, **When** they confirm, **Then** the Italian Choice Role is removed and
+2. **Given** they deselect Italian and select English, **When** they confirm, **Then** the Italian Preference Role is removed and
    the English one given.
 3. **Given** a Member who is not Linked, **When** they run the command, **Then** Neil tells them to finish onboarding first
    and changes nothing.
@@ -134,10 +141,10 @@ given; a Member who is not Linked is told to finish onboarding first.
 - The Link has a pending Rank Approval: the questions are asked anyway; the NaP rule uses the rank once it is known.
 - Officer Link (no Interview questions): Neil tells the Member about the command instead, in a private message if
   Discord allows it.
-- Unlink: Neil removes all Choice Roles with the Managed Roles, and forgets the Channel Choices.
-- Neil cannot give a Choice Role (missing permission, role above Neil's): it logs it and carries on.
-- A role named like a Choice Role has permissions: Neil refuses it, as for Managed Roles (ADR 8).
-- The Member answers by hand on Discord (an Officer gives a Choice Role by hand): Neil leaves it, except NaP discussions,
+- Unlink: Neil removes all Preference Roles with the Managed Roles, and forgets the Preferences.
+- Neil cannot give a Preference Role (missing permission, role above Neil's): it logs it and carries on.
+- A role named like a Preference Role has permissions: Neil refuses it, as for Managed Roles (ADR 8).
+- The Member answers by hand on Discord (an Officer gives a Preference Role by hand): Neil leaves it, except NaP discussions,
   which the Daily Sync still checks against the rank.
 
 ## Requirements *(mandatory)*
@@ -148,25 +155,25 @@ given; a Member who is not Linked is told to finish onboarding first.
   (one), Interests (several), Experience (one); each MUST be skippable.
 - **FR-002**: The Languages question MUST offer every game Language, with the Player's game Language preselected; it MUST
   NOT make an extra Game API request.
-- **FR-003**: For each chosen answer Neil MUST give its Choice Role, and MUST remove Choice Roles of the same question that
+- **FR-003**: For each chosen answer Neil MUST give its Preference Role, and MUST remove Preference Roles of the same question that
   are no longer chosen.
-- **FR-004**: Neil MUST create a missing Choice Role without permissions on first use and MUST refuse a role of that name
+- **FR-004**: Neil MUST create a missing Preference Role without permissions on first use and MUST refuse a role of that name
   that has permissions.
 - **FR-005**: NaP discussions MUST be offered only to Members Linked to an R4, MUST be given automatically to Members Linked
   to an R5, and MUST be removed when the Member is no longer R4 or R5 (Daily Sync, Rank Approval, Unlink).
 - **FR-006**: Picking Veteran MUST bring an invitation to write guides in the guides forum; picking New MUST bring a pointer
   to the guides forum.
-- **FR-007**: A Linked Member MUST be able to see and change their Channel Choices later with a command, privately.
-- **FR-008**: Unlink MUST remove every Choice Role and forget the Channel Choices.
+- **FR-007**: A Linked Member MUST be able to see and change their Preferences later with `/channels`, privately.
+- **FR-008**: Unlink MUST remove every Preference Role and forget the Preferences.
 - **FR-009**: The Interview thread MUST be deleted (slice 013) only after the last question is answered, skipped or timed
   out, or as before while a Rank Approval is pending.
 - **FR-010**: A failed role change MUST be logged and MUST NOT stop the Interview or the command.
-- **FR-011**: Neil MUST NOT change channel permissions; HOSTING.md MUST describe which Choice Role sees which channels.
+- **FR-011**: Neil MUST NOT change channel permissions; HOSTING.md MUST describe which Preference Role sees which channels.
 
 ### Key Entities
 
-- **Channel Choice** *(proposed)*: a Member's answer to one optional question; stored per Linked Member.
-- **Choice Role** *(proposed)*: the Discord role for one Channel Choice. Not a Managed Role.
+- **Preference**: a Member's answer to one optional question; stored per Linked Member.
+- **Preference Role**: the Discord role for one Preference. Not a Managed Role.
 
 ## Success Criteria *(mandatory)*
 
@@ -175,15 +182,15 @@ given; a Member who is not Linked is told to finish onboarding first.
 - **SC-001**: A Member who chooses only English sees no other language's auto-translated channel (manual check).
 - **SC-002**: The optional questions add at most 4 interactions after the Link, and skipping all of them takes one click
   each (automated tests).
-- **SC-003**: No Member who is not R4 or R5 holds the NaP discussions Choice Role after the next Daily Sync (automated
+- **SC-003**: No Member who is not R4 or R5 holds the NaP discussions Preference Role after the next Daily Sync (automated
   test).
 
 ## Assumptions
 
 - Region answers: Americas, Europe/Africa, Asia/Oceania. Experience answers: New, Intermediate, Veteran. Intermediate gets
-  only its Choice Role.
-- Choice Role names are the answer names (e.g. `Italian`, `PvP`); the guides forum is set by configuration.
-- The NaP publications channel is visible to every Linked Member by its channel permissions, so it needs no Choice Role.
-- Choice Roles do not use the Game API and do not change nicknames.
+  only its Preference Role.
+- Preference Role names are the answer names (e.g. `Italian`, `PvP`); the guides forum is set by configuration.
+- The NaP publications channel is visible to every Linked Member by its channel permissions, so it needs no Preference Role.
+- Preference Roles do not use the Game API and do not change nicknames.
 - Members Linked before this slice get no questions; they can use the command.
 - The manual check is collected in TEST-RUN.md and run later by the user.
