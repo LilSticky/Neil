@@ -8,12 +8,12 @@ description: "Task list for slice 013, Keep newcomers in onboarding"
 
 ## Tasks
 
-- [ ] **T001** [US1–4] Domain `src/domain/onboarding-role.ts` (D1): `ONBOARDING_ROLE_NAME`, `wantsOnboardingRole`,
+- [x] **T001** [US1–4] Domain `src/domain/onboarding-role.ts` (D1): `ONBOARDING_ROLE_NAME`, `wantsOnboardingRole`,
   `planOnboardingRole`; `isManagedRoleName("Onboarding", tags)` is false for any tags without it.
-- [ ] **T002** [US1–4] `src/discord/member-roles.ts` (D2): `giveNamedRole` / `takeOffNamedRole`: create once when
+- [x] **T002** [US1–4] `src/discord/member-roles.ts` (D2): `giveNamedRole` / `takeOffNamedRole`: create once when
   missing without permissions, refuse a role with permissions (`has-permissions`), `hierarchy`, `missing-permissions`,
   never throw; the existing `applyNameAndRoles` tests stay green.
-- [ ] **T003** [US1–4] `src/discord/onboarding-role.ts` (D3): `give`, `takeOff`, `atStartup` with fakes; a Member not on
+- [x] **T003** [US1–4] `src/discord/onboarding-role.ts` (D3): `give`, `takeOff`, `atStartup` with fakes; a Member not on
   the server changes nothing; a skip is logged with its reason; startup sweep: Linked with role → taken off, not Linked
   without → given, right state → no change, bots skipped, one failure does not stop the others, a failed listing logs
   once. `ServerMembers.all()` added.

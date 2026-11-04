@@ -34,6 +34,8 @@ export interface ServerMember {
 /** The members of the server; undefined for a Member who is not on it. Rejects when Discord cannot be reached. */
 export interface ServerMembers {
   memberOf(memberId: MemberId): Promise<ServerMember | undefined>;
+  /** Every Member on the server, bots included. Rejects when Discord cannot be reached. */
+  all(): Promise<readonly ServerMember[]>;
 }
 
 /** The part of the Game API client the name and roles use. */

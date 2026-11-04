@@ -321,6 +321,7 @@ function rolesGuildOf(guild: Guild, botTopRolePosition: number): RolesGuild {
 function rolesMemberOf(member: GuildMember): RolesMember {
   return {
     id: member.id,
+    bot: member.user.bot,
     get nickname() {
       return member.nickname;
     },
@@ -375,6 +376,15 @@ function serverMembersOf(guild: Guild): ServerMembers {
       if (member === undefined) return undefined;
       const me = guild.members.me ?? (await guild.members.fetchMe());
       return { guild: rolesGuildOf(guild, me.roles.highest.position), member: rolesMemberOf(member) };
+    },
+    all: async () => {
+      const members = await guild.members.fetch();
+      const me = guild.members.me ?? (await guild.members.fetchMe());
+      const botTopRolePosition = me.roles.highest.position;
+      return [...members.values()].map((member) => ({
+        guild: rolesGuildOf(guild, botTopRolePosition),
+        member: rolesMemberOf(member),
+      }));
     },
   };
 }

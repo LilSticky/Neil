@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { applyNameAndRoles, type RolesGuild } from "./member-roles.js";
+import { applyNameAndRoles, giveNamedRole, takeOffNamedRole, type RolesGuild } from "./member-roles.js";
 import {
   FakeDiscordError,
   FakeRolesGuild,
@@ -393,5 +393,138 @@ describe("applyNameAndRoles", () => {
 
     expect(alice.roles.map((role) => role.id)).toEqual([high.id]);
     expect(report.skipped).toEqual([{ what: "R3", reason: "hierarchy" }]);
+  });
+});
+
+/** The name of the Onboarding Role, which is given and taken off by name, not as a Managed Role. */
+const ONBOARDING = "Onboarding";
+
+describe("giveNamedRole", () => {
+  test("creates the named role once, with no permissions, and gives it to the Member", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const alice = guild.member(ALICE);
+
+    const skip = await giveNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toBeUndefined();
+    expect(guild.createdOptions).toEqual([{ name: ONBOARDING, permissions: 0n, hoist: false, mentionable: false }]);
+    expect(heldNames(alice)).toEqual([ONBOARDING]);
+  });
+
+  test("gives the existing permission-free role and creates nothing", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING);
+    const alice = guild.member(ALICE);
+
+    const skip = await giveNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toBeUndefined();
+    expect(guild.createdRoleNames()).toEqual([]);
+    expect(guild.rolesNamed(ONBOARDING)).toHaveLength(1);
+    expect(heldNames(alice)).toEqual([ONBOARDING]);
+  });
+
+  test("refuses an existing role that grants permissions and gives nothing", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING, { permissions: ADMINISTRATOR });
+    const alice = guild.member(ALICE);
+
+    const skip = await giveNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toEqual({ what: ONBOARDING, reason: "has-permissions" });
+    expect(guild.createdRoleNames()).toEqual([]);
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("skips a role above the bot's highest role with reason hierarchy", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING, { position: 12 });
+    const alice = guild.member(ALICE);
+
+    const skip = await giveNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toEqual({ what: ONBOARDING, reason: "hierarchy" });
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("skips a role Discord refuses with 50013 with reason missing-permissions", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING);
+    guild.failAdding(ONBOARDING, new FakeDiscordError(MISSING_PERMISSIONS, "Missing Permissions"));
+    const alice = guild.member(ALICE);
+
+    const skip = await giveNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toEqual({ what: ONBOARDING, reason: "missing-permissions" });
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("never throws: a creation that fails unexpectedly is returned as an error skip", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.failCreating(ONBOARDING, new Error("socket hang up"));
+    const alice = guild.member(ALICE);
+
+    const skip = await giveNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toEqual({ what: ONBOARDING, reason: "error" });
+    expect(heldNames(alice)).toEqual([]);
+  });
+});
+
+describe("takeOffNamedRole", () => {
+  test("takes the permission-free role of the name off the Member", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING);
+    const alice = guild.member(ALICE, [ONBOARDING]);
+
+    const skip = await takeOffNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toBeUndefined();
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("does nothing and creates nothing when the Member does not hold the role", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const alice = guild.member(ALICE);
+
+    const skip = await takeOffNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toBeUndefined();
+    expect(guild.createdRoleNames()).toEqual([]);
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("leaves a held role of the name that grants permissions", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING, { permissions: ADMINISTRATOR });
+    const alice = guild.member(ALICE, [ONBOARDING]);
+
+    const skip = await takeOffNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toBeUndefined();
+    expect(heldNames(alice)).toEqual([ONBOARDING]);
+  });
+
+  test("skips a held role above the bot's highest role with reason hierarchy", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING, { position: 12 });
+    const alice = guild.member(ALICE, [ONBOARDING]);
+
+    const skip = await takeOffNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toEqual({ what: ONBOARDING, reason: "hierarchy" });
+    expect(heldNames(alice)).toEqual([ONBOARDING]);
+  });
+
+  test("never throws: a removal that fails unexpectedly is returned as an error skip", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole(ONBOARDING);
+    const alice = guild.member(ALICE, [ONBOARDING]);
+    vi.spyOn(alice, "removeRole").mockRejectedValue(new Error("socket hang up"));
+
+    const skip = await takeOffNamedRole(guild, alice, ONBOARDING);
+
+    expect(skip).toEqual({ what: ONBOARDING, reason: "error" });
+    expect(heldNames(alice)).toEqual([ONBOARDING]);
   });
 });

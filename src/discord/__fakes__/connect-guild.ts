@@ -24,10 +24,10 @@ export class FakeConnectGuild {
       },
       roles: { highest: { position: 10 } },
     },
-    fetch: (memberId: string): Promise<{ readonly id: string }> => {
+    fetch: (memberId: string): Promise<{ readonly id: string; readonly user: { readonly bot: boolean } }> => {
       const code = this.fetchFailures.get(memberId);
       if (code !== undefined) return Promise.reject(Object.assign(new Error("Discord API error"), { code }));
-      if (this.joined.has(memberId)) return Promise.resolve({ id: memberId });
+      if (this.joined.has(memberId)) return Promise.resolve({ id: memberId, user: { bot: false } });
       return Promise.reject(Object.assign(new Error("Unknown Member"), { code: UNKNOWN_MEMBER }));
     },
   };
