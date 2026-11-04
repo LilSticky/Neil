@@ -73,8 +73,9 @@ has created the role (at its first start with slice 013):
 - Every channel or category except `#onboarding`: deny **View Channel** to `@everyone`, and allow it to the roles that
   should see it (for example the Alliance or Kingdom roles, and Neil's own role for `#neil-log`).
 - `#onboarding`: deny **View Channel** to `@everyone`; allow **View Channel**, **Send Messages** and **Send Messages in
-  Threads** to `Onboarding`; allow **View Channel** and **Manage Threads** to the Moderator and King roles; Neil keeps
-  the permissions listed for slice 005.
+  Threads** to `Onboarding`; allow **View Channel** and **Manage Threads** to the Moderator and King roles; allow **View
+  Channel** and **Send Messages in Threads** to `R5`, so an Alliance leader can open the Rank Approval threads Neil adds
+  them to (private threads: they see only those); Neil keeps the permissions listed for slice 005.
 - Neil's role must sit **above** `Onboarding`. Never give `Onboarding` permissions (Neil then refuses to use it).
 
 Finished Interview threads are deleted, so Neil needs Manage Threads in `#onboarding` (already required).
