@@ -27,7 +27,7 @@ Reviewer: `bot-reviewer` (2026-11-02), diff `010-say-goodbye...011-correct-a-lin
   failed"). Fix: reply with `linkEndedReply()`.
 - [x] C2 `corrections.ts:288`: the confirmation is removed before confirmLink; a refusal leaves the card with live
   buttons, which then say "ended". Fix: `update` the card to an ended state when refusing.
-- [ ] C3 `src/discord/commands.ts:78,86` (/rank, /link): no `setDefaultMemberPermissions`, so every Member sees the
+- [x] C3 `src/discord/commands.ts:78,86` (/rank, /link): no `setDefaultMemberPermissions`, so every Member sees the
   Officer-only commands. Handler checks are correct; least privilege only.
   Left open: visibility of Officer commands needs per-server permission overrides; handler checks stand.
 - [x] C4 `src/storage/database.ts` migration 9: `linked_by TEXT` has no CHECK (snowflake or NULL); zod catches bad

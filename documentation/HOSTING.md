@@ -122,6 +122,12 @@ Slash commands are registered from a developer machine with `npm run commands:re
 the local `.env`), and only when the command list changes; Neil never registers them itself. Slice 011
 (`/unlink`, `/rank`, `/link`) needs `npm run commands:register` again, before or with the deploy of that slice.
 
+**Officer commands** (`/quota`, `/rank`, `/link`) are registered hidden from Members (default member
+permissions `0`): at first only Administrators see them. Once per server, after registering, open
+**Server Settings → Integrations → Neil** and, for each of the three commands, allow the Moderator and
+King roles and limit the command to the moderator-only channel. Neil still refuses anyone without the
+Moderator or King role. `/unlink` stays visible, since Members may Unlink themselves.
+
 **Data**: Neil keeps `data/neil.db` in the server folder (`DATA_DIR=./data`). `git pull` leaves it
 alone because it is untracked. If the database is corrupt, Neil refuses to start and says so rather
 than starting over.

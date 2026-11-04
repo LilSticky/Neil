@@ -1,7 +1,7 @@
 # Contract: `/quota`
 
-Guild command for `DISCORD_GUILD_ID` only, guild context only, no default member permissions (Neil
-checks the role itself, research R8), `allowedMentions: { parse: [] }`. Every reply is ephemeral and
+Guild command for `DISCORD_GUILD_ID` only, guild context only, default member permissions `0` (hidden from
+Members; Officers allowed in Server Settings → Integrations, see HOSTING.md; Neil still checks the role, research R8), `allowedMentions: { parse: [] }`. Every reply is ephemeral and
 immediate (no Game API request, so no defer).
 
 | Field | Value |
