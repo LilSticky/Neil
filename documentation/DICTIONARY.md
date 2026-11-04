@@ -122,6 +122,14 @@ discovery.
 ## Quota Reserve
 * The part of the Daily Quota that only Onboarding Interviews may use (from slice 004)
 
+## Daily Allowance
+* The number of Game API requests one Member's lookups may cause per UTC day: (the Daily Quota's limit − Quota Reserve − Sync Share) ÷ Expected Lookup Members, rounded down, at least 1
+* Expected Lookup Members: the average Lookup Member count of the last 4 recorded days on the same weekday (100 while none is recorded)
+* Answers from the cache, Onboarding Interviews and the Daily Sync are not charged; Officers are counted but never refused
+
+## Lookup Member
+* A Member whose lookups caused at least one Game API request on a UTC day; Neil records their count per day
+
 ## Daily Sync
 * Neil's once-a-day re-check of every Linked Member against the Game API, which updates their nickname and Managed Roles
 * Uses only the Sync Share
