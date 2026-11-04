@@ -1,10 +1,9 @@
 import {
   MessageFlags,
-  type APIEmbed,
-  type APIEmbedField,
   type InteractionDeferReplyOptions,
   type InteractionEditReplyOptions,
   type InteractionReplyOptions,
+  type InteractionUpdateOptions,
 } from "discord.js";
 import {
   exileReasonOf,
@@ -13,11 +12,11 @@ import {
   type Editor,
   type Exile,
   type ExileCandidate,
+  type ExileRanking,
   type ExileReason,
   type Position,
   type RankedExile,
 } from "../domain/exile.js";
-import { utcDayOf } from "../domain/daily-quota.js";
 import { parsePlayerName, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { listedPlayerMatches, type LookupResult, type Player } from "../domain/player.js";
@@ -34,17 +33,17 @@ import {
   type LookupApi,
   type PrivateMessage,
 } from "./lookup.js";
-import {
-  CARD_COLOR,
-  escapeText,
-  fitTitle,
-  kingdomAuthor,
-  lookupMessages,
-  renderPlayerCard,
-  renderPlayerPickList,
-} from "./lookup-cards.js";
+import { escapeText, lookupMessages, renderPlayerPickList } from "./lookup-cards.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { PickSessions } from "./pick-sessions.js";
+import { closestAnswer, CLOSEST_PAGE_SIZE, LIST_PAGE_SIZE, listAnswer, type ReaperAnswer } from "./reaper-cards.js";
+import {
+  isOwner,
+  parseReaperCustomId,
+  reaperPageCount,
+  type ReaperPageContent,
+  type ReaperPages,
+} from "./reaper-pages.js";
 import { reaperMessages } from "./reaper-texts.js";
 
 /** What storing an Exile needs: REAPER, the log channel, the clock and the error log. */
@@ -69,10 +68,19 @@ export interface ReaperInteraction {
   readonly options: {
     getString(name: string, required?: false): string | null;
     getInteger(name: string, required?: false): number | null;
+    getBoolean(name: string, required?: false): boolean | null;
   };
   deferReply(options?: InteractionDeferReplyOptions): Promise<unknown>;
   editReply(options: InteractionEditReplyOptions): Promise<unknown>;
   reply(options: InteractionReplyOptions): Promise<unknown>;
+}
+
+/** The part of a discord.js button press under a paged /reaper answer that the page handler uses. */
+export interface ReaperPageInteraction {
+  readonly customId: string;
+  readonly user: { readonly id: string };
+  reply(options: InteractionReplyOptions): Promise<unknown>;
+  update(options: InteractionUpdateOptions): Promise<unknown>;
 }
 
 /** The Exile a found Player makes: its position when the Game read one, the reason and the adder. */
@@ -208,9 +216,6 @@ export async function handleReaperAdd(interaction: ReaperInteraction, context: R
 
 /** How many Exiles are read from the Game API at once. */
 const READS_AT_ONCE = 4;
-/** How many of the closest Exiles one /reaper closest answer shows. */
-const CLOSEST_SHOWN = 3;
-
 /** The Daily Quota or the Quota Reserve kept a read from the Game API. */
 type QuotaRefusal = Extract<LookupResult<Player>, { readonly kind: "quota-spent" | "reserve-kept" }>;
 
@@ -220,23 +225,38 @@ export interface FreshRead {
   readonly fetchedAt: Date;
 }
 
-/** The ranking behind /reaper closest: closest first, the reads made to rank it, and the refusal that stopped them, if any. */
+/** The ranking behind /reaper closest: closest first, the reads made to rank it, the Exiles left out, and the refusal that stopped the reads, if any. */
 export interface ClosestRanking {
   readonly origin: Position;
   readonly kingdom: KingdomNumber;
   readonly ranking: readonly RankedExile[];
   readonly reads: ReadonlyMap<Uid, FreshRead>;
+  readonly leftOut: ExileRanking["leftOut"];
   readonly refusal: QuotaRefusal | undefined;
 }
 
-/** What /reaper closest needs: the caller's Link, the Game API, REAPER, the Home Kingdom, the clock and the error log. */
+/** What /reaper closest needs: the caller's Link, the Game API, REAPER, the paged answers, the Home Kingdom, the clock and the error log. */
 export interface ReaperClosestContext {
   readonly links: Pick<LinkStore, "linkFor">;
   readonly gameApi: Pick<LookupApi, "getPlayer">;
   readonly reaper: Pick<ReaperStore, "inKingdom" | "refresh">;
+  readonly pages: Pick<ReaperPages<ReaperPageContent>, "open">;
   readonly homeKingdom: KingdomNumber;
   readonly now: () => Date;
   readonly logError: (message: string) => void;
+}
+
+/** What /reaper list needs: REAPER, the paged answers and the clock. */
+export interface ReaperListContext {
+  readonly reaper: Pick<ReaperStore, "all">;
+  readonly pages: Pick<ReaperPages<ReaperPageContent>, "open">;
+  readonly now: () => Date;
+}
+
+/** What a page button of /reaper needs: the paged answers and the clock the press is answered at. */
+export interface ReaperPageContext {
+  readonly pages: Pick<ReaperPages<ReaperPageContent>, "get">;
+  readonly now: () => Date;
 }
 
 /** Reads one Player with the lookup purpose; a read that throws is logged and told as unavailable. */
@@ -307,8 +327,8 @@ export async function rankClosest(
   const exiles = context.reaper.inKingdom(kingdom);
   const { reads, refusal } = await readExiles(exiles, context);
   const candidates: ExileCandidate[] = exiles.map((exile) => ({ exile, player: reads.get(exile.uid)?.player }));
-  const { ranking } = rankExiles(origin, kingdom, callerUid, candidates);
-  return { origin, kingdom, ranking, reads, refusal };
+  const { ranking, leftOut } = rankExiles(origin, kingdom, callerUid, candidates);
+  return { origin, kingdom, ranking, reads, leftOut, refusal };
 }
 
 /** Where /reaper closest measures from, in which Kingdom, and the caller's uid when the caller has a Link. */
@@ -340,59 +360,7 @@ async function closestOriginOf(
   return origin === undefined ? undefined : { origin, kingdom: caller.value.kingdom, callerUid: link.uid };
 }
 
-/** The header of the answer: the origin, the Kingdom and that shields cannot be seen. */
-function closestHeader(ranking: ClosestRanking): APIEmbed {
-  return {
-    title: reaperMessages.closestTitle(ranking.kingdom),
-    description: reaperMessages.closestOrigin(ranking.origin),
-    color: CARD_COLOR,
-  };
-}
-
-/**
- * One Exile of the answer: the player card as /player shows it when the Game read the Player this time, else the name and
- * Kingdom alone; then coordinates (marked with the stored time when not read now), distance, reason and the day exiled.
- */
-function closestCard(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, now: Date): APIEmbed {
-  const { exile } = entry;
-  const reaperFields: APIEmbedField[] = [
-    {
-      name: reaperMessages.fields.coordinates,
-      value: reaperMessages.coordinates(entry.position, entry.stale ? exile.positionAt : undefined),
-      inline: true,
-    },
-    { name: reaperMessages.fields.distance, value: reaperMessages.distance(entry.distance), inline: true },
-    { name: reaperMessages.fields.reason, value: escapeText(exile.reason), inline: false },
-    { name: reaperMessages.fields.exiledOn, value: utcDayOf(exile.addedAt), inline: true },
-  ];
-  const read = reads.get(exile.uid);
-  if (read === undefined) {
-    return {
-      title: fitTitle(escapeText(exile.name)),
-      color: CARD_COLOR,
-      author: kingdomAuthor(exile.kingdom, undefined),
-      fields: reaperFields,
-    };
-  }
-  const card = renderPlayerCard(read.player, read.fetchedAt, now);
-  return { ...card, fields: [...(card.fields ?? []), ...reaperFields] };
-}
-
-/** The answer to /reaper closest: the header and up to 3 Exile cards; or the text when none can be shown. */
-function closestAnswer(ranking: ClosestRanking, now: Date): InteractionEditReplyOptions {
-  const shown = ranking.ranking.slice(0, CLOSEST_SHOWN);
-  if (shown.length === 0) {
-    const content =
-      ranking.refusal === undefined
-        ? reaperMessages.noExilesInKingdom(ranking.kingdom)
-        : sharedPlayerFailureText(ranking.refusal, now);
-    return { content, allowedMentions };
-  }
-  const cards = shown.map((entry) => closestCard(entry, ranking.reads, now));
-  return { embeds: [closestHeader(ranking), ...cards], allowedMentions };
-}
-
-/** Answers /reaper closest, privately. Mismatched coordinates are refused before any Game API request. */
+/** Answers /reaper closest, privately. Mismatched coordinates are refused before any Game API request. With all, the answer is paged. */
 export async function handleReaperClosest(interaction: ReaperInteraction, context: ReaperClosestContext): Promise<void> {
   await answer("/reaper closest", context, async () => {
     const x = interaction.options.getInteger("x");
@@ -402,6 +370,7 @@ export async function handleReaperClosest(interaction: ReaperInteraction, contex
       return;
     }
     const given = x === null || y === null ? undefined : { x, y };
+    const all = interaction.options.getBoolean("all") === true;
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const closestFrom = await closestOriginOf(given, interaction.user.id, context);
@@ -410,6 +379,45 @@ export async function handleReaperClosest(interaction: ReaperInteraction, contex
       return;
     }
     const ranking = await rankClosest(closestFrom.origin, closestFrom.kingdom, closestFrom.callerUid, context);
-    await interaction.editReply(closestAnswer(ranking, context.now()));
+    const now = context.now();
+    const paged = all && reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE) > 1;
+    const sessionId = paged ? context.pages.open(interaction.user.id, { kind: "closest", ranking }, now) : undefined;
+    await interaction.editReply(closestAnswer(ranking, now, 0, sessionId));
   });
+}
+
+/** Answers /reaper list, privately: every Exile of REAPER, newest first, 20 per page. */
+export async function handleReaperList(interaction: ReaperInteraction, context: ReaperListContext): Promise<void> {
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const exiles = context.reaper.all();
+  if (exiles.length === 0) {
+    await interaction.editReply({ content: reaperMessages.empty, allowedMentions });
+    return;
+  }
+  const paged = reaperPageCount(exiles.length, LIST_PAGE_SIZE) > 1;
+  const sessionId = paged ? context.pages.open(interaction.user.id, { kind: "list", exiles }, context.now()) : undefined;
+  await interaction.editReply(listAnswer(exiles, 0, sessionId));
+}
+
+/**
+ * Answers a page button of /reaper: only the Member who ran the answer may turn it, while it is open, and the page is
+ * redrawn from what was answered, with no Game API call.
+ */
+export async function handleReaperPage(interaction: ReaperPageInteraction, context: ReaperPageContext): Promise<void> {
+  const parsed = parseReaperCustomId(interaction.customId);
+  const session = parsed === undefined ? "expired" : context.pages.get(parsed.sessionId, context.now());
+  if (parsed === undefined || session === "expired") {
+    await replyPrivately(interaction, reaperMessages.pageExpired);
+    return;
+  }
+  if (!isOwner(session, interaction.user.id)) {
+    await replyPrivately(interaction, reaperMessages.pageNotYours);
+    return;
+  }
+  const { content } = session;
+  const redraw: ReaperAnswer =
+    content.kind === "closest"
+      ? closestAnswer(content.ranking, context.now(), parsed.page, parsed.sessionId)
+      : listAnswer(content.exiles, parsed.page, parsed.sessionId);
+  await interaction.update(redraw);
 }

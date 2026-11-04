@@ -15,6 +15,7 @@ export type ReaperInteractionCall =
 export interface ReaperOptionValues {
   readonly strings?: Readonly<Record<string, string>>;
   readonly integers?: Readonly<Record<string, number>>;
+  readonly booleans?: Readonly<Record<string, boolean>>;
 }
 
 /** A /reaper interaction that records its calls in order, including the options of a deferral. */
@@ -24,6 +25,7 @@ export class FakeReaperInteraction {
   readonly options: {
     getString(name: string, required?: false): string | null;
     getInteger(name: string, required?: false): number | null;
+    getBoolean(name: string, required?: false): boolean | null;
   };
 
   constructor(values: ReaperOptionValues, userId: string) {
@@ -31,6 +33,7 @@ export class FakeReaperInteraction {
     this.options = {
       getString: (name: string): string | null => values.strings?.[name] ?? null,
       getInteger: (name: string): number | null => values.integers?.[name] ?? null,
+      getBoolean: (name: string): boolean | null => values.booleans?.[name] ?? null,
     };
   }
 

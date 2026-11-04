@@ -2,7 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { MessageFlags, type APIEmbed, type InteractionEditReplyOptions } from "discord.js";
+import {
+  MessageFlags,
+  type APIEmbed,
+  type InteractionEditReplyOptions,
+  type InteractionUpdateOptions,
+} from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
 import { exileReasonOf, type Exile, type ExileReason, type Position } from "../domain/exile.js";
@@ -13,8 +18,10 @@ import type { LookupResult, Player } from "../domain/player.js";
 import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
+import { FakeReaperPageInteraction } from "./__fakes__/reaper-page-interaction.js";
 import { lookupMessages, renderPlayerCard } from "./lookup-cards.js";
-import { handleReaperClosest, type ReaperClosestContext } from "./reaper.js";
+import { handleReaperClosest, handleReaperPage, type ReaperClosestContext } from "./reaper.js";
+import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 
 type GetPlayer = (uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>;
 
@@ -118,15 +125,17 @@ function closestContext(
   );
   const getPlayer = vi.fn<GetPlayer>(options.read ?? (() => Promise.reject(new Error("no Game API read was expected"))));
   const logError = vi.fn<(message: string) => void>();
+  const pages = new ReaperPages<ReaperPageContent>();
   const context: ReaperClosestContext = {
     links: { linkFor },
     gameApi: { getPlayer },
     reaper: store,
     homeKingdom: HOME,
+    pages,
     now: () => NOW,
     logError,
   };
-  return { context, getPlayer, linkFor, logError };
+  return { context, getPlayer, linkFor, logError, pages };
 }
 
 /** Every text the handler sent back, in order; a deferral carries none. */
@@ -142,7 +151,7 @@ function answerOf(interaction: FakeReaperInteraction): InteractionEditReplyOptio
   return last;
 }
 
-function embedsOf(options: InteractionEditReplyOptions): APIEmbed[] {
+function embedsOf(options: { readonly embeds?: InteractionEditReplyOptions["embeds"] }): APIEmbed[] {
   return (options.embeds ?? []).map((embed) => ("toJSON" in embed ? embed.toJSON() : embed));
 }
 
@@ -485,6 +494,7 @@ describe("handleReaperClosest", () => {
       gameApi: { getPlayer },
       reaper: store,
       homeKingdom: HOME,
+      pages: new ReaperPages<ReaperPageContent>(),
       now: () => NOW,
       logError: vi.fn<(message: string) => void>(),
     };
@@ -512,4 +522,206 @@ describe("handleReaperClosest", () => {
 
     expect(JSON.stringify(interaction.calls)).not.toContain(ADDER_ID);
   });
+
+  describe("the header and the Exiles left out", () => {
+    test("says in the header how many Exiles were left out and why, when some were", async () => {
+      store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+      store.add(exileOf(MID, "Shielded", { x: 2, y: 0 }));
+      store.add(exileOf(FAR, "Unreadable", undefined));
+      const { context } = closestContext(store, {
+        read: (uid) => {
+          if (uid === NEAR) return Promise.resolve(found(playerOf(NEAR, "Near", HOME, { x: 1, y: 0 })));
+          if (uid === MID) return Promise.resolve(found(shieldedOf(playerOf(MID, "Shielded", HOME, { x: 2, y: 0 }))));
+          return Promise.reject(new Error("the Game API timed out"));
+        },
+      });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      const headerText = JSON.stringify(embedsOf(answerOf(interaction))[0]);
+      expect(headerText).toMatch(/left out/i);
+      expect(headerText).toMatch(/1[^"]*shielded/);
+      expect(headerText).toMatch(/1[^"]*could not be read/);
+    });
+
+    test("says nothing about Exiles left out when none was", async () => {
+      store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+      const { context } = closestContext(store, { read: readsOf(playerOf(NEAR, "Near", HOME, { x: 1, y: 0 })) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      expect(JSON.stringify(embedsOf(answerOf(interaction))[0])).not.toMatch(/left out/i);
+    });
+
+    test("says every Exile was left out, with the count and why, when all of them are shielded", async () => {
+      store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+      store.add(exileOf(MID, "Mid", { x: 2, y: 0 }));
+      const { context } = closestContext(store, {
+        read: (uid) => {
+          const player = uid === NEAR ? playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }) : playerOf(MID, "Mid", HOME, { x: 2, y: 0 });
+          return Promise.resolve(found(shieldedOf(player)));
+        },
+      });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      const content = answerOf(interaction).content ?? "";
+      expect(content).not.toBe("No Exiles in Kingdom 330.");
+      expect(content).toMatch(/2[^.]*shielded/);
+    });
+
+    test("says every Exile was left out, with the count and why, when none of them could be read", async () => {
+      store.add(exileOf(NEAR, "Near", undefined));
+      store.add(exileOf(MID, "Mid", undefined));
+      const { context } = closestContext(store, {
+        read: () => Promise.resolve({ kind: "unavailable", reason: "unexpected" }),
+      });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      const content = answerOf(interaction).content ?? "";
+      expect(content).not.toBe("No Exiles in Kingdom 330.");
+      expect(content).toMatch(/2[^.]*could not be read/);
+    });
+  });
+
+  describe("with all:true, paged 3 per page", () => {
+    test("shows the 3 closest Exiles on page 1, in distance order", async () => {
+      const players = storeFiveExiles(store);
+      const { context } = closestContext(store, { read: readsOf(...players) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 }, booleans: { all: true } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      expect(cardTitlesOf(embedsOf(answerOf(interaction)))).toEqual(["E1", "E2", "E3"]);
+    });
+
+    test("offers Previous and Next buttons, and Next names page 2", async () => {
+      const players = storeFiveExiles(store);
+      const { context } = closestContext(store, { read: readsOf(...players) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 }, booleans: { all: true } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      const buttons = JSON.stringify(answerOf(interaction).components ?? []);
+      expect(buttons).toMatch(/Previous/);
+      expect(buttons).toMatch(/Next/);
+      expect(buttons).toMatch(/"custom_id":"reaper:[^"]+:page:1"/);
+    });
+
+    test("shows no page buttons without all", async () => {
+      const players = storeFiveExiles(store);
+      const { context } = closestContext(store, { read: readsOf(...players) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+      await handleReaperClosest(interaction, context);
+
+      expect(cardTitlesOf(embedsOf(answerOf(interaction)))).toEqual(["E1", "E2", "E3"]);
+      expect(JSON.stringify(answerOf(interaction).components ?? [])).not.toContain("custom_id");
+    });
+
+    test("a page button by the owner redraws page 2 from the stored ranking, with no Game API request", async () => {
+      const players = storeFiveExiles(store);
+      const { context, getPlayer, pages } = closestContext(store, { read: readsOf(...players) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 }, booleans: { all: true } }, CALLER_ID);
+      await handleReaperClosest(interaction, context);
+      const readsBefore = getPlayer.mock.calls.length;
+      const press = new FakeReaperPageInteraction({
+        customId: `reaper:${sessionIdOf(answerOf(interaction))}:page:1`,
+        userId: CALLER_ID,
+      });
+
+      await handleReaperPage(press, pageContext(pages, NOW));
+
+      expect(getPlayer).toHaveBeenCalledTimes(readsBefore);
+      expect(cardTitlesOf(embedsOf(updateOf(press)))).toEqual(["E4", "E5"]);
+    });
+
+    test("a page button by any other Member is refused privately and changes nothing", async () => {
+      const players = storeFiveExiles(store);
+      const { context, getPlayer, pages } = closestContext(store, { read: readsOf(...players) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 }, booleans: { all: true } }, CALLER_ID);
+      await handleReaperClosest(interaction, context);
+      const readsBefore = getPlayer.mock.calls.length;
+      const press = new FakeReaperPageInteraction({
+        customId: `reaper:${sessionIdOf(answerOf(interaction))}:page:1`,
+        userId: OTHER_CALLER_ID,
+      });
+
+      await handleReaperPage(press, pageContext(pages, NOW));
+
+      expect(press.calls).toHaveLength(1);
+      expect(press.calls[0]).toMatchObject({ method: "reply", options: { flags: MessageFlags.Ephemeral } });
+      expect(getPlayer).toHaveBeenCalledTimes(readsBefore);
+    });
+
+    test("a page button 15 minutes or more after the answer says the list has expired", async () => {
+      const players = storeFiveExiles(store);
+      const { context, pages } = closestContext(store, { read: readsOf(...players) });
+      const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 }, booleans: { all: true } }, CALLER_ID);
+      await handleReaperClosest(interaction, context);
+      const press = new FakeReaperPageInteraction({
+        customId: `reaper:${sessionIdOf(answerOf(interaction))}:page:1`,
+        userId: CALLER_ID,
+      });
+      const atExpiry = new Date(NOW.getTime() + 15 * 60_000);
+
+      await handleReaperPage(press, pageContext(pages, atExpiry));
+
+      expect(press.calls).toHaveLength(1);
+      expect(press.calls[0]).toMatchObject({
+        method: "reply",
+        options: { content: "This list has expired, run /reaper again.", flags: MessageFlags.Ephemeral },
+      });
+    });
+  });
 });
+
+const OTHER_CALLER_ID = "333333333333333333";
+
+/** Stores Exiles E1 to E5, each one square further from the origin 0:0, all in the Home Kingdom and readable. */
+function storeFiveExiles(store: ReaperStore): Player[] {
+  return FIVE_UIDS.map((uid, index) => {
+    const name = `E${(index + 1).toString()}`;
+    const position = { x: index + 1, y: 0 };
+    store.add(exileOf(uid, name, position));
+    return playerOf(uid, name, HOME, position);
+  });
+}
+
+const FIVE_UIDS = ["145563254711", "145563254712", "145563254713", "145563254714", "145563254715"].map(uidOf);
+
+/** A Player as the Game API reads it when the Player is shielded. */
+function shieldedOf(player: Player): Player {
+  return player.details === undefined ? player : { ...player, details: { ...player.details, shielded: true } };
+}
+
+/** The titles of the Exile cards of an answer, named E1 to E5 in these tests; the header is left out. */
+function cardTitlesOf(embeds: readonly APIEmbed[]): (string | undefined)[] {
+  return titlesOf(embeds).filter((title) => title !== undefined && /^E\d$/.test(title));
+}
+
+/** The session id of a page button of the answer, read from the custom id of its Next button. */
+function sessionIdOf(answer: InteractionEditReplyOptions): string {
+  const match = /"custom_id":"reaper:([^:"]+):page:1"/.exec(JSON.stringify(answer.components ?? []));
+  const sessionId = match?.[1];
+  if (sessionId === undefined) throw new Error("the answer has no Next button to page to");
+  return sessionId;
+}
+
+/** The context a page button of /reaper is handled with: the listings opened, and the clock the press is answered at. */
+function pageContext(pages: ReaperPages<ReaperPageContent>, now: Date) {
+  return { pages, now: () => now };
+}
+
+/** The last redraw of a page button: the answer the Member sees after the press. */
+function updateOf(press: FakeReaperPageInteraction): InteractionUpdateOptions {
+  const updates = press.calls.flatMap((call) => (call.method === "update" ? [call.options] : []));
+  const last = updates[updates.length - 1];
+  if (last === undefined) throw new Error("the page button did not redraw the answer");
+  return last;
+}
