@@ -1,4 +1,9 @@
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
+/**
+ * Officer commands are hidden from Members: only Administrators see them until the server allows the Moderator and
+ * King roles (and the moderator channel) under Server Settings → Integrations → Neil. Neil still checks the role.
+ */
+const HIDDEN_FROM_MEMBERS = 0n;
 /** Temporary; removed in a later slice. */
 export const ping = new SlashCommandBuilder()
     .setName("ping")
@@ -49,6 +54,7 @@ export const alliance = new SlashCommandBuilder()
 export const quota = new SlashCommandBuilder()
     .setName("quota")
     .setDescription("Show today's Daily Quota of Game API requests (Officers)")
+    .setDefaultMemberPermissions(HIDDEN_FROM_MEMBERS)
     .setContexts(InteractionContextType.Guild);
 export const interview = new SlashCommandBuilder()
     .setName("interview")
@@ -62,6 +68,7 @@ export const unlink = new SlashCommandBuilder()
 export const rank = new SlashCommandBuilder()
     .setName("rank")
     .setDescription("Give a Linked Member their Alliance Rank (Officers)")
+    .setDefaultMemberPermissions(HIDDEN_FROM_MEMBERS)
     .setContexts(InteractionContextType.Guild)
     .addUserOption((option) => option.setName("member").setDescription("The Linked Member").setRequired(true))
     .addStringOption((option) => option
@@ -72,6 +79,7 @@ export const rank = new SlashCommandBuilder()
 export const link = new SlashCommandBuilder()
     .setName("link")
     .setDescription("Link a Member to a uid, for a Member an Interview handed off (Officers)")
+    .setDefaultMemberPermissions(HIDDEN_FROM_MEMBERS)
     .setContexts(InteractionContextType.Guild)
     .addUserOption((option) => option.setName("member").setDescription("The handed-off Member").setRequired(true))
     .addStringOption((option) => option
