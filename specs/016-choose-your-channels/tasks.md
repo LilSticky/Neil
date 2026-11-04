@@ -29,7 +29,7 @@ description: "Task list for slice 016, Choose your channels"
   the thread; with a pending Rank Approval the message is posted too; a failure to post deletes the thread as before.
 - [x] **T007** [US1] `interview-sweeper.ts` (R4): prompts older than `timeoutMs` are closed and their thread deleted
   unless a Rank Approval is pending; a gone thread is not an error.
-- [ ] **T008** [US3] `name-and-roles.ts` (R5): `onLinked`, `onRankApproved`, `syncMember`, `atStartup` call
+- [x] **T008** [US3] `name-and-roles.ts` (R5): `onLinked`, `onRankApproved`, `syncMember`, `atStartup` call
   `preferences.apply` with the rank; R5 gets NaP discussions at Link; a rank change in the Daily Sync takes it off a
   former R4/R5 and gives it to a new R5; a failure leaves the name and roles standing.
 - [ ] **T009** [US1–4] `unlink.ts`: every Unlink calls `forget` (roles off for a Member still on the server, rows always

@@ -17,6 +17,7 @@ import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
+import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
 import { FakeRolesGuild } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
@@ -525,6 +526,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
       links: h.links,
       gameApi: h.gameApi,
       unlink: h.unlink,
+      preferenceRoles: new FakePreferenceRoles(),
       homeKingdom: KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       officerRoleIds: OFFICER_ROLE_IDS,

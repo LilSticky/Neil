@@ -16,6 +16,7 @@ import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { DailySyncRecord } from "../storage/daily-sync-store.js";
 import { FakeDailySyncGameApi } from "./__fakes__/daily-sync-game-api.js";
+import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
@@ -189,6 +190,7 @@ function makeHarness(): Harness {
     links,
     gameApi,
     unlink,
+    preferenceRoles: new FakePreferenceRoles(),
     homeKingdom: HOME,
     troopBracketLevels: TROOP_BRACKET_LEVELS,
     officerRoleIds: [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID],

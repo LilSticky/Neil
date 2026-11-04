@@ -520,10 +520,11 @@ describe("createInterviews", () => {
     const channels = new FakeChannels();
     const gameApi = new FakeGameApi();
     const rankApprovals = new FakeRankApprovals();
-    const nameAndRoles = new FakeNameAndRoles();
+    const trace: string[] = [];
+    const nameAndRoles = new FakeNameAndRoles(trace);
     const unlink = new FakeUnlink(links);
     const onboardingRole = new FakeOnboardingRole();
-    const preferences = new FakePreferencesAfterLink();
+    const preferences = new FakePreferencesAfterLink(trace);
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const deps: InterviewDeps = {
@@ -1826,6 +1827,14 @@ describe("createInterviews", () => {
       expect(h.preferences.posted).toEqual([
         { memberId: MEMBER, threadId: THREAD, player: PLAYER, rank: { source: "game-api", rank: "R4" } },
       ]);
+    });
+
+    test("is posted before the name and roles are given after a Link, so the language is stored when the Preference Roles are applied", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.nameAndRoles.trace).toEqual(["preferences.postAfterLink", "nameAndRoles.onLinked"]);
     });
 
     test("is posted too with a pending Rank Approval, and the thread stays open for the approval", async () => {

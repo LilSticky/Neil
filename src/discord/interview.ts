@@ -709,8 +709,9 @@ async function finishLink(
     await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
   }
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
-  await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
+  // Posted first: the message stores the preselected language that the name and roles' Preference Roles read.
   const preferencesPosted = await postPreferencesAfterLink(deps, interview, link);
+  await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
   if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, interview.player);
   if (!preferencesPosted) await deps.channels.deleteThread(interview.threadId);
 }

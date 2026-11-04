@@ -40,6 +40,7 @@ import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
+import { createPreferenceRoles } from "./preferences.js";
 import { createPreferencesAfterLink } from "./preferences-after-link.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
@@ -654,12 +655,18 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       officerRoles,
       logError,
     });
+    const preferenceRoles = createPreferenceRoles({
+      members: serverMembersOf(guild),
+      preferences: options.preferences,
+      logError,
+    });
     const nameAndRoles = createNameAndRoles({
       members: serverMembersOf(guild),
       applied: options.applied,
       links: options.links,
       gameApi: options.gameApi,
       unlink,
+      preferenceRoles,
       homeKingdom: options.homeKingdom,
       troopBracketLevels: options.troopBracketLevels,
       officerRoleIds: options.officerRoleIds,
