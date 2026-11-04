@@ -7,8 +7,7 @@
 | `uid` | `Uid` | identity; at most one Exile per Player |
 | `name` | string | latest Player Name read; follows renames |
 | `kingdom` | `KingdomNumber` | latest Kingdom read; a lookup counts only Exiles of its Kingdom |
-| `position` | `{ x, y } \| undefined` | latest position read; undefined if never read with one |
-| `positionAt` | `Date \| undefined` | when `position` was read; present exactly when `position` is |
+| `lastPosition` | `{ position: { x, y }, at: Date } \| undefined` | latest position read and when; undefined if never read with one (review R5) |
 | `reason` | `ExileReason` | trimmed, 1–200 characters |
 | `addedAt` | `Date` | when it was added; tie-break and list order |
 | `addedBy` | `MemberId` | the R5 who added it; never shown to Members (log channel only) |
