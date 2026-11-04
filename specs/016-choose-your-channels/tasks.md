@@ -16,7 +16,7 @@ description: "Task list for slice 016, Choose your channels"
 - [x] **T002** [US1–4] Storage: migration (`preference`, `preference_prompt`) and `src/storage/preference-store.ts`:
   `get(memberId)`, `setAnswer(memberId, question, values)`, `forget(memberId)`, `openPrompt`/`closePrompt`/
   `promptsPostedBefore(date)`; unknown stored values dropped; migration test from the latest schema fixture.
-- [ ] **T003** [US1–3] `src/discord/preferences.ts` apply (R5): `apply(memberId, rank)` gives the wanted Preference
+- [x] **T003** [US1–3] `src/discord/preferences.ts` apply (R5): `apply(memberId, rank)` gives the wanted Preference
   Roles and takes off the other Preference Roles via `giveNamedRole` / `takeOffNamedRole`; a skip is logged, never
   thrown; `forget(memberId)` takes them all off and deletes the rows.
 - [ ] **T004** [US1–3] `src/discord/preferences-texts.ts` and the message (contracts): four menus with preselection
