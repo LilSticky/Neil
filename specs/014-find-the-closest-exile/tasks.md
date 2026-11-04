@@ -20,7 +20,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
 - [x] **T004** [US1, US3] Editor check (D3): `editorOf(memberId)` from the Link's rank and the Applied State's
   `alliance_kingdom`; R5 by Game API or Rank Approval in the Home Kingdom → may; R4, other Kingdom, unknown rank, no
   Alliance, no Link → may not.
-- [ ] **T005** [US1–4] Command (contract): `/reaper` with `closest`, `list`, `add`, `remove` in `src/discord/commands.ts`;
+- [x] **T005** [US1–4] Command (contract): `/reaper` with `closest`, `list`, `add`, `remove` in `src/discord/commands.ts`;
   texts in `src/discord/reaper-texts.ts`.
 - [ ] **T006** [US1] `add` in `src/discord/reaper.ts` (D5, D8): refusal before any request; bad reason refused; found
   → stored with position, private confirmation, log line with the R5; already an Exile; not found; 409 → pick list
