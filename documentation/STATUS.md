@@ -30,7 +30,7 @@ Slice 013, Keep newcomers in onboarding ([specs](../specs/013-keep-newcomers-in-
 (given on join and Unlink, taken off at Link, put right at startup) and deletion of finished Interview threads. Merged
 to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task T012) is open.
 
-Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03.
+Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
 **Next step:** for the user: click Restart in the Wispbyte panel once CI has deployed `main`, then run
 `npm run commands:register` (`/reaper` and `/channels` are new). After the restart, check that Linked Members hold
@@ -45,7 +45,6 @@ Earlier: slices 001–012 are done; their manual checks were run by the user on 
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).
 - Officer commands are now hidden from Members (slice 011 C3 fixed). After deploying, run `npm run commands:register`
   and do the Integrations step in [HOSTING.md](HOSTING.md) (allow Moderator and King, limit to the moderator channel).
-- Slice 005: T033 (`bot-reviewer` on the Phase 9–10 diff) and T034 (`spec-auditor` against FR-021–FR-027) are unticked.
 
 ## Open questions
 

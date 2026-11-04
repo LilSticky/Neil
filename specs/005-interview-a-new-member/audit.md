@@ -121,3 +121,13 @@ Tasks: T025 to T031 are ticked and each has its test and code. T032 and T033 ope
 3. FR-021: no test that a fresh cached name lookup makes no request.
 4. US7-3: no assertion that the thread and log still show the uid after the card change.
 5. Process: T032 docs and T033 review.md open.
+
+### Gaps closed (checked 2026-11-04 against `24a08df`)
+
+Typecheck, lint and all 2,503 tests pass. `spec-auditor` was not run again; each gap was checked against the tests.
+
+1. FR-017: closed. `src/discord/interview.test.ts` presses `accept`, `decline` and `pick` as someone else and expects `buttonOfSomeoneElseReply`.
+2. FR-025: closed. The same file has "a shown Recommended Player still takes That's me after a restart" and "a shown pick list still takes a pick after a restart".
+3. FR-021: closed at the client. `src/game-api/client.test.ts` shows a repeated name lookup, found or a match list, fetches once. Those tests use the purpose `lookup`; `byName` reads the cache before the purpose is used, so the Interview gets the same answer. There is no Interview-level test of this.
+4. US7-3: closed. `src/discord/interview-texts.test.ts` asserts the uid on `foundCardMessage` and in `linkLogLine`.
+5. Process: closed. T032 and T033 are ticked.
