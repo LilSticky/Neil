@@ -151,8 +151,8 @@ given; a Member who is not Linked is told to finish onboarding first.
 
 ### Functional Requirements
 
-- **FR-001**: After an Interview Link, Neil MUST ask in the same thread, one after another: Languages (several), Region
-  (one), Interests (several), Experience (one); each MUST be skippable.
+- **FR-001**: After an Interview Link, Neil MUST ask in the same thread, top to bottom in one message: Languages
+  (several), Region (one), Interests (several), Experience (one); each MUST be skippable (plan R1).
 - **FR-002**: The Languages question MUST offer every game Language, with the Player's game Language preselected; it MUST
   NOT make an extra Game API request.
 - **FR-003**: For each chosen answer Neil MUST give its Preference Role, and MUST remove Preference Roles of the same question that
