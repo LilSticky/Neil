@@ -9,7 +9,7 @@ description: "Task list for slice 016, Choose your channels"
 
 ## Tasks
 
-- [ ] **T001** [US1–3] Domain `src/domain/preferences.ts` (R2, R3, data model): `GAME_LANGUAGES`, regions, interests,
+- [x] **T001** [US1–3] Domain `src/domain/preferences.ts` (R2, R3, data model): `GAME_LANGUAGES`, regions, interests,
   experiences with role names; `preferenceRolesFor(preferences, rank)` (NaP only for R4 when chosen, always for R5,
   never otherwise); `interestOptions(rank)`; `preselectedLanguage(code)` (`zh-TW` → `zh`, unknown → undefined);
   `ALL_PREFERENCE_ROLE_NAMES`; no name is a Managed Role name.

@@ -56,7 +56,7 @@ message has at most 5 component rows, a select menu at most 25 options.
   gets `NaP discussions`; any other rank (R1–R3, unknown, no Alliance, not Linked) never does.
 - `interestOptions(rank)`: the four Interests, plus NaP discussions for R4 only.
 - `preselectedLanguage(playerLanguage)`: the `GameLanguage` or undefined (R2).
-- Migration 11 (after any migration slice 015 adds; renumbered at rebase): `preference (member_id TEXT, kind TEXT,
+- Migration 13 (11 is slice 014's, 12 slice 015's; renumbered at rebase if needed): `preference (member_id TEXT, kind TEXT,
   value TEXT, PRIMARY KEY (member_id, kind, value))` with `kind` in `language | region | interest | experience`, and
   `preference_prompt (member_id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, posted_at TEXT NOT NULL)`. Rows are read
   through zod; an unknown value is dropped and logged.
