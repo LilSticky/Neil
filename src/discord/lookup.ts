@@ -102,7 +102,7 @@ function quotaFailureText(failure: QuotaFailure, now: Date): string {
 }
 
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
-function sharedPlayerFailureText(
+export function sharedPlayerFailureText(
   failure: Exclude<Failure<Player>, { readonly kind: "not-found" | "not-prepared" }>,
   now: Date,
 ): string {
@@ -301,7 +301,7 @@ export async function showLookup<T>(
 }
 
 /** A Kingdom option that may be left out: none is valid, an invalid one is not. */
-function parseOptionalKingdom(value: number | null): ParseResult<KingdomNumber | undefined> {
+export function parseOptionalKingdom(value: number | null): ParseResult<KingdomNumber | undefined> {
   if (value === null) return { ok: true, value: undefined };
   const parsed = parseKingdom(value);
   return parsed.ok ? parsed : { ok: false };

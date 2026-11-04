@@ -22,7 +22,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
   Alliance, no Link → may not.
 - [x] **T005** [US1–4] Command (contract): `/reaper` with `closest`, `list`, `add`, `remove` in `src/discord/commands.ts`;
   texts in `src/discord/reaper-texts.ts`.
-- [ ] **T006** [US1] `add` in `src/discord/reaper.ts` (D5, D8): refusal before any request; bad reason refused; found
+- [x] **T006** [US1] `add` in `src/discord/reaper.ts` (D5, D8): refusal before any request; bad reason refused; found
   → stored with position, private confirmation, log line with the R5; already an Exile; not found; 409 → pick list
   with the `exile` choice carrying the reason (`pick-sessions.ts`, `pick.ts`); quota spent → usual message.
 - [ ] **T007** [US2] `closest` (D4, D6): origin from the Linked Player or x/y (x without y refused; no Link and no x/y
