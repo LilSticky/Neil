@@ -719,8 +719,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         }),
     };
     openServices({ interviews, rankApprovals, corrections });
-    // The startup apply and the permission report run in the background, so login does not wait for them. The Daily Sync
-    // starts once the startup apply has settled, so their Game API lookups do not overlap.
+    // The startup sweep of the Onboarding Role and the startup apply run in the background, so login does not wait for
+    // them. The Daily Sync starts once the startup apply has settled, so their Game API lookups do not overlap.
+    void onboardingRole.atStartup().catch((error: unknown) => {
+      logError(`Bringing the Onboarding Role of the Members up to date at startup failed: ${String(error)}`);
+    });
     void nameAndRoles
       .atStartup()
       .catch((error: unknown) => {

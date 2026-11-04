@@ -29,14 +29,12 @@ import {
   interviewCustomId,
   interviewEndedReply,
   interviewOpenedReply,
-  leftMessage,
   linkedMessage,
   linkLogLine,
   malformedUidMessage,
   notFoundMessage,
   pickListMessage,
   quotaSpentMessage,
-  rankCancelledLeftMessage,
   rankCancelledLogLine,
   recommendationMessage,
   refusedLogLine,
@@ -228,8 +226,6 @@ class FakeGameApi {
 class FakeChannels implements OnboardingChannels {
   readonly opened: ThreadMember[] = [];
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
-  readonly archived: string[] = [];
-  readonly lockedAndArchived: string[] = [];
   readonly deleted: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
   /** Runs when a thread is about to open: a test uses it to let a racing Interview land first. */
@@ -238,8 +234,8 @@ class FakeChannels implements OnboardingChannels {
   refuseOpen = false;
   /** When set, Discord refuses every message posted to a thread (the thread is gone, say). */
   refusePosts = false;
-  /** When set, Discord refuses to lock and archive a thread. */
-  refuseLocks = false;
+  /** When set, Discord refuses to delete a thread. */
+  refuseDeletes = false;
   private posted = 0;
 
   openThread(member: ThreadMember): Promise<string> {
@@ -250,6 +246,7 @@ class FakeChannels implements OnboardingChannels {
   }
 
   deleteThread(threadId: string): Promise<void> {
+    if (this.refuseDeletes) return Promise.reject(new Error(`Discord refused to delete ${threadId}`));
     this.deleted.push(threadId);
     return Promise.resolve();
   }
@@ -269,16 +266,6 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
-  lockAndArchive(threadId: string): Promise<void> {
-    if (this.refuseLocks) return Promise.reject(new Error(`Discord refused to lock ${threadId}`));
-    this.lockedAndArchived.push(threadId);
-    return Promise.resolve();
-  }
-
-  archive(threadId: string): Promise<void> {
-    this.archived.push(threadId);
-    return Promise.resolve();
-  }
 
   log(message: BaseMessageOptions): Promise<void> {
     this.logs.push(message);
@@ -735,13 +722,13 @@ describe("createInterviews", () => {
       expect(button.updates[0]?.components).toEqual([]);
     });
 
-    test("says the Link in the thread and archives the thread", async () => {
+    test("deletes the thread with no last message in it, when no Rank Approval is pending", async () => {
       const interviewId = await confirmationShown(h, PLAYER);
 
       await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
 
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
-      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.posts).not.toContainEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("takes the Onboarding Role off the Member once the Link is stored", async () => {
@@ -832,13 +819,13 @@ describe("createInterviews", () => {
       ]);
     });
 
-    test("a Player with an unknown rank does not archive the thread until the rank is approved", async () => {
+    test("a Player with an unknown rank does not delete the thread until the rank is approved", async () => {
       h.links.confirm({ link: LEADER_LINK }, () => undefined);
       const interviewId = await confirmationShown(h, PLAYER_WITH_LEADER_UNKNOWN_RANK);
 
       await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
 
-      expect(h.channels.archived).toEqual([]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("two Members confirming the same uid: the second is refused and asked again", async () => {
@@ -877,7 +864,7 @@ describe("createInterviews", () => {
       });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
       expect(late.replies).toEqual([interviewEndedReply()]);
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.deleted).toEqual([THREAD]);
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
     });
 
@@ -907,7 +894,7 @@ describe("createInterviews", () => {
       expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
       expect(late.replies).toEqual([interviewEndedReply()]);
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
   });
 
@@ -1026,7 +1013,7 @@ describe("createInterviews", () => {
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off", failedAttempts: 5 });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: handedOffMessage(MEMBER, OFFICERS) });
       expect(h.channels.logs).toEqual([handedOffLogLine(MEMBER, THREAD)]);
-      expect(h.channels.archived).toEqual([]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("a hand-off does not take the Onboarding Role off the Member", async () => {
@@ -1296,7 +1283,7 @@ describe("createInterviews", () => {
 
       expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "linked" });
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("a paused Interview is resumed by the sweeper and takes the Member's uid on the new service", async () => {
@@ -1607,9 +1594,9 @@ describe("createInterviews", () => {
         allianceRank: { source: "game-api", rank: "R4" },
         madeBy: { kind: "in-game-proof" },
       });
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.posts).not.toContainEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
-      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("the uid of the recommended Player is acknowledged once", async () => {
@@ -1647,7 +1634,7 @@ describe("createInterviews", () => {
         allianceRank: { source: "game-api", rank: "R4" },
         madeBy: { kind: "in-game-proof" },
       });
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("a different uid after That's me goes through the usual lookup and asks Is this you", async () => {
@@ -1673,13 +1660,14 @@ describe("createInterviews", () => {
       expect(h.interviews.openFor(MEMBER)).toBeUndefined();
     });
 
-    test("says so in the thread, then locks and archives the thread", async () => {
+    test("deletes the thread with no message in it", async () => {
       await joinedMember(h);
+      const postsBefore = h.channels.posts.length;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
 
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: leftMessage("vex_fan") });
-      expect(h.channels.lockedAndArchived).toEqual([THREAD]);
+      expect(h.channels.posts.slice(postsBefore)).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("logs the abandoned Interview as left", async () => {
@@ -1699,9 +1687,9 @@ describe("createInterviews", () => {
       expect(h.channels.logs).toEqual([abandonedLogLine(MEMBER, "left")]);
     });
 
-    test("still logs the abandoned Interview as left when the thread cannot be locked", async () => {
+    test("still logs the abandoned Interview as left when the thread cannot be deleted", async () => {
       await joinedMember(h);
-      h.channels.refuseLocks = true;
+      h.channels.refuseDeletes = true;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
 
@@ -1717,13 +1705,14 @@ describe("createInterviews", () => {
       expect(h.links.get(approval.id)).toMatchObject({ state: "cancelled" });
     });
 
-    test("says the Rank Approval is cancelled in its thread, archives the thread and logs it", async () => {
+    test("deletes the thread of the cancelled Rank Approval with no message in it, and logs the cancellation", async () => {
       await pendingRankApprovalOfMember(h);
+      const postsBefore = h.channels.posts.length;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
 
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: rankCancelledLeftMessage("vex_fan") });
-      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.posts.slice(postsBefore)).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
       expect(h.channels.logs.at(-1)).toEqual(rankCancelledLogLine(MEMBER));
     });
 
@@ -1732,8 +1721,7 @@ describe("createInterviews", () => {
 
       expect(h.channels.posts).toEqual([]);
       expect(h.channels.logs).toEqual([]);
-      expect(h.channels.archived).toEqual([]);
-      expect(h.channels.lockedAndArchived).toEqual([]);
+      expect(h.channels.deleted).toEqual([]);
       expect(h.errors).toEqual([]);
     });
 
@@ -1747,7 +1735,7 @@ describe("createInterviews", () => {
 
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off" });
       expect(h.channels.logs).toHaveLength(logsBefore);
-      expect(h.channels.lockedAndArchived).toEqual([]);
+      expect(h.channels.deleted).toEqual([]);
     });
 
     test("Unlinks a Linked Member as left, after their pending Rank Approval is cancelled", async () => {
@@ -1787,10 +1775,10 @@ describe("createInterviews", () => {
       expect(h.links.linkFor(MEMBER)).toBeUndefined();
     });
 
-    test("Unlinks a Linked Member as left when the thread of their open Interview cannot be locked", async () => {
+    test("Unlinks a Linked Member as left when the thread of their open Interview cannot be deleted", async () => {
       await joinedMember(h);
       h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "unknown" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
-      h.channels.refuseLocks = true;
+      h.channels.refuseDeletes = true;
 
       await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
 
@@ -1851,7 +1839,7 @@ describe("createInterviews", () => {
       expect(h.nameAndRoles.linked).toEqual([{ memberId: MEMBER, player: PLAYER, rank: { source: "game-api", rank: "R4" } }]);
     });
 
-    test("a failing apply leaves the Link and the thread messages as they are", async () => {
+    test("a failing apply leaves the Link and the thread deletion as they are", async () => {
       h.nameAndRoles.failWith(new Error("Discord refused the role change"));
       const interviewId = await confirmationShown(h, PLAYER);
 
@@ -1861,8 +1849,7 @@ describe("createInterviews", () => {
 
       expect(h.nameAndRoles.linked).toHaveLength(1);
       expect(linkOfMember(h)).toEqual({ memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R4" }, madeBy: { kind: "in-game-proof" } });
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
-      expect(h.channels.archived).toEqual([THREAD]);
+      expect(h.channels.deleted).toEqual([THREAD]);
       expect(h.channels.logs).toEqual([linkLogLine(MEMBER, PLAYER, undefined)]);
     });
   });

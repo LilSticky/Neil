@@ -25,7 +25,6 @@ import {
   askUidMessage,
   foundCardMessage,
   quotaResetMessage,
-  timedOutMessage,
 } from "./interview-texts.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 
@@ -71,13 +70,13 @@ function daysBefore(when: Date, days: number): Date {
   return new Date(when.getTime() - days * DAY_MS);
 }
 
-/** The onboarding channels as the sweeper uses them: records posts, locks and log lines, and can refuse a thread. */
+/** The onboarding channels as the sweeper uses them: records posts, deletions and log lines, and can refuse a thread. */
 class FakeChannels implements OnboardingChannels {
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
-  readonly lockedAndArchived: string[] = [];
+  readonly deleted: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
   readonly failingThreads = new Set<string>();
-  readonly failingLocks = new Set<string>();
+  readonly failingDeletes = new Set<string>();
   private posted = 0;
 
   openThread(): Promise<string> {
@@ -101,21 +100,14 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
-  deleteThread(): Promise<void> {
-    return Promise.resolve();
-  }
-
-  lockAndArchive(threadId: string): Promise<void> {
-    if (this.failingLocks.has(threadId)) {
-      return Promise.reject(new Error(`Discord refused to lock ${threadId}`));
+  deleteThread(threadId: string): Promise<void> {
+    if (this.failingDeletes.has(threadId)) {
+      return Promise.reject(new Error(`Discord refused to delete ${threadId}`));
     }
-    this.lockedAndArchived.push(threadId);
+    this.deleted.push(threadId);
     return Promise.resolve();
   }
 
-  archive(): Promise<void> {
-    return Promise.resolve();
-  }
 
   log(message: BaseMessageOptions): Promise<void> {
     this.logs.push(message);
@@ -212,13 +204,13 @@ describe("createSweeper", () => {
   });
 
   describe("an awaiting Interview past its deadline", () => {
-    test("is abandoned as timed out: the timeout message is posted, the thread locked and archived, the log says so", async () => {
+    test("is abandoned as timed out: the thread is deleted with no message in it, the log says so", async () => {
       const interview = openAwaitingUid(interviews, MEMBER, THREAD, OVERDUE_START);
 
       await sweeper.sweep();
 
-      expect(channels.posts).toEqual([{ threadId: THREAD, message: timedOutMessage(TIMEOUT_MS) }]);
-      expect(channels.lockedAndArchived).toEqual([THREAD]);
+      expect(channels.posts).toEqual([]);
+      expect(channels.deleted).toEqual([THREAD]);
       expect(channels.logs).toEqual([abandonedLogLine(MEMBER, "timed-out")]);
       expect(interviews.get(interview.id)).toMatchObject({
         step: "abandoned",
@@ -235,7 +227,7 @@ describe("createSweeper", () => {
 
       expect(interviews.get(interview.id)).toEqual(before);
       expect(channels.posts).toEqual([]);
-      expect(channels.lockedAndArchived).toEqual([]);
+      expect(channels.deleted).toEqual([]);
       expect(channels.logs).toEqual([]);
     });
   });
@@ -364,9 +356,9 @@ describe("createSweeper", () => {
       expect(channels.logs).toEqual([abandonedLogLine(MEMBER, "timed-out")]);
     });
 
-    test("still logs an Interview abandoned as timed out when its thread cannot be locked", async () => {
+    test("still logs an Interview abandoned as timed out when its thread cannot be deleted", async () => {
       openAwaitingUid(interviews, MEMBER, THREAD, OVERDUE_START);
-      channels.failingLocks.add(THREAD);
+      channels.failingDeletes.add(THREAD);
 
       await sweeper.sweep();
 
@@ -399,7 +391,7 @@ describe("createSweeper", () => {
 
       expect(interviews.get(paused.id)).toEqual(paused);
       expect(channels.posts).toEqual([]);
-      expect(channels.lockedAndArchived).toEqual([]);
+      expect(channels.deleted).toEqual([]);
       expect(channels.logs).toEqual([]);
     });
 
@@ -411,7 +403,7 @@ describe("createSweeper", () => {
 
       expect(interviews.get(paused.id)).toMatchObject({ step: "paused-for-quota", resumesAt: longResumesAt });
       expect(channels.posts).toEqual([]);
-      expect(channels.lockedAndArchived).toEqual([]);
+      expect(channels.deleted).toEqual([]);
       expect(channels.logs).toEqual([]);
     });
 
@@ -425,7 +417,7 @@ describe("createSweeper", () => {
       await sweeper.sweep();
 
       expect(interviews.get(paused.id)).toMatchObject({ step: "awaiting-uid" });
-      expect(channels.lockedAndArchived).toEqual([]);
+      expect(channels.deleted).toEqual([]);
 
       const abandonedAt = new Date(RESUMES_AT.getTime() + TIMEOUT_MS);
       clock = abandonedAt;

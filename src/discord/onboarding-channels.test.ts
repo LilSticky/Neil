@@ -129,30 +129,6 @@ describe("addToThread", () => {
   });
 });
 
-describe("lockAndArchive and archive", () => {
-  test("lockAndArchive locks the thread and archives it", async () => {
-    const guild = healthyGuild();
-    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
-    const threadId = await channels.openThread(MEMBER);
-
-    await channels.lockAndArchive(threadId);
-
-    expect(guild.get(threadId).locked).toBe(true);
-    expect(guild.get(threadId).archived).toBe(true);
-  });
-
-  test("archive archives the thread and leaves it unlocked", async () => {
-    const guild = healthyGuild();
-    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
-    const threadId = await channels.openThread(MEMBER);
-
-    await channels.archive(threadId);
-
-    expect(guild.get(threadId).archived).toBe(true);
-    expect(guild.get(threadId).locked).toBe(false);
-  });
-});
-
 describe("deleteThread", () => {
   test("deletes the thread from the guild", async () => {
     const guild = healthyGuild();

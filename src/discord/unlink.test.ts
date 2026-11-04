@@ -85,10 +85,11 @@ interface HeldPost {
   readonly release: () => void;
 }
 
-/** The channels Unlink posts to: records every log line and thread post; a refused call rejects and records nothing. */
+/** The channels Unlink posts to: records every log line, thread post and thread deletion; a refused call rejects and records nothing. */
 class FakeChannels {
   readonly logs: BaseMessageOptions[] = [];
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
+  readonly deleted: string[] = [];
   private logFailure: Error | undefined = undefined;
   private readonly postFailures = new Map<string, Error>();
   private readonly holds = new Map<string, { readonly reached: Deferred; readonly released: Deferred }>();
@@ -111,6 +112,11 @@ class FakeChannels {
   log(message: BaseMessageOptions): Promise<void> {
     if (this.logFailure !== undefined) return Promise.reject(this.logFailure);
     this.logs.push(message);
+    return Promise.resolve();
+  }
+
+  deleteThread(threadId: string): Promise<void> {
+    this.deleted.push(threadId);
     return Promise.resolve();
   }
 
@@ -570,7 +576,7 @@ describe("createUnlink", () => {
     );
 
     test.each(CASES)(
-      "cancels the pending Rank Approval on the Member's own Link, with a message in its thread, when %s Unlinks",
+      "cancels the pending Rank Approval on the Member's own Link and deletes its thread with no message in it, when %s Unlinks",
       async (_who, reason) => {
         const approval = pendingApproval(h, LEAVER_ID, LEAVER_UID, THREAD_LEAVER, { kind: "officers" });
         joinServer(h, LEAVER_ID, [], undefined);
@@ -578,7 +584,8 @@ describe("createUnlink", () => {
         await h.service.unlink(LEAVER, reason);
 
         expect(h.links.get(approval.id)).toMatchObject({ state: "cancelled" });
-        expect(h.channels.posts.map((post) => post.threadId)).toContain(THREAD_LEAVER);
+        expect(h.channels.deleted).toEqual([THREAD_LEAVER]);
+        expect(h.channels.posts.map((post) => post.threadId)).not.toContain(THREAD_LEAVER);
       },
     );
 

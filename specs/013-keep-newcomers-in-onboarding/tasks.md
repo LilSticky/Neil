@@ -23,10 +23,10 @@ description: "Task list for slice 013, Keep newcomers in onboarding"
   with a pending Rank Approval; a hand-off does not; a role failure leaves the Link standing.
 - [x] **T006** [US3] `unlink.ts` (D4): Unlink by an Officer and by the Member give the role back; `left` and `missing`
   give nothing.
-- [ ] **T007** [US5] Thread deletion (D5): Link and Officer Link without a pending Rank Approval, Rank Approval approved
+- [x] **T007** [US5] Thread deletion (D5): Link and Officer Link without a pending Rank Approval, Rank Approval approved
   and cancelled, Interview abandoned (left, timed out) delete the thread instead of archiving it; a pending Rank
   Approval keeps it; the log lines stay; unused `archive` / `lockAndArchive` removed.
-- [ ] **T008** [US1–4] `client.ts` (D4): build the Onboarding Role service, pass it to the Interview, corrections and
+- [x] **T008** [US1–4] `client.ts` (D4): build the Onboarding Role service, pass it to the Interview, corrections and
   Unlink, run `atStartup()` in the background; `RolesMember.bot`, `ServerMembers.all()` mapped from discord.js.
 - [ ] **T009** Docs (D6): HOSTING.md server setup, ADR 8 note, TEST-RUN.md §6i, STATUS, ROADMAP.
 - [ ] **T010** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.

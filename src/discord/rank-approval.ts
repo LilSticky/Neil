@@ -7,7 +7,6 @@ import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
   parseRankCustomId,
-  rankApprovedMessage,
   rankAskedMessage,
   rankNotAllowedReply,
   rankSetLogLine,
@@ -76,8 +75,7 @@ async function pressRankButton(deps: RankApprovalDeps, button: RankButtonLike): 
   if (!deps.links.saveIfPending(approved)) return button.reply(rankNotAllowedReply());
   await button.update({ components: [] });
   await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
-  await deps.channels.post(approved.threadId, rankApprovedMessage(approved));
-  await deps.channels.archive(approved.threadId);
+  await deps.channels.deleteThread(approved.threadId);
   await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
 }
 

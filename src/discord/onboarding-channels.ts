@@ -24,8 +24,6 @@ export interface OnboardingChannels {
   post(threadId: string, message: BaseMessageOptions): Promise<string>;
   edit(threadId: string, messageId: string, message: BaseMessageOptions): Promise<void>;
   addToThread(threadId: string, memberId: string): Promise<void>;
-  lockAndArchive(threadId: string): Promise<void>;
-  archive(threadId: string): Promise<void>;
   /** Deletes the thread; a thread that is already gone is not an error. */
   deleteThread(threadId: string): Promise<void>;
   log(message: BaseMessageOptions): Promise<void>;
@@ -63,8 +61,6 @@ interface TextChannelLike extends PostableLike {
 
 interface ThreadLike extends PostableLike {
   readonly members: { add(memberId: string): Promise<unknown> };
-  setLocked(locked: boolean): Promise<unknown>;
-  setArchived(archived: boolean): Promise<unknown>;
   delete(): Promise<unknown>;
 }
 
@@ -157,17 +153,6 @@ export function createOnboardingChannels(guild: GuildLike, ids: OnboardingChanne
     async addToThread(threadId, memberId) {
       const thread = await fetchThread(guild, threadId);
       await thread.members.add(memberId);
-    },
-
-    async lockAndArchive(threadId) {
-      const thread = await fetchThread(guild, threadId);
-      await thread.setLocked(true);
-      await thread.setArchived(true);
-    },
-
-    async archive(threadId) {
-      const thread = await fetchThread(guild, threadId);
-      await thread.setArchived(true);
     },
 
     async deleteThread(threadId) {

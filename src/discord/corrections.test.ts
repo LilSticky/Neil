@@ -110,11 +110,11 @@ class FakeCorrectionInteraction implements CorrectionInteraction {
   }
 }
 
-/** The channels a /rank posts to and logs in: records every thread post and log line. */
+/** The channels a /rank, an Officer Link and their threads use: records every thread post, deletion and log line. */
 class FakeChannels {
   readonly posts: { readonly threadId: string; readonly message: BaseMessageOptions }[] = [];
   readonly logs: BaseMessageOptions[] = [];
-  readonly archived: string[] = [];
+  readonly deleted: string[] = [];
   private logFailure: Error | undefined = undefined;
   private readonly postFailures = new Map<string, Error>();
 
@@ -141,10 +141,11 @@ class FakeChannels {
     return Promise.resolve();
   }
 
-  archive(threadId: string): Promise<void> {
-    this.archived.push(threadId);
+  deleteThread(threadId: string): Promise<void> {
+    this.deleted.push(threadId);
     return Promise.resolve();
   }
+
 }
 
 interface Harness {
@@ -407,24 +408,24 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     expect(h.nameAndRoles.approved).toEqual([LINKED]);
   });
 
-  test("settles the pending Rank Approval of that Link, and says in its thread the rank an Officer set", async () => {
+  test("settles the pending Rank Approval of that Link, and deletes its thread with no message in it", async () => {
     linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
     const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
 
     await handleRank(interaction, deps);
 
-    expect(h.channels.posts).toHaveLength(1);
-    expect(h.channels.posts[0]?.threadId).toBe(THREAD);
-    expect(contentOf(h.channels.posts[0]?.message)).toBe(`<@${OFFICER}> set <@${LINKED}>'s rank to R4.`);
+    expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([THREAD]);
   });
 
-  test("posts in no thread when the Link has no pending Rank Approval", async () => {
+  test("posts in no thread and deletes none when the Link has no pending Rank Approval", async () => {
     linkMember(h, LINKED, LINKED_UID, UNKNOWN_RANK);
     const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
 
     await handleRank(interaction, deps);
 
     expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([]);
   });
 
   test("logs one line naming the Member, the rank and the Officer", async () => {
@@ -613,7 +614,7 @@ describe("handleLinkButton: a failing channel does not stop the Officer Link", (
     expect(h.interviews.latestFor(HANDED_OFF)).toMatchObject({ step: "linked", uid: FOUND_UID });
   });
 
-  test("Confirm still applies the name and roles and archives the thread when the log channel refuses the line", async () => {
+  test("Confirm still applies the name and roles and deletes the thread when the log channel refuses the line", async () => {
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
     h.channels.refuseLog(new Error("Missing Access"));
 
@@ -621,7 +622,7 @@ describe("handleLinkButton: a failing channel does not stop the Officer Link", (
 
     expect(h.links.linkFor(HANDED_OFF)).toBeDefined();
     expect(h.nameAndRoles.linked).toEqual([expect.objectContaining({ memberId: HANDED_OFF })]);
-    expect(h.channels.archived).toEqual([`thread-of-${HANDED_OFF}`]);
+    expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
   });
 });
 
@@ -1064,14 +1065,13 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
     expect(h.interviews.latestFor(HANDED_OFF)).toMatchObject({ step: "linked", uid: FOUND_UID });
   });
 
-  test("Confirm posts the linked message in the Interview thread and archives that thread when the rank is known", async () => {
+  test("Confirm deletes the Interview thread with no message in it when the rank is known", async () => {
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);
 
-    expect(h.channels.posts).toEqual([expect.objectContaining({ threadId: `thread-of-${HANDED_OFF}` })]);
-    expect(contentOf(h.channels.posts[0]?.message)).toContain("Vera");
-    expect(h.channels.archived).toEqual([`thread-of-${HANDED_OFF}`]);
+    expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
     expect(h.rankApprovals.announced).toEqual([]);
   });
 
@@ -1115,7 +1115,7 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
     expect(announced?.approval.threadId).toBe(`thread-of-${HANDED_OFF}`);
     expect(announced?.approval.state).toBe("pending");
     expect(announced?.player).toEqual(PLAYER_UNRANKED);
-    expect(h.channels.archived).toEqual([]);
+    expect(h.channels.deleted).toEqual([]);
   });
 
   test("Confirm logs exactly one line naming the Member, the uid, the Player and the Officer", async () => {

@@ -40,8 +40,6 @@ export class FakeChannel {
   readonly sent: FakeMessage[] = [];
   /** Ids of the members added to this thread. */
   readonly memberIds = new Set<string>();
-  locked = false;
-  archived = false;
 
   /** The channel.threads manager: creating a thread registers it in the guild. */
   readonly threads = {
@@ -84,16 +82,6 @@ export class FakeChannel {
   permissionsFor(member: { readonly id: string }): { has(permission: bigint): boolean } | null {
     if (member.id !== BOT_MEMBER_ID) return null;
     return { has: (permission: bigint) => this.botPermissions.includes(permission) };
-  }
-
-  setLocked(locked: boolean): Promise<FakeChannel> {
-    this.locked = locked;
-    return Promise.resolve(this);
-  }
-
-  setArchived(archived: boolean): Promise<FakeChannel> {
-    this.archived = archived;
-    return Promise.resolve(this);
   }
 
   /** Deletes the channel or thread from the guild: fetching its id afterwards gives null. */

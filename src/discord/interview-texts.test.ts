@@ -28,7 +28,6 @@ import {
   interviewLinkedReply,
   interviewOpenedReply,
   interviewThreadName,
-  leftMessage,
   somethingWentWrongReply,
   linkLogLine,
   linkedMessage,
@@ -38,16 +37,13 @@ import {
   parseRankCustomId,
   quotaResetMessage,
   quotaSpentMessage,
-  rankApprovedMessage,
   rankAskedMessage,
-  rankCancelledLeftMessage,
   rankCancelledLogLine,
   rankCustomId,
   rankNotAllowedReply,
   rankSetLogLine,
   refusedLogLine,
   rejectedMessage,
-  timedOutMessage,
   uidHelpMessage,
   uidModal,
   unavailableMessage,
@@ -110,18 +106,6 @@ const pendingApproval: RankApproval = {
 const officersApproval: RankApproval = {
   ...pendingApproval,
   approver: { kind: "officers" },
-};
-
-const approvedApproval: Extract<RankApproval, { state: "approved" }> = {
-  state: "approved",
-  id: 3,
-  linkedMemberId: MEMBER,
-  threadId: THREAD,
-  approver: { kind: "member", memberId: LEADER },
-  askedAt: NOW,
-  rank: "R3",
-  approvedBy: APPROVER,
-  approvedAt: NOW,
 };
 
 const GIVE_UID_BUTTON = {
@@ -423,21 +407,6 @@ describe("thread messages for ending an Interview", () => {
     });
   });
 
-  test("a timed-out Interview says how long the silence was and how to start again", () => {
-    const message = timedOutMessage(24 * 60 * 60_000);
-
-    expect(message.content).toContain("No answer for ");
-    expect(message.content).toContain("so this interview is closed. Run /interview to start again.");
-    expect(message.allowedMentions).toEqual({ parse: [] });
-  });
-
-  test("a Member who left says so with the escaped username", () => {
-    expect(leftMessage("_vex_")).toEqual({
-      content: "\\_vex\\_ left the server; this interview is closed.",
-      allowedMentions: { parse: [] },
-    });
-  });
-
   test("a button press by someone else is answered privately", () => {
     expect(buttonOfSomeoneElseReply()).toEqual({
       content: "This interview belongs to someone else.",
@@ -495,24 +464,10 @@ describe("Rank Approval messages", () => {
     );
   });
 
-  test("an approved rank reads as the approver setting the Linked Member's rank, pinging only the approver", () => {
-    expect(rankApprovedMessage(approvedApproval)).toEqual({
-      content: `<@${APPROVER}> set <@${MEMBER}>'s rank to R3.`,
-      allowedMentions: { users: [APPROVER] },
-    });
-  });
-
   test("a press by someone not allowed is answered privately", () => {
     expect(rankNotAllowedReply()).toEqual({
       content: "You can't approve this rank.",
       flags: MessageFlags.Ephemeral,
-      allowedMentions: { parse: [] },
-    });
-  });
-
-  test("a cancelled Rank Approval says the Member left, with the escaped username", () => {
-    expect(rankCancelledLeftMessage("_vex_")).toEqual({
-      content: "\\_vex\\_ left the server; the rank approval is cancelled.",
       allowedMentions: { parse: [] },
     });
   });
