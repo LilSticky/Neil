@@ -494,14 +494,14 @@ describe("takeOffNamedRole", () => {
     expect(heldNames(alice)).toEqual([]);
   });
 
-  test("leaves a held role of the name that grants permissions", async () => {
+  test("leaves a held role of the name that grants permissions and returns it as a has-permissions skip", async () => {
     const guild = new FakeRolesGuild(OWNER);
     guild.defineRole(ONBOARDING, { permissions: ADMINISTRATOR });
     const alice = guild.member(ALICE, [ONBOARDING]);
 
     const skip = await takeOffNamedRole(guild, alice, ONBOARDING);
 
-    expect(skip).toBeUndefined();
+    expect(skip).toEqual({ what: ONBOARDING, reason: "has-permissions" });
     expect(heldNames(alice)).toEqual([ONBOARDING]);
   });
 

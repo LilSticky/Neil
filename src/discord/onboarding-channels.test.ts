@@ -1,9 +1,12 @@
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import { describe, expect, test } from "vitest";
 import { FakeGuild } from "./__fakes__/guild.js";
+import { FakeDiscordError } from "./__fakes__/roles-guild.js";
 import { interviewThreadName } from "./interview-texts.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
 
+/** Discord's code for an unknown channel: a thread that was deleted or never existed. */
+const UNKNOWN_CHANNEL = 10003;
 const ONBOARDING_CHANNEL_ID = "1000000000000000001";
 const LOG_CHANNEL_ID = "1000000000000000002";
 const CHANNEL_IDS = { onboardingChannelId: ONBOARDING_CHANNEL_ID, logChannelId: LOG_CHANNEL_ID };
@@ -138,6 +141,24 @@ describe("deleteThread", () => {
     await channels.deleteThread(threadId);
 
     expect(await guild.channels.fetch(threadId)).toBeNull();
+  });
+
+  test("resolves when the thread is already gone, as Discord answers Unknown Channel (10003) to the fetch", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    const threadId = await channels.openThread(MEMBER);
+    guild.failFetch(threadId, new FakeDiscordError(UNKNOWN_CHANNEL, "Unknown Channel"));
+
+    await expect(channels.deleteThread(threadId)).resolves.toBeUndefined();
+  });
+
+  test("rejects when the fetch of the thread fails for another reason", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    const threadId = await channels.openThread(MEMBER);
+    guild.failFetch(threadId, new Error("socket hang up"));
+
+    await expect(channels.deleteThread(threadId)).rejects.toThrow("socket hang up");
   });
 });
 

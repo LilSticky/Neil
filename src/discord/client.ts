@@ -628,7 +628,12 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
     // One Onboarding Role service for every path that gives or takes the role off.
-    const onboardingRole = createOnboardingRole({ members: serverMembersOf(guild), links: options.links, logError });
+    const onboardingRole = createOnboardingRole({
+      members: serverMembersOf(guild),
+      links: options.links,
+      logError,
+      log: (message) => channels.log(message),
+    });
     const unlink = createUnlink({
       links: options.links,
       applied: options.applied,

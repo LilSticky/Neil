@@ -4,6 +4,7 @@ import {
   ThreadAutoArchiveDuration,
   type BaseMessageOptions,
 } from "discord.js";
+import { z } from "zod";
 import { interviewThreadName } from "./interview-texts.js";
 
 /** A Member as the onboarding channels need them: the id to add to a thread, the name for its title. */
@@ -114,6 +115,25 @@ async function fetchTextChannel(guild: GuildLike, id: string, channel: ChannelNa
   return found;
 }
 
+/** Discord's code for an unknown channel: a thread that was deleted or never existed. */
+const UNKNOWN_CHANNEL = 10003;
+
+const discordError = z.object({ code: z.number() });
+
+/**
+ * The channel with this id, or null when it is gone. discord.js rejects a fetch of a deleted thread with Unknown Channel
+ * (10003) rather than resolving null, so that rejection means gone too; any other failure is thrown.
+ */
+async function fetchIfThere(guild: GuildLike, id: string): Promise<ChannelLike | null> {
+  try {
+    return await guild.channels.fetch(id);
+  } catch (error) {
+    const parsed = discordError.safeParse(error);
+    if (parsed.success && parsed.data.code === UNKNOWN_CHANNEL) return null;
+    throw error;
+  }
+}
+
 async function fetchThread(guild: GuildLike, threadId: string): Promise<ThreadLike> {
   const found = await guild.channels.fetch(threadId);
   if (found === null || !isThread(found)) {
@@ -156,7 +176,7 @@ export function createOnboardingChannels(guild: GuildLike, ids: OnboardingChanne
     },
 
     async deleteThread(threadId) {
-      const found = await guild.channels.fetch(threadId);
+      const found = await fetchIfThere(guild, threadId);
       if (found === null) return;
       if (!isThread(found)) throw new Error("The Interview thread is not a thread.");
       await found.delete();

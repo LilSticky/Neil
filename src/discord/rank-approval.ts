@@ -3,6 +3,7 @@ import { isOfficer } from "../domain/officer.js";
 import type { Player } from "../domain/player.js";
 import { approve, mayApprove, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { LinkStore } from "../storage/link-store.js";
+import { answer } from "./lookup.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import {
@@ -75,7 +76,10 @@ async function pressRankButton(deps: RankApprovalDeps, button: RankButtonLike): 
   if (!deps.links.saveIfPending(approved)) return button.reply(rankNotAllowedReply());
   await button.update({ components: [] });
   await deps.channels.log(rankSetLogLine(pressedBy, approved.linkedMemberId, parsed.rank));
-  await deps.channels.deleteThread(approved.threadId);
+  // A thread that cannot be deleted is logged; the approval, the log line and the name and roles stand.
+  await answer("the deletion of an Interview thread", { logError: deps.logError }, () =>
+    deps.channels.deleteThread(approved.threadId),
+  );
   await nameAndRolesAfterApproval(deps, approved.linkedMemberId);
 }
 

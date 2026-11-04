@@ -116,6 +116,7 @@ class FakeChannels {
   readonly logs: BaseMessageOptions[] = [];
   readonly deleted: string[] = [];
   private logFailure: Error | undefined = undefined;
+  private deleteFailure: Error | undefined = undefined;
   private readonly postFailures = new Map<string, Error>();
 
   /** Every log line is refused from now on: the log channel cannot be written to. */
@@ -141,11 +142,16 @@ class FakeChannels {
     return Promise.resolve();
   }
 
+  /** Every thread deletion is refused from now on: the thread cannot be deleted. */
+  refuseDeletes(error: Error): void {
+    this.deleteFailure = error;
+  }
+
   deleteThread(threadId: string): Promise<void> {
+    if (this.deleteFailure !== undefined) return Promise.reject(this.deleteFailure);
     this.deleted.push(threadId);
     return Promise.resolve();
   }
-
 }
 
 interface Harness {
@@ -479,6 +485,21 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
     expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
     expect(contentOf(interaction.replies[0])).toContain("R4");
     expect(h.nameAndRoles.approved).toEqual([LINKED]);
+  });
+
+  test("still stores the rank, logs it, replies privately and re-applies the name and roles when the thread cannot be deleted", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.channels.refuseDeletes(new Error("Unknown Channel"));
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await expect(handleRank(interaction, deps)).resolves.toBeUndefined();
+
+    expect(h.links.linkFor(LINKED)?.allianceRank).toEqual(expect.objectContaining({ source: "rank-approval", rank: "R4" }));
+    expect(h.channels.logs).toEqual([rankSetLogLine(OFFICER, LINKED, "R4")]);
+    expect(interaction.replies).toEqual([expect.objectContaining({ flags: MessageFlags.Ephemeral })]);
+    expect(contentOf(interaction.replies[0])).toContain("R4");
+    expect(h.nameAndRoles.approved).toEqual([LINKED]);
+    expect(h.errors).toEqual([expect.stringContaining("Unknown Channel")]);
   });
 });
 

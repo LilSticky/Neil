@@ -259,8 +259,12 @@ export function handleRank(interaction: CorrectionInteraction, deps: RankCommand
       return interaction.editReply(decision.reason === "own-link" ? ownLinkReply() : noAllianceReply(memberId));
     }
     const settled = deps.links.rankByOfficer(memberId, { rank, approvedBy: caller.memberId }, now);
-    if (settled !== undefined) await deps.channels.deleteThread(settled.threadId);
     await logLine(deps.logError, () => deps.channels.log(rankSetLogLine(caller.memberId, memberId, rank)));
+    if (settled !== undefined) {
+      await answer("the deletion of an Interview thread", { logError: deps.logError }, () =>
+        deps.channels.deleteThread(settled.threadId),
+      );
+    }
     await interaction.editReply(rankSetReply(memberId, rank, decision.gameRank));
     await deps.nameAndRoles.onRankApproved(memberId);
   });

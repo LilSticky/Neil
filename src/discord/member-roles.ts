@@ -142,10 +142,15 @@ export async function giveNamedRole(guild: RolesGuild, member: RolesMember, name
 
 /**
  * Takes the permission-free role of the name off the Member, when they hold it. A role out of reach is left and
- * returned as the skip. Never throws.
+ * returned as the skip; so is a held role of the name that grants permissions, which Neil never takes off. Never throws.
  */
 export async function takeOffNamedRole(guild: RolesGuild, member: RolesMember, name: string): Promise<Skipped | undefined> {
-  return removeRoles(guild, member, name, [], []);
+  const skip = await removeRoles(guild, member, name, [], []);
+  if (skip !== undefined) return skip;
+  const keepsPermissions = member.roles.some(
+    (role) => role.name === name && isGivable(guild, role, []) && role.permissions.bitfield !== 0n,
+  );
+  return keepsPermissions ? { what: name, reason: "has-permissions" } : undefined;
 }
 
 /** Whether Neil may give or take the role: not @everyone, not an integration's, and not an Officer role. */

@@ -1,8 +1,10 @@
+import type { BaseMessageOptions } from "discord.js";
 import type { Link } from "../domain/link.js";
-import { ONBOARDING_ROLE_NAME, planOnboardingRole, wantsOnboardingRole } from "../domain/onboarding-role.js";
+import { ONBOARDING_ROLE_NAME, planOnboardingRole } from "../domain/onboarding-role.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { giveNamedRole, takeOffNamedRole, type RolesGuild, type RolesMember, type Skipped } from "./member-roles.js";
 import type { ServerMember, ServerMembers } from "./name-and-roles.js";
+import { onboardingRoleStartupLogLine, type OnboardingRoleCounts } from "./onboarding-role-texts.js";
 
 /** The Links the service reads: a Member is Linked when a Link is recorded for them. */
 export interface OnboardingRoleLinks {
@@ -13,6 +15,8 @@ export interface OnboardingRoleDeps {
   readonly members: ServerMembers;
   readonly links: OnboardingRoleLinks;
   readonly logError: (line: string) => void;
+  /** The log channel: receives the one summary line of the startup sweep. */
+  readonly log: (message: BaseMessageOptions) => Promise<void>;
 }
 
 /**
@@ -24,7 +28,10 @@ export interface OnboardingRole {
   give(memberId: MemberId): Promise<void>;
   /** Takes the Onboarding Role off the Member; a Member not on the server is left alone. */
   takeOff(memberId: MemberId): Promise<void>;
-  /** At startup: every non-bot Member on the server is brought to the state the Link records call for. */
+  /**
+   * At startup: every non-bot Member on the server is brought to the state the Link records call for. One line with the
+   * counts is logged when anything was given, taken off or skipped.
+   */
   atStartup(): Promise<void>;
 }
 
@@ -50,16 +57,23 @@ async function changeFor(deps: OnboardingRoleDeps, memberId: MemberId, change: C
   }
 }
 
-async function changeAndLog(deps: OnboardingRoleDeps, memberId: MemberId, server: ServerMember, change: Change): Promise<void> {
+/** Makes the change and logs a skip; returns the skip, or undefined when the change was made. */
+async function changeAndLog(
+  deps: OnboardingRoleDeps,
+  memberId: MemberId,
+  server: ServerMember,
+  change: Change,
+): Promise<Skipped | undefined> {
   const skip = await change(server.guild, server.member, ONBOARDING_ROLE_NAME);
   if (skip !== undefined) {
     deps.logError(`Changing the ${ONBOARDING_ROLE_NAME} Role of ${memberId} was skipped: ${skip.reason}`);
   }
+  return skip;
 }
 
 /**
- * Lists every Member and brings each non-bot one to the state its Link calls for. A failure to list stops the sweep,
- * logged once; a failure for one Member is logged and the next one follows.
+ * Lists every Member and brings each non-bot one to the state its Link calls for, then logs one line with the counts. A
+ * failure to list stops the sweep, logged once; a failure for one Member is logged and the next one follows.
  */
 async function sweep(deps: OnboardingRoleDeps): Promise<void> {
   let servers: readonly ServerMember[];
@@ -69,19 +83,36 @@ async function sweep(deps: OnboardingRoleDeps): Promise<void> {
     deps.logError(`Listing the Members for the ${ONBOARDING_ROLE_NAME} Role at startup failed: ${reasonOf(error)}`);
     return;
   }
+  const counts = { given: 0, takenOff: 0, skipped: 0 };
   for (const server of servers) {
-    const memberId = server.member.id;
     if (server.member.bot) continue;
+    const memberId = server.member.id;
     try {
       const holds = server.member.roles.some((role) => role.name === ONBOARDING_ROLE_NAME);
-      const linked = deps.links.linkFor(memberId) !== undefined;
-      const wants = wantsOnboardingRole({ bot: server.member.bot, linked });
-      const step = planOnboardingRole(holds, wants);
-      if (step === "give") await changeAndLog(deps, memberId, server, giveNamedRole);
-      if (step === "take-off") await changeAndLog(deps, memberId, server, takeOffNamedRole);
+      const step = planOnboardingRole(holds, deps.links.linkFor(memberId) === undefined);
+      if (step === "give") {
+        // Checked again just before the give: a Member who Linked after the listing must not be given the role.
+        if (deps.links.linkFor(memberId) !== undefined) continue;
+        const skip = await changeAndLog(deps, memberId, server, giveNamedRole);
+        counts[skip === undefined ? "given" : "skipped"] += 1;
+      } else if (step === "take-off") {
+        const skip = await changeAndLog(deps, memberId, server, takeOffNamedRole);
+        counts[skip === undefined ? "takenOff" : "skipped"] += 1;
+      }
     } catch (error) {
       deps.logError(`Changing the ${ONBOARDING_ROLE_NAME} Role of ${memberId} at startup failed: ${reasonOf(error)}`);
     }
+  }
+  await logCounts(deps, counts);
+}
+
+/** Posts the summary line when anything was given, taken off or skipped. A refused line is logged; the sweep stands. */
+async function logCounts(deps: OnboardingRoleDeps, counts: OnboardingRoleCounts): Promise<void> {
+  if (counts.given + counts.takenOff + counts.skipped === 0) return;
+  try {
+    await deps.log(onboardingRoleStartupLogLine(counts));
+  } catch (error) {
+    deps.logError(`Logging the ${ONBOARDING_ROLE_NAME} Role changes at startup failed: ${reasonOf(error)}`);
   }
 }
 

@@ -73,6 +73,7 @@ class FakeChannels implements OnboardingChannels {
   readonly deleted: string[] = [];
   readonly logs: BaseMessageOptions[] = [];
   private posted = 0;
+  private deleteFailure: Error | undefined = undefined;
 
   openThread(): Promise<string> {
     return Promise.resolve(THREAD);
@@ -93,11 +94,16 @@ class FakeChannels implements OnboardingChannels {
     return Promise.resolve();
   }
 
+  /** Every thread deletion is refused from now on: the thread cannot be deleted. */
+  refuseDeletes(error: Error): void {
+    this.deleteFailure = error;
+  }
+
   deleteThread(threadId: string): Promise<void> {
+    if (this.deleteFailure !== undefined) return Promise.reject(this.deleteFailure);
     this.deleted.push(threadId);
     return Promise.resolve();
   }
-
 
   log(message: BaseMessageOptions): Promise<void> {
     this.logs.push(message);
@@ -428,6 +434,21 @@ describe("createRankApprovals", () => {
         approvedAt: NOW,
       });
       expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
+    test("still logs the rank, removes the buttons and gives the name and roles when the thread cannot be deleted", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.channels.refuseDeletes(new Error("Unknown Channel"));
+      const button = rankPress(approval.id, "R3", OFFICER);
+
+      await expect(h.service.onButton(button)).resolves.toBeUndefined();
+
+      expect(button.updates).toHaveLength(1);
+      expect(button.updates[0]?.components).toEqual([]);
+      expect(h.channels.logs).toEqual([rankSetLogLine(OFFICER, MEMBER, "R3")]);
+      expect(h.nameAndRoles.approved).toEqual([MEMBER]);
+      expect(h.errors).toEqual([expect.stringContaining("Unknown Channel")]);
     });
   });
 });

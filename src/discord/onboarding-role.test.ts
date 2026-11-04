@@ -1,3 +1,4 @@
+import type { BaseMessageOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
@@ -5,6 +6,7 @@ import type { MemberId } from "../domain/rank-approval.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { createOnboardingRole } from "./onboarding-role.js";
+import { onboardingRoleStartupLogLine } from "./onboarding-role-texts.js";
 
 const OWNER = "900000000000000001";
 const ALICE: MemberId = "111111111111111111";
@@ -52,7 +54,8 @@ function setUp() {
   const members = new FakeServerMembers();
   const links = new FakeLinks();
   const logError = vi.fn<(line: string) => void>();
-  const service = createOnboardingRole({ members, links, logError });
+  const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
+  const service = createOnboardingRole({ members, links, logError, log });
   /** Puts a Member on the server, holding the given roles, as the discord.js adapter would find them. */
   const join = (memberId: MemberId, roles: readonly string[] = [], bot = false): FakeRolesMember => {
     const member = guild.member(memberId, roles);
@@ -60,7 +63,7 @@ function setUp() {
     members.join(memberId, guild, member);
     return member;
   };
-  return { guild, links, logError, service, join, members };
+  return { guild, links, logError, log, service, join, members };
 }
 
 describe("give", () => {
@@ -208,5 +211,106 @@ describe("atStartup", () => {
 
     expect(heldNames(alice)).toEqual(["Onboarding"]);
     expect(logError).toHaveBeenCalledTimes(1);
+  });
+
+  test("gives nothing to a Member who became Linked after the listing, when the Link is recorded before the give", async () => {
+    const { guild, links, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    const alice = join(ALICE);
+    links.link(ALICE);
+    // The sweep reads ALICE as not Linked when it lists the Members; the Link is recorded by the time it gives the role.
+    vi.spyOn(links, "linkFor").mockReturnValueOnce(undefined);
+
+    await service.atStartup();
+
+    expect(heldNames(alice)).toEqual([]);
+  });
+});
+
+describe("atStartup: the summary line", () => {
+  test("posts one line with the counts when a Member is given the role", async () => {
+    const { guild, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    join(BOB);
+
+    await service.atStartup();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(onboardingRoleStartupLogLine({ given: 1, takenOff: 0, skipped: 0 }));
+  });
+
+  test("posts one line with the counts when a Member has the role taken off", async () => {
+    const { guild, links, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    join(ALICE, ["Onboarding"]);
+    links.link(ALICE);
+
+    await service.atStartup();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(onboardingRoleStartupLogLine({ given: 0, takenOff: 1, skipped: 0 }));
+  });
+
+  test("counts a give refused for permissions as skipped", async () => {
+    const { guild, log, service, join } = setUp();
+    guild.defineRole("Onboarding", { permissions: ADMINISTRATOR });
+    join(BOB);
+
+    await service.atStartup();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(onboardingRoleStartupLogLine({ given: 0, takenOff: 0, skipped: 1 }));
+  });
+
+  test("counts a permissioned Onboarding Role that a Linked Member keeps, because it cannot be taken off, as skipped", async () => {
+    const { guild, links, logError, log, service, join } = setUp();
+    guild.defineRole("Onboarding", { permissions: ADMINISTRATOR });
+    const alice = join(ALICE, ["Onboarding"]);
+    links.link(ALICE);
+
+    await service.atStartup();
+
+    expect(heldNames(alice)).toEqual(["Onboarding"]);
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining("has-permissions"));
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(onboardingRoleStartupLogLine({ given: 0, takenOff: 0, skipped: 1 }));
+  });
+
+  test("counts the gives and the take-offs separately in one line", async () => {
+    const { guild, links, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    join(ALICE, ["Onboarding"]);
+    links.link(ALICE);
+    join(BOB);
+
+    await service.atStartup();
+
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(onboardingRoleStartupLogLine({ given: 1, takenOff: 1, skipped: 0 }));
+  });
+
+  test("posts nothing when every Member is already in the right state", async () => {
+    const { guild, links, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    const alice = join(ALICE);
+    links.link(ALICE);
+    join(BOB, ["Onboarding"]);
+
+    await service.atStartup();
+
+    expect(heldNames(alice)).toEqual([]);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  test("a line the log channel refuses is logged and does not stop the startup", async () => {
+    const { guild, logError, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    join(BOB);
+    log.mockRejectedValueOnce(new Error("Missing Access"));
+
+    await expect(service.atStartup()).resolves.toBeUndefined();
+
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith(expect.stringContaining("Missing Access"));
   });
 });
