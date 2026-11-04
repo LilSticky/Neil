@@ -16,7 +16,8 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
-import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
+import { FakeDoctorRole, type DoctorRoleCall } from "./__fakes__/doctor-role.js";
+import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
 import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild } from "./__fakes__/roles-guild.js";
@@ -867,6 +868,7 @@ interface LinkHarness extends Harness {
   readonly gameApi: FakeLinkGameApi;
   readonly rankApprovals: FakeRankApprovals;
   readonly onboardingRole: FakeOnboardingRole;
+  readonly doctorRole: FakeDoctorRole;
   readonly privateMessages: FakeLinkPrivateMessages;
   /** The Members on the server; a Member not in it has left. */
   readonly onServer: Set<MemberId>;
@@ -881,6 +883,7 @@ function makeLinkHarness(): LinkHarness {
     gameApi: new FakeLinkGameApi(),
     rankApprovals: new FakeRankApprovals(),
     onboardingRole: new FakeOnboardingRole(),
+    doctorRole: new FakeDoctorRole(),
     privateMessages: new FakeLinkPrivateMessages(),
     onServer: new Set([OFFICER, LINKED, OTHER_LINKED, UNLINKED, NOT_OFFICER_LINKED, HANDED_OFF, RUNNING]),
     confirmations: new PendingLinkConfirmations(),
@@ -913,6 +916,7 @@ function confirmDeps(h: LinkHarness) {
     isOnServer: (memberId: MemberId) => Promise.resolve(h.onServer.has(memberId)),
     confirmations: h.confirmations,
     onboardingRole: h.onboardingRole,
+    doctorRole: h.doctorRole,
     sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => h.privateMessages.send(memberId, message),
     now: () => h.now,
     logError: (line: string) => h.errors.push(line),
@@ -1206,6 +1210,40 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
 
     expect(h.rankApprovals.announced).toHaveLength(1);
     expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: HANDED_OFF }]);
+  });
+
+  test("Confirm gives the Doctor Role to the Member it Links", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.doctorRole.calls).toEqual([{ kind: "give", memberId: HANDED_OFF }]);
+  });
+
+  test("Confirm gives the Doctor Role before the Onboarding Role is taken off", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
+    h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+      if (call.kind === "takeOff") doctorCallsAtTakeOff = [...h.doctorRole.calls];
+    };
+
+    await press(h, confirm, OFFICER);
+
+    expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: HANDED_OFF }]);
+  });
+
+  test("Confirm gives the Doctor Role before the Onboarding Role is taken off, also when a Rank Approval is pending", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
+    h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+      if (call.kind === "takeOff") doctorCallsAtTakeOff = [...h.doctorRole.calls];
+    };
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.rankApprovals.announced).toHaveLength(1);
+    expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: HANDED_OFF }]);
   });
 
   test("Confirm of a Player whose rank is unknown announces a Rank Approval for the thread, and leaves the thread open", async () => {

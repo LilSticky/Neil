@@ -356,6 +356,24 @@ describe("connect", () => {
         expect(guild.rolesOf(ALICE)).not.toContain(ONBOARDING_ROLE_NAME);
       });
     });
+
+    test("runs the Doctor Role sweep after the Onboarding Role one, so their startup lines come in that order", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.join(ALICE);
+      FakeClient.served = guild;
+      linkAlice();
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      /** The startup lines of the two role sweeps, in the order the log channel holds them. */
+      const startupLines = (): string[] => guild.messagesIn(LOG_CHANNEL_ID).filter((line) => line.includes(" Role at startup: "));
+      await vi.waitFor(() => {
+        expect(startupLines()).toHaveLength(2);
+      });
+      expect(startupLines().map((line) => line.split(" ")[0])).toEqual(["Onboarding", "Doctor"]);
+    });
   });
 
   describe("a Linked Member who leaves", () => {
