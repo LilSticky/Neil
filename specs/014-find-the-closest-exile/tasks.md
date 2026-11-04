@@ -9,7 +9,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
 
 ## Tasks
 
-- [ ] **T001** [US1–4] Domain `src/domain/exile.ts` (D1): `Exile`, `exileReasonOf` (trimmed, 1–200), `mayChangeReaper`
+- [x] **T001** [US1–4] Domain `src/domain/exile.ts` (D1): `Exile`, `exileReasonOf` (trimmed, 1–200), `mayChangeReaper`
   (R5 + Home Kingdom only), `distance`, `rankExiles` (other Kingdom, shielded, caller's uid and no-position dropped;
   distance order, ties by earlier `addedAt`; counts left out).
 - [ ] **T002** [US2] Shield (D2): `PlayerDetails.shielded` read leniently from `shielding` in `src/game-api/schemas.ts`
