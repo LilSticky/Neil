@@ -14,7 +14,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
   distance order, ties by earlier `addedAt`; counts left out).
 - [x] **T002** [US2] Shield (D2): `PlayerDetails.shielded` read leniently from `shielding` in `src/game-api/schemas.ts`
   (non-zero → true, 0 → false, missing or unreadable → undefined); recorded fixtures stay green.
-- [ ] **T003** [US1–4] Storage (D3): migration 11 (`reaper` table, data-model.md) and `src/storage/reaper-store.ts`:
+- [x] **T003** [US1–4] Storage (D3): migration 11 (`reaper` table, data-model.md) and `src/storage/reaper-store.ts`:
   `add` (`added`/`already`), `remove` (`removed`/`not-an-exile`), `all` (newest first), `inKingdom`, `find`, `refresh`;
   survives reopening; bad rows refused by zod.
 - [ ] **T004** [US1, US3] Editor check (D3): `editorOf(memberId)` from the Link's rank and the Applied State's
