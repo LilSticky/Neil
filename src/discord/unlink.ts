@@ -6,7 +6,9 @@ import { applyNameAndRoles } from "./member-roles.js";
 import type { ServerMembers } from "./name-and-roles.js";
 import type { OfficerRoles } from "./interview-texts.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { DoctorRole } from "./doctor-role.js";
 import type { OnboardingRole } from "./onboarding-role.js";
+import type { PreferenceRoles } from "./preferences.js";
 import {
   rankHandedToOfficersMessage,
   unlinkedByOfficerPrivateMessage,
@@ -34,6 +36,10 @@ export interface UnlinkDeps {
   readonly members: ServerMembers;
   /** Gives the Onboarding Role back to a Member whose Link ends by their own or an Officer's Unlink. */
   readonly onboardingRole: Pick<OnboardingRole, "give">;
+  /** Takes the Doctor Role off a Member still on the server whose Link ends, before the Onboarding Role is given back. */
+  readonly doctorRole: Pick<DoctorRole, "takeOff">;
+  /** Takes the Preference Roles off a Member whose Link ends, and deletes their Preferences. */
+  readonly preferenceRoles: Pick<PreferenceRoles, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -46,17 +52,20 @@ export function createUnlink(deps: UnlinkDeps): Unlink {
 
 /**
  * Ends a Member's Link. The Link and its applied state are removed first. For a Member on the server, Neil then takes off
- * the Managed Roles and the nickname it set, and cancels the Member's own pending Rank Approval. The Member is logged and
- * told privately (not when they Unlinked themselves), and the Rank Approvals waiting on them are handed on. Each step is
- * guarded, so a failure is logged and the next step still runs.
+ * the Managed Roles, the Doctor Role and the nickname it set, gives the Onboarding Role back, and cancels the Member's own
+ * pending Rank Approval. The Member is logged and told privately (not when they Unlinked themselves), and the Rank
+ * Approvals waiting on them are handed on. Each step is guarded, so a failure is logged and the next step still runs.
  */
 async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: UnlinkReason): Promise<void> {
   const applied = attempt(deps, memberId, "reading the applied state", () => deps.applied.get(memberId));
   // The Link goes first, so an apply that is under way finds no Link and gives the Member nothing more.
   const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
+  // Every Unlink forgets the Preferences, also a Member already gone from the server: their rows must not outlive the Link.
+  await attemptAsync(deps, memberId, "forgetting the Preferences", () => deps.preferenceRoles.forget(memberId));
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {
     notChanged = await takeOffOnServer(deps, memberId, applied);
+    await deps.doctorRole.takeOff(memberId);
     await deps.onboardingRole.give(memberId);
     await cancelOwnApproval(deps, memberId);
   }

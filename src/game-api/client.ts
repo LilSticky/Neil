@@ -580,6 +580,7 @@ function leaderUidFrom(alliance: PlayerBody["alliance"]): Uid | undefined {
 /** The details of a Player from a 200 body; each one is undefined when the body gives none readable. */
 function playerDetailsFrom(body: PlayerBody): PlayerDetails {
   return {
+    shielded: shieldedFrom(body.shielding),
     kills: body.kills,
     vipLevel: body.vip,
     likes: body.likes,
@@ -589,6 +590,12 @@ function playerDetailsFrom(body: PlayerBody): PlayerDetails {
     avatarPath: body.avatar_url,
     kingdomBadgePath: body.server_badge_url,
   };
+}
+
+/** A Player is shielded when `shielding` is a non-zero number; 0 means not shielded and an unreadable value is unknown. */
+function shieldedFrom(shielding: number | undefined): boolean | undefined {
+  if (shielding === undefined) return undefined;
+  return shielding !== 0;
 }
 
 /** The details of an Alliance from a 200 body; each one is undefined when the body gives none readable. */

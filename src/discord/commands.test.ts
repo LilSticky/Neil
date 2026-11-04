@@ -119,6 +119,19 @@ describe("commands", () => {
     );
   });
 
+  test("hold /channels, open to every Member, guild only, without options, described as choosing the channels a Member sees", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "channels",
+        description: "Choose which channels you see",
+        type: ApplicationCommandType.ChatInput,
+        options: [],
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+      }),
+    );
+  });
+
   test("hold /unlink, open to anyone, guild only, with one optional user option member; Neil checks who may Unlink whom", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
@@ -191,15 +204,79 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /interview, /unlink, /rank and /link", () => {
+  test("hold /reaper, open to anyone, guild only, with subcommands closest (x, y, all), list, add (name, reason, kingdom) and remove (exile, autocomplete)", () => {
+    const subcommand = ApplicationCommandOptionType.Subcommand;
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "reaper",
+        type: ApplicationCommandType.ChatInput,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: subcommand,
+            name: "closest",
+            options: [
+              expect.objectContaining({ type: ApplicationCommandOptionType.Integer, name: "x", required: false }),
+              expect.objectContaining({ type: ApplicationCommandOptionType.Integer, name: "y", required: false }),
+              expect.objectContaining({ type: ApplicationCommandOptionType.Boolean, name: "all", required: false }),
+            ],
+          }),
+          expect.objectContaining({ type: subcommand, name: "list" }),
+          expect.objectContaining({
+            type: subcommand,
+            name: "add",
+            options: [
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "name",
+                required: true,
+                max_length: 32,
+              }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "reason",
+                required: true,
+                max_length: 200,
+              }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.Integer,
+                name: "kingdom",
+                required: false,
+                min_value: 1,
+                max_value: 9999,
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            type: subcommand,
+            name: "remove",
+            options: [
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "exile",
+                required: true,
+                autocomplete: true,
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const reaper = commands.find((command) => command.name === "reaper");
+    expect(reaper?.default_member_permissions ?? null).toBeNull();
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link and /reaper", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
+      "channels",
       "interview",
       "link",
       "ping",
       "player",
       "quota",
       "rank",
+      "reaper",
       "unlink",
     ]);
   });

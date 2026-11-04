@@ -3,7 +3,7 @@
 How Neil runs: one bot application, Neil, on Wispbyte (ADR 6), and locally for development with the same
 token while the Wispbyte server is stopped.
 Why it is set up this way: [specs/001-greet-the-test-server/research.md](../specs/001-greet-the-test-server/research.md)
-(R1, R2, R8). Never paste tokens into chats, issues or commits.
+(R1, R2, R8). Setting up the Discord server itself (roles, channels, permissions): [SERVER-SETUP.md](SERVER-SETUP.md).. Never paste tokens into chats, issues or commits.
 
 ## 1. Discord application (once)
 
@@ -45,6 +45,7 @@ Neil's values; names exactly as written):
 | `DATA_DIR` | `./data` |
 | `DISCORD_ONBOARDING_CHANNEL_ID` | ID of `#onboarding` (from slice 005; required) |
 | `DISCORD_LOG_CHANNEL_ID` | ID of `#neil-log` (from slice 005; required) |
+| `DISCORD_GUIDES_FORUM_ID` | optional; ID of the guides forum, named in the Preferences guides line (from slice 016; without it the line says "the guides forum") |
 | `INTERVIEW_TIMEOUT_MINUTES` | optional; minutes an Onboarding Interview may stay silent (whole number, at least 1, default 1440) |
 | `HOME_KINGDOM` | the Home Kingdom's number, `330` (from slice 006; required) |
 | `SYNC_HOUR_UTC` | optional; UTC hour of the Daily Sync, 0–23 (default `3`, slice 009) |
@@ -79,6 +80,9 @@ has created the role (at its first start with slice 013):
 - Neil's role must sit **above** `Onboarding`. Never give `Onboarding` permissions (Neil then refuses to use it).
 
 Finished Interview threads are deleted, so Neil needs Manage Threads in `#onboarding` (already required).
+
+**Doctor Role for slice 017**: Neil gives the `Doctor` role (created by Neil, without permissions) to every Linked Member.
+Restart Neil before moving channels to it: [SERVER-SETUP.md](SERVER-SETUP.md) step 8c.
 
 Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
 startup. Don't delete `.env` in the file manager.

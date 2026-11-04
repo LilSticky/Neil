@@ -1,4 +1,4 @@
-import { Events, GatewayIntentBits, IntentsBitField, Partials } from "discord.js";
+import { Events, GatewayIntentBits, IntentsBitField, MessageFlags, Partials } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { createClient, memberRoleIds } from "./client.js";
 
@@ -16,6 +16,11 @@ function autocomplete(commandName: string) {
     isModalSubmit: () => false,
     commandName,
   };
+}
+
+/** A chat-input command of /reaper, run with the given subcommand. */
+function reaperCommand(subcommand: string) {
+  return { ...chatInput("reaper"), options: { getSubcommand: () => subcommand } };
 }
 
 /** A select menu or button interaction; the custom id decides where it goes. */
@@ -58,10 +63,17 @@ function handlers() {
     alliance: vi.fn(() => Promise.resolve()),
     allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
+    channels: vi.fn(() => Promise.resolve()),
     unlink: vi.fn(() => Promise.resolve()),
     rank: vi.fn(() => Promise.resolve()),
     link: vi.fn(() => Promise.resolve()),
     linkButton: vi.fn(() => Promise.resolve()),
+    reaperAdd: vi.fn(() => Promise.resolve()),
+    reaperClosest: vi.fn(() => Promise.resolve()),
+    reaperList: vi.fn(() => Promise.resolve()),
+    reaperRemove: vi.fn(() => Promise.resolve()),
+    reaperAutocomplete: vi.fn(() => Promise.resolve()),
+    reaperPage: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
@@ -70,6 +82,7 @@ function handlers() {
     interviewButton: vi.fn(() => Promise.resolve()),
     interviewModal: vi.fn(() => Promise.resolve()),
     rankButton: vi.fn(() => Promise.resolve()),
+    preferencesPress: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -147,6 +160,76 @@ describe("createClient", () => {
     expect(routed.player).not.toHaveBeenCalled();
   });
 
+  test.each([
+    ["closest", "reaperClosest"],
+    ["list", "reaperList"],
+    ["add", "reaperAdd"],
+    ["remove", "reaperRemove"],
+  ] as const)("hands /reaper %s to the %s handler and nothing else", (subcommand, handler) => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = reaperCommand(subcommand);
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed[handler]).toHaveBeenCalledWith(interaction);
+    for (const other of ["reaperClosest", "reaperList", "reaperAdd", "reaperRemove"] as const) {
+      if (other !== handler) expect(routed[other]).not.toHaveBeenCalled();
+    }
+    expect(routed.alliance).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("answers a /reaper subcommand it does not know privately, and hands it to no handler", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const reply = vi.fn(() => Promise.resolve());
+    const interaction = { ...reaperCommand("unknown"), reply };
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(reply).toHaveBeenCalledTimes(1);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ flags: MessageFlags.Ephemeral }));
+    for (const handler of ["reaperClosest", "reaperList", "reaperAdd", "reaperRemove"] as const) {
+      expect(routed[handler]).not.toHaveBeenCalled();
+    }
+  });
+
+  test("hands an autocomplete request of /reaper to the reaper autocomplete handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = autocomplete("reaper");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.reaperAutocomplete).toHaveBeenCalledWith(interaction);
+    expect(routed.allianceAutocomplete).not.toHaveBeenCalled();
+    expect(routed.alliance).not.toHaveBeenCalled();
+  });
+
+  test("hands an autocomplete request of /alliance to the alliance autocomplete handler, not the reaper one", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.InteractionCreate, autocomplete("alliance") as never);
+
+    expect(routed.allianceAutocomplete).toHaveBeenCalledTimes(1);
+    expect(routed.reaperAutocomplete).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with reaper: to the reaper page handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "reaper:9f8e7d6c5b4a3210:page:2");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.reaperPage).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.overview).not.toHaveBeenCalled();
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+  });
+
   test("hands /quota to the quota handler and nothing else", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });
@@ -198,6 +281,20 @@ describe("createClient", () => {
     expect(routed.rank).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /channels to the channels handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("channels");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.channels).toHaveBeenCalledWith(interaction);
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.unlink).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+    expect(routed.preferencesPress).not.toHaveBeenCalled();
   });
 
   test("ignores other commands and other interaction kinds", () => {
@@ -364,6 +461,34 @@ describe("createClient", () => {
     expect(routed.rankButton).toHaveBeenCalledWith(interaction);
     expect(routed.interviewButton).not.toHaveBeenCalled();
     expect(routed.pick).not.toHaveBeenCalled();
+  });
+  test("hands a button whose custom id starts with pref: to the preferences press handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "pref:done:111111111111111111");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.preferencesPress).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.overview).not.toHaveBeenCalled();
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.linkButton).not.toHaveBeenCalled();
+  });
+
+  test("hands a string select menu whose custom id starts with pref: to the preferences press handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("select", "pref:languages:111111111111111111");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.preferencesPress).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.linkButton).not.toHaveBeenCalled();
   });
 });
 

@@ -24,6 +24,10 @@ import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import type { LinkStore } from "../storage/link-store.js";
+import { editorOf } from "../storage/reaper-editor.js";
+import type { ReaperStore } from "../storage/reaper-store.js";
+import type { MemberId } from "../domain/rank-approval.js";
+import type { PreferenceStore } from "../storage/preference-store.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import {
   createInterviews,
@@ -37,8 +41,18 @@ import {
 import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
+import { createDoctorRole } from "./doctor-role.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
+import { createPreferenceRoles } from "./preferences.js";
+import { createPreferencesAfterLink } from "./preferences-after-link.js";
+import {
+  createPreferenceChoices,
+  type ChannelsCommand,
+  type PreferenceChoices,
+  type PreferencePress,
+} from "./preferences-choices.js";
+import { PREFERENCES_PREFIX } from "./preferences-texts.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
@@ -58,12 +72,22 @@ import {
   answer,
   handleAlliance,
   handlePlayer,
+  replyPrivately,
   type AllianceLookupContext,
   type LookupApi,
   type LookupInteraction,
 } from "./lookup.js";
-import { handleOverview, handlePick, type PickInteraction } from "./pick.js";
+import { handleOverview, handlePick, type PickContext, type PickInteraction } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
+import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
+import {
+  handleReaperAdd,
+  handleReaperClosest,
+  handleReaperList,
+  handleReaperPage,
+} from "./reaper.js";
+import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
+import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
 
 /** The Game API client as connect uses it: the lookups and the Daily Quota figures. */
@@ -83,8 +107,22 @@ export interface CommandHandlers {
   /** An autocomplete request of /alliance, for its name or tag option. */
   readonly allianceAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
+  /** The /channels command: a Linked Member sees their Preferences message, privately, and changes nothing. */
+  readonly channels: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
   readonly pick: (interaction: PickInteraction) => Promise<void>;
+  /** /reaper closest: the Exiles nearest the caller, or nearest x and y. */
+  readonly reaperClosest: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** /reaper list: every Exile on REAPER. */
+  readonly reaperList: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** /reaper add: an R5 of the Home Kingdom adds a Player to REAPER. */
+  readonly reaperAdd: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** /reaper remove: an R5 of the Home Kingdom takes an Exile off REAPER. */
+  readonly reaperRemove: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** An autocomplete request of /reaper, for the exile option of /reaper remove. */
+  readonly reaperAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
+  /** A button whose custom id starts with `reaper:`, the page buttons of a paged /reaper answer. */
+  readonly reaperPage: (button: ButtonInteraction) => Promise<void>;
   /** A button whose custom id starts with `overview:`, the page buttons of an Alliance Overview. */
   readonly overview: (interaction: PickInteraction) => Promise<void>;
   /** A guild member joined the server; the Interview may start for them. */
@@ -107,12 +145,18 @@ export interface CommandHandlers {
   readonly link: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button whose custom id starts with `link:`, the Confirm and Cancel buttons of an Officer Link. */
   readonly linkButton: (button: ButtonInteraction) => Promise<void>;
+  /** A button or string select menu whose custom id starts with `pref:`, the Preferences message's components. */
+  readonly preferencesPress: (press: ButtonInteraction | StringSelectMenuInteraction) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
 interface Services {
   readonly interviews: Interviews;
   readonly rankApprovals: RankApprovals;
+  /** /reaper add and /reaper remove, which log to the log channel, and the pick lists, whose pick of /reaper add stores into REAPER. */
+  readonly reaperAdd: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  readonly reaperRemove: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  readonly pick: (interaction: PickInteraction) => Promise<void>;
   /** /unlink, /rank and /link, and the Officer Link buttons, as the Discord client routes them. */
   readonly corrections: {
     readonly unlink: (interaction: CorrectionInteraction) => Promise<void>;
@@ -120,12 +164,16 @@ interface Services {
     readonly link: (interaction: LinkInteraction) => Promise<void>;
     readonly linkButton: (button: LinkButtonInteraction) => Promise<void>;
   };
+  /** The Preferences message's presses and /channels. */
+  readonly preferenceChoices: PreferenceChoices;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
 const PICK_PREFIX = "pick:";
 /** The custom id prefix of every Alliance Overview page button. */
 const OVERVIEW_PREFIX = "overview:";
+/** The custom id prefix of every paged /reaper answer button. */
+const REAPER_PREFIX = "reaper:";
 /** The custom id prefix of every Onboarding Interview button and modal. */
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
@@ -155,6 +203,30 @@ export interface ClientOptions {
   /** The server Neil serves; member events of other servers are not handed on. */
   readonly guildId: string;
   readonly logError?: (message: string) => void;
+}
+
+/** Hands a /reaper command to the handler of its subcommand. */
+function routeReaper(
+  handlers: CommandHandlers,
+  interaction: ChatInputCommandInteraction,
+  logError: (message: string) => void,
+): void {
+  switch (interaction.options.getSubcommand()) {
+    case "closest":
+      void handlers.reaperClosest(interaction);
+      break;
+    case "list":
+      void handlers.reaperList(interaction);
+      break;
+    case "add":
+      void handlers.reaperAdd(interaction);
+      break;
+    case "remove":
+      void handlers.reaperRemove(interaction);
+      break;
+    default:
+      void answer("/reaper", { logError }, () => replyPrivately(interaction, reaperMessages.unknownSubcommand));
+  }
 }
 
 /** A discord.js client with the Guilds and GuildMembers intents that routes each event to its handler. */
@@ -198,6 +270,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "quota":
           void handlers.quota(interaction);
           break;
+        case "channels":
+          void handlers.channels(interaction);
+          break;
         case "interview":
           void handlers.interview(interaction);
           break;
@@ -210,11 +285,15 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "link":
           void handlers.link(interaction);
           break;
+        case "reaper":
+          routeReaper(handlers, interaction, logError);
+          break;
       }
       return;
     }
     if (interaction.isAutocomplete()) {
       if (interaction.commandName === "alliance") void handlers.allianceAutocomplete(interaction);
+      if (interaction.commandName === "reaper") void handlers.reaperAutocomplete(interaction);
       return;
     }
     if (interaction.isModalSubmit()) {
@@ -232,6 +311,10 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.pick(interaction);
       } else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
         void handlers.overview(interaction);
+      } else if (interaction.customId.startsWith(REAPER_PREFIX)) {
+        void handlers.reaperPage(interaction);
+      } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
+        void handlers.preferencesPress(interaction);
       }
       return;
     }
@@ -240,6 +323,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.interviewButton(interaction);
       } else if (interaction.customId.startsWith(PICK_PREFIX)) {
         void handlers.pick(interaction);
+      } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
+        void handlers.preferencesPress(interaction);
       }
     }
   });
@@ -274,6 +359,12 @@ export interface ConnectOptions {
   readonly troopBracketLevels: readonly number[];
   /** The record of the last Daily Sync run: its day and the Members it left over. */
   readonly dailySync: Pick<DailySyncStore, "load" | "save">;
+  /** REAPER: the Exiles the /reaper commands read and write. */
+  readonly reaper: ReaperStore;
+  /** The Preferences and the open Preferences messages, in neil.db. */
+  readonly preferences: PreferenceStore;
+  /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
+  readonly guidesForumId: string | undefined;
   /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
   readonly syncHourUtc: number;
   /** The most Game API requests one Daily Sync run may send, from SYNC_SHARE. */
@@ -477,6 +568,34 @@ function linkButtonLike(button: ButtonInteraction): LinkButtonInteraction {
   };
 }
 
+/** The discord.js /channels command as the choices read it: the caller, and the private reply. */
+function channelsCommandLike(command: ChatInputCommandInteraction): ChannelsCommand {
+  return {
+    user: command.user,
+    reply: async (message) => {
+      await command.reply(message);
+    },
+  };
+}
+
+/**
+ * The discord.js button press or string select menu press on a Preferences message as the choices read it. A select menu
+ * press also carries the values picked; see buttonLike for why each method is passed on.
+ */
+function preferencesPressLike(press: ButtonInteraction | StringSelectMenuInteraction): PreferencePress {
+  const like: PreferencePress = {
+    customId: press.customId,
+    user: press.user,
+    reply: async (message) => {
+      await press.reply(message);
+    },
+    update: async (options) => {
+      await press.update(options);
+    },
+  };
+  return press.isStringSelectMenu() ? { ...like, values: [...press.values] } : like;
+}
+
 /** The discord.js chat-input command as the Interview reads it; see buttonLike for why each method is passed on. */
 function commandLike(command: ChatInputCommandInteraction): CommandLike {
   return {
@@ -541,6 +660,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   // The Officer Link confirmations waiting for their Officer's button press.
   const linkConfirmations = new PendingLinkConfirmations();
   const now = options.now;
+  // One store for every paged /reaper answer: the list and closest answers open them, the page buttons turn them.
+  const reaperPages = new ReaperPages<ReaperPageContent>();
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,
     pickSessions,
@@ -571,7 +692,26 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         answer("/alliance autocomplete", { logError }, () =>
           handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError }),
         ),
-      pick: (interaction) => handlePick(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+      pick: async (interaction) => (await services).pick(interaction),
+      reaperClosest: (interaction) =>
+        handleReaperClosest(interaction, {
+          links: options.links,
+          gameApi: options.gameApi,
+          reaper: options.reaper,
+          pages: reaperPages,
+          homeKingdom: options.homeKingdom,
+          now,
+          logError,
+        }),
+      reaperList: (interaction) =>
+        handleReaperList(interaction, { reaper: options.reaper, pages: reaperPages, now, logError }),
+      reaperAdd: async (interaction) => (await services).reaperAdd(interaction),
+      reaperRemove: async (interaction) => (await services).reaperRemove(interaction),
+      reaperAutocomplete: (interaction) =>
+        answer("/reaper autocomplete", { logError }, () =>
+          handleReaperAutocomplete(interaction, { reaper: options.reaper }),
+        ),
+      reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
       overview: (interaction) => handleOverview(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
       quota: (interaction) =>
         handleQuota(
@@ -605,6 +745,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           const { rankApprovals } = await services;
           await rankApprovals.onButton(rankButtonLike(button));
         }),
+      channels: async (interaction) => (await services).preferenceChoices.showChannels(channelsCommandLike(interaction)),
+      preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
     },
     { guildId: options.guildId, logError },
   );
@@ -627,12 +769,50 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
-    // One Onboarding Role service for every path that gives or takes the role off.
+    // One Onboarding Role service and one Doctor Role service, for every path that gives or takes the roles off.
     const onboardingRole = createOnboardingRole({
       members: serverMembersOf(guild),
       links: options.links,
       logError,
       log: (message) => channels.log(message),
+      officerRoleIds: options.officerRoleIds,
+    });
+    const doctorRole = createDoctorRole({
+      members: serverMembersOf(guild),
+      links: options.links,
+      logError,
+      log: (message) => channels.log(message),
+      officerRoleIds: options.officerRoleIds,
+    });
+    // A private message to a Member, by Discord DM; Discord refuses it when the Member cannot be messaged.
+    const sendPrivateMessage = async (memberId: string, message: BaseMessageOptions): Promise<void> => {
+      const user = await client.users.fetch(memberId);
+      await user.send(message);
+    };
+    const preferenceRoles = createPreferenceRoles({
+      members: serverMembersOf(guild),
+      links: options.links,
+      preferences: options.preferences,
+      channels,
+      logError,
+      // A change of roles is one plain line in the log channel, without mentions; a refused post is logged and the change stands.
+      log: (line) => {
+        channels.log({ content: line, allowedMentions: { parse: [] } }).catch((error: unknown) => {
+          const reason = error instanceof Error ? error.message : String(error);
+          logError(`Logging a Preference Roles change failed: ${reason}`);
+        });
+      },
+      officerRoleIds: options.officerRoleIds,
+    });
+    // The Preferences message's presses and /channels: the same stores, roles and log as the Interview's Preferences.
+    const preferenceChoices = createPreferenceChoices({
+      roles: preferenceRoles,
+      preferences: options.preferences,
+      links: options.links,
+      rankApprovals: options.links,
+      channels,
+      guidesForumId: options.guidesForumId,
+      logError,
     });
     const unlink = createUnlink({
       links: options.links,
@@ -640,11 +820,10 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       channels,
       members: serverMembersOf(guild),
       onboardingRole,
+      doctorRole,
+      preferenceRoles,
       now,
-      sendPrivateMessage: async (memberId, message) => {
-        const user = await client.users.fetch(memberId);
-        await user.send(message);
-      },
+      sendPrivateMessage,
       officerRoles,
       logError,
     });
@@ -654,6 +833,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       gameApi: options.gameApi,
       unlink,
+      preferenceRoles,
       homeKingdom: options.homeKingdom,
       troopBracketLevels: options.troopBracketLevels,
       officerRoleIds: options.officerRoleIds,
@@ -663,6 +843,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     });
     const rankApprovals = createRankApprovals({
       links: options.links,
+      preferences: options.preferences,
       channels,
       nameAndRoles,
       officerRoles,
@@ -689,6 +870,13 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       nameAndRoles,
       unlink,
       onboardingRole,
+      doctorRole,
+      preferences: createPreferencesAfterLink({
+        preferences: options.preferences,
+        channels,
+        guidesForumId: options.guidesForumId,
+        now,
+      }),
       isOnServer,
       now,
       logError,
@@ -697,7 +885,15 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       unlink: (interaction: CorrectionInteraction) =>
         handleUnlink(interaction, { links: options.links, unlink, officerRoles, logError }),
       rank: (interaction: CorrectionInteraction) =>
-        handleRank(interaction, { links: options.links, channels, nameAndRoles, officerRoles, now, logError }),
+        handleRank(interaction, {
+          links: options.links,
+          preferences: options.preferences,
+          channels,
+          nameAndRoles,
+          officerRoles,
+          now,
+          logError,
+        }),
       link: (interaction: LinkInteraction) =>
         handleLink(interaction, {
           links: options.links,
@@ -717,18 +913,60 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           rankApprovals,
           nameAndRoles,
           onboardingRole,
+          doctorRole,
           isOnServer,
+          sendPrivateMessage,
           confirmations: linkConfirmations,
           now,
           logError,
         }),
     };
-    openServices({ interviews, rankApprovals, corrections });
-    // The startup sweep of the Onboarding Role and the startup apply run in the background, so login does not wait for
-    // them. The Daily Sync starts once the startup apply has settled, so their Game API lookups do not overlap.
-    void onboardingRole.atStartup().catch((error: unknown) => {
-      logError(`Bringing the Onboarding Role of the Members up to date at startup failed: ${String(error)}`);
+    // The /reaper add and remove contexts and the pick context share the channels, so they are built once the checks pass.
+    const editorOfMember = (memberId: MemberId) => editorOf({ links: options.links, applied: options.applied }, memberId);
+    const reaperWrites = {
+      editorOf: editorOfMember,
+      homeKingdom: options.homeKingdom,
+      reaper: options.reaper,
+      channels,
+      logError,
+    };
+    const pickContext: PickContext = {
+      gameApi: options.gameApi,
+      pickSessions,
+      now,
+      logError,
+      reaper: options.reaper,
+      channels,
+      editorOf: editorOfMember,
+      homeKingdom: options.homeKingdom,
+    };
+    openServices({
+      interviews,
+      rankApprovals,
+      corrections,
+      preferenceChoices,
+      reaperAdd: (interaction) =>
+        handleReaperAdd(interaction, {
+          ...reaperWrites,
+          gameApi: options.gameApi,
+          pickSessions,
+          now,
+        }),
+      reaperRemove: (interaction) => handleReaperRemove(interaction, reaperWrites),
+      pick: (interaction) => handlePick(interaction, pickContext),
     });
+    // The startup sweeps of the Onboarding Role and then the Doctor Role, chained so their log lines and role changes do not
+    // interleave, and the startup apply, run in the background, so login does not wait for them. The Daily Sync starts once
+    // the startup apply has settled, so their Game API lookups do not overlap.
+    void onboardingRole
+      .atStartup()
+      .catch((error: unknown) => {
+        logError(`Bringing the Onboarding Role of the Members up to date at startup failed: ${String(error)}`);
+      })
+      .then(() => doctorRole.atStartup())
+      .catch((error: unknown) => {
+        logError(`Bringing the Doctor Role of the Members up to date at startup failed: ${String(error)}`);
+      });
     void nameAndRoles
       .atStartup()
       .catch((error: unknown) => {
@@ -764,6 +1002,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const sweeper = createSweeper({
       interviews: options.interviews,
       links: options.links,
+      preferences: options.preferences,
       channels,
       timeoutMs: options.interviewTimeoutMs,
       now,

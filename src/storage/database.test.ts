@@ -31,6 +31,8 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
+      { version: 12 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -53,6 +55,8 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
+      { version: 12 },
     ]);
     db.close();
   });
@@ -62,7 +66,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 10");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 12");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -178,6 +182,8 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
+      { version: 12 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -338,6 +344,48 @@ describe("openDatabase", () => {
     }
   });
 
+  test("migration 11 creates reaper with the columns of an Exile", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('reaper')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual([
+        "uid",
+        "name",
+        "kingdom",
+        "x",
+        "y",
+        "position_at",
+        "reason",
+        "added_at",
+        "added_by",
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("reaper refuses a reason of 0 or more than 200 characters, and a position with only x or only y", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare(
+        "INSERT INTO reaper (uid, name, kingdom, x, y, position_at, reason, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      );
+      const addedAt = "2026-10-29T12:00:00.000Z";
+
+      expect(() => insert.run("uid-1", "Alice", 330, null, null, null, "", addedAt, "111")).toThrow(/CHECK/);
+      expect(() => insert.run("uid-2", "Alice", 330, null, null, null, "a".repeat(201), addedAt, "111")).toThrow(/CHECK/);
+      expect(() => insert.run("uid-3", "Alice", 330, 1, null, null, "reason", addedAt, "111")).toThrow(/CHECK/);
+      expect(() => insert.run("uid-4", "Alice", 330, 1, 2, null, "reason", addedAt, "111")).toThrow(/CHECK/);
+      insert.run("uid-5", "Alice", 330, 1, 2, "2026-10-29T12:00:00.000Z", "reason", addedAt, "111");
+      insert.run("uid-6", "Bob", 330, null, null, null, "a".repeat(200), addedAt, "111");
+    } finally {
+      db.close();
+    }
+  });
+
   test("upgrades a version 8 database and keeps its Links, which read as made from In-game Proof", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
     legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v8.sql"), "utf8"));
@@ -359,6 +407,8 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
+        { version: 12 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -392,6 +442,8 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
+        { version: 12 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -428,6 +480,8 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
+        { version: 12 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -464,6 +518,8 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
+        { version: 12 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -540,6 +596,8 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
+      { version: 12 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),
@@ -561,5 +619,136 @@ describe("openDatabase", () => {
         .run("member-1", "thread-2", "recommending", 0, "2026-10-29T13:00:00.000Z"),
     ).toThrow(/UNIQUE/);
     db.close();
+  });
+
+  test("migration 12 creates preference with one row per Member, kind and value", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('preference')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual(["member_id", "kind", "value"]);
+
+      const insert = db.prepare("INSERT INTO preference (member_id, kind, value) VALUES (?, ?, ?)");
+      insert.run("111111111111111111", "language", "en");
+      insert.run("111111111111111111", "language", "de");
+      expect(() => insert.run("111111111111111111", "language", "en")).toThrow(/UNIQUE/);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 12 lets member_id of preference and preference_prompt be a snowflake only", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const preference = db.prepare("INSERT INTO preference (member_id, kind, value) VALUES (?, ?, ?)");
+      expect(() => preference.run("member-1", "language", "en")).toThrow();
+      preference.run("111111111111111111", "language", "en");
+
+      const prompt = db.prepare("INSERT INTO preference_prompt (member_id, thread_id, posted_at) VALUES (?, ?, ?)");
+      expect(() => prompt.run("member-1", "thread-1", "2026-11-04T12:00:00.000Z")).toThrow();
+      prompt.run("111111111111111111", "thread-1", "2026-11-04T12:00:00.000Z");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 12 creates preference_prompt with one open prompt per Member", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('preference_prompt')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual(["member_id", "thread_id", "posted_at"]);
+
+      const insert = db.prepare("INSERT INTO preference_prompt (member_id, thread_id, posted_at) VALUES (?, ?, ?)");
+      insert.run("111111111111111111", "thread-1", "2026-11-04T12:00:00.000Z");
+      expect(() => insert.run("111111111111111111", "thread-2", "2026-11-04T13:00:00.000Z")).toThrow(/UNIQUE/);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 10 database to 12 and keeps its Links and Applied States", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v10.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, linked_by) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown", null);
+    legacy
+      .prepare("INSERT INTO applied (member_id, nickname, roles_json, applied_at, complete) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "DrLOL", "[]", "2026-10-30T12:00:00.000Z", 1);
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+        { version: 6 },
+        { version: 7 },
+        { version: 8 },
+        { version: 9 },
+        { version: 10 },
+        { version: 11 },
+        { version: 12 },
+      ]);
+      expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
+        { member_id: "member-1", uid: "145563254785", linked_by: null },
+      ]);
+      expect(db.prepare("SELECT member_id, nickname, complete FROM applied").all()).toEqual([
+        { member_id: "member-1", nickname: "DrLOL", complete: 1 },
+      ]);
+      expect(
+        db
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('preference', 'preference_prompt') ORDER BY name")
+          .all(),
+      ).toEqual([{ name: "preference" }, { name: "preference_prompt" }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 11 database to 12 and keeps its reaper rows and Links", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v11.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO link (member_id, uid, linked_at, rank_source, linked_by) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "145563254785", "2026-10-29T12:00:00.000Z", "unknown", null);
+    legacy
+      .prepare("INSERT INTO reaper (uid, name, kingdom, x, y, position_at, reason, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .run("145563254786", "Vex", 330, null, null, null, "Looted the Alliance", "2026-11-03T12:00:00.000Z", "888888888888888888");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
+        { version: 1 },
+        { version: 2 },
+        { version: 3 },
+        { version: 4 },
+        { version: 5 },
+        { version: 6 },
+        { version: 7 },
+        { version: 8 },
+        { version: 9 },
+        { version: 10 },
+        { version: 11 },
+        { version: 12 },
+      ]);
+      expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
+        { member_id: "member-1", uid: "145563254785", linked_by: null },
+      ]);
+      expect(db.prepare("SELECT uid, name, kingdom, reason, added_by FROM reaper").all()).toEqual([
+        { uid: "145563254786", name: "Vex", kingdom: 330, reason: "Looted the Alliance", added_by: "888888888888888888" },
+      ]);
+    } finally {
+      db.close();
+    }
   });
 });

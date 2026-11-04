@@ -26,6 +26,8 @@ export interface PlayerDetails {
   readonly avatarPath: string | undefined;
   /** The picture path of the Player's Kingdom badge (`server_badge_url`). */
   readonly kingdomBadgePath: string | undefined;
+  /** Whether the Player is shielded (`shielding`); optional so readers that do not read it need not set it. */
+  readonly shielded?: boolean | undefined;
 }
 
 interface PlayerProfile {

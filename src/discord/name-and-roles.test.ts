@@ -14,6 +14,7 @@ import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
 import type { ApplyReport } from "./member-roles.js";
 import { FakeDiscordError, FakeRolesGuild, type FakeRolesMember, MISSING_PERMISSIONS } from "./__fakes__/roles-guild.js";
+import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
 import { createNameAndRoles } from "./name-and-roles.js";
@@ -61,6 +62,8 @@ const ROGUE_R4: Player = {
 
 /** The Alliance Rank the Game API gave with the Link. */
 const GAME_RANK_R4: RankOnLink = { source: "game-api", rank: "R4" };
+const GAME_RANK_R3: RankOnLink = { source: "game-api", rank: "R3" };
+const GAME_RANK_R5: RankOnLink = { source: "game-api", rank: "R5" };
 
 /** The Player that is in no Alliance, in the Home Kingdom, level 21: nickname `Rogue`, roles #330, T7. */
 const ROGUE_NO_ALLIANCE: Player = {
@@ -132,6 +135,7 @@ interface Harness {
   readonly links: LinkStore;
   readonly gameApi: FakeGameApi;
   readonly unlink: FakeUnlink;
+  readonly preferenceRoles: FakePreferenceRoles;
   readonly logs: BaseMessageOptions[];
   readonly errors: string[];
   readonly service: ReturnType<typeof createNameAndRoles>;
@@ -186,6 +190,7 @@ describe("createNameAndRoles", () => {
     const links = new LinkStore(db);
     const gameApi = new FakeGameApi();
     const unlink = new FakeUnlink();
+    const preferenceRoles = new FakePreferenceRoles();
     const logs: BaseMessageOptions[] = [];
     const errors: string[] = [];
     const service = createNameAndRoles({
@@ -194,6 +199,7 @@ describe("createNameAndRoles", () => {
       links,
       gameApi,
       unlink,
+      preferenceRoles,
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: TROOP_BRACKET_LEVELS,
       officerRoleIds: [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID],
@@ -206,7 +212,7 @@ describe("createNameAndRoles", () => {
         errors.push(line);
       },
     });
-    h = { guild, server, applied, links, gameApi, unlink, logs, errors, service };
+    h = { guild, server, applied, links, gameApi, unlink, preferenceRoles, logs, errors, service };
   });
 
   afterEach(() => {
@@ -332,6 +338,29 @@ describe("createNameAndRoles", () => {
       expect(h.applied.get(ALICE)).toMatchObject({ memberId: ALICE, nickname: "[NML|R4] Rogue", complete: false });
     });
 
+    test("gives the Preference Roles of the Alliance Rank on the Link, here R5", async () => {
+      joinAlice(h);
+      linkAlice(h, GAME_RANK_R5);
+
+      await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R5);
+
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
+    });
+
+    test("when the Preference Roles cannot be applied, the name and roles stand and the failure is logged with the Member", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      h.preferenceRoles.failWith(new Error("Discord refused the role"));
+
+      await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
+
+      expect(alice.nickname).toBe("[NML|R4] Rogue");
+      expect(heldNames(alice)).toEqual(["#330", "NML", "R4", "T7"]);
+      expect(h.applied.get(ALICE)).toMatchObject({ complete: true });
+      expect(h.errors).toHaveLength(1);
+      expect(h.errors[0]).toContain(ALICE);
+    });
+
     test("logs one line with the nickname, the roles added and the roles created", async () => {
       joinAlice(h);
       linkAlice(h);
@@ -437,6 +466,16 @@ describe("createNameAndRoles", () => {
   });
 
   describe("atStartup", () => {
+    test("gives the Preference Roles of the rank on the Link to a Linked Member it applies to at startup", async () => {
+      joinAlice(h);
+      linkAlice(h, GAME_RANK_R5);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
+    });
+
     test("a Link ended while the lookup is in flight at startup gives the Member no nickname or roles", async () => {
       const alice = joinAlice(h);
       linkAlice(h);
@@ -701,6 +740,27 @@ describe("createNameAndRoles", () => {
       expect(h.applied.get(ALICE)).toBeUndefined();
     });
 
+    test("gives the Preference Roles of the rank the Daily Sync finds, so a Member who went from R4 to R3 gets R3", async () => {
+      joinAlice(h);
+      linkAlice(h);
+      await h.service.syncMember(ALICE, ROGUE_R4, GAME_RANK_R4);
+      h.preferenceRoles.applied.splice(0);
+
+      await h.service.syncMember(ALICE, { ...ROGUE_R4, allianceRank: "R3" }, GAME_RANK_R3);
+
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
+    });
+
+    test("when the Preference Roles cannot be applied, the Daily Sync still reports the change", async () => {
+      joinAlice(h);
+      linkAlice(h);
+      h.preferenceRoles.failWith(new Error("Discord refused the role"));
+
+      const changed = await h.service.syncMember(ALICE, ROGUE_R4, GAME_RANK_R4);
+
+      expect(changed).toBe(true);
+    });
+
     test("logs nothing for the owner, whose nickname is always skipped, when nothing else changed", async () => {
       joinMember(h, OWNER, ["#330", "NML", "R4", "T7"]);
       linkMember(h, OWNER, UID);
@@ -716,6 +776,16 @@ describe("createNameAndRoles", () => {
 
   describe("onRankApproved", () => {
     const APPROVED_R4: RankOnLink = { source: "rank-approval", rank: "R4", approvedBy: OFFICER, approvedAt: NOW };
+
+    test("gives the Preference Roles of the approved rank", async () => {
+      joinAlice(h);
+      linkAlice(h, APPROVED_R4);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.onRankApproved(ALICE);
+
+      expect(h.preferenceRoles.applied).toEqual([ALICE]);
+    });
 
     test("looks the Player up once with the lookup purpose, and gives the rank of the Link", async () => {
       const alice = joinAlice(h);

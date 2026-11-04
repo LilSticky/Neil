@@ -42,6 +42,7 @@ const RECORDED_PLAYER_DETAILS: PlayerDetails = {
   location: { x: 807, y: 846 },
   avatarPath: "/static/avatars/head_90002.png",
   kingdomBadgePath: "/static/kingdom/badge_1.png",
+  shielded: false,
 };
 
 /** The Alliance details of the recorded alliance.json (slice 012, T001). */
@@ -1772,6 +1773,14 @@ function foundAlliance(result: LookupResult<Alliance>): Alliance {
 const MISSING: UnreadableValue = { label: "missing", value: undefined };
 const NULL_VALUE: UnreadableValue = { label: "null", value: null };
 
+/** The shield reading: a missing or unreadable one (a text, even "0") reads as undefined, never as a flag. */
+const UNREADABLE_SHIELDING: readonly UnreadableValue[] = [
+  MISSING,
+  NULL_VALUE,
+  { label: "a text", value: "1" },
+  { label: "a text of 0", value: "0" },
+];
+
 /** Whole numbers that cannot be negative. */
 const UNREADABLE_COUNT: readonly UnreadableValue[] = [
   MISSING,
@@ -1844,6 +1853,7 @@ const playerDetailCases: readonly DetailCase<keyof PlayerDetails>[] = [
   ...casesOf("location", "y", UNREADABLE_COUNT),
   ...casesOf("avatarPath", "avatar_url", UNREADABLE_PATH),
   ...casesOf("kingdomBadgePath", "server_badge_url", UNREADABLE_PATH),
+  ...casesOf("shielded", "shielding", UNREADABLE_SHIELDING),
 ];
 
 const allianceDetailCases: readonly DetailCase<keyof AllianceDetails>[] = [
@@ -1864,6 +1874,15 @@ describe("GameApiClient.getPlayer details", () => {
     const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
     expect(foundPlayer(result).details).toEqual(RECORDED_PLAYER_DETAILS);
+  });
+
+  test.each([1, 2, 86_400])("a Player with a shielding of %i is shielded", async (shielding) => {
+    const body = { ...playerInAlliance, shielding };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(foundPlayer(result).details?.shielded).toBe(true);
   });
 
   test.each(playerDetailCases)(

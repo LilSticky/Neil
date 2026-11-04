@@ -29,6 +29,8 @@ import type { CreateOutcome, InterviewStore } from "../storage/interview-store.j
 import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { PreferencesAfterLink } from "./preferences-after-link.js";
+import type { DoctorRole } from "./doctor-role.js";
 import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import type { Unlink } from "./unlink.js";
@@ -139,6 +141,9 @@ export interface InterviewDeps {
   readonly nameAndRoles: NameAndRoles;
   readonly unlink: Unlink;
   readonly onboardingRole: Pick<OnboardingRole, "give" | "takeOff">;
+  /** Gives the Doctor Role to a Member once their Link is stored, before the Onboarding Role is taken off. */
+  readonly doctorRole: Pick<DoctorRole, "give">;
+  readonly preferences: PreferencesAfterLink;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -265,7 +270,10 @@ function errorText(error: unknown): string {
 
 async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<void> {
   if (member.bot) return;
-  if (deps.links.linkFor(member.id) !== undefined) return;
+  if (deps.links.linkFor(member.id) !== undefined) {
+    await deps.doctorRole.give(member.id);
+    return;
+  }
   if (deps.interviews.openFor(member.id) !== undefined) return;
   await deps.onboardingRole.give(member.id);
   await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
@@ -689,9 +697,10 @@ async function refuseConfirmation(
 }
 
 /**
- * The Link is stored: the Onboarding Role is taken off and the log notes the Link with the leader's Member when present.
- * The Member's name and roles follow, without touching the Link. A pending Rank Approval is asked in the thread, which
- * says the Link is stored; otherwise the thread is deleted.
+ * The Link is stored: the Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither
+ * role; the log notes the Link with the leader's Member when present. The Member's name and roles follow, without touching
+ * the Link. The Preferences message is posted in the thread. A pending Rank Approval is asked in the thread, which says the
+ * Link is stored; otherwise the thread is deleted, unless the Preferences message is open in it.
  */
 async function finishLink(
   deps: InterviewDeps,
@@ -701,14 +710,28 @@ async function finishLink(
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
   const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
+  await deps.doctorRole.give(interview.memberId);
   await deps.onboardingRole.takeOff(interview.memberId);
   if (pendingApproval !== undefined) {
     await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
   }
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
+  // Posted first: the message stores the preselected language that the name and roles' Preference Roles read.
+  const preferencesPosted = await postPreferencesAfterLink(deps, interview, link);
   await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
   if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, interview.player);
-  await deps.channels.deleteThread(interview.threadId);
+  if (!preferencesPosted) await deps.channels.deleteThread(interview.threadId);
+}
+
+/** Posts the Preferences message after a Link; a failure is logged, never thrown. True when the message is posted. */
+async function postPreferencesAfterLink(deps: InterviewDeps, interview: AwaitingConfirmation, link: Link): Promise<boolean> {
+  try {
+    await deps.preferences.postAfterLink(interview.memberId, interview.threadId, interview.player, link.allianceRank);
+    return true;
+  } catch (error) {
+    deps.logError(`Posting the Preferences message after a Link failed: ${errorText(error)}`);
+    return false;
+  }
 }
 
 /** Gives the Linked Member their name and roles; a failure is logged, never thrown, so the Link stands. */

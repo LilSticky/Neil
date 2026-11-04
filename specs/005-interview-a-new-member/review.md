@@ -47,3 +47,16 @@ Diff `e0ef8de..HEAD -- src/`. No must; 2 should, 4 could/nit.
 | nit | `src/storage/interview-store.ts` `checking()` | test-only now | remove |
 
 Checked fine: ownership and acknowledge-once on accept/decline/pick, Quota Reserve purpose, no uids in recommendation/pick list/lookups, migration 4 in a transaction, escaping, pure domain.
+
+### Closed (checked 2026-11-04 against `24a08df`)
+
+All six findings are fixed. This pass checked the code and tests; `bot-reviewer` was not run again.
+
+| Finding | Where it stands now |
+|---------|---------------------|
+| should: restart before the Link | `isInFlight` in `src/storage/interview-store.ts` also takes `confirmedByChoice`; test in `src/discord/interview-sweeper.test.ts` ("a restart must not leave the Member with no Link and no card") |
+| should: pick list labels | `optionLabel` in `src/discord/interview-texts.ts`; test "a label longer than 100 characters is cut to 100" |
+| could: `checking` loses `chosen` | `recoverAfterRestart` keeps it through `withChoice` |
+| could: Linked matches in the pick list | filtered by `notLinkedToOther` in `src/discord/interview.ts` |
+| could: pick of an invalid uid | `pickPlayer` answers `somethingWentWrongReply` |
+| nit: `checking()` | removed |

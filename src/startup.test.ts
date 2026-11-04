@@ -15,6 +15,8 @@ import { openDatabase } from "./storage/database.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { ReaperStore } from "./storage/reaper-store.js";
+import { createPreferenceStore, type PreferenceStore } from "./storage/preference-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
 
 const FAKE_TOKEN = "fake-token-never-shown-7f3a9c";
@@ -93,9 +95,13 @@ function stubStores(): {
   readonly applied: AppliedStore;
   readonly knownAlliances: KnownAllianceStore;
   readonly dailySync: DailySyncStore;
+  readonly preferences: PreferenceStore;
+  readonly reaper: ReaperStore;
 } {
   return {
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
+    preferences: createPreferenceStore(new DatabaseSync(":memory:")),
+    reaper: new ReaperStore(new DatabaseSync(":memory:")),
     interviews: new InterviewStore(new DatabaseSync(":memory:"), DEFAULT_INTERVIEW_TIMEOUT_MS),
     links: new LinkStore(new DatabaseSync(":memory:")),
     applied: new AppliedStore(new DatabaseSync(":memory:")),
@@ -186,6 +192,21 @@ describe("start", () => {
     await start(fake.deps);
 
     expect(fake.built).toEqual([{ apiKey: FAKE_API_KEY, version: "2f7a537" }]);
+  });
+
+  test("passes the REAPER store to connect, the store the bot's /reaper commands read and write", async () => {
+    const seen: ConnectOptions[] = [];
+    const fake = fakeDeps({
+      connect: (_token, options) => {
+        seen.push(options);
+        return Promise.resolve({ disconnect: () => Promise.resolve() });
+      },
+    });
+
+    await start(fake.deps);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.reaper).toBe(fake.stores.reaper);
   });
 
   test("passes the Daily Sync hour, share and store from configuration to connect", async () => {

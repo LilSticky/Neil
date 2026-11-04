@@ -94,7 +94,10 @@ Live sample: `/alliances/1/NML` and three of its members by uid (4 requests), co
   `alliance_badge_url`; alliance `level`, `exp`, `gift_level`, `rank` (`{"rank":24,"score":"240337604"}`: the score
   is a string and equals the alliance's power, so `rank` is its power rank in the kingdom), `join`
   (`{"auto":true,"power":0,"castle_level":0}`), `language`, `badge_url`, `server_badge_url`; roster rows `power`.
-- **Not stable / unclear** (not used): `gender`, `skin_name`, `avatar_name` (often `""`), `shielding`/`shield_type`
+- **Read but unproven** (slice 014, REAPER): `shielding`, always 0 in every sample. Neil reads a non-zero number as
+  shielded and leaves that Exile out of `/reaper closest`; 0 proves nothing, so answers say shields cannot be seen.
+  Record it here if a non-zero value is ever seen.
+- **Not stable / unclear** (not used): `gender`, `skin_name`, `avatar_name` (often `""`), `shield_type`
   (always 0), `power_breakdown` (always `[]`), `history` (only `change_flags: "power"` seen; empty for some players),
   `bulletin`/`declaration` (always `""`), `live` (always `true`, meaning unknown), `first_seen_at`/`last_seen_at`
   (the tracker's own times), `hq_skin`, `icon_id`, `frame_id`/`frame_url`.
