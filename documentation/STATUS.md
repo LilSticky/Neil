@@ -7,19 +7,26 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 014, Find the closest Exile (REAPER) ([specs](../specs/014-find-the-closest-exile/), [#35](https://github.com/LilSticky/Neil/issues/35)),
+on branch `014-find-the-closest-exile`: `/reaper add|remove` for Home Kingdom R5s, `/reaper closest|list` for any
+Member. T001–T013 done (review and audit in the spec folder, ADR 9 for its personal data); the manual check T014
+(TEST-RUN.md §6j) is open. Parallel sessions: 015 Daily Allowance (`../Neil-015`, migration 12) and 016 Choose your
+channels (`../Neil-016-choose-channels`, migration 13); 015 will change the lookup signature `/reaper` uses, so it
+rebases onto 014.
+
 Slice 013, Keep newcomers in onboarding ([specs](../specs/013-keep-newcomers-in-onboarding/)): the Onboarding Role
 (given on join and Unlink, taken off at Link, put right at startup) and deletion of finished Interview threads. Merged
 to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task T012) is open.
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03.
 
-**Next step:** the user sets the channel permissions from [HOSTING.md](HOSTING.md) ("Onboarding Role for slice 013")
-after Neil's first restart with slice 013 has created the `Onboarding` role, then runs TEST-RUN.md §6i. After that,
-pick the next slice; the only candidate is REAPER, waiting on [#35](https://github.com/LilSticky/Neil/issues/35).
+**Next step:** for the user: after the slice 014 deploy, `npm run commands:register`, then TEST-RUN.md §6j. For the user: the slice 013 channel permissions from
+[HOSTING.md](HOSTING.md) and TEST-RUN.md §6i.
 
 ## Known broken / WIP
 
 - Slice 013 manual check open (T012, TEST-RUN.md §6i).
+- Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).
 - Officer commands are now hidden from Members (slice 011 C3 fixed). After deploying, run `npm run commands:register`
   and do the Integrations step in [HOSTING.md](HOSTING.md) (allow Moderator and King, limit to the moderator channel).
@@ -27,7 +34,6 @@ pick the next slice; the only candidate is REAPER, waiting on [#35](https://gith
 
 ## Open questions
 
-- REAPER (slice in Later): open questions in [#35](https://github.com/LilSticky/Neil/issues/35).
 - Wispbyte's disk persistence: answered yes in slice 001.
 
 ## Standing notes

@@ -31,6 +31,7 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -53,6 +54,7 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
     ]);
     db.close();
   });
@@ -62,7 +64,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 10");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 11");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -178,6 +180,7 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -338,6 +341,48 @@ describe("openDatabase", () => {
     }
   });
 
+  test("migration 11 creates reaper with the columns of an Exile", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const columns = db
+        .prepare("SELECT name FROM pragma_table_info('reaper')")
+        .all()
+        .map((row) => String(row.name));
+      expect(columns).toEqual([
+        "uid",
+        "name",
+        "kingdom",
+        "x",
+        "y",
+        "position_at",
+        "reason",
+        "added_at",
+        "added_by",
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("reaper refuses a reason of 0 or more than 200 characters, and a position with only x or only y", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare(
+        "INSERT INTO reaper (uid, name, kingdom, x, y, position_at, reason, added_at, added_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      );
+      const addedAt = "2026-10-29T12:00:00.000Z";
+
+      expect(() => insert.run("uid-1", "Alice", 330, null, null, null, "", addedAt, "111")).toThrow(/CHECK/);
+      expect(() => insert.run("uid-2", "Alice", 330, null, null, null, "a".repeat(201), addedAt, "111")).toThrow(/CHECK/);
+      expect(() => insert.run("uid-3", "Alice", 330, 1, null, null, "reason", addedAt, "111")).toThrow(/CHECK/);
+      expect(() => insert.run("uid-4", "Alice", 330, 1, 2, null, "reason", addedAt, "111")).toThrow(/CHECK/);
+      insert.run("uid-5", "Alice", 330, 1, 2, "2026-10-29T12:00:00.000Z", "reason", addedAt, "111");
+      insert.run("uid-6", "Bob", 330, null, null, null, "a".repeat(200), addedAt, "111");
+    } finally {
+      db.close();
+    }
+  });
+
   test("upgrades a version 8 database and keeps its Links, which read as made from In-game Proof", () => {
     const legacy = new DatabaseSync(join(dataDir, "neil.db"));
     legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v8.sql"), "utf8"));
@@ -359,6 +404,7 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -392,6 +438,7 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -428,6 +475,7 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -464,6 +512,7 @@ describe("openDatabase", () => {
         { version: 8 },
         { version: 9 },
         { version: 10 },
+        { version: 11 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -540,6 +589,7 @@ describe("openDatabase", () => {
       { version: 8 },
       { version: 9 },
       { version: 10 },
+      { version: 11 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),
