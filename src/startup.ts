@@ -9,6 +9,7 @@ import type { DailySyncStore } from "./storage/daily-sync-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
+import type { ReaperStore } from "./storage/reaper-store.js";
 
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
 export function formatStartupError(
@@ -37,7 +38,7 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links, the Applied States, the Known Alliances and the Daily Sync record, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record and REAPER, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
   readonly interviews: InterviewStore;
@@ -45,6 +46,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly applied: AppliedStore;
   readonly knownAlliances: KnownAllianceStore;
   readonly dailySync: DailySyncStore;
+  readonly reaper: ReaperStore;
 }
 
 export interface Connection {
@@ -131,6 +133,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       homeKingdom: config.homeKingdom,
       troopBracketLevels: config.troopBracketLevels,
       dailySync: store.dailySync,
+      reaper: store.reaper,
       syncHourUtc: config.syncHourUtc,
       syncShare: config.syncShare,
     });

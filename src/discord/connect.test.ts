@@ -6,8 +6,9 @@ import { ChannelType, Events, PermissionFlagsBits } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { todaysQuota, utcDayOf, type RequestPurpose } from "../domain/daily-quota.js";
 import { ONBOARDING_ROLE_NAME } from "../domain/onboarding-role.js";
+import { exileReasonOf, type Exile } from "../domain/exile.js";
 import { parseUid, parseKingdom, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { Alliance, LookupResult, Player } from "../domain/player.js";
+import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
 import { recordStart } from "../domain/start-record.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
@@ -15,8 +16,11 @@ import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import { LinkStore } from "../storage/link-store.js";
+import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeConnectGuild } from "./__fakes__/connect-guild.js";
 import { FakeClient } from "./__fakes__/discord-client.js";
+import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
+import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
 import { connect, type ConnectOptions } from "./client.js";
 import { unlinkedLogLine, unlinkedPrivateMessage } from "./unlink-texts.js";
 
@@ -63,11 +67,33 @@ function kingdomOf(number: number): KingdomNumber {
 
 const UID = uidOf("145563254785");
 const BOB_UID = uidOf("145563254786");
+const ALICE_UID = uidOf("145563254787");
 const HOME_KINGDOM = kingdomOf(330);
 
-/** The Game API as connect uses it: records each Player lookup and finds no Player. */
+/** Vex, a Home Kingdom Player: the Player the pick of the /reaper add pick list reads. */
+const VEX: Player = {
+  uid: UID,
+  name: "Vex",
+  kingdom: HOME_KINGDOM,
+  might: 15902728,
+  sanctuaryLevel: 42,
+  alliance: { tag: "ASH", name: "Ashen", leaderUid: undefined },
+  allianceRank: "R4",
+};
+
+/** Two Players named Vex in two Kingdoms: an ambiguous name. The pick list orders them by Kingdom, so Kingdom 330 is at 1. */
+const VEX_MATCHES: readonly Match[] = [
+  { uid: "145563254785", name: "Vex", kingdom: 330, tag: "ASH" },
+  { uid: "145563254786", name: "Vex", kingdom: 12, tag: "OWL" },
+];
+
+/** The Game API as connect uses it: records each Player lookup; finds the Player set, else none. */
 class FakeGameApi {
   readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  /** The Player every uid reads as; undefined reads no Player. */
+  player: Player | undefined = undefined;
+  /** The matches a name finds, when the name is ambiguous; undefined finds no Player by name. */
+  ambiguousMatches: readonly Match[] | undefined = undefined;
   private gate: Promise<void> | undefined = undefined;
   private openGate: (() => void) | undefined = undefined;
 
@@ -87,11 +113,13 @@ class FakeGameApi {
   async getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
     this.lookups.push({ uid, purpose });
     if (this.gate !== undefined) await this.gate;
-    return { kind: "not-found" };
+    if (this.player === undefined) return { kind: "not-found" };
+    return { kind: "found", value: this.player, fetchedAt: NOW };
   }
 
   findPlayer(): Promise<LookupResult<Player>> {
-    return Promise.resolve({ kind: "not-found" });
+    if (this.ambiguousMatches === undefined) return Promise.resolve({ kind: "not-found" });
+    return Promise.resolve({ kind: "ambiguous", matches: this.ambiguousMatches });
   }
 
   getAlliance(): Promise<LookupResult<Alliance>> {
@@ -122,6 +150,7 @@ describe("connect", () => {
   let applied: AppliedStore;
   let interviews: InterviewStore;
   let dailySync: DailySyncStore;
+  let reaper: ReaperStore;
   let gameApi: FakeGameApi;
   let connection: { disconnect(): Promise<void> } | undefined;
 
@@ -132,6 +161,7 @@ describe("connect", () => {
     applied = new AppliedStore(db);
     interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
     dailySync = new DailySyncStore(db);
+    reaper = new ReaperStore(db);
     gameApi = new FakeGameApi();
     connection = undefined;
     FakeClient.served = undefined;
@@ -196,6 +226,7 @@ describe("connect", () => {
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       dailySync,
+      reaper,
       syncHourUtc: 3,
       syncShare: 500,
     };
@@ -423,5 +454,104 @@ describe("connect", () => {
 
     expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
     expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toMatch(/Daily Sync/);
+  });
+
+  describe("/reaper", () => {
+    /** Alice is Linked to a Player of her own, is a Home Kingdom R5, and is applied in the Home Kingdom. */
+    function linkR5Alice(): void {
+      links.confirm(
+        { link: { memberId: ALICE, uid: ALICE_UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R5" }, madeBy: { kind: "in-game-proof" } } },
+        () => undefined,
+      );
+      applied.record({ memberId: ALICE, nickname: "Rogue", roles: [], appliedAt: NOW, complete: true, alliance: { kingdom: HOME_KINGDOM, tag: "ASH" } });
+    }
+
+    /** Delivers an interaction to the client connect created, as Discord does. */
+    function deliver(interaction: unknown): void {
+      const client = FakeClient.latest;
+      if (client === undefined) throw new Error("connect created no client");
+      client.emit(Events.InteractionCreate, interaction);
+    }
+
+    /** A /reaper command as discord.js hands it to connect: its subcommand, and the reply methods of the fake that answers it. */
+    function reaperCommandOf(interaction: FakeReaperInteraction, subcommand: string) {
+      return Object.assign(interaction, {
+        commandName: "reaper",
+        isChatInputCommand: () => true,
+        isAutocomplete: () => false,
+        isButton: () => false,
+        isStringSelectMenu: () => false,
+        isModalSubmit: () => false,
+        options: { ...interaction.options, getSubcommand: () => subcommand },
+      });
+    }
+
+    /** A string select menu press as discord.js hands it to connect. */
+    function selectOf(interaction: FakePickInteraction) {
+      return Object.assign(interaction, {
+        isChatInputCommand: () => false,
+        isAutocomplete: () => false,
+        isButton: () => false,
+        isStringSelectMenu: () => true,
+        isModalSubmit: () => false,
+      });
+    }
+
+    /** The session id of the pick list an add answered with, read from its select menu's custom id. */
+    function pickSessionIdOf(interaction: FakeReaperInteraction): string {
+      const match = /"custom_id":"pick:([^:"]+):select"/.exec(JSON.stringify(interaction.calls));
+      const sessionId = match?.[1];
+      if (sessionId === undefined) throw new Error("the add did not answer with a pick list");
+      return sessionId;
+    }
+
+    test("/reaper list answers privately with the Exiles of the REAPER store the bot is given", async () => {
+      const reasoned = exileReasonOf("Hoarding gold");
+      if (!reasoned.ok) throw new Error("the test reason must be accepted");
+      const exile: Exile = {
+        uid: UID,
+        name: "Vex",
+        kingdom: HOME_KINGDOM,
+        position: undefined,
+        positionAt: undefined,
+        reason: reasoned.value,
+        addedAt: NOW,
+        addedBy: BOB,
+      };
+      reaper.add(exile);
+      FakeClient.served = serverWith(SERVER_PERMISSIONS);
+      recordDailySyncRunToday();
+      connection = await connect(TOKEN, connectOptions());
+      const list = new FakeReaperInteraction({}, ALICE);
+
+      deliver(reaperCommandOf(list, "list"));
+
+      await vi.waitFor(() => {
+        expect(JSON.stringify(list.calls)).toContain("Vex");
+      });
+    });
+
+    test("an Exile picked from the pick list of /reaper add is stored in REAPER with the reason typed, and logged", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(ALICE);
+      FakeClient.served = guild;
+      linkR5Alice();
+      recordDailySyncRunToday();
+      gameApi.ambiguousMatches = VEX_MATCHES;
+      gameApi.player = VEX;
+      connection = await connect(TOKEN, connectOptions());
+      const add = new FakeReaperInteraction({ strings: { name: "Vex", reason: "Hoarding gold" } }, ALICE);
+      deliver(reaperCommandOf(add, "add"));
+      const sessionId = await vi.waitFor(() => pickSessionIdOf(add));
+
+      // The pick list orders the matches by Kingdom, so the Kingdom 330 Vex is the second option.
+      deliver(selectOf(new FakePickInteraction({ customId: `pick:${sessionId}:select`, userId: ALICE, values: ["1"] })));
+
+      await vi.waitFor(() => {
+        expect(reaper.find(UID)).toBeDefined();
+      });
+      expect(reaper.find(UID)).toMatchObject({ name: "Vex", reason: "Hoarding gold", addedBy: ALICE });
+      expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toContain("Vex");
+    });
   });
 });

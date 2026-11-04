@@ -246,17 +246,33 @@ export interface ReaperClosestContext {
   readonly logError: (message: string) => void;
 }
 
-/** What /reaper list needs: REAPER, the paged answers and the clock. */
+/** What /reaper list needs: REAPER, the paged answers, the clock and the error log (console.error when left out). */
 export interface ReaperListContext {
   readonly reaper: Pick<ReaperStore, "all">;
   readonly pages: Pick<ReaperPages<ReaperPageContent>, "open">;
   readonly now: () => Date;
+  readonly logError?: (message: string) => void;
 }
 
-/** What a page button of /reaper needs: the paged answers and the clock the press is answered at. */
+/** What a page button of /reaper needs: the paged answers, the clock the press is answered at and the error log (console.error when left out). */
 export interface ReaperPageContext {
   readonly pages: Pick<ReaperPages<ReaperPageContent>, "get">;
   readonly now: () => Date;
+  readonly logError?: (message: string) => void;
+}
+
+/** Reads REAPER for a /reaper answer; a read that throws is logged and gives undefined, which the answer tells as unavailable. */
+function readOrLog<T>(
+  command: string,
+  read: () => T,
+  logError: ((message: string) => void) | undefined,
+): T | undefined {
+  try {
+    return read();
+  } catch (error) {
+    (logError ?? console.error)(`Reading REAPER for ${command} failed: ${errorText(error)}`);
+    return undefined;
+  }
 }
 
 /** Reads one Player with the lookup purpose; a read that throws is logged and told as unavailable. */
@@ -389,7 +405,11 @@ export async function handleReaperClosest(interaction: ReaperInteraction, contex
 /** Answers /reaper list, privately: every Exile of REAPER, newest first, 8 per page. */
 export async function handleReaperList(interaction: ReaperInteraction, context: ReaperListContext): Promise<void> {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const exiles = context.reaper.all();
+  const exiles = readOrLog("/reaper list", () => context.reaper.all(), context.logError);
+  if (exiles === undefined) {
+    await interaction.editReply({ content: lookupMessages.unavailable, allowedMentions });
+    return;
+  }
   if (exiles.length === 0) {
     await interaction.editReply({ content: reaperMessages.empty, allowedMentions });
     return;
@@ -405,8 +425,16 @@ export async function handleReaperList(interaction: ReaperInteraction, context: 
  */
 export async function handleReaperPage(interaction: ReaperPageInteraction, context: ReaperPageContext): Promise<void> {
   const parsed = parseReaperCustomId(interaction.customId);
-  const session = parsed === undefined ? "expired" : context.pages.get(parsed.sessionId, context.now());
-  if (parsed === undefined || session === "expired") {
+  if (parsed === undefined) {
+    await replyPrivately(interaction, reaperMessages.pageExpired);
+    return;
+  }
+  const session = readOrLog("/reaper page", () => context.pages.get(parsed.sessionId, context.now()), context.logError);
+  if (session === undefined) {
+    await replyPrivately(interaction, lookupMessages.unavailable);
+    return;
+  }
+  if (session === "expired") {
     await replyPrivately(interaction, reaperMessages.pageExpired);
     return;
   }

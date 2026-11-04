@@ -17,6 +17,7 @@ import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
 import { FakeReaperPageInteraction } from "./__fakes__/reaper-page-interaction.js";
+import { lookupMessages } from "./lookup-cards.js";
 import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 import { handleReaperList, handleReaperPage } from "./reaper.js";
 
@@ -288,5 +289,40 @@ describe("handleReaperList", () => {
 
     expect(press.calls).toHaveLength(1);
     expect(press.calls[0]).toMatchObject({ method: "reply", options: { flags: MessageFlags.Ephemeral } });
+  });
+
+  test("a list that cannot read REAPER is logged and answered as unavailable, instead of failing", async () => {
+    const logError = vi.fn<(message: string) => void>();
+    const unreadable = {
+      all: (): never => {
+        throw new Error("database is locked");
+      },
+    };
+    const { context } = listContext(store, pages);
+    const interaction = new FakeReaperInteraction({}, VIEWER_ID);
+
+    await expect(handleReaperList(interaction, { ...context, reaper: unreadable, logError })).resolves.toBeUndefined();
+
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(lastAnswerOf(interaction)).toMatchObject({ content: lookupMessages.unavailable });
+  });
+
+  test("a page button whose listing cannot be read is logged and answered as unavailable, instead of failing", async () => {
+    const logError = vi.fn<(message: string) => void>();
+    const unreadable = {
+      get: (): never => {
+        throw new Error("listing lost");
+      },
+    };
+    const press = new FakeReaperPageInteraction({ customId: "reaper:0123456789abcdef:page:1", userId: VIEWER_ID });
+
+    await expect(handleReaperPage(press, { pages: unreadable, now: () => NOW, logError })).resolves.toBeUndefined();
+
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(press.calls).toHaveLength(1);
+    expect(press.calls[0]).toMatchObject({
+      method: "reply",
+      options: { content: lookupMessages.unavailable, flags: MessageFlags.Ephemeral },
+    });
   });
 });

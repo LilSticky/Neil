@@ -34,7 +34,7 @@ description: "Task list for slice 014, Find the closest Exile (REAPER)"
   a request; expired session message.
 - [x] **T009** [US3] `remove` (D7, D8): autocomplete from REAPER without a request; removed → confirmation and log
   line; unknown → "not an Exile"; refusal for non-editors.
-- [ ] **T010** [US1–4] Wiring: `client.ts` routes `/reaper`, its autocomplete and `reaper:` buttons; `main.ts` builds
+- [x] **T010** [US1–4] Wiring: `client.ts` routes `/reaper`, its autocomplete and `reaper:` buttons; `main.ts` builds
   `ReaperStore`; command registered.
 - [ ] **T011** Docs (D9): GAME-API.md (`shielding` read), TEST-RUN.md REAPER section, STATUS, ROADMAP row 014.
 - [ ] **T012** `bot-reviewer` on the slice diff; findings into `review.md`; fix must/should items.
