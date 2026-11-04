@@ -42,6 +42,13 @@ import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
 import { createPreferenceRoles } from "./preferences.js";
 import { createPreferencesAfterLink } from "./preferences-after-link.js";
+import {
+  createPreferenceChoices,
+  type ChannelsCommand,
+  type PreferenceChoices,
+  type PreferencePress,
+} from "./preferences-choices.js";
+import { PREFERENCES_PREFIX } from "./preferences-texts.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
@@ -86,6 +93,8 @@ export interface CommandHandlers {
   /** An autocomplete request of /alliance, for its name or tag option. */
   readonly allianceAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
+  /** The /channels command: a Linked Member sees their Preferences message, privately, and changes nothing. */
+  readonly channels: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
   readonly pick: (interaction: PickInteraction) => Promise<void>;
   /** A button whose custom id starts with `overview:`, the page buttons of an Alliance Overview. */
@@ -110,6 +119,8 @@ export interface CommandHandlers {
   readonly link: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button whose custom id starts with `link:`, the Confirm and Cancel buttons of an Officer Link. */
   readonly linkButton: (button: ButtonInteraction) => Promise<void>;
+  /** A button or string select menu whose custom id starts with `pref:`, the Preferences message's components. */
+  readonly preferencesPress: (press: ButtonInteraction | StringSelectMenuInteraction) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
@@ -123,6 +134,8 @@ interface Services {
     readonly link: (interaction: LinkInteraction) => Promise<void>;
     readonly linkButton: (button: LinkButtonInteraction) => Promise<void>;
   };
+  /** The Preferences message's presses and /channels. */
+  readonly preferenceChoices: PreferenceChoices;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -201,6 +214,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "quota":
           void handlers.quota(interaction);
           break;
+        case "channels":
+          void handlers.channels(interaction);
+          break;
         case "interview":
           void handlers.interview(interaction);
           break;
@@ -235,6 +251,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.pick(interaction);
       } else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
         void handlers.overview(interaction);
+      } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
+        void handlers.preferencesPress(interaction);
       }
       return;
     }
@@ -243,6 +261,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.interviewButton(interaction);
       } else if (interaction.customId.startsWith(PICK_PREFIX)) {
         void handlers.pick(interaction);
+      } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
+        void handlers.preferencesPress(interaction);
       }
     }
   });
@@ -484,6 +504,34 @@ function linkButtonLike(button: ButtonInteraction): LinkButtonInteraction {
   };
 }
 
+/** The discord.js /channels command as the choices read it: the caller, and the private reply. */
+function channelsCommandLike(command: ChatInputCommandInteraction): ChannelsCommand {
+  return {
+    user: command.user,
+    reply: async (message) => {
+      await command.reply(message);
+    },
+  };
+}
+
+/**
+ * The discord.js button press or string select menu press on a Preferences message as the choices read it. A select menu
+ * press also carries the values picked; see buttonLike for why each method is passed on.
+ */
+function preferencesPressLike(press: ButtonInteraction | StringSelectMenuInteraction): PreferencePress {
+  const like: PreferencePress = {
+    customId: press.customId,
+    user: press.user,
+    reply: async (message) => {
+      await press.reply(message);
+    },
+    update: async (options) => {
+      await press.update(options);
+    },
+  };
+  return press.isStringSelectMenu() ? { ...like, values: [...press.values] } : like;
+}
+
 /** The discord.js chat-input command as the Interview reads it; see buttonLike for why each method is passed on. */
 function commandLike(command: ChatInputCommandInteraction): CommandLike {
   return {
@@ -612,6 +660,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           const { rankApprovals } = await services;
           await rankApprovals.onButton(rankButtonLike(button));
         }),
+      channels: async (interaction) => (await services).preferenceChoices.showChannels(channelsCommandLike(interaction)),
+      preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
     },
     { guildId: options.guildId, logError },
   );
@@ -650,6 +700,16 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       members: serverMembersOf(guild),
       links: options.links,
       preferences: options.preferences,
+      logError,
+    });
+    // The Preferences message's presses and /channels: the same stores, roles and log as the Interview's Preferences.
+    const preferenceChoices = createPreferenceChoices({
+      roles: preferenceRoles,
+      preferences: options.preferences,
+      links: options.links,
+      rankApprovals: options.links,
+      channels,
+      guidesForumId: options.guidesForumId,
       logError,
     });
     const unlink = createUnlink({
@@ -747,7 +807,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           logError,
         }),
     };
-    openServices({ interviews, rankApprovals, corrections });
+    openServices({ interviews, rankApprovals, corrections, preferenceChoices });
     // The startup sweep of the Onboarding Role and the startup apply run in the background, so login does not wait for
     // them. The Daily Sync starts once the startup apply has settled, so their Game API lookups do not overlap.
     void onboardingRole.atStartup().catch((error: unknown) => {

@@ -1,4 +1,4 @@
-import type { BaseMessageOptions } from "discord.js";
+import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import type { RankOnLink } from "../domain/link.js";
 import {
   EXPERIENCES,
@@ -27,6 +27,7 @@ import {
   preferencesMessage,
   savedMessage,
   type PreferenceQuestion,
+  type PreferencesMessage,
 } from "./preferences-texts.js";
 
 /** What the Preferences message's presses need: the stores, the Preference Roles, the log, and the guides forum. */
@@ -53,13 +54,21 @@ export interface PreferencePress {
   update(options: BaseMessageOptions): Promise<void>;
 }
 
-/** Handles the presses on a Preferences message. */
+/** The part of a discord.js /channels command that the choices use: who ran it, and the private reply. */
+export interface ChannelsCommand {
+  readonly user: { readonly id: MemberId };
+  reply(message: PrivateReply): Promise<void>;
+}
+
+/** Handles the presses on a Preferences message, and the /channels command that shows one. */
 export interface PreferenceChoices {
   /** Answers a press and makes its change. Never throws: a failure is logged. */
   press(press: PreferencePress): Promise<void>;
+  /** Answers /channels with the Member's Preferences message, or tells a Member who is not Linked to finish onboarding. Never throws. */
+  showChannels(command: ChannelsCommand): Promise<void>;
 }
 
-/** Builds the handler of the Preferences message's presses. */
+/** Builds the handler of the Preferences message's presses and of /channels. */
 export function createPreferenceChoices(deps: PreferenceChoicesDeps): PreferenceChoices {
   return {
     async press(press) {
@@ -67,6 +76,13 @@ export function createPreferenceChoices(deps: PreferenceChoicesDeps): Preference
         await handlePress(deps, press);
       } catch (error) {
         deps.logError(`A Preferences press by ${press.user.id} failed: ${reasonOf(error)}`);
+      }
+    },
+    async showChannels(command) {
+      try {
+        await answerChannels(deps, command);
+      } catch (error) {
+        deps.logError(`/channels by ${command.user.id} failed: ${reasonOf(error)}`);
       }
     },
   };
@@ -93,6 +109,18 @@ async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress):
     return;
   }
   await change(deps, press, { memberId, rank: link.allianceRank, question });
+}
+
+/** /channels: a Linked Member gets their Preferences message, privately, and nothing changes. */
+async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsCommand): Promise<void> {
+  const memberId = command.user.id;
+  const link = deps.links.linkFor(memberId);
+  if (link === undefined) {
+    await command.reply(notLinkedReply());
+    return;
+  }
+  const message = messageFor(deps, memberId, deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
+  await command.reply({ ...message, flags: MessageFlags.Ephemeral });
 }
 
 /** Done: the message is answered first, then the prompt closes and its thread goes, unless a Rank Approval waits. */
@@ -129,17 +157,25 @@ async function change(
       break;
   }
   const preferences: Preferences = deps.preferences.get(memberId);
-  await press.update(
-    preferencesMessage({
-      memberId,
-      preferences,
-      rank: alliance,
-      playerLanguage: undefined,
-      guidesForumId: deps.guidesForumId,
-    }),
-  );
+  await press.update(messageFor(deps, memberId, preferences, alliance));
   await deps.roles.apply(memberId, rank);
   await deps.channels.log(preferencesLogLine(memberId, preferences));
+}
+
+/** The Preferences message as the presses and /channels show it; the Member's playing language is not looked up here. */
+function messageFor(
+  deps: PreferenceChoicesDeps,
+  memberId: MemberId,
+  preferences: Preferences,
+  rank: AllianceRank | undefined,
+): PreferencesMessage {
+  return preferencesMessage({
+    memberId,
+    preferences,
+    rank,
+    playerLanguage: undefined,
+    guidesForumId: deps.guidesForumId,
+  });
 }
 
 /** The questions a select menu of the Preferences message answers: every question but Done. */

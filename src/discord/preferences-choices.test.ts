@@ -1,4 +1,4 @@
-import type { BaseMessageOptions } from "discord.js";
+import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { Link, RankOnLink } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
@@ -14,6 +14,7 @@ import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { PreferencePrompt, PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { PrivateReply } from "./interview-texts.js";
 import type { PreferenceRoles } from "./preferences.js";
 import { createPreferenceChoices } from "./preferences-choices.js";
 import {
@@ -447,6 +448,63 @@ describe("Done", () => {
 
     expect(channels.deleted).toEqual([ALICE_THREAD]);
     expect(store.prompt(BOB)).toEqual({ threadId: BOB_THREAD, postedAt: NOW });
+  });
+});
+
+/** The /channels command as the choices see it: who ran it, and the private replies recorded. */
+class FakeChannelsCommand {
+  readonly replies: PrivateReply[] = [];
+
+  constructor(readonly user: { readonly id: MemberId }) {}
+
+  reply(message: PrivateReply): Promise<void> {
+    this.replies.push(message);
+    return Promise.resolve();
+  }
+}
+
+describe("/channels", () => {
+  test("a Linked Member gets their stored Preferences and Alliance Rank in a private message, and changes nothing", async () => {
+    const { store, roles, channels, linkAlice, choices } = setUp();
+    linkAlice(R4);
+    const preferences = preferencesWith({
+      languages: languages("it", "en"),
+      region: "europe-africa",
+      interests: interests("pvp", "nap"),
+      experience: "veteran",
+    });
+    store.set(ALICE, preferences);
+    const command = new FakeChannelsCommand({ id: ALICE });
+
+    await choices.showChannels(command);
+
+    expect(command.replies).toEqual([
+      {
+        ...preferencesMessage({
+          memberId: ALICE,
+          preferences,
+          rank: "R4",
+          playerLanguage: undefined,
+          guidesForumId: GUIDES_FORUM,
+        }),
+        flags: MessageFlags.Ephemeral,
+      },
+    ]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+  });
+
+  test("a Member who is not Linked is told to finish onboarding first, and changes nothing", async () => {
+    const { store, roles, channels, choices } = setUp();
+    const command = new FakeChannelsCommand({ id: ALICE });
+
+    await choices.showChannels(command);
+
+    expect(command.replies).toEqual([notLinkedReply()]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
   });
 });
 

@@ -58,6 +58,7 @@ function handlers() {
     alliance: vi.fn(() => Promise.resolve()),
     allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
+    channels: vi.fn(() => Promise.resolve()),
     unlink: vi.fn(() => Promise.resolve()),
     rank: vi.fn(() => Promise.resolve()),
     link: vi.fn(() => Promise.resolve()),
@@ -70,6 +71,7 @@ function handlers() {
     interviewButton: vi.fn(() => Promise.resolve()),
     interviewModal: vi.fn(() => Promise.resolve()),
     rankButton: vi.fn(() => Promise.resolve()),
+    preferencesPress: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -198,6 +200,20 @@ describe("createClient", () => {
     expect(routed.rank).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /channels to the channels handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("channels");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.channels).toHaveBeenCalledWith(interaction);
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.unlink).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+    expect(routed.preferencesPress).not.toHaveBeenCalled();
   });
 
   test("ignores other commands and other interaction kinds", () => {
@@ -364,6 +380,34 @@ describe("createClient", () => {
     expect(routed.rankButton).toHaveBeenCalledWith(interaction);
     expect(routed.interviewButton).not.toHaveBeenCalled();
     expect(routed.pick).not.toHaveBeenCalled();
+  });
+  test("hands a button whose custom id starts with pref: to the preferences press handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "pref:done:111111111111111111");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.preferencesPress).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.overview).not.toHaveBeenCalled();
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.linkButton).not.toHaveBeenCalled();
+  });
+
+  test("hands a string select menu whose custom id starts with pref: to the preferences press handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("select", "pref:languages:111111111111111111");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.preferencesPress).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.interviewButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.linkButton).not.toHaveBeenCalled();
   });
 });
 

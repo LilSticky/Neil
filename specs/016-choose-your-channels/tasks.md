@@ -34,9 +34,9 @@ description: "Task list for slice 016, Choose your channels"
   former R4/R5 and gives it to a new R5; a failure leaves the name and roles standing.
 - [x] **T009** [US1–4] `unlink.ts`: every Unlink calls `forget` (roles off for a Member still on the server, rows always
   deleted). `corrections.ts` Officer Link (R6): private message pointing to `/channels`, failure ignored.
-- [ ] **T010** [US4] `/channels` in `commands.ts`: Linked → the private Preferences message with current answers; not
+- [x] **T010** [US4] `/channels` in `commands.ts`: Linked → the private Preferences message with current answers; not
   Linked → "finish onboarding first"; register-commands test.
-- [ ] **T011** `client.ts`: build the store and service, route `pref:` components and `/channels`, pass the service to
+- [x] **T011** `client.ts`: build the store and service, route `pref:` components and `/channels`, pass the service to
   name and roles, the Interview, the sweeper, corrections and Unlink.
 - [ ] **T012** Docs: HOSTING.md (create the language, region, interest and experience channels' permissions per
   Preference Role; NaP publications visible to every Linked Member; `DISCORD_GUIDES_FORUM_ID`), `env.example`, TEST-RUN.md §6j,

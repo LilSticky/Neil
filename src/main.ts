@@ -37,7 +37,9 @@ await start({
       applied: new AppliedStore(db),
       knownAlliances: new KnownAllianceStore(db),
       dailySync: new DailySyncStore(db),
-      preferences: createPreferenceStore(db),
+      preferences: createPreferenceStore(db, (line) => {
+        console.error(line);
+      }),
     };
   },
   createGameApi: (apiKey, version, cacheTtlMs, quota, onAllianceSeen) =>
