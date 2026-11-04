@@ -16,6 +16,7 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
 import { FakeRolesGuild } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
@@ -762,6 +763,7 @@ function privateAnswersOf(button: FakeLinkButton): FakeLinkButton["answers"] {
 interface LinkHarness extends Harness {
   readonly gameApi: FakeLinkGameApi;
   readonly rankApprovals: FakeRankApprovals;
+  readonly onboardingRole: FakeOnboardingRole;
   /** The Members on the server; a Member not in it has left. */
   readonly onServer: Set<MemberId>;
   readonly confirmations: PendingLinkConfirmations;
@@ -774,6 +776,7 @@ function makeLinkHarness(): LinkHarness {
     ...base,
     gameApi: new FakeLinkGameApi(),
     rankApprovals: new FakeRankApprovals(),
+    onboardingRole: new FakeOnboardingRole(),
     onServer: new Set([OFFICER, LINKED, OTHER_LINKED, UNLINKED, NOT_OFFICER_LINKED, HANDED_OFF, RUNNING]),
     confirmations: new PendingLinkConfirmations(),
     now: NOW,
@@ -804,6 +807,7 @@ function confirmDeps(h: LinkHarness) {
     nameAndRoles: h.nameAndRoles,
     isOnServer: (memberId: MemberId) => Promise.resolve(h.onServer.has(memberId)),
     confirmations: h.confirmations,
+    onboardingRole: h.onboardingRole,
     now: () => h.now,
     logError: (line: string) => h.errors.push(line),
   };
@@ -1079,6 +1083,24 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
     expect(h.nameAndRoles.linked).toEqual([
       { memberId: HANDED_OFF, player: PLAYER_RANKED, rank: { source: "game-api", rank: "R3" } },
     ]);
+  });
+
+  test("Confirm takes the Onboarding Role off the Member it Links", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: HANDED_OFF }]);
+  });
+
+  test("Confirm takes the Onboarding Role off the Member too when a Rank Approval is pending", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.rankApprovals.announced).toHaveLength(1);
+    expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: HANDED_OFF }]);
   });
 
   test("Confirm of a Player whose rank is unknown announces a Rank Approval for the thread, and leaves the thread open", async () => {

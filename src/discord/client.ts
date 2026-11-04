@@ -38,6 +38,7 @@ import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
+import { createOnboardingRole } from "./onboarding-role.js";
 import { reportRolePermissions } from "./role-permissions.js";
 import type { RoleLike, RolesGuild, RolesMember } from "./member-roles.js";
 import { createRankApprovals, type RankApprovals, type RankButtonLike } from "./rank-approval.js";
@@ -626,11 +627,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    // One Onboarding Role service for every path that gives or takes the role off.
+    const onboardingRole = createOnboardingRole({ members: serverMembersOf(guild), links: options.links, logError });
     const unlink = createUnlink({
       links: options.links,
       applied: options.applied,
       channels,
       members: serverMembersOf(guild),
+      onboardingRole,
       now,
       sendPrivateMessage: async (memberId, message) => {
         const user = await client.users.fetch(memberId);
@@ -679,6 +683,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       rankApprovals,
       nameAndRoles,
       unlink,
+      onboardingRole,
       isOnServer,
       now,
       logError,
@@ -706,6 +711,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           channels,
           rankApprovals,
           nameAndRoles,
+          onboardingRole,
           isOnServer,
           confirmations: linkConfirmations,
           now,

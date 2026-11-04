@@ -17,11 +17,11 @@ description: "Task list for slice 013, Keep newcomers in onboarding"
   the server changes nothing; a skip is logged with its reason; startup sweep: Linked with role → taken off, not Linked
   without → given, right state → no change, bots skipped, one failure does not stop the others, a failed listing logs
   once. `ServerMembers.all()` added.
-- [ ] **T004** [US1] `interview.ts` (D4): a joining non-bot Member without a Link gets the role before the thread opens;
+- [x] **T004** [US1] `interview.ts` (D4): a joining non-bot Member without a Link gets the role before the thread opens;
   a role failure still opens the Interview; a bot or a Linked Member gets nothing.
-- [ ] **T005** [US2] `interview.ts` and `corrections.ts` (D4): Interview Link and Officer Link take the role off, also
+- [x] **T005** [US2] `interview.ts` and `corrections.ts` (D4): Interview Link and Officer Link take the role off, also
   with a pending Rank Approval; a hand-off does not; a role failure leaves the Link standing.
-- [ ] **T006** [US3] `unlink.ts` (D4): Unlink by an Officer and by the Member give the role back; `left` and `missing`
+- [x] **T006** [US3] `unlink.ts` (D4): Unlink by an Officer and by the Member give the role back; `left` and `missing`
   give nothing.
 - [ ] **T007** [US5] Thread deletion (D5): Link and Officer Link without a pending Rank Approval, Rank Approval approved
   and cancelled, Interview abandoned (left, timed out) delete the thread instead of archiving it; a pending Rank

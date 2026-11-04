@@ -29,6 +29,7 @@ import type { CreateOutcome, InterviewStore } from "../storage/interview-store.j
 import type { ConfirmOutcome, LinkStore, PendingRankApprovalDraft } from "../storage/link-store.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import type { Unlink } from "./unlink.js";
 import {
@@ -139,6 +140,7 @@ export interface InterviewDeps {
   readonly rankApprovals: RankApprovals;
   readonly nameAndRoles: NameAndRoles;
   readonly unlink: Unlink;
+  readonly onboardingRole: Pick<OnboardingRole, "give" | "takeOff">;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -267,6 +269,7 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
   if (member.bot) return;
   if (deps.links.linkFor(member.id) !== undefined) return;
   if (deps.interviews.openFor(member.id) !== undefined) return;
+  await deps.onboardingRole.give(member.id);
   await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
 }
 
@@ -690,9 +693,9 @@ async function refuseConfirmation(
 }
 
 /**
- * The Link is stored: the thread says so, and the log notes it with the leader's Member when present. The Member's
- * name and roles follow, without touching the Link or the thread. The thread closes, unless a Rank Approval is asked in
- * it: then the thread is archived when the approval ends.
+ * The Link is stored: the Onboarding Role is taken off, the thread says so, and the log notes it with the leader's Member
+ * when present. The Member's name and roles follow, without touching the Link or the thread. The thread closes, unless a
+ * Rank Approval is asked in it: then the thread is archived when the approval ends.
  */
 async function finishLink(
   deps: InterviewDeps,
@@ -701,6 +704,7 @@ async function finishLink(
   link: Link,
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
+  await deps.onboardingRole.takeOff(interview.memberId);
   await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
   await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);

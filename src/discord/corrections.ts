@@ -12,6 +12,7 @@ import type { LinkStore } from "../storage/link-store.js";
 import { leaderPing, pendingApprovalFor, storeLinkIfStep, type InterviewGameApi } from "./interview.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import type { RankApprovals } from "./rank-approval.js";
 import {
   asApprovableRank,
@@ -131,6 +132,7 @@ export interface LinkButtonDeps {
   readonly channels: Pick<OnboardingChannels, "post" | "log" | "archive">;
   readonly rankApprovals: Pick<RankApprovals, "announce">;
   readonly nameAndRoles: Pick<NameAndRoles, "onLinked">;
+  readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
   readonly confirmations: PendingLinkConfirmations;
   readonly now: () => Date;
@@ -375,9 +377,9 @@ async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, 
 }
 
 /**
- * The stored Officer Link is said in the Interview thread, logged with its Officer, and its name and roles applied. A
- * pending Rank Approval is asked in the thread; otherwise the thread is archived. A failed name and roles step is logged;
- * the Link stands.
+ * The Onboarding Role is taken off, the stored Officer Link is said in the Interview thread, logged with its Officer, and
+ * its name and roles applied. A pending Rank Approval is asked in the thread; otherwise the thread is archived. A failed
+ * name and roles step is logged; the Link stands.
  */
 async function finishOfficerLink(
   deps: LinkButtonDeps,
@@ -386,6 +388,7 @@ async function finishOfficerLink(
   link: Link,
   rankApproval: RankApproval | undefined,
 ): Promise<void> {
+  await deps.onboardingRole.takeOff(pending.memberId);
   await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
   await logLine(deps.logError, () =>
     deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)),

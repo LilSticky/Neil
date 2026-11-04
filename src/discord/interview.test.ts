@@ -49,6 +49,7 @@ import {
 } from "./interview-texts.js";
 import { createSweeper } from "./interview-sweeper.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
 import {
   createInterviews,
@@ -440,6 +441,7 @@ interface Harness {
   readonly rankApprovals: FakeRankApprovals;
   readonly nameAndRoles: FakeNameAndRoles;
   readonly unlink: FakeUnlink;
+  readonly onboardingRole: FakeOnboardingRole;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
@@ -530,6 +532,7 @@ describe("createInterviews", () => {
     const rankApprovals = new FakeRankApprovals();
     const nameAndRoles = new FakeNameAndRoles();
     const unlink = new FakeUnlink(links);
+    const onboardingRole = new FakeOnboardingRole();
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const deps: InterviewDeps = {
@@ -540,6 +543,7 @@ describe("createInterviews", () => {
       rankApprovals,
       nameAndRoles,
       unlink,
+      onboardingRole,
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
@@ -548,7 +552,7 @@ describe("createInterviews", () => {
       },
     };
     const service = createInterviews(deps);
-    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, unlink, onServer, errors, service, deps };
+    h = { interviews, links, channels, gameApi, rankApprovals, nameAndRoles, unlink, onboardingRole, onServer, errors, service, deps };
   });
 
   afterEach(() => {
@@ -589,6 +593,31 @@ describe("createInterviews", () => {
       expect(h.channels.opened).toEqual([{ id: MEMBER, username: "vex_fan" }]);
       expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
       expect(h.channels.posts).toEqual([{ threadId: THREAD, message: askUidMessage(interviewId, MEMBER) }]);
+    });
+
+    test("gives the Onboarding Role to a Member without a Link before the thread opens", async () => {
+      let givenWhenThreadOpens: readonly OnboardingRoleCall[] = [];
+      h.channels.beforeOpen = () => {
+        givenWhenThreadOpens = [...h.onboardingRole.calls];
+      };
+
+      await joinedMember(h);
+
+      expect(givenWhenThreadOpens).toEqual([{ kind: "give", memberId: MEMBER }]);
+    });
+
+    test("gives nothing to a bot account", async () => {
+      await h.service.onMemberJoined({ id: MEMBER, username: "neil_bot", displayName: "neil_bot", bot: true });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+    });
+
+    test("gives nothing to a Member who is already Linked", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+
+      await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([]);
     });
   });
 
@@ -713,6 +742,26 @@ describe("createInterviews", () => {
 
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: linkedMessage(MEMBER, PLAYER) });
       expect(h.channels.archived).toEqual([THREAD]);
+    });
+
+    test("takes the Onboarding Role off the Member once the Link is stored", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.onboardingRole.calls).toEqual([
+        { kind: "give", memberId: MEMBER },
+        { kind: "takeOff", memberId: MEMBER },
+      ]);
+    });
+
+    test("takes the Onboarding Role off the Member with a pending Rank Approval too", async () => {
+      await pendingRankApprovalOfMember(h);
+
+      expect(h.onboardingRole.calls).toEqual([
+        { kind: "give", memberId: MEMBER },
+        { kind: "takeOff", memberId: MEMBER },
+      ]);
     });
 
     test("logs the Link and pings the leader's Member when that Member is Linked and on the server", async () => {
@@ -978,6 +1027,16 @@ describe("createInterviews", () => {
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: handedOffMessage(MEMBER, OFFICERS) });
       expect(h.channels.logs).toEqual([handedOffLogLine(MEMBER, THREAD)]);
       expect(h.channels.archived).toEqual([]);
+    });
+
+    test("a hand-off does not take the Onboarding Role off the Member", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+
+      await failUidTimes(h, interviewId, 5);
+
+      expect(h.interviews.get(interviewId)).toMatchObject({ step: "handed-off" });
+      expect(h.onboardingRole.calls).not.toContainEqual({ kind: "takeOff", memberId: MEMBER });
     });
   });
 

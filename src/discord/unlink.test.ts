@@ -10,6 +10,7 @@ import { approve, cancel, type Approver, type MemberId, type RankApproval } from
 import { AppliedStore } from "../storage/applied-store.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
+import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import type { OfficerRoles } from "./interview-texts.js";
@@ -154,6 +155,8 @@ interface Harness {
   readonly members: FakeServerMembers;
   /** The guild the Members are in, with the Managed Roles NML and R4 defined. */
   readonly guild: FakeRolesGuild;
+  /** The Onboarding Role service: records the Members Unlink gives the role back to. */
+  readonly onboardingRole: FakeOnboardingRole;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -262,11 +265,13 @@ describe("createUnlink", () => {
     const guild = new FakeRolesGuild(OWNER_ID);
     guild.defineRole("NML");
     guild.defineRole("R4");
+    const onboardingRole = new FakeOnboardingRole();
     const service = createUnlink({
       links,
       applied,
       channels,
       members,
+      onboardingRole,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -274,7 +279,7 @@ describe("createUnlink", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, service };
   });
 
   afterEach(() => {
@@ -537,6 +542,33 @@ describe("createUnlink", () => {
       },
     );
 
+    test.each(CASES)("gives the Onboarding Role back to the Member when %s Unlinks", async (_who, reason) => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      applyNickname(h, LEAVER_ID, "NML Rogue");
+      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+
+      await h.service.unlink(LEAVER, reason);
+
+      expect(h.onboardingRole.calls).toEqual([{ kind: "give", memberId: LEAVER_ID }]);
+    });
+
+    test.each(CASES)(
+      "gives the Onboarding Role back only after the Managed Roles are taken off, when %s Unlinks",
+      async (_who, reason) => {
+        linkMember(h, LEAVER_ID, LEAVER_UID);
+        applyNickname(h, LEAVER_ID, "NML Rogue");
+        const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+        const rolesAtGive: string[][] = [];
+        h.onboardingRole.onCall = () => {
+          rolesAtGive.push(member.roles.map((role) => role.name));
+        };
+
+        await h.service.unlink(LEAVER, reason);
+
+        expect(rolesAtGive).toEqual([[]]);
+      },
+    );
+
     test.each(CASES)(
       "cancels the pending Rank Approval on the Member's own Link, with a message in its thread, when %s Unlinks",
       async (_who, reason) => {
@@ -625,6 +657,17 @@ describe("createUnlink", () => {
       expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
       expect(member.roles.map((role) => role.name)).toEqual(["NML", "R4"]);
       expect(member.nickname).toBe("NML Rogue");
+    });
+
+    test.each<[string, UnlinkReason]>([
+      ["left", "left"],
+      ["missing", "missing"],
+    ])("does not give the Onboarding Role back when the reason is %s", async (_who, reason) => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+
+      await h.service.unlink(LEAVER, reason);
+
+      expect(h.onboardingRole.calls).toEqual([]);
     });
   });
 });
