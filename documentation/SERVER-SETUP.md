@@ -31,6 +31,7 @@ keeps their nickname and roles matching the game.
 | **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance tag, Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |
 | **Daily Sync** | Neil | Once a day (03:00 UTC by default) Neil re-reads the game and updates nicknames and roles. |
 | **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the channel permissions in step 8) lets them see only `#onboarding`. |
+| **Doctor Role** | Neil | Every Linked Member, Guests included, holds the `Doctor` role. It shows the basic information, `#alliance-hall` and the Shared area (step 8c). |
 | **Rank Approval** | the Alliance's R5, or an Officer | When the game lists no rank for a new Member, Neil asks their Alliance's R5 in a private thread to confirm it. |
 | **Say goodbye** | Neil | A Linked Member who leaves the server is Unlinked, and the Officers are told in the log. |
 | **Look up** | any Member | `/player` (by name or uid) and `/alliance` (by name or tag, with suggestions as you type) show profile cards. The Alliance card has a button for an activity overview. |
@@ -42,8 +43,9 @@ keeps their nickname and roles matching the game.
 ### What Neil never does
 
 - It never changes **channel permissions**. You set those yourself (steps 6 and 8).
-- It never touches roles other than its Managed Roles (Alliance tags, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`) and
-  `Onboarding`.
+- It never touches roles other than its Managed Roles (Alliance tags, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`),
+  `Onboarding`, `Doctor` and the Preference Roles.
+- It never checks **where** a command is used. Discord does that (step 9).
 - It can't rename the **server owner**. Discord doesn't allow that.
 
 ---
@@ -56,6 +58,7 @@ keeps their nickname and roles matching the game.
 | **Moderator** | you | 🔴 REQUIRED | Officers. Can use the Officer commands and see the Daily Quota. |
 | **King** | you | 🔴 REQUIRED | Officers too, treated the same as Moderator. |
 | **Onboarding** | Neil, at its first start | created automatically | Held by every Member who isn't Linked yet. |
+| **Doctor** | Neil, at its first start | created automatically | Held by every Linked Member, Guests included. |
 | Alliance tags (e.g. `NML`) | Neil, when first needed | created automatically | One per Home Kingdom Alliance. |
 | `R1`–`R5` | Neil, when first needed | created automatically | Alliance Rank, for Home Kingdom Alliances only. |
 | `#330`, `#331`, … | Neil, when first needed | created automatically | The Kingdom a Member's Player is in. |
@@ -63,7 +66,7 @@ keeps their nickname and roles matching the game.
 | **Preference Roles**: languages (e.g. `Italian`), `Americas`, `Europe/Africa`, `Asia/Oceania`, `PvP`, `Events`, `Trading`, `Off-topic`, `NaP discussions`, `New`, `Intermediate`, `Veteran` | Neil, when first needed | created automatically | Given by the Member's choices (section 1, Preferences). They show the channels in step 8b. |
 
 🔴 **REQUIRED: never give a permission to a role Neil creates.** Neil creates them with no permissions, and refuses
-to use a role with one of these names (`Onboarding`, an Alliance tag, `R1`–`R5`, `#<number>`, `T1`–`T10`, a Preference
+to use a role with one of these names (`Onboarding`, `Doctor`, an Alliance tag, `R1`–`R5`, `#<number>`, `T1`–`T10`, a Preference
 Role) that has any. If you made such a role yourself before, remove its permissions or delete it and let Neil recreate it.
 
 ⚪ **OPTIONAL:** you may change the **color**, **icon** and **"display separately"** setting of Neil's roles. Neil
@@ -78,12 +81,13 @@ Discord lets a bot manage only the roles and Members **below** its own role. Nei
   Moderator
   Neil              ← the bot's role
   Onboarding        ← everything Neil manages sits below Neil
+  Doctor
   Preference Roles
   NML, R5 … R1, #330, T10 … T1
   @everyone
 ```
 
-- 🔴 **REQUIRED:** **Neil** sits **above** `Onboarding`, the Preference Roles and every Managed Role, or it can't give or remove them.
+- 🔴 **REQUIRED:** **Neil** sits **above** `Onboarding`, `Doctor`, the Preference Roles and every Managed Role, or it can't give or remove them.
 - 🔴 **REQUIRED:** **Neil** sits **below** Moderator and King.
 - ⚪ **OPTIONAL:** the order of the Managed Roles among themselves.
 
@@ -98,6 +102,10 @@ Neil also can't change the nickname of a Member whose highest role is above Neil
 | `#onboarding` (a text channel) | 🔴 REQUIRED | Neil opens one private thread per newcomer here. |
 | `#neil-log` (a text channel) | 🔴 REQUIRED | Neil reports Links, Unlinks, handed-off Interviews, missing permissions and problems here. |
 | A moderator-only channel | 🟡 RECOMMENDED | Where Officers use `/quota`, `/rank` and `/link`. |
+| Basic information channels (e.g. `#rules`, `#welcome`) | 🟡 RECOMMENDED | Visible to every Doctor (step 8c). |
+| `#alliance-hall` | 🟡 RECOMMENDED | Where Members use Neil's commands (steps 8c and 9). |
+| Home Kingdom area, with the Home Kingdom announcements | 🟡 RECOMMENDED | Home Kingdom information: visible to `#330` only (step 8c). |
+| Shared area, with text, voice and the Shared announcements | 🟡 RECOMMENDED | Shared information: visible to every Doctor, Guests included (step 8c). |
 | Language, region and interest channels | 🟡 RECOMMENDED | Shown only to Members with the matching Preference Role (step 8b). |
 | The NaP publications channel | 🟡 RECOMMENDED | Visible to every Linked Member (step 8b). |
 | The guides forum | 🟡 RECOMMENDED | Readable by everyone; Veterans are invited to write (step 8b). |
@@ -206,7 +214,7 @@ For every category (or channel not in a category) **except** `#onboarding`:
 | Role | Permission | Setting |
 |------|------------|---------|
 | **@everyone** | View Channel | ❌ |
-| the roles that should see it, e.g. `#330` (every Linked Member of the Home Kingdom), Alliance tags, or Guest Kingdom roles | View Channel | ✅ |
+| the roles that should see it: **Doctor** (every Linked Member), `#330` (the Home Kingdom only), or an Alliance tag | View Channel | ✅ |
 
 **Where:** right-click the **category** → **Edit Category** → **Permissions**. Then, for each channel in it, open
 **Edit Channel** → **Permissions** and click **Sync Now** if Discord shows the channel is not synced. Channels
@@ -240,13 +248,41 @@ R4 who chooses it, and takes it off anyone else.
 | **NaP discussions** | View Channel | ✅ |
 
 **NaP publications.** Every Linked Member sees it, with no Preference Role. Set it as in step 8: **@everyone** View
-Channel ❌, and the roles of Linked Members (e.g. `#330`) View Channel ✅.
+Channel ❌, and **Doctor** View Channel ✅.
 
 **Guides forum.** Everyone can read it, newcomers included, so this one channel is the exception to step 8: **@everyone**
 View Channel ✅. The **Veteran** role is invited to write in it: give **Veteran** Create Posts ✅ and Send Messages in
 Threads ✅ on that forum.
 
 🟡 **RECOMMENDED:** check one language with **View Server As Role**, as in step 8.
+
+### Step 8c: Separate Home Kingdom and Shared information
+
+🟡 **RECOMMENDED.** The server holds Members of the Home Kingdom and Guests from other Kingdoms. Keep what is only for the
+Home Kingdom apart from what is for everyone, and give everyone a way to get in touch.
+
+🔴 **REQUIRED order:** restart Neil **first** and check that Linked Members hold **Doctor** (`#neil-log` has one line with
+the counts). Only then move channels to Doctor, or Linked Members lose them until the restart.
+
+Set each category as in step 8, with **@everyone** View Channel ❌ and:
+
+| Category | Holds | Role | Permission | Setting |
+|----------|-------|------|------------|---------|
+| Basic information | e.g. `#rules`, `#welcome` | **Doctor** | View Channel | ✅ |
+| Alliance hall | `#alliance-hall` | **Doctor** | View Channel, Send Messages | ✅ |
+| Home Kingdom | Home Kingdom channels, Home Kingdom announcements | `#330` | View Channel | ✅ |
+| Shared | text and voice channels, Shared announcements | **Doctor** | View Channel, Send Messages, Connect, Speak | ✅ |
+
+**King announcements.** Create one announcements channel in the Home Kingdom category and one in the Shared category. The
+Home Kingdom one is the usual place; a King posts in the Shared one when everyone should read it. On **both** channels:
+
+| Role | Permission | Setting |
+|------|------------|---------|
+| **@everyone** | Send Messages | ❌ |
+| **King** | Send Messages | ✅ |
+
+Tip: check with **View Server As Role**: **Doctor** alone is what a Guest sees, and **Doctor** plus `#330` is what a Home
+Kingdom Member sees.
 
 ### Step 9: Make the Officer commands visible to Officers
 
@@ -258,18 +294,28 @@ Administrators until you allow them.
 1. **Roles & Members** → **Add** → **Moderator** and **King**. 🔴 REQUIRED
 2. **Channels** → limit it to the moderator-only channel. 🟡 RECOMMENDED
 
-Leave `/player`, `/alliance`, `/interview`, `/unlink`, `/channels`, `/reaper` and `/ping` as they are: every Member may use them.
-Neil still checks the Officer role itself, so a mistake here never gives a Member Officer powers.
+Every Member may use `/player`, `/alliance`, `/interview`, `/unlink`, `/channels`, `/reaper` and `/ping`, so leave their
+**Roles & Members** as they are. Neil still checks the Officer role itself, so a mistake here never gives a Member Officer
+powers.
+
+🟡 **RECOMMENDED:** keep Neil's commands in `#alliance-hall`. In the same place, for each command:
+
+| Command | **Channels** |
+|---------|--------------|
+| `/player`, `/alliance`, `/unlink`, `/channels`, `/reaper`, `/ping` | turn off **All Channels**, add `#alliance-hall` |
+| `/interview` | turn off **All Channels**, add `#onboarding`, or newcomers can't start a new Interview |
+
+Neil doesn't check the channel itself, so this setting is all there is.
 
 ### Step 10: Test it
 
 🟡 **RECOMMENDED.** With an alt account (or a willing friend):
 
 1. Join the server. Only `#onboarding` is visible, and a private thread opens in it.
-2. Give the uid and confirm. The nickname and roles appear, `#onboarding` disappears, the rest of the server
-   becomes visible, and the thread is deleted.
+2. Give the uid and confirm. The nickname and roles appear, **Doctor** among them, `#onboarding` disappears, the
+   rest of the server becomes visible, and the thread is deleted.
 3. `#neil-log` shows the Link.
-4. `/unlink` yourself. The roles and nickname go, and `Onboarding` comes back.
+4. `/unlink` yourself. The roles and nickname go, **Doctor** too, and `Onboarding` comes back.
 
 ---
 
@@ -305,7 +351,8 @@ that, check step 9 again for any new Officer command.
 | fix someone's Link | `/unlink member:@them` (Officer), then they redo the Interview, or `/link member:@them uid:…` |
 | set an Alliance Rank the game doesn't show | `/rank member:@them rank:R4` (Officer) |
 | let newcomers see one more channel (e.g. `#rules`) | that channel → **Edit Channel** → **Permissions** → **Onboarding**: View Channel ✅ |
-| give Linked Members a new channel | the channel or its category → **Permissions** → `#330` (or the Alliance role): View Channel ✅ |
+| give every Linked Member a new channel | the channel or its category → **Permissions** → **Doctor**: View Channel ✅ |
+| give only the Home Kingdom a new channel | the channel or its category → **Permissions** → `#330`: View Channel ✅ |
 | give an Alliance its own channel | channel → **Permissions** → @everyone View Channel ❌, the Alliance tag role View Channel ✅ |
 | change a role's color | Server Settings → **Roles** → the role → **Display**. Fine for Neil's roles too |
 | move the log or onboarding channel | create the new channel with step 6's permissions, send its ID (step 7), and Neil restarts |
@@ -322,7 +369,9 @@ that, check step 9 again for any new Officer command.
 | Neil ignores a role you made, e.g. `R5` | the role has permissions | remove all its permissions |
 | No thread opens for a newcomer | Neil lacks a permission in `#onboarding` (step 6) | check the four 🔴 permissions; the newcomer then runs `/interview` |
 | Newcomers see the whole server | step 8 not done, or a channel isn't synced to its category | deny @everyone View Channel; **Sync Now** |
-| Linked Members lose access to everything | step 8 allows a role they don't hold | allow `#330` (and Guest Kingdom roles) on those categories |
+| Linked Members lose access to everything | step 8 allows a role they don't hold, or Neil hasn't restarted since **Doctor** came in | allow **Doctor** on those categories; restart Neil |
+| `/player` isn't offered in a channel | step 9 limits it to `#alliance-hall` | use `#alliance-hall`, or add the channel in step 9 |
+| A newcomer can't use `/interview` | step 9 doesn't include `#onboarding` | add `#onboarding` for `/interview` |
 | An R5 can't open a Rank Approval thread | `R5` lacks View Channel / Send Messages in Threads in `#onboarding` | step 6 |
 | Officers don't see `/quota`, `/rank`, `/link` | step 9 | Integrations → Neil → add Moderator and King |
 | The server owner has no nickname | Discord doesn't let bots rename the owner | set it by hand |

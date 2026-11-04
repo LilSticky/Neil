@@ -256,6 +256,25 @@ from SERVER-SETUP.md (step 8b) and HOSTING.md, and set `DISCORD_GUIDES_FORUM_ID`
 | 6k.10 | Officer Link of a test account | It gets a private message pointing to `/channels`; no Preferences message in the thread | | |
 | 6k.11 | Compare the game's language list with the 17 offered (English … Indonesian, plan R2) | Every language the game offers is in the list; note any missing ones here | | |
 
+## 6l. Give Members the Doctor Role (slice 017, collected 2026-11-04)
+
+Branch `017-give-members-the-doctor-role`. No new commands. Restart Neil before moving any channel to Doctor. Set up the
+channels from SERVER-SETUP.md steps 8c and 9 after 6l.1.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6l.1 | Restart Neil | A `Doctor` role exists without permissions; every Linked Member has it, nobody else does, bots are untouched; one line with the counts in `#neil-log` | | |
+| 6l.2 | Restart Neil again | No changes, no Doctor line | | |
+| 6l.3 | Link a test account | `Doctor` given, `Onboarding` gone, `#alliance-hall` visible straight away | | |
+| 6l.4 | Link a Guest (a Player of another Kingdom) | `Doctor` given; the Shared area and Shared announcements visible, the Home Kingdom area not | | |
+| 6l.5 | Hand-off, then `/link` by an Officer | No `Doctor` during the hand-off; given at the Officer Link | | |
+| 6l.6 | `/unlink` the test account | `Doctor` gone, `Onboarding` back | | |
+| 6l.7 | Give a role named `Doctor` a permission, then Link | Role not given; the log says it has permissions; the Link stands. Remove the permission afterwards | | |
+| 6l.8 | Join a voice channel of the Shared area as the Guest and as a Home Kingdom Member | Both can talk; both can write in its text channels | | |
+| 6l.9 | Try to post in either announcements channel without the King role | Not possible; with the King role, it works | | |
+| 6l.10 | `/player` outside `#alliance-hall`, then inside | Not offered outside; works inside | | |
+| 6l.11 | `/interview` in `#onboarding` as a newcomer | Works | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
