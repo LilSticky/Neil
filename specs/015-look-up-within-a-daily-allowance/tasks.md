@@ -48,14 +48,14 @@ Blocks every story.
 
 **Independent test**: `/usage` replies privately with the Member's numbers; the Link note is sent at an Interview Link and at an Officer Link.
 
-- [ ] T013 [P] [US4] `/usage` in `src/discord/usage.ts`, `src/discord/commands.ts` and `src/discord/client.ts`: the contract's text, private, no Game API request.
-- [ ] T014 [P] [US4] Link note (D11) in `src/discord/interview-texts.ts`, `src/discord/interview.ts` and `src/discord/corrections.ts`: `linkedMessage` gains the note; the Interview Link and the Officer Link also send it with `sendPrivateMessage`; a private message that fails is logged and the Link stands.
+- [x] T013 [P] [US4] `/usage` in `src/discord/usage.ts`, `src/discord/commands.ts` and `src/discord/client.ts`: the contract's text, private, no Game API request.
+- [x] T014 [P] [US4] Link note (D11) in `src/discord/interview-texts.ts`, `src/discord/interview.ts` and `src/discord/corrections.ts`: `linkedMessage` gains the note; the Interview Link and the Officer Link also send it with `sendPrivateMessage`; a private message that fails is logged and the Link stands.
 
 ## Phase 7: User Story 5, Officers see who causes the requests (P2)
 
 **Independent test**: `/quota` lists the top Members by today's count, at most 10, and says `No lookups yet today.` when there are none.
 
-- [ ] T015 [US5] `/quota` in `src/discord/quota.ts`: the contract's lines after the current ones; `E` with at most one decimal; the list pings nobody.
+- [x] T015 [US5] `/quota` in `src/discord/quota.ts`: the contract's lines after the current ones; `E` with at most one decimal; the list pings nobody.
 
 ## Phase 8: Polish
 

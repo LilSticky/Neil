@@ -694,9 +694,20 @@ describe("handleLinkButton: an Officer Link tells the Member about /channels", (
 
     await press(h, confirm, OFFICER);
 
-    expect(h.privateMessages.attempts).toHaveLength(1);
-    expect(h.privateMessages.attempts[0]?.memberId).toBe(HANDED_OFF);
-    expect(contentOf(h.privateMessages.attempts[0]?.message)).toContain("/channels");
+    expect(h.privateMessages.attempts.map((attempt) => attempt.memberId)).toEqual([HANDED_OFF, HANDED_OFF]);
+    expect(h.privateMessages.attempts.map((attempt) => contentOf(attempt.message))).toEqual(
+      expect.arrayContaining([expect.stringContaining("/channels")]),
+    );
+  });
+
+  test("sends the Member the Link note privately, exactly, once the Officer Link is stored", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.privateMessages.attempts.map((attempt) => contentOf(attempt.message))).toContain(
+      "You can look up Players and Alliances with /player and /alliance. Each Member has a Daily Allowance of Game API requests; cached answers are free. /usage shows yours.",
+    );
   });
 
   test("a refused private message is ignored: the Officer Link stands and the name and roles are applied", async () => {
@@ -705,7 +716,8 @@ describe("handleLinkButton: an Officer Link tells the Member about /channels", (
 
     await press(h, confirm, OFFICER);
 
-    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.privateMessages.attempts).toHaveLength(2);
+    expect(h.errors).toContainEqual(expect.stringContaining("Link note"));
     expect(h.links.linkFor(HANDED_OFF)).toEqual(
       expect.objectContaining({ memberId: HANDED_OFF, uid: FOUND_UID, madeBy: { kind: "officer-link", officerId: OFFICER } }),
     );

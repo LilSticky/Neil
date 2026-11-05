@@ -60,8 +60,8 @@ describe("AllowanceKeeper", () => {
   beforeEach(() => {
     dataDir = mkdtempSync(join(tmpdir(), "neil-allowance-"));
     db = openDatabase(dataDir);
-    // The scenarios charge hundreds of requests; without this each one waits for the disk and the test can time out.
-    db.exec("PRAGMA synchronous = OFF");
+    // The scenarios charge hundreds of requests; on disk each commit slows every other test file that uses SQLite.
+    db.exec("PRAGMA synchronous = OFF; PRAGMA journal_mode = MEMORY");
     store = new MemberUsageStore(db);
   });
 

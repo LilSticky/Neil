@@ -28,6 +28,7 @@ import {
   type PrivateReply,
 } from "./interview-texts.js";
 import { answer } from "./lookup.js";
+import { LINK_NOTE } from "./usage-texts.js";
 import {
   linkCardEndedMessage,
   linkCardMessage,
@@ -412,6 +413,9 @@ async function finishOfficerLink(
   );
   await answer("the /channels message after an Officer Link", { logError: deps.logError }, () =>
     deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()),
+  );
+  await answer("the Link note after an Officer Link", { logError: deps.logError }, () =>
+    deps.sendPrivateMessage(pending.memberId, { content: LINK_NOTE }),
   );
   try {
     await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);

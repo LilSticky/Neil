@@ -93,6 +93,7 @@ import {
 import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
 import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
+import { handleUsage, type UsageInteraction } from "./usage.js";
 import { usageLine } from "./usage-texts.js";
 
 /** The Game API client as connect uses it: the lookups and the Daily Quota figures. */
@@ -112,6 +113,8 @@ export interface CommandHandlers {
   /** An autocomplete request of /alliance, for its name or tag option. */
   readonly allianceAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
+  /** The /usage command: the caller's Game API requests today, privately. */
+  readonly usage: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /channels command: a Linked Member sees their Preferences message, privately, and changes nothing. */
   readonly channels: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
@@ -275,6 +278,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "quota":
           void handlers.quota(interaction);
           break;
+        case "usage":
+          void handlers.usage(interaction);
+          break;
         case "channels":
           void handlers.channels(interaction);
           break;
@@ -344,8 +350,8 @@ export interface ConnectOptions {
   readonly gameApi: GameApi;
   /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
   readonly quotaReserve: number;
-  /** The Daily Allowance of today, read by the lookups to refuse a Member who has used it up. */
-  readonly allowance: Pick<AllowanceKeeper, "allowance" | "usageOf">;
+  /** The Daily Allowance of today, read by the lookups to refuse a Member who has used it up, and by /usage and /quota. */
+  readonly allowance: Pick<AllowanceKeeper, "allowance" | "expected" | "top" | "usageOf">;
   /** The Moderator and King role IDs from config, in that order; holders of either are Officers. */
   readonly officerRoleIds: readonly [string, string];
   /** The server Neil serves; its channels are checked at ready. */
@@ -517,6 +523,15 @@ function buttonLike(button: ButtonInteraction | StringSelectMenuInteraction): Bu
  * The discord.js chat-input command as /player and /alliance read it: the caller and their roles, the options, and the
  * placeholder and reply methods. Each method is passed on with the one shape the lookups use.
  */
+/** The discord.js chat-input command as /usage reads it: who ran it, their roles, and the private reply. */
+function usageLike(command: ChatInputCommandInteraction): UsageInteraction {
+  return {
+    callerId: command.user.id,
+    memberRoleIds: () => memberRoleIds(command.member),
+    reply: (reply) => command.reply(reply),
+  };
+}
+
 function lookupLike(command: ChatInputCommandInteraction): LookupInteraction {
   return {
     user: command.user,
@@ -806,11 +821,19 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           {
             quotaToday: () => options.gameApi.quotaToday(),
             quotaReserve: options.quotaReserve,
+            allowance: options.allowance,
             officerRoleIds: options.officerRoleIds,
             now: () => new Date(),
             logError,
           },
         ),
+      usage: (interaction) =>
+        handleUsage(usageLike(interaction), {
+          allowance: options.allowance,
+          officerRoleIds: options.officerRoleIds,
+          now,
+          logError,
+        }),
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
       memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
       interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
@@ -968,6 +991,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         guidesForumId: options.guidesForumId,
         now,
       }),
+      sendPrivateMessage,
       isOnServer,
       now,
       logError,
