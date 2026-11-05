@@ -29,6 +29,8 @@ States: `planned` · `in progress` · `in review` · `done`
 | 016 | Choose your channels | a Linked Member choose Languages, Region, Interests and Experience after the Link or with `/channels`, and see only matching channels; NaP discussions for R4 by choice and R5 automatically | Preference, Preference Role, NaP discussions | select menus, Preference Roles, storage, `/channels`, sweeper | merged (manual check not run) |
 | 017 | Give Members the Doctor Role | every Linked Member, Guests included, reach the basic information and `#alliance-hall`, and owners keep Home Kingdom information apart from Shared information, with shared text and voice | Doctor Role, Home Kingdom information, Shared information | Doctor Role service, server guide | merged (manual check not run) |
 | 018 | Start Interviews for unlinked Members | a Member who is not Linked get an Onboarding Interview when they come online, or when Neil starts and sees them online, unless one is open or a hand-off is waiting | – (rule on Interview, Link and hand-off) | Presence Intent, presence updates, startup check | merged (manual check open) |
+| 019 | Know what a server needs | a server owner see which channels, roles and permissions are required, recommended or suggested, and follow a startup guide for a new server or a migration guide for an existing one. Discovery and guides only, no code | to be found in discovery | `documentation/discovery/`, server guides | planned (next) |
+| 020 | Set up the server | a server owner run one script that does as much of the setup as Discord allows, from what slice 019 decides. Waits for slice 019 | to be found in discovery | setup script, layout file | planned |
 
 ## Later (unordered)
 
