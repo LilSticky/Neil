@@ -1,4 +1,4 @@
-import { BOT_MEMBER_ID, FakeGuild, type FakeChannelOptions } from "./guild.js";
+import { BOT_MEMBER_ID, FakeGuild, type FakeChannel, type FakeChannelOptions } from "./guild.js";
 
 /** Discord's code for a user who is not a member of the guild. */
 const UNKNOWN_MEMBER = 10007;
@@ -176,6 +176,11 @@ export class FakeConnectGuild {
     const member = this.joined.get(memberId);
     if (member === undefined) throw new Error(`the fake guild has no Member ${memberId}`);
     return [...member.roles.cache.values()].map((role) => role.name);
+  }
+
+  /** The threads the code created in the guild, in creation order. */
+  createdThreads(): FakeChannel[] {
+    return this.channelStore.createdThreads();
   }
 
   /** The text of every message posted to the channel, in order. */

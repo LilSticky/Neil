@@ -9,6 +9,7 @@ import { ONBOARDING_ROLE_NAME } from "../domain/onboarding-role.js";
 import { exileReasonOf, type Exile } from "../domain/exile.js";
 import { parseUid, parseKingdom, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player } from "../domain/player.js";
+import { timeOut } from "../domain/onboarding-interview.js";
 import { recordStart } from "../domain/start-record.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
@@ -40,6 +41,9 @@ const MODERATOR_ROLE_ID = "1000000000000000003";
 const KING_ROLE_ID = "1000000000000000004";
 const ALICE = "111111111111111111";
 const BOB = "222222222222222222";
+const CAROL = "333333333333333333";
+/** A Discord refusal to read a Member that is not an unknown user: the Member is there, but cannot be read. */
+const UNREADABLE_MEMBER = 50013;
 /** Discord's code for a user it cannot find. */
 const UNKNOWN_USER = 10013;
 const TOKEN = "fake-token-connect-test";
@@ -148,6 +152,49 @@ function serverWith(serverPermissions: readonly bigint[], withLog = true): FakeC
   guild.addChannel(ONBOARDING_CHANNEL_ID, { type: ChannelType.GuildText, botPermissions: ONBOARDING_PERMISSIONS });
   if (withLog) guild.addChannel(LOG_CHANNEL_ID, { type: ChannelType.GuildText, botPermissions: LOG_PERMISSIONS });
   return guild;
+}
+
+/**
+ * A presence update for a Member of the served guild, as Discord reports it: the status before (null when there was none)
+ * and after. The guild is the served one, so the Member is read with a single-Member fetch.
+ */
+function presenceUpdate(memberId: string, before: string | null, after: string): void {
+  const client = FakeClient.latest;
+  const guild = FakeClient.served;
+  if (client === undefined || guild === undefined) throw new Error("connect has no client or guild to update");
+  const presence = (status: string) => ({ userId: memberId, status, guild, member: null });
+  client.emit(Events.PresenceUpdate, before === null ? null : presence(before), presence(after));
+}
+
+/** Lets the work the test started run for a moment, so a handler that should do nothing has done it. */
+async function settle(): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, 50));
+}
+
+/**
+ * Holds every thread the onboarding channel is asked to create until release is called, so a test can have an Interview
+ * still being started. `requested` counts the requests so far.
+ */
+async function holdThreadCreation(guild: FakeConnectGuild): Promise<{ requested(): number; release(): void }> {
+  const onboarding = await guild.channels.fetch(ONBOARDING_CHANNEL_ID);
+  if (onboarding === null) throw new Error("the fake guild has no onboarding channel");
+  const create = onboarding.threads.create;
+  let requests = 0;
+  let open: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  onboarding.threads.create = async (options) => {
+    requests += 1;
+    await gate;
+    return create(options);
+  };
+  return {
+    requested: () => requests,
+    release: () => {
+      open();
+    },
+  };
 }
 
 describe("connect", () => {
@@ -383,7 +430,7 @@ describe("connect", () => {
   });
 
   describe("the Members online when Neil starts", () => {
-    const STARTUP_LINE = "Onboarding Interviews at startup: started 1, failed 0.";
+    const STARTUP_LINE = "Onboarding Interviews at startup: started 1, failed 0, left for later 0.";
 
     /** The lines of the log channel, in the order the channel holds them. */
     const logLines = (guild: FakeConnectGuild): string[] => guild.messagesIn(LOG_CHANNEL_ID);
@@ -489,6 +536,135 @@ describe("connect", () => {
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
       expect(logLines(guild)).not.toContain(STARTUP_LINE);
       expect(interviews.openFor(BOB)).toBeUndefined();
+    });
+
+    test("a Member whose presence cannot be read is logged and counts as failed, and the next Member's Interview still starts", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.join(CAROL);
+      guild.setPresence(BOB, "online");
+      guild.setPresence(CAROL, "online");
+      guild.failFetch(BOB, UNREADABLE_MEMBER);
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      try {
+        connection = await connect(TOKEN, connectOptions());
+
+        await vi.waitFor(() => {
+          expect(logLines(guild)).toContain("Onboarding Interviews at startup: started 1, failed 1, left for later 0.");
+        });
+        expect(interviews.openFor(CAROL)).toBeDefined();
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining(BOB));
+      } finally {
+        errorSpy.mockRestore();
+      }
+    });
+
+    test("disconnect waits for the Interview being started, and starts no Interview after it", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.join(CAROL);
+      guild.setPresence(BOB, "online");
+      guild.setPresence(CAROL, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+      const threads = await holdThreadCreation(guild);
+
+      try {
+        const connected = await connect(TOKEN, connectOptions());
+        connection = connected;
+        await vi.waitFor(() => {
+          expect(threads.requested()).toBe(1);
+        });
+
+        const disconnecting = connected.disconnect();
+        threads.release();
+        await disconnecting;
+
+        expect(interviews.openFor(BOB)).toBeDefined();
+        expect(interviews.openFor(CAROL)).toBeUndefined();
+      } finally {
+        threads.release();
+      }
+    });
+
+    test("a presence update for a Member whose Interview is being started at startup opens one thread", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+      const threads = await holdThreadCreation(guild);
+
+      try {
+        connection = await connect(TOKEN, connectOptions());
+        await vi.waitFor(() => {
+          expect(threads.requested()).toBe(1);
+        });
+
+        presenceUpdate(BOB, "offline", "online");
+        await settle();
+        threads.release();
+
+        await settle();
+        expect(guild.createdThreads()).toHaveLength(1);
+        expect(interviews.openFor(BOB)).toBeDefined();
+      } finally {
+        threads.release();
+      }
+    });
+
+    test("a Member offline at startup gets no Interview, and one when they come online", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "offline");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+      await vi.waitFor(() => {
+        expect(guild.rolesOf(BOB)).toContain(ONBOARDING_ROLE_NAME);
+      });
+      await settle();
+      expect(interviews.openFor(BOB)).toBeUndefined();
+      expect(logLines(guild).some((line) => line.startsWith("Onboarding Interviews at startup: "))).toBe(false);
+
+      presenceUpdate(BOB, "offline", "online");
+
+      await vi.waitFor(() => {
+        expect(interviews.openFor(BOB)).toBeDefined();
+      });
+      expect(guild.createdThreads()).toHaveLength(1);
+    });
+
+    test("an Interview abandoned while the Member stays online starts nothing until they next come online", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+      await vi.waitFor(() => {
+        expect(interviews.openFor(BOB)).toBeDefined();
+      });
+      const open = interviews.openFor(BOB);
+      if (open === undefined) throw new Error("the test Member has no open Interview");
+      interviews.save(timeOut(open, NOW).interview);
+      expect(interviews.openFor(BOB)).toBeUndefined();
+
+      presenceUpdate(BOB, "online", "idle");
+      await settle();
+      expect(interviews.openFor(BOB)).toBeUndefined();
+
+      presenceUpdate(BOB, "idle", "offline");
+      presenceUpdate(BOB, "offline", "online");
+      await vi.waitFor(() => {
+        expect(interviews.openFor(BOB)).toBeDefined();
+      });
+      expect(guild.createdThreads()).toHaveLength(2);
     });
   });
 

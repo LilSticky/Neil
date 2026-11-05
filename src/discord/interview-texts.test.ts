@@ -712,14 +712,20 @@ describe("log channel lines", () => {
 
 describe("the startup log line of Interviews", () => {
   test("counts the Interviews started and the failures, in one line", () => {
-    expect(onlineAtStartupLogLine({ started: 2, failed: 0 }).content).toBe(
-      "Onboarding Interviews at startup: started 2, failed 0.",
+    expect(onlineAtStartupLogLine({ started: 2, failed: 0, leftForLater: 0 }).content).toBe(
+      "Onboarding Interviews at startup: started 2, failed 0, left for later 0.",
     );
   });
 
-  test("shows zero started when only failures happened", () => {
-    expect(onlineAtStartupLogLine({ started: 0, failed: 3 }).content).toBe(
-      "Onboarding Interviews at startup: started 0, failed 3.",
+  test("shows zero started when only failures happened, with all three counts", () => {
+    expect(onlineAtStartupLogLine({ started: 0, failed: 3, leftForLater: 0 }).content).toBe(
+      "Onboarding Interviews at startup: started 0, failed 3, left for later 0.",
+    );
+  });
+
+  test("counts the Members left for later, when some were", () => {
+    expect(onlineAtStartupLogLine({ started: 10, failed: 0, leftForLater: 4 }).content).toBe(
+      "Onboarding Interviews at startup: started 10, failed 0, left for later 4.",
     );
   });
 });

@@ -503,11 +503,22 @@ function presenceMember(id: string, username: string, displayName: string, bot: 
 
 type PresenceMember = ReturnType<typeof presenceMember>;
 
+/** A partial Member a presence can carry, with neither username nor bot flag: Discord's stub, which is not to be trusted. */
+interface PartialPresenceMember {
+  readonly id: string;
+  readonly displayName: string;
+  readonly guild: { readonly id: string };
+  readonly user: { readonly id: string; readonly username: null; readonly bot: null };
+}
+
 /**
  * A presence as discord.js emits it: the Member's user id, the status, the Member when Discord sent it (else null), and the
  * guild, whose members fetch answers with `fetched` when the event carries no Member.
  */
-function presenceOf(status: string, options: { readonly member: PresenceMember | null; readonly fetched?: PresenceMember; readonly guildId?: string }) {
+function presenceOf(
+  status: string,
+  options: { readonly member: PresenceMember | PartialPresenceMember | null; readonly fetched?: PresenceMember; readonly guildId?: string },
+) {
   const fetched = options.fetched;
   return {
     userId: ALICE_ID,
@@ -528,7 +539,7 @@ describe("a Member's presence update", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });
 
-    client.emit(Events.PresenceUpdate, presenceOf("offline", { member: ALICE_MEMBER }) as never, presenceOf("online", { member: ALICE_MEMBER }) as never);
+    client.emit(Events.PresenceUpdate, presenceOf("offline", { member: ALICE_MEMBER }) as never, presenceOf("online", { member: ALICE_MEMBER, fetched: ALICE_MEMBER }) as never);
 
     await vi.waitFor(() => {
       expect(routed.memberOnline).toHaveBeenCalledWith({ id: ALICE_ID, username: "alice", displayName: "Alice Game", bot: false });
@@ -541,7 +552,7 @@ describe("a Member's presence update", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });
 
-    client.emit(Events.PresenceUpdate, null as never, presenceOf("idle", { member: ALICE_MEMBER }) as never);
+    client.emit(Events.PresenceUpdate, null as never, presenceOf("idle", { member: ALICE_MEMBER, fetched: ALICE_MEMBER }) as never);
 
     await vi.waitFor(() => {
       expect(routed.memberOnline).toHaveBeenCalledWith({ id: ALICE_ID, username: "alice", displayName: "Alice Game", bot: false });
@@ -565,7 +576,7 @@ describe("a Member's presence update", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });
 
-    client.emit(Events.PresenceUpdate, presenceOf("online", { member: ALICE_MEMBER }) as never, presenceOf("idle", { member: ALICE_MEMBER }) as never);
+    client.emit(Events.PresenceUpdate, presenceOf("online", { member: ALICE_MEMBER }) as never, presenceOf("idle", { member: ALICE_MEMBER, fetched: ALICE_MEMBER }) as never);
 
     expect(routed.memberOnline).not.toHaveBeenCalled();
   });
@@ -582,6 +593,49 @@ describe("a Member's presence update", () => {
     });
     expect(after.guild.members.fetch).toHaveBeenCalledTimes(1);
     expect(after.guild.members.fetch).toHaveBeenCalledWith(ALICE_ID);
+  });
+
+  test("a partial Member in the presence, with no username or bot flag, is not trusted: the Member is read with fetchMember", async () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const partialStub = { id: ALICE_ID, displayName: "Alice Game", guild: { id: GUILD_ID }, user: { id: ALICE_ID, username: null, bot: null } };
+    const after = presenceOf("online", { member: partialStub, fetched: ALICE_MEMBER });
+
+    client.emit(Events.PresenceUpdate, presenceOf("offline", { member: null }) as never, after as never);
+
+    await vi.waitFor(() => {
+      expect(routed.memberOnline).toHaveBeenCalledWith({ id: ALICE_ID, username: "alice", displayName: "Alice Game", bot: false });
+    });
+    expect(after.guild.members.fetch).toHaveBeenCalledWith(ALICE_ID);
+  });
+
+  test("a Member who is invisible is offline to Neil: going from invisible to online is coming online", async () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.PresenceUpdate, presenceOf("invisible", { member: ALICE_MEMBER }) as never, presenceOf("online", { member: ALICE_MEMBER, fetched: ALICE_MEMBER }) as never);
+
+    await vi.waitFor(() => {
+      expect(routed.memberOnline).toHaveBeenCalledWith({ id: ALICE_ID, username: "alice", displayName: "Alice Game", bot: false });
+    });
+  });
+
+  test("a Member who is invisible is offline to Neil: going from online to invisible starts nothing", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.PresenceUpdate, presenceOf("online", { member: ALICE_MEMBER }) as never, presenceOf("invisible", { member: ALICE_MEMBER }) as never);
+
+    expect(routed.memberOnline).not.toHaveBeenCalled();
+  });
+
+  test.each(["online", "idle"] as const)("a Member going from %s to do not disturb does nothing", (before) => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.PresenceUpdate, presenceOf(before, { member: ALICE_MEMBER }) as never, presenceOf("dnd", { member: ALICE_MEMBER }) as never);
+
+    expect(routed.memberOnline).not.toHaveBeenCalled();
   });
 });
 
