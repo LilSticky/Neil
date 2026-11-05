@@ -293,11 +293,11 @@ Branch `015-look-up-within-a-daily-allowance`. After deploying, run `npm run com
 
 ## 6n. Start Interviews for unlinked Members (slice 018, collected 2026-11-05)
 
-Branch `018-start-interviews-for-unlinked-members`. First switch on **Presence Intent** in the Developer Portal, then deploy and Restart. Run only the Wispbyte Neil.
+Branch `018-start-interviews-for-unlinked-members`. First switch on **Presence Intent** in the Developer Portal and Link the Members on Wispbyte, then deploy and Restart. Run only the Wispbyte Neil.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 6n.1 | Restart Neil with an unlinked test account online | An Interview opens for it; `#neil-log` says `started 1` | | |
+| 6n.1 | Restart Neil with an unlinked test account online | An Interview opens for it; `#neil-log` says `started 1, failed 0, left for later 0` | | |
 | 6n.2 | Restart Neil with the test account offline | No Interview; no startup line | | |
 | 6n.3 | Bring that account online | An Interview opens | | |
 | 6n.4 | Go idle, then back to online, with the Interview open | No second Interview | | |

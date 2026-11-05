@@ -36,9 +36,17 @@ Blocks every story.
 ## Phase 5: Polish
 
 - [x] T007 Docs: `documentation/HOSTING.md` Presence Intent before the deploy (D8), `documentation/TEST-RUN.md` section from quickstart.md, `documentation/STATUS.md`, `documentation/ROADMAP.md` row 018.
-- [ ] T008 `bot-reviewer` on the slice diff; findings into `specs/018-start-interviews-for-unlinked-members/review.md`; fix must and should items.
-- [ ] T009 `spec-auditor` against `spec.md`; report into `specs/018-start-interviews-for-unlinked-members/audit.md`; close the gaps.
+- [x] T008 `bot-reviewer` on the slice diff; findings into `specs/018-start-interviews-for-unlinked-members/review.md`; fix must and should items.
+- [x] T009 `spec-auditor` against `spec.md`; report into `specs/018-start-interviews-for-unlinked-members/audit.md`; close the gaps.
 - [ ] T010 Manual check on the test server (`documentation/TEST-RUN.md`, user), after switching on Presence Intent and deploying.
+
+## Phase 6: Review and audit fixes
+
+- [ ] T011 `src/discord/client.ts`: the Member who came online is always read with `fetchMember`, never taken from the presence, which can be a stub (review 1). A Member the startup listing cannot read is logged and counted as failed (review 4).
+- [ ] T012 `src/discord/interview.ts`: `joinMember` and `/interview` hold `starting` too, keeping their answers, so a join that arrives with a presence opens one thread (review 2).
+- [ ] T013 `src/discord/interview.ts`, `src/discord/interview-texts.ts`: the startup limit of 10 and `left for later` (FR-003, contract; review 3 and 6). The error line no longer says the Member was online at startup (review 7).
+- [ ] T014 `src/discord/client.ts`, `src/discord/interview.ts`: the startup check stops at a stop check, and `disconnect` waits for it before the database closes (review 5).
+- [ ] T015 Adapter tests the audit asked for: `invisible`, online to dnd, idle to dnd, an abandoned Interview while online, a presence update during the startup check, offline at startup then coming online (audit 1, 2, 3, 6, 8).
 
 ## Dependencies
 

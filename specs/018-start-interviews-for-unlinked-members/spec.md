@@ -13,6 +13,8 @@ comes online and sees unlinked members."
 
 ### Session 2026-11-05
 
+- Q: Does the startup check have a limit? → A: yes, the user chose a limit after the review (2026-11-05): 10 Interviews per
+  start of Neil. Members over the limit are counted in the log and get an Interview the next time they come online.
 - Q: How does Neil know a Member came online? → A: from Discord's presence information, which the user accepts for this
   slice. Neil reads it only to start Interviews and stores none of it.
 - Q: When may a new Interview start after one was abandoned? → A: every time the Member comes online, with no waiting. The
@@ -93,7 +95,8 @@ first gets an Interview.
 - **FR-002**: Coming online MUST mean going from offline to online, idle or do not disturb; a change between those three
   MUST NOT count.
 - **FR-003**: When Neil starts, it MUST apply the same rule to every Member online at that moment, one Member after
-  another. A failure for one Member MUST be logged and the next one follows.
+  another, up to 10 Interviews per start of Neil (started and failed together). A failure for one Member MUST be logged and
+  the next one follows. Members over the limit MUST be counted in the log; they get an Interview when they next come online.
 - **FR-004**: Neil MUST NOT wait between Interviews: a Member whose last Interview ended may get a new one the next time
   they come online or Neil starts.
 - **FR-005**: A Member MUST have at most one open Interview, however it was started.
@@ -125,3 +128,4 @@ No new entity. Onboarding Interview, Link and hand-off are as in the dictionary.
 - Repeated threads for a Member who stays unlinked are accepted by the user; thread clean-up stays as slice 013 made it.
 - With no waiting, a restart starts a new Interview for every online unlinked Member whose last one has ended.
 - Depends on the Links being on Wispbyte: a start of Neil treats a Member without a Link there as not Linked (HOSTING.md).
+  The limit of 10 bounds what a missing Link can cost at one start.

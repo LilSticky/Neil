@@ -25,7 +25,8 @@ startup.
 We will not store a Member's online status or when they were online, nor log, show or send it anywhere. It stays in the
 memory of discord.js and is gone when Neil stops. We will not read activities.
 
-ADR 7 stays as it is; this ADR adds no stored data.
+ADR 7 stays as it is; this ADR adds no new stored data. One by-product: an Interview row keeps its start time, as it always
+has, so for an Interview Neil started this way that time is roughly when the Member came online.
 
 ## Consequences
 

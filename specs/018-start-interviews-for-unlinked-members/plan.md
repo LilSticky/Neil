@@ -25,7 +25,7 @@ the deploy starts: without it Neil cannot log in. Scale: a few hundred Members.
 | I Domain slicing | Named after what happens for a Member. No new dictionary term. |
 | II TDD | Every task goes red first. |
 | III Framework-free domain | `src/domain/interview-start.ts` is pure. |
-| IV Respect the Game API | No new endpoint. Each Interview makes the reads it makes today, within the Quota Reserve. |
+| IV Respect the Game API | No new endpoint. Each Interview makes the reads it makes today, within the Quota Reserve; the startup limit keeps that to 10 requests per start. |
 | V Least privilege | A new privileged intent, which the user accepted for this feature; ADR 11 records it (D6). Nothing about presence is stored. |
 | VI Context | STATUS, ROADMAP and HOSTING.md updated. |
 | VII Small slices | Two stories on one rule, usable end to end. |
