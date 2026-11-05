@@ -39,9 +39,9 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** in a new session: slice 019, Know what a server needs ([brief](discovery/019-know-what-a-server-needs.md)), the discovery the user asked for before any setup
+**Next step:** in a new session: slice 019, Know what a server needs ([brief](discovery/019-know-what-a-server-needs.md), issue [#61](https://github.com/LilSticky/Neil/issues/61)), the discovery the user asked for before any setup
 script. It makes lists of requirements, recommendations and suggestions for channels, roles and permissions, and writes a startup guide for new servers and a
-migration guide for existing ones. Slice 020, the setup script, waits for it; no code or spec exists yet.
+migration guide for existing ones. Slice 020, the setup script (issue [#62](https://github.com/LilSticky/Neil/issues/62)), waits for it; no code or spec exists yet.
 
 For the user, still open: the channel setup ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9), which slice 019's guides may change, then TEST-RUN.md §6i, §6j, §6k, §6l, §6m and §6n.
 Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Presence Intent, Linked the Members there, restarted and registered the commands.
