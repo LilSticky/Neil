@@ -59,6 +59,7 @@ import {
   type ButtonInteractionLike,
   type CommandLike,
   type InterviewDeps,
+  type JoinedMember,
   type ModalInteractionLike,
 } from "./interview.js";
 
@@ -655,6 +656,341 @@ describe("createInterviews", () => {
       await h.service.onMemberJoined({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
 
       expect(h.onboardingRole.calls).toEqual([]);
+    });
+  });
+
+  describe("when a Member comes online (onMemberOnline)", () => {
+    test("gives the Onboarding Role to an unlinked Member with no Interview, and opens their Interview", async () => {
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+      expect(h.channels.opened).toEqual([{ id: MEMBER, username: "vex_fan" }]);
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
+      expect(h.channels.posts).toEqual([
+        { threadId: THREAD, message: askUidMessage(openInterviewIdOf(h, MEMBER), MEMBER) },
+      ]);
+    });
+
+    test("starts nothing for a bot account", async () => {
+      await h.service.onMemberOnline({ id: MEMBER, username: "neil_bot", displayName: "neil_bot", bot: true });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.channels.posts).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
+    test("starts nothing for a Linked Member, and gives them no Doctor Role either", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.doctorRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
+    test("starts nothing for a Member who has an open Interview", async () => {
+      h.interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.channels.posts).toEqual([]);
+    });
+
+    test("starts nothing for a Member whose latest Interview was handed off", async () => {
+      const handedOffId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+      await failUidTimes(h, handedOffId, 5);
+      const threadsBefore = h.channels.opened.length;
+      const postsBefore = h.channels.posts.length;
+      const roleCallsBefore = h.onboardingRole.calls.length;
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.interviews.latestFor(MEMBER)).toMatchObject({ id: handedOffId, step: "handed-off" });
+      expect(h.channels.opened).toHaveLength(threadsBefore);
+      expect(h.channels.posts).toHaveLength(postsBefore);
+      expect(h.onboardingRole.calls).toHaveLength(roleCallsBefore);
+    });
+
+    test("starts a new Interview for a Member whose latest Interview was abandoned, as left", async () => {
+      const abandonedId = await joinedMember(h);
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+      expect(h.interviews.get(abandonedId)).toMatchObject({ step: "abandoned", reason: "left" });
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      const newId = openInterviewIdOf(h, MEMBER);
+      expect(newId).not.toBe(abandonedId);
+      expect(h.channels.opened).toHaveLength(2);
+    });
+
+    test("opens one thread when two calls for the same Member run at once", async () => {
+      const member = { id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false };
+
+      await Promise.all([h.service.onMemberOnline(member), h.service.onMemberOnline(member)]);
+
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+      expect(h.channels.posts).toHaveLength(1);
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
+    });
+
+    test("logs a thread that cannot be opened, without throwing, and tries again on the next call", async () => {
+      h.channels.refuseOpen = true;
+
+      await expect(
+        h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false }),
+      ).resolves.toBeUndefined();
+
+      expect(h.errors).toEqual([expect.stringContaining("Discord refused to open the thread")]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+
+      h.channels.refuseOpen = false;
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
+    });
+  });
+
+  describe("when Neil starts with the Members it sees online (onlineAtStartup)", () => {
+    const UNLINKED: JoinedMember = { id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false };
+    const SECOND_UNLINKED: JoinedMember = { id: OTHER, username: "second_fan", displayName: "second_fan", bot: false };
+    const BOT: JoinedMember = { id: "121212121212121212", username: "neil_bot", displayName: "neil_bot", bot: true };
+    const LINKED: JoinedMember = { id: "555555555555555555", username: "linked_fan", displayName: "linked_fan", bot: false };
+    const WITH_OPEN_INTERVIEW: JoinedMember = { id: "999999999999999999", username: "busy_fan", displayName: "busy_fan", bot: false };
+
+    /** Unlinked Members, each with an id of their own: the first count of them. */
+    function unlinkedMembers(count: number): JoinedMember[] {
+      return Array.from({ length: count }, (_, index) => {
+        const name = `fan_${index.toString()}`;
+        return { id: `40000000000000${index.toString().padStart(4, "0")}`, username: name, displayName: name, bot: false };
+      });
+    }
+
+    /** Holds every thread opening until release is called, and records the Members whose opening has started. */
+    function holdThreadOpenings(): { readonly opening: string[]; release(): void } {
+      const opening: string[] = [];
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = () => {
+          resolve();
+        };
+      });
+      const openThread = h.channels.openThread.bind(h.channels);
+      h.channels.openThread = async (member) => {
+        opening.push(member.id);
+        await gate;
+        return openThread(member);
+      };
+      return { opening, release: () => { release(); } };
+    }
+
+    test("opens the Interview of one Member only after the one before has been opened", async () => {
+      const threads = holdThreadOpenings();
+
+      const running = h.service.onlineAtStartup([UNLINKED, SECOND_UNLINKED]);
+      await vi.waitFor(() => {
+        expect(threads.opening).toEqual([MEMBER]);
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, 20));
+      expect(threads.opening).toEqual([MEMBER]);
+
+      threads.release();
+      await running;
+      expect(threads.opening).toEqual([MEMBER, OTHER]);
+      expect(h.channels.opened.map((member) => member.id)).toEqual([MEMBER, OTHER]);
+    });
+
+    test("skips a bot, a Linked Member and a Member with an open Interview, and starts the other Members", async () => {
+      h.links.confirm({ link: { memberId: LINKED.id, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+      h.interviews.create({ memberId: WITH_OPEN_INTERVIEW.id, threadId: "131313131313131313" }, NOW);
+
+      await h.service.onlineAtStartup([BOT, LINKED, WITH_OPEN_INTERVIEW, UNLINKED]);
+
+      expect(h.channels.opened.map((member) => member.id)).toEqual([MEMBER]);
+      expect(h.onboardingRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+      expect(h.channels.logs.map((line) => line.content)).toEqual(["Onboarding Interviews at startup: started 1, failed 0, left for later 0."]);
+    });
+
+    test("does not start the Interview of a Member whose latest Interview was handed off", async () => {
+      const handedOffId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+      await failUidTimes(h, handedOffId, 5);
+      const threadsBefore = h.channels.opened.length;
+
+      await h.service.onlineAtStartup([UNLINKED]);
+
+      expect(h.interviews.latestFor(MEMBER)).toMatchObject({ id: handedOffId, step: "handed-off" });
+      expect(h.channels.opened).toHaveLength(threadsBefore);
+    });
+
+    test("logs one line counting the Interviews started, when some were started", async () => {
+      await h.service.onlineAtStartup([UNLINKED, SECOND_UNLINKED]);
+
+      expect(h.channels.logs.map((line) => line.content)).toEqual(["Onboarding Interviews at startup: started 2, failed 0, left for later 0."]);
+    });
+
+    test("logs one line counting the failures, when none was started", async () => {
+      h.channels.refuseOpen = true;
+
+      await h.service.onlineAtStartup([UNLINKED]);
+
+      expect(h.channels.logs.map((line) => line.content)).toEqual(["Onboarding Interviews at startup: started 0, failed 1, left for later 0."]);
+    });
+
+    test("logs a Member whose Interview fails, then starts the next Member's Interview", async () => {
+      const openThread = h.channels.openThread.bind(h.channels);
+      h.channels.openThread = (member) =>
+        member.id === MEMBER ? Promise.reject(new Error("Discord refused to open the thread")) : openThread(member);
+
+      await expect(h.service.onlineAtStartup([UNLINKED, SECOND_UNLINKED])).resolves.toBeUndefined();
+
+      expect(h.errors).toEqual([expect.stringContaining("Discord refused to open the thread")]);
+      expect(h.channels.opened.map((member) => member.id)).toEqual([OTHER]);
+      expect(h.channels.logs.map((line) => line.content)).toEqual(["Onboarding Interviews at startup: started 1, failed 1, left for later 0."]);
+    });
+
+    test("logs nothing when no Interview was started or failed", async () => {
+      await h.service.onlineAtStartup([BOT]);
+
+      expect(h.channels.logs).toEqual([]);
+      expect(h.errors).toEqual([]);
+    });
+
+    test("logs a refused log line as an error, and does not throw", async () => {
+      h.channels.log = () => Promise.reject(new Error("Discord refused the log line"));
+
+      await expect(h.service.onlineAtStartup([UNLINKED])).resolves.toBeUndefined();
+
+      expect(h.errors).toEqual([expect.stringContaining("Discord refused the log line")]);
+    });
+
+    test("the error line for an Interview that fails at startup does not mention being online or startup", async () => {
+      h.channels.refuseOpen = true;
+
+      await h.service.onlineAtStartup([UNLINKED]);
+
+      expect(h.errors).toEqual([expect.stringContaining("Discord refused to open the thread")]);
+      expect(h.errors.join("\n")).not.toMatch(/online|startup/i);
+    });
+
+    test("a Member who joins while their Interview is being started at startup gets one thread", async () => {
+      const threads = holdThreadOpenings();
+      const running = h.service.onlineAtStartup([UNLINKED]);
+      await vi.waitFor(() => {
+        expect(threads.opening).toEqual([MEMBER]);
+      });
+
+      const joining = h.service.onMemberJoined(UNLINKED);
+      threads.release();
+      await Promise.all([running, joining]);
+
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("a Member who runs /interview while their Interview is being started at startup gets one thread", async () => {
+      const threads = holdThreadOpenings();
+      const running = h.service.onlineAtStartup([UNLINKED]);
+      await vi.waitFor(() => {
+        expect(threads.opening).toEqual([MEMBER]);
+      });
+
+      const answering = h.service.onCommand(new FakeCommand({ id: MEMBER, username: "vex_fan" }));
+      threads.release();
+      await Promise.all([running, answering]);
+
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("a Member whose Interview is being opened by a join is not started again by the startup check", async () => {
+      const threads = holdThreadOpenings();
+      const joining = h.service.onMemberJoined(UNLINKED);
+      await vi.waitFor(() => {
+        expect(threads.opening).toEqual([MEMBER]);
+      });
+
+      const running = h.service.onlineAtStartup([UNLINKED]);
+      threads.release();
+      await Promise.all([joining, running]);
+
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("a Member whose Interview is being opened by /interview is not started again by the startup check", async () => {
+      const threads = holdThreadOpenings();
+      const answering = h.service.onCommand(new FakeCommand({ id: MEMBER, username: "vex_fan" }));
+      await vi.waitFor(() => {
+        expect(threads.opening).toEqual([MEMBER]);
+      });
+
+      const running = h.service.onlineAtStartup([UNLINKED]);
+      threads.release();
+      await Promise.all([answering, running]);
+
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("starts at most 10 Interviews at startup, and leaves the Members after the tenth for later without starting them", async () => {
+      const members = unlinkedMembers(12);
+
+      await h.service.onlineAtStartup(members);
+
+      expect(h.channels.opened.map((member) => member.id)).toEqual(members.slice(0, 10).map((member) => member.id));
+      expect(h.onboardingRole.calls).toHaveLength(10);
+      expect(h.channels.logs.map((line) => line.content)).toEqual([
+        "Onboarding Interviews at startup: started 10, failed 0, left for later 2.",
+      ]);
+    });
+
+    test("counts a failed start against the 10, so the Members after the tenth are left for later", async () => {
+      const members = unlinkedMembers(12);
+      const failing = members.slice(0, 2).map((member) => member.id);
+      const openThread = h.channels.openThread.bind(h.channels);
+      h.channels.openThread = (member) =>
+        failing.includes(member.id) ? Promise.reject(new Error("Discord refused to open the thread")) : openThread(member);
+
+      await h.service.onlineAtStartup(members);
+
+      expect(h.channels.opened.map((member) => member.id)).toEqual(members.slice(2, 10).map((member) => member.id));
+      expect(h.channels.logs.map((line) => line.content)).toEqual([
+        "Onboarding Interviews at startup: started 8, failed 2, left for later 2.",
+      ]);
+    });
+
+    test("counts as left for later only the Members who want an Interview by the same rule, not bots or Linked Members", async () => {
+      h.links.confirm({ link: { memberId: LINKED.id, uid: OTHER_UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+      const firstTen = unlinkedMembers(10);
+      const eleventh = unlinkedMembers(11).slice(10);
+
+      await h.service.onlineAtStartup([...firstTen, BOT, LINKED, ...eleventh]);
+
+      expect(h.channels.opened.map((member) => member.id)).toEqual(firstTen.map((member) => member.id));
+      expect(h.channels.logs.map((line) => line.content)).toEqual([
+        "Onboarding Interviews at startup: started 10, failed 0, left for later 1.",
+      ]);
+    });
+
+    test("a Member who could not be read counts as failed, also past the 10", async () => {
+      await h.service.onlineAtStartup([...unlinkedMembers(10), { id: LINKED.id, unreadable: true }]);
+
+      expect(h.channels.logs.map((line) => line.content)).toEqual([
+        "Onboarding Interviews at startup: started 10, failed 1, left for later 0.",
+      ]);
+    });
+
+    test("stops before the next Member when the stop check says so, and starts no Interview after it", async () => {
+      await h.service.onlineAtStartup(unlinkedMembers(3), () => h.channels.opened.length >= 1);
+
+      expect(h.channels.opened).toHaveLength(1);
     });
   });
 

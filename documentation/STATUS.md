@@ -7,6 +7,11 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 018, Start Interviews for unlinked Members ([specs](../specs/018-start-interviews-for-unlinked-members/), issue
+[#58](https://github.com/LilSticky/Neil/issues/58)): an unlinked Member gets an Interview on coming online, and at a start of Neil, up to 10 per start
+(the user's decision). Merged to `main` with T001–T009 and T011–T015 done (review and audit in the spec folder). **Merged red:** the manual check
+([TEST-RUN.md](TEST-RUN.md) §6n, T010) needs the deploy, so Definition of Done 2 is open. Needs **Presence Intent** before the Restart (ADR 11).
+
 Slice 015, Look up within a Daily Allowance ([specs](../specs/015-look-up-within-a-daily-allowance/), issue
 [#50](https://github.com/LilSticky/Neil/issues/50)): each Member's lookups are counted and stop at a Daily Allowance; `/usage` is new and `/quota` shows the top Members.
 Merged to `main` with T001–T018 done (review and audit in the spec folder). **Merged red:** the manual check
@@ -34,15 +39,15 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** for the user: Link both Members again on the Wispbyte Neil with `/interview` in `#onboarding`, and check that each gets
-`Doctor`. Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)). Then set up the channels
-([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9), then TEST-RUN.md §6i, §6j, §6k and §6l. `/reaper` and `/channels`
-are registered; slice 015's `/usage` needs another `npm run commands:register` and a Restart after it deploys.
+**Next step:** for the user: check that **Presence Intent** is on in the Developer Portal, or Neil cannot log in after the next Restart, and that
+the Members are Linked on the Wispbyte Neil, each with `Doctor`. Then Restart Wispbyte (it brings slices 015 and 018) and run `npm run commands:register`
+for `/usage`. Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)). Then set up the channels ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b,
+8c and 9), then TEST-RUN.md §6i, §6j, §6k, §6l, §6m and §6n.
 
 ## Known broken / WIP
 
 - The Links made so far exist only in the local `data/neil.db`, not on Wispbyte; both Members are being Linked again (the user's choice, 2026-11-05).
-- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m).
+- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).

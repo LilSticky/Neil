@@ -150,6 +150,12 @@ Moderator or King role. `/unlink` stays visible, since Members may Unlink themse
 alone because it is untracked. If the database is corrupt, Neil refuses to start and says so rather
 than starting over.
 
+**Presence Intent**: slice 018 needs it. Switch on **Presence Intent** in the Developer Portal (Bot, Privileged Gateway
+Intents) **before** the Restart that deploys the slice: without it Neil cannot log in. See ADR 11.
+
+**Links before slice 018**: at each start, Neil opens an Interview and gives the Onboarding Role to up to 10 online Members who
+have no Link in the database it runs on. Link the Members on Wispbyte first, or those Linked only elsewhere are treated as newcomers.
+
 **Running locally**: there is only one bot application, so **Stop** the Wispbyte server before
 `npm run dev`, and **Start** it again when done.
 
