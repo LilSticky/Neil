@@ -23,8 +23,8 @@ merged to `main` as #44: `/reaper add|remove` for Home Kingdom R5s, `/reaper clo
 Member. T001–T013 done (review and audit in the spec folder, ADR 9 for its personal data); the manual check T014
 (TEST-RUN.md §6j) is open.
 
-Slice 015, Daily Allowance (`../Neil-015`): spec only, parked, not in this release. It takes migration 13 and changes
-the lookup signature `/reaper` uses, so it merges `main` before it continues.
+Slice 015, Daily Allowance (`../Neil-015`, issue [#50](https://github.com/LilSticky/Neil/issues/50)): in progress on its
+branch, T001–T010 done, T011–T019 open. It takes migration 13 and ADR 10, and merges `main` before its docs step (T016).
 
 Slice 013, Keep newcomers in onboarding ([specs](../specs/013-keep-newcomers-in-onboarding/)): the Onboarding Role
 (given on join and Unlink, taken off at Link, put right at startup) and deletion of finished Interview threads. Merged
