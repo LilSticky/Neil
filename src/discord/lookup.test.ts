@@ -1,6 +1,6 @@
 import { ComponentType, MessageFlags } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
-import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import {
@@ -14,18 +14,33 @@ import {
   type Uid,
 } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
+import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
+import {
+  FakeUsage,
+  UNREADABLE_USAGE_MESSAGE,
+  unreadableUsage,
+  usageLineFor,
+  FAKE_USED_BEFORE,
+} from "./__fakes__/usage.js";
 import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
-import { handleAlliance, handlePlayer } from "./lookup.js";
+import { callerOf, handleAlliance, handlePlayer } from "./lookup.js";
 
 const UID = "145563254785";
 const USER_ID = "310000000000000001";
+const OFFICER_ROLE_ID = "700000000000000001";
 const PICK_ID = "a1b2c3d4";
 const FETCHED_AT = new Date("2026-10-30T15:20:00Z");
 const NOW = new Date("2026-10-30T16:00:00Z");
 const RESETS_AT = new Date("2026-10-31T00:00:00Z");
 const DAY_MS = 86_400_000;
+/** The Daily Allowance of the tests: a Member who has used all three may not look up more. */
+const ALLOWANCE = 3;
+/** The private refusal for RESETS_AT, read at NOW (eight hours before the reset). */
+const REFUSAL_TEXT =
+  "Your Daily Allowance is spent: 3 of 3 Game API requests used today. Cached answers still work. It resets at 00:00 UTC (in 8 h 0 min).";
+const MEMBER: LookupCaller = { memberId: USER_ID, officer: false };
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -52,35 +67,49 @@ const player: Player = {
   allianceRank: undefined,
 };
 
-type GetPlayer = (uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>;
-type FindPlayer = (
-  name: PlayerName,
-  kingdom: KingdomNumber | undefined,
-  purpose: RequestPurpose,
-) => Promise<LookupResult<Player>>;
-type GetAlliance = (kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
-type FindAlliance = (name: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
-
 /** A pick list store that opens every pick list with the same id. */
 function pickSessionsSpy() {
   return { open: vi.fn<(ownerId: string, choice: PickChoice, now: Date) => string>(() => PICK_ID) };
 }
 
-/** A context whose fake Game API answers every Player lookup, by uid or by name, with the given result. */
-function contextReturning(result: LookupResult<Player>) {
+/**
+ * A context over a fake Game API, with one Officer role and the Daily Allowance of ALLOWANCE. The lookups are read from
+ * the fake's charged spies, so a test sees the charged calls and nothing uncharged.
+ */
+function contextFor(gameApi: FakeGameApi) {
   const logged: string[] = [];
-  const getPlayer = vi.fn<GetPlayer>(() => Promise.resolve(result));
-  const findPlayer = vi.fn<FindPlayer>(() => Promise.resolve(result));
   const pickSessions = pickSessionsSpy();
+  const usage = new FakeUsage();
   const context = {
-    gameApi: { getPlayer, findPlayer },
+    gameApi,
     pickSessions,
     now: () => NOW,
     logError: (message: string) => {
       logged.push(message);
     },
+    officerRoleIds: [OFFICER_ROLE_ID],
+    allowance: () => ALLOWANCE,
+    usage: usage.usage,
   };
-  return { context, getPlayer, findPlayer, pickSessions, logged };
+  return {
+    context,
+    gameApi,
+    getPlayer: gameApi.charged.getPlayer,
+    findPlayer: gameApi.charged.findPlayer,
+    pickSessions,
+    usage,
+    logged,
+  };
+}
+
+/** The failure text followed by the usage line of the Member before the test's request, as the reply shows it. */
+function withUsageBefore(text: string): string {
+  return `${text}\n${usageLineFor(MEMBER, FAKE_USED_BEFORE)}`;
+}
+
+/** A context whose fake Game API answers every Player lookup, by uid or by name, with the given result. */
+function contextReturning(result: LookupResult<Player>) {
+  return contextFor(new FakeGameApi({ player: result }));
 }
 
 describe("handlePlayer", () => {
@@ -113,7 +142,7 @@ describe("handlePlayer", () => {
 
     await handlePlayer(interaction, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(getPlayer).toHaveBeenCalledWith(UID);
   });
 
   test("defers publicly, then shows the Player card to everyone", async () => {
@@ -130,7 +159,7 @@ describe("handlePlayer", () => {
           embeds: [
             expect.objectContaining({
               title: "Vex",
-              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+              footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           allowedMentions: { parse: [] },
@@ -156,7 +185,9 @@ describe("handlePlayer", () => {
         options: {
           embeds: [
             expect.objectContaining({
-              footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
+              footer: {
+                text: `Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}`,
+              },
             }),
           ],
           allowedMentions: { parse: [] },
@@ -177,7 +208,7 @@ describe("handlePlayer", () => {
       {
         method: "followUp",
         options: {
-          content: "No player has the uid 145563254785.",
+          content: withUsageBefore("No player has the uid 145563254785."),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -241,7 +272,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
 
     await handlePlayer(interaction, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(getPlayer).toHaveBeenCalledWith(UID);
     expect(findPlayer).not.toHaveBeenCalled();
   });
 
@@ -285,7 +316,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
 
     await handlePlayer(interaction, context);
 
-    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), undefined, "lookup");
+    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), undefined);
     expect(getPlayer).not.toHaveBeenCalled();
   });
 
@@ -302,7 +333,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
 
     await handlePlayer(interaction, context);
 
-    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), kingdom.value, "lookup");
+    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), kingdom.value);
   });
 
   test("defers publicly, then shows the Player card to everyone when the name matches one player", async () => {
@@ -353,7 +384,7 @@ describe("handlePlayer when a name matches several players", () => {
       {
         method: "followUp",
         options: {
-          content: 'Several players are named "DrLOL". Pick one:',
+          content: withUsageBefore('Several players are named "DrLOL". Pick one:'),
           components: [
             {
               type: ComponentType.ActionRow,
@@ -401,7 +432,7 @@ describe("handlePlayer when no player has the name", () => {
       {
         method: "followUp",
         options: {
-          content: text,
+          content: withUsageBefore(text),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -421,8 +452,9 @@ describe("handlePlayer when no player has the name", () => {
       {
         method: "followUp",
         options: {
-          content:
+          content: withUsageBefore(
             "Couldn't find a player named \"Vex\". Check the name; if it's right, the tracker may be busy, so try again later.",
+          ),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -463,8 +495,9 @@ describe("handlePlayer when the tracker could not prepare the profile", () => {
       {
         method: "followUp",
         options: {
-          content:
+          content: withUsageBefore(
             "Couldn't find a player with the uid 145563254785. Check the uid; if it's right, the tracker may be busy, so try again later.",
+          ),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -488,7 +521,7 @@ describe("handlePlayer failures that give no card", () => {
         {
           method: "followUp",
           options: {
-            content: text,
+            content: withUsageBefore(text),
             flags: MessageFlags.Ephemeral,
             allowedMentions: { parse: [] },
           },
@@ -530,21 +563,22 @@ function knownAlliance(tag: string, name: string, daysAgo = 1): KnownAlliance {
  * Known Alliances are the ones given; the Home Kingdom is 330.
  */
 function allianceContextReturning(result: LookupResult<Alliance>, known: readonly KnownAlliance[] = []) {
-  const logged: string[] = [];
-  const getAlliance = vi.fn<GetAlliance>(() => Promise.resolve(result));
-  const findAlliance = vi.fn<FindAlliance>(() => Promise.resolve(result));
-  const pickSessions = pickSessionsSpy();
+  const gameApi = new FakeGameApi({ alliance: result });
+  const base = contextFor(gameApi);
   const context = {
-    gameApi: { getAlliance, findAlliance },
-    pickSessions,
-    now: () => NOW,
-    logError: (message: string) => {
-      logged.push(message);
-    },
+    ...base.context,
     homeKingdom,
     knownAlliances: { all: (): KnownAlliance[] => [...known] },
   };
-  return { context, getAlliance, findAlliance, pickSessions, logged };
+  return {
+    context,
+    gameApi,
+    getAlliance: gameApi.charged.getAlliance,
+    findAlliance: gameApi.charged.findAlliance,
+    pickSessions: base.pickSessions,
+    usage: base.usage,
+    logged: base.logged,
+  };
 }
 
 describe("handleAlliance", () => {
@@ -622,7 +656,7 @@ describe("handleAlliance", () => {
 
     await handleAlliance(interaction, context);
 
-    expect(getAlliance).toHaveBeenCalledWith(kingdomOne, "NML", "lookup");
+    expect(getAlliance).toHaveBeenCalledWith(kingdomOne, "NML");
   });
 
   test("defers publicly, then shows the Alliance card to everyone", async () => {
@@ -646,7 +680,7 @@ describe("handleAlliance", () => {
           embeds: [
             expect.objectContaining({
               title: "[NML] No Man's Land",
-              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+              footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           allowedMentions: { parse: [] },
@@ -670,7 +704,7 @@ describe("handleAlliance", () => {
       {
         method: "followUp",
         options: {
-          content: 'No alliance "NML" in kingdom #1.',
+          content: withUsageBefore('No alliance "NML" in kingdom #1.'),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -701,7 +735,7 @@ describe("handleAlliance", () => {
       {
         method: "followUp",
         options: {
-          content: 'Several alliances are named "NML". Pick one:',
+          content: withUsageBefore('Several alliances are named "NML". Pick one:'),
           components: [
             {
               type: ComponentType.ActionRow,
@@ -787,7 +821,7 @@ describe("handleAlliance failures that give no card", () => {
         {
           method: "followUp",
           options: {
-            content: text,
+            content: withUsageBefore(text),
             flags: MessageFlags.Ephemeral,
             allowedMentions: { parse: [] },
           },
@@ -858,7 +892,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
 });
 
 describe("handleAlliance by the Alliance's full name", () => {
-  test("asks the Game API for the Alliance by its full name, for the lookup, and no Kingdom is needed", async () => {
+  test("asks the Game API for the Alliance by its full name, charged to the caller, and no Kingdom is needed", async () => {
     const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
     const { context, findAlliance, getAlliance } = allianceContextReturning({
       kind: "found",
@@ -868,7 +902,7 @@ describe("handleAlliance by the Alliance's full name", () => {
 
     await handleAlliance(interaction, context);
 
-    expect(findAlliance).toHaveBeenCalledWith(allianceKey("No Man's Land"), "lookup");
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey("No Man's Land"));
     expect(getAlliance).not.toHaveBeenCalled();
   });
 
@@ -913,7 +947,7 @@ describe("handleAlliance by the Alliance's full name", () => {
       {
         method: "followUp",
         options: {
-          content: 'Several alliances are named "No Man\'s Land". Pick one:',
+          content: withUsageBefore('Several alliances are named "No Man\'s Land". Pick one:'),
           components: [
             {
               type: ComponentType.ActionRow,
@@ -949,7 +983,7 @@ describe("handleAlliance by the Alliance's full name", () => {
         method: "followUp",
         options: {
           content:
-            'No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
+            withUsageBefore('No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.'),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -998,7 +1032,7 @@ describe("handleAlliance with a combination that is neither a kingdom and tag no
 });
 
 describe("handleAlliance with a tag and no Kingdom", () => {
-  test("asks the Game API for the Alliance by its tag in the Home Kingdom, for the lookup, and never by name", async () => {
+  test("asks the Game API for the Alliance by its tag in the Home Kingdom, charged to the caller, and never by name", async () => {
     const interaction = new FakeLookupInteraction({ strings: { tag: " NML " } });
     const { context, getAlliance, findAlliance } = allianceContextReturning({
       kind: "found",
@@ -1008,7 +1042,7 @@ describe("handleAlliance with a tag and no Kingdom", () => {
 
     await handleAlliance(interaction, context);
 
-    expect(getAlliance).toHaveBeenCalledWith(homeKingdom, allianceKey("NML"), "lookup");
+    expect(getAlliance).toHaveBeenCalledWith(homeKingdom, allianceKey("NML"));
     expect(findAlliance).not.toHaveBeenCalled();
   });
 
@@ -1024,7 +1058,7 @@ describe("handleAlliance with a tag and no Kingdom", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.allianceNotFound(allianceKey("NML"), homeKingdom),
+          content: withUsageBefore(lookupMessages.allianceNotFound(allianceKey("NML"), homeKingdom)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1093,7 +1127,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: expect.objectContaining({
-        content: 'No alliance is named "no\\_mans\\*". Did you mean one of these?',
+        content: withUsageBefore('No alliance is named "no\\_mans\\*". Did you mean one of these?'),
         components: pickSelect(PICK_ID, [{ label: "[NML] No_Man's *Land*", value: "0" }]),
       }) as unknown,
     });
@@ -1138,7 +1172,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
         method: "followUp",
         options: {
           content:
-            'No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
+            withUsageBefore('No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.'),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1168,7 +1202,7 @@ describe("handlePlayer when the card cannot be sent", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1195,7 +1229,7 @@ describe("handlers when the Daily Quota is spent", () => {
       {
         method: "followUp",
         options: {
-          content: spentText,
+          content: withUsageBefore(spentText),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1218,7 +1252,7 @@ describe("handlers when the Daily Quota is spent", () => {
       {
         method: "followUp",
         options: {
-          content: spentText,
+          content: withUsageBefore(spentText),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1274,7 +1308,7 @@ describe("handlers when the Quota Reserve is kept for Onboarding Interviews", ()
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: reserveText,
+        content: withUsageBefore(reserveText),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -1307,7 +1341,7 @@ describe("handleAlliance when the card cannot be sent", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1321,15 +1355,18 @@ describe("handlePlayer when the Game API throws", () => {
   test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     const logged: string[] = [];
-    const getPlayer = vi.fn<GetPlayer>(() => Promise.reject(new Error("tracker connection reset")));
-    const findPlayer = vi.fn<FindPlayer>(() => Promise.reject(new Error("tracker connection reset")));
+    const gameApi = new FakeGameApi();
+    gameApi.charged.getPlayer.mockImplementation(() => Promise.reject(new Error("tracker connection reset")));
     const context = {
-      gameApi: { getPlayer, findPlayer },
+      gameApi,
       pickSessions: pickSessionsSpy(),
       now: () => NOW,
       logError: (message: string) => {
         logged.push(message);
       },
+      officerRoleIds: [OFFICER_ROLE_ID],
+      allowance: () => ALLOWANCE,
+      usage: new FakeUsage().usage,
     };
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
@@ -1340,7 +1377,7 @@ describe("handlePlayer when the Game API throws", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1357,20 +1394,348 @@ describe("handleAlliance when the Game API throws", () => {
       integers: { kingdom: 1 },
     });
     const logged: string[] = [];
-    const getAlliance = vi.fn<GetAlliance>(() => Promise.reject(new Error("tracker connection reset")));
-    const findAlliance = vi.fn<FindAlliance>(() => Promise.reject(new Error("tracker connection reset")));
+    const gameApi = new FakeGameApi();
+    gameApi.charged.getAlliance.mockImplementation(() => Promise.reject(new Error("tracker connection reset")));
+    gameApi.charged.findAlliance.mockImplementation(() => Promise.reject(new Error("tracker connection reset")));
     const context = {
-      gameApi: { getAlliance, findAlliance },
+      gameApi,
       pickSessions: pickSessionsSpy(),
       now: () => NOW,
       logError: (message: string) => {
         logged.push(message);
       },
+      officerRoleIds: [OFFICER_ROLE_ID],
+      allowance: () => ALLOWANCE,
+      usage: new FakeUsage().usage,
       homeKingdom,
       knownAlliances: { all: (): KnownAlliance[] => [] },
     };
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: withUsageBefore(lookupMessages.unavailable),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining("tracker connection reset")]);
+  });
+});
+
+/** A context whose fake Game API refuses every charged lookup: the Member has used the whole Daily Allowance. */
+function refusingPlayerContext() {
+  return contextFor(new FakeGameApi({ refusedUntil: RESETS_AT }));
+}
+
+/** An Alliance context whose fake Game API refuses every charged lookup, with the Home Kingdom and no Known Alliances. */
+function refusingAllianceContext() {
+  const gameApi = new FakeGameApi({ refusedUntil: RESETS_AT });
+  const context = {
+    ...contextFor(gameApi).context,
+    homeKingdom,
+    knownAlliances: { all: (): KnownAlliance[] => [] },
+  };
+  return { gameApi, context };
+}
+
+describe("callerOf", () => {
+  test("names the Member who ran the command, not an Officer, when the Member holds no Officer role", () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+
+    expect(callerOf(interaction, [OFFICER_ROLE_ID])).toEqual(MEMBER);
+  });
+
+  test("names the Member as an Officer when the Member holds an Officer role", () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID, [OFFICER_ROLE_ID]);
+
+    expect(callerOf(interaction, [OFFICER_ROLE_ID])).toEqual({ memberId: USER_ID, officer: true });
+  });
+});
+
+describe("handlePlayer by uid charges the Member who ran the command", () => {
+  test("asks the charged view of that Member for the Player, and no uncharged lookup", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, gameApi, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(gameApi.chargedTo).toHaveBeenCalledWith(MEMBER);
+    expect(getPlayer).toHaveBeenCalledWith(UID);
+    expect(gameApi.getPlayer).not.toHaveBeenCalled();
+  });
+
+  test("charges an Officer as an Officer", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID, [OFFICER_ROLE_ID]);
+    const { context, gameApi } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(gameApi.chargedTo).toHaveBeenCalledWith({ memberId: USER_ID, officer: true });
+  });
+
+  test("refuses privately after the placeholder, with no card, when the Daily Allowance is spent", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context } = refusingPlayerContext();
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: REFUSAL_TEXT,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handlePlayer by name charges the Member who ran the command", () => {
+  test("asks the charged view of that Member for the Player by name and Kingdom", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "Vex" }, integers: { kingdom: 330 } });
+    const { context, gameApi, findPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(gameApi.chargedTo).toHaveBeenCalledWith(MEMBER);
+    expect(findPlayer).toHaveBeenCalledWith(playerName("Vex"), kingdom.value);
+    expect(gameApi.findPlayer).not.toHaveBeenCalled();
+  });
+
+  test("refuses privately after the placeholder, with no card, when the Daily Allowance is spent", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "Vex" } });
+    const { context } = refusingPlayerContext();
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: REFUSAL_TEXT,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handleAlliance by tag charges the Member who ran the command", () => {
+  test("asks the charged view of that Member for the Alliance of the Kingdom and tag", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const { context, gameApi, getAlliance } = allianceContextReturning({ kind: "not-found" });
+
+    await handleAlliance(interaction, context);
+
+    expect(gameApi.chargedTo).toHaveBeenCalledWith(MEMBER);
+    expect(getAlliance).toHaveBeenCalledWith(kingdomOne, allianceKey("NML"));
+    expect(gameApi.getAlliance).not.toHaveBeenCalled();
+  });
+
+  test("refuses privately after the placeholder, with no card, when the Daily Allowance is spent", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const { context } = refusingAllianceContext();
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: REFUSAL_TEXT,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+describe("handleAlliance by full name charges the Member who ran the command", () => {
+  test("asks the charged view of that Member for the Alliance by its full name", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const { context, gameApi, findAlliance } = allianceContextReturning({ kind: "not-found" });
+
+    await handleAlliance(interaction, context);
+
+    expect(gameApi.chargedTo).toHaveBeenCalledWith(MEMBER);
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey("No Man's Land"));
+    expect(gameApi.findAlliance).not.toHaveBeenCalled();
+  });
+
+  test("refuses privately after the placeholder, with no card, when the Daily Allowance is spent", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const { context } = refusingAllianceContext();
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: REFUSAL_TEXT,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+});
+
+const OFFICER: LookupCaller = { memberId: USER_ID, officer: true };
+
+describe("handlePlayer shows the usage line, read after the request", () => {
+  test("shows 5 of 14 on an uncached card, because the usage is read after the request that was just made", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, gameApi, usage } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    gameApi.charged.getPlayer.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("shows the count of the Member, not of the Officers, to an Officer, who is not limited", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID, [OFFICER_ROLE_ID]);
+    const { context, usage } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(usage.usage).toHaveBeenCalledWith(OFFICER);
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(OFFICER, FAKE_USED_BEFORE)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("adds the line after the text of a not-found reply, counting the uncached request just made", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, gameApi, usage } = contextReturning({ kind: "not-found" });
+    gameApi.charged.getPlayer.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "not-found" });
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: `No player has the uid 145563254785.\n${usageLineFor(MEMBER, 5)}`,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+  });
+});
+
+describe("handleAlliance shows the usage line on the Alliance card, read after the request", () => {
+  test("shows 5 of 14 in the card footer after an uncached request", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const { context, gameApi, usage } = allianceContextReturning({
+      kind: "found",
+      value: alliance,
+      fetchedAt: FETCHED_AT,
+    });
+    gameApi.charged.getAlliance.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: alliance, fetchedAt: FETCHED_AT });
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+});
+
+describe("handlePlayer when the usage line cannot be read", () => {
+  test("shows the Player card without the usage line, and logs the failure", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await expect(handlePlayer(interaction, { ...context, usage: unreadableUsage })).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [
+            expect.objectContaining({
+              title: "Vex",
+              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+            }),
+          ],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining(UNREADABLE_USAGE_MESSAGE)]);
+  });
+
+  test("removes the placeholder and tells the caller it is unavailable, without the usage line, when the lookup also failed", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const logged: string[] = [];
+    const gameApi = new FakeGameApi();
+    gameApi.charged.getPlayer.mockImplementation(() => Promise.reject(new Error("tracker connection reset")));
+    const context = {
+      gameApi,
+      pickSessions: pickSessionsSpy(),
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+      officerRoleIds: [OFFICER_ROLE_ID],
+      allowance: () => ALLOWANCE,
+      usage: unreadableUsage,
+    };
+
+    await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
@@ -1384,6 +1749,11 @@ describe("handleAlliance when the Game API throws", () => {
         },
       },
     ]);
-    expect(logged).toEqual([expect.stringContaining("tracker connection reset")]);
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("tracker connection reset"),
+        expect.stringContaining(UNREADABLE_USAGE_MESSAGE),
+      ]),
+    );
   });
 });

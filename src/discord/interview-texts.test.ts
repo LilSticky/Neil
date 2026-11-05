@@ -58,6 +58,9 @@ const THREAD = "666666666666666666";
 const OFFICERS: OfficerRoles = { moderatorRoleId: "333333333333333333", kingRoleId: "444444444444444444" };
 const NOW = new Date("2026-10-30T20:48:00Z");
 const RESETS_AT = new Date("2026-10-31T00:00:00Z");
+/** The Link note, exactly as the contract's usage section gives it. */
+const LINK_NOTE =
+  "You can look up Players and Alliances with /player and /alliance. Each Member has a Daily Allowance of Game API requests; cached answers are free. /usage shows yours.";
 const UID_HELP =
   "In the game, tap your profile picture in the top left, then the feather next to your name. The number under the picture is your uid; the button next to it copies it.";
 
@@ -388,15 +391,19 @@ describe("thread messages for the Daily Quota", () => {
 });
 
 describe("thread messages for ending an Interview", () => {
-  test("a link greets the Member by mention and names the Player with the uid, with no buttons", () => {
-    expect(linkedMessage(MEMBER, inAlliance)).toEqual({
-      content: `Done, <@${MEMBER}>: you're linked to Vex (uid 145563254785).`,
-      allowedMentions: { users: [MEMBER] },
-    });
+  test("a link greets the Member by mention, names the Player with the uid, and pings only the Member", () => {
+    const message = linkedMessage(MEMBER, inAlliance);
+
+    expect(message.content).toContain(`Done, <@${MEMBER}>: you're linked to Vex (uid 145563254785).`);
+    expect(message.allowedMentions).toEqual({ users: [MEMBER] });
+  });
+
+  test("a link holds the Link note exactly", () => {
+    expect(linkedMessage(MEMBER, inAlliance).content).toContain(LINK_NOTE);
   });
 
   test("the link message escapes the Player Name", () => {
-    expect(linkedMessage(MEMBER, { ...inAlliance, name: "_Vex_" }).content).toBe(
+    expect(linkedMessage(MEMBER, { ...inAlliance, name: "_Vex_" }).content).toContain(
       `Done, <@${MEMBER}>: you're linked to \\_Vex\\_ (uid 145563254785).`,
     );
   });

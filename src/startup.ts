@@ -2,6 +2,7 @@ import type { BuildInfo } from "./build-info.js";
 import { ConfigError, loadConfig } from "./config.js";
 import type { ConnectOptions, GameApi } from "./discord/client.js";
 import { recordStart, type StartRecord } from "./domain/start-record.js";
+import { AllowanceKeeper, type MemberUsageStorage } from "./game-api/allowance-keeper.js";
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
 import type { AppliedStore } from "./storage/applied-store.js";
@@ -39,9 +40,10 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record and REAPER, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Member usage, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record and REAPER, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
+  readonly memberUsage: MemberUsageStorage;
   readonly interviews: InterviewStore;
   readonly links: LinkStore;
   readonly applied: AppliedStore;
@@ -67,6 +69,7 @@ export interface StartupDeps {
     version: string,
     cacheTtlMs: number,
     quota: QuotaKeeper,
+    allowance: AllowanceKeeper,
     onAllianceSeen: AllianceSeenHook,
   ) => GameApi;
   readonly connect: (token: string, options: ConnectOptions) => Promise<Connection>;
@@ -105,6 +108,14 @@ export async function start(deps: StartupDeps): Promise<void> {
         `Warning: GAME_API_QUOTA_RESERVE (${config.quotaReserve.toString()}) is at or above the Daily Quota limit (${today.limit.toString()}); lookups will never ask the Game API.`,
       );
     }
+    // Each Member's lookups are kept within the Daily Allowance, from the same reserve and sync share as the quota.
+    const allowance = new AllowanceKeeper({
+      store: store.memberUsage,
+      quota,
+      now: deps.now,
+      reserve: config.quotaReserve,
+      syncShare: config.syncShare,
+    });
     // Only the Home Kingdom's Alliances are kept: they are the ones /alliance suggests by name and tag.
     const onAllianceSeen: AllianceSeenHook = (kingdom, tag, name) => {
       if (kingdom !== config.homeKingdom || tag.trim() === "" || name.trim() === "") return;
@@ -115,6 +126,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       buildInfo === "dev" ? "dev" : buildInfo.version,
       config.cacheTtlMs,
       quota,
+      allowance,
       onAllianceSeen,
     );
     connection = await deps.connect(config.discordToken, {
@@ -123,6 +135,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       startRecord,
       gameApi,
       quotaReserve: config.quotaReserve,
+      allowance,
       officerRoleIds: config.officerRoleIds,
       guildId: config.guildId,
       onboardingChannelId: config.onboardingChannelId,

@@ -69,6 +69,7 @@ import {
   type OfficerRoles,
   type PrivateReply,
 } from "./interview-texts.js";
+import { LINK_NOTE } from "./usage-texts.js";
 
 /** A Member who joined the server, as the Interview needs them. */
 export interface JoinedMember {
@@ -146,6 +147,8 @@ export interface InterviewDeps {
   /** Gives the Doctor Role to a Member once their Link is stored, before the Onboarding Role is taken off. */
   readonly doctorRole: Pick<DoctorRole, "give">;
   readonly preferences: PreferencesAfterLink;
+  /** Privately sends the Member the Link note after a Link; Discord may refuse it. */
+  readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly gameApi: InterviewGameApi;
   readonly officerRoles: OfficerRoles;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
@@ -779,11 +782,21 @@ async function finishLink(
     await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
   }
   await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
+  await sendLinkNote(deps, interview.memberId);
   // Posted first: the message stores the preselected language that the name and roles' Preference Roles read.
   const preferencesPosted = await postPreferencesAfterLink(deps, interview, link);
   await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
   if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, interview.player);
   if (!preferencesPosted) await deps.channels.deleteThread(interview.threadId);
+}
+
+/** Privately sends the Member the Link note after a Link; a failure is logged, never thrown, so the Link stands. */
+async function sendLinkNote(deps: InterviewDeps, memberId: MemberId): Promise<void> {
+  try {
+    await deps.sendPrivateMessage(memberId, { content: LINK_NOTE });
+  } catch (error) {
+    deps.logError(`Sending the Link note after a Link failed: ${errorText(error)}`);
+  }
 }
 
 /** Posts the Preferences message after a Link; a failure is logged, never thrown. True when the message is posted. */

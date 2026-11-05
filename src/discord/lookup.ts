@@ -1,5 +1,6 @@
 import {
   MessageFlags,
+  type APIEmbed,
   type InteractionDeferReplyOptions,
   type InteractionEditReplyOptions,
   type InteractionReplyOptions,
@@ -7,7 +8,9 @@ import {
 } from "discord.js";
 import { matchAlliances, type KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
-import type { GameApiClient } from "../game-api/client.js";
+import { isOfficer } from "../domain/officer.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
+import type { ChargedResult, GameApiClient } from "../game-api/client.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -37,9 +40,10 @@ import {
   renderPlayerPickList,
 } from "./lookup-cards.js";
 import type { PickSessions } from "./pick-sessions.js";
+import { refusalMessage, withUsage } from "./usage-texts.js";
 
-/** The part of the Game API client the lookup commands use. */
-export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAlliance" | "findAlliance">;
+/** The part of the Game API client the lookup commands use: the lookups charged to a caller, and the uncharged reads. */
+export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAlliance" | "findAlliance" | "chargedTo">;
 
 /** The part of a discord.js interaction that shows a thinking placeholder, then a card or a private follow-up. */
 export interface PlaceholderInteraction {
@@ -56,22 +60,66 @@ export interface LookupInteraction extends PlaceholderInteraction {
     getString(name: string, required?: false): string | null;
     getInteger(name: string, required?: false): number | null;
   };
+  /** The Discord role ids the Member holds, read for the Officer check. */
+  memberRoleIds(): readonly string[];
   reply(options: InteractionReplyOptions): Promise<unknown>;
 }
 
-/** What one command needs: its own Game API methods, the pick lists it may open, and where to log a failure. */
-export interface LookupContext<Method extends keyof LookupApi> {
-  readonly gameApi: Pick<LookupApi, Method>;
+/** What one command needs: the charged Game API lookups, the pick lists it may open, and where to log a failure. */
+export interface LookupContext {
+  readonly gameApi: Pick<LookupApi, "chargedTo">;
   readonly pickSessions: Pick<PickSessions, "open">;
   readonly now: () => Date;
   readonly logError: (message: string) => void;
+  /** The Discord role ids that make a Member an Officer; an Officer's lookups are not limited. */
+  readonly officerRoleIds: readonly string[];
+  /** The Daily Allowance of today: the requests one Member's lookups may cause. */
+  readonly allowance: () => number;
+  /** The usage line of a caller, read after the request, so the count includes it. */
+  readonly usage: (caller: LookupCaller) => string;
+}
+
+/** What a lookup that is charged to a Member needs to show its answer: the clock, the log, the Daily Allowance and the usage line. */
+export interface LookupReplyContext {
+  readonly now: () => Date;
+  readonly logError: (message: string) => void;
+  readonly allowance: () => number;
+  readonly usage: (caller: LookupCaller) => string;
+}
+
+/**
+ * Adds the caller's usage line to a reply that is about to be shown. Every reply of a charged lookup goes through here, so
+ * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
+ * line cannot be read, the failure is logged and the reply is given without the line: the Member still gets the answer.
+ */
+export function withCallerUsage<M extends { readonly content?: string; readonly embeds?: readonly APIEmbed[] }>(
+  context: Pick<LookupContext, "usage" | "logError">,
+  caller: LookupCaller,
+  message: M,
+): M {
+  let line: string;
+  try {
+    line = context.usage(caller);
+  } catch (error) {
+    context.logError(`Reading the usage line failed: ${errorText(error)}`);
+    return message;
+  }
+  return withUsage(message, line);
+}
+
+/** Who makes a lookup: the Member who ran the command, and whether an Officer role is theirs. */
+export function callerOf(
+  interaction: { readonly user: { readonly id: string }; memberRoleIds(): readonly string[] },
+  officerRoleIds: readonly string[],
+): LookupCaller {
+  return { memberId: interaction.user.id, officer: isOfficer(interaction.memberRoleIds(), officerRoleIds) };
 }
 
 /**
  * What /alliance needs on top of the lookup: the Home Kingdom, where a tag alone is looked up, and the Known Alliances,
  * which a name nobody has is matched against.
  */
-export interface AllianceLookupContext extends LookupContext<"getAlliance" | "findAlliance"> {
+export interface AllianceLookupContext extends LookupContext {
   readonly homeKingdom: KingdomNumber;
   readonly knownAlliances: { all(now: Date): readonly KnownAlliance[] };
 }
@@ -80,7 +128,7 @@ export interface AllianceLookupContext extends LookupContext<"getAlliance" | "fi
 export type PrivateMessage = Pick<InteractionReplyOptions, "content" | "components">;
 
 /** A public card: its embed and, for an Alliance with members, its roster menu. */
-export type CardMessage = Pick<InteractionEditReplyOptions, "embeds" | "components">;
+export type CardMessage = Pick<InteractionEditReplyOptions, "components"> & { readonly embeds: APIEmbed[] };
 
 /** Lookups never mention anyone, whatever the Game API or the Member typed. */
 export const allowedMentions: MessageMentionOptions = { parse: [] };
@@ -267,36 +315,44 @@ async function removePlaceholderAndTell(interaction: PlaceholderInteraction, mes
 /**
  * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
  * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
- * that throws is logged and told as unavailable. `placeholder` gives the placeholder's options, such as privacy.
+ * that throws is logged and told as unavailable. A charged lookup the Daily Allowance refuses is told privately with the
+ * refusal. `placeholder` gives the placeholder's options, such as privacy.
  */
 export async function showLookup<T>(
   interaction: PlaceholderInteraction,
-  context: { readonly now: () => Date; readonly logError: (message: string) => void },
-  ask: () => Promise<LookupResult<T>>,
+  context: LookupReplyContext,
+  caller: LookupCaller,
+  ask: () => Promise<ChargedResult<T>>,
   card: (value: T, fetchedAt: Date, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
   placeholder?: InteractionDeferReplyOptions,
 ): Promise<void> {
   await interaction.deferReply(placeholder);
-  let result: LookupResult<T>;
+  let result: ChargedResult<T>;
   try {
     result = await ask();
   } catch (error) {
     context.logError(`Looking up failed: ${errorText(error)}`);
-    await removePlaceholderAndTell(interaction, { content: lookupMessages.unavailable });
+    await removePlaceholderAndTell(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
+    return;
+  }
+  if (result.kind === "allowance-spent") {
+    await removePlaceholderAndTell(interaction, {
+      content: refusalMessage(result.resetsAt, context.allowance(), context.now()),
+    });
     return;
   }
   if (result.kind !== "found") {
-    await removePlaceholderAndTell(interaction, failureMessage(result, context.now()));
+    await removePlaceholderAndTell(interaction, withCallerUsage(context, caller, failureMessage(result, context.now())));
     return;
   }
 
   try {
-    const message = card(result.value, result.fetchedAt, context.now());
+    const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
     await interaction.editReply({ ...message, allowedMentions });
   } catch (error) {
     context.logError(`Showing the card failed: ${errorText(error)}`);
-    await removePlaceholderAndTell(interaction, { content: lookupMessages.unavailable });
+    await removePlaceholderAndTell(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
   }
 }
 
@@ -309,7 +365,7 @@ export function parseOptionalKingdom(value: number | null): ParseResult<KingdomN
 
 async function lookUpPlayerByUid(
   interaction: LookupInteraction,
-  context: LookupContext<"getPlayer" | "findPlayer">,
+  context: LookupContext,
   text: string,
 ): Promise<void> {
   const parsed = parseUid(text);
@@ -319,10 +375,12 @@ async function lookUpPlayerByUid(
   }
 
   const uid = parsed.value;
+  const caller = callerOf(interaction, context.officerRoleIds);
   await showLookup(
     interaction,
     context,
-    () => context.gameApi.getPlayer(uid, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).getPlayer(uid),
     playerCardMessage,
     (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
   );
@@ -330,7 +388,7 @@ async function lookUpPlayerByUid(
 
 async function lookUpPlayerByName(
   interaction: LookupInteraction,
-  context: LookupContext<"getPlayer" | "findPlayer">,
+  context: LookupContext,
   text: string,
 ): Promise<void> {
   const name = parsePlayerName(text);
@@ -346,10 +404,12 @@ async function lookUpPlayerByName(
 
   const playerName = name.value;
   const playerKingdom = kingdom.value;
+  const caller = callerOf(interaction, context.officerRoleIds);
   await showLookup(
     interaction,
     context,
-    () => context.gameApi.findPlayer(playerName, playerKingdom, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).findPlayer(playerName, playerKingdom),
     playerCardMessage,
     (failure, now) =>
       playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now),
@@ -362,7 +422,7 @@ async function lookUpPlayerByName(
  */
 export async function handlePlayer(
   interaction: LookupInteraction,
-  context: LookupContext<"getPlayer" | "findPlayer">,
+  context: LookupContext,
 ): Promise<void> {
   await answer("/player", context, async () => {
     const uidText = interaction.options.getString("uid");
@@ -385,14 +445,16 @@ export async function handlePlayer(
  */
 async function showAlliance(
   interaction: LookupInteraction,
-  context: LookupContext<"getAlliance" | "findAlliance">,
-  ask: () => Promise<LookupResult<Alliance>>,
+  context: LookupContext,
+  caller: LookupCaller,
+  ask: () => Promise<ChargedResult<Alliance>>,
   failureMessage: (failure: Failure<Alliance>, now: Date) => PrivateMessage,
 ): Promise<void> {
   const ownerId = interaction.user.id;
   await showLookup(
     interaction,
     context,
+    caller,
     ask,
     (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions),
     failureMessage,
@@ -453,10 +515,12 @@ async function lookUpAllianceByTag(
 
   const allianceKingdom = kingdom.value;
   const tag = parsedTag.value;
+  const caller = callerOf(interaction, context.officerRoleIds);
   await showAlliance(
     interaction,
     context,
-    () => context.gameApi.getAlliance(allianceKingdom, tag, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).getAlliance(allianceKingdom, tag),
     (failure, now) =>
       allianceFailureMessage(
         failure,
@@ -483,10 +547,12 @@ async function lookUpAllianceByName(
 
   const name = parsedName.value;
   const ownerId = interaction.user.id;
+  const caller = callerOf(interaction, context.officerRoleIds);
   await showAlliance(
     interaction,
     context,
-    () => context.gameApi.findAlliance(name, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).findAlliance(name),
     (failure, now) =>
       failure.kind === "not-found"
         ? nameNotFoundMessage(name, ownerId, context, now)

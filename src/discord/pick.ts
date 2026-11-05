@@ -1,6 +1,8 @@
 import { MessageFlags, type InteractionReplyOptions, type InteractionUpdateOptions } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { mayChangeReaper, type Editor, type ExileReason } from "../domain/exile.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
+import type { ChargedResult } from "../game-api/client.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { parseAllianceKey, parseKingdom, parseUid, type AllianceKey, type KingdomNumber } from "../domain/lookup-input.js";
 import {
@@ -26,11 +28,13 @@ import {
   allianceFailureMessage,
   allowedMentions,
   answer,
+  callerOf,
   errorText,
   playerCardMessage,
   playerFailureText,
   replyPrivately,
   showLookup,
+  withCallerUsage,
   type CardMessage,
   type Failure,
   type LookupApi,
@@ -39,6 +43,7 @@ import {
 } from "./lookup.js";
 import { recordFoundExile, type ReaperRecordContext } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
+import { refusalMessage } from "./usage-texts.js";
 import {
   isOwner,
   pageOf,
@@ -54,16 +59,27 @@ export interface PickInteraction extends PlaceholderInteraction {
   readonly user: { readonly id: string };
   /** What a string select menu offers the Member picked; a button has none. */
   readonly values?: readonly string[];
+  /** The Discord role ids the Member holds, read for the Officer check. */
+  memberRoleIds(): readonly string[];
   reply(options: InteractionReplyOptions): Promise<unknown>;
   update(options: InteractionUpdateOptions): Promise<unknown>;
 }
 
-/** What the pick handler needs: the Game API lookups, the pick lists, and where to log a failure. */
+/**
+ * What the pick handler needs: the charged Game API lookups, the uncharged Player read of /reaper add's pick, the pick
+ * lists, and where to log a failure.
+ */
 export interface PickContext {
-  readonly gameApi: Pick<LookupApi, "getPlayer" | "getAlliance">;
+  readonly gameApi: Pick<LookupApi, "getPlayer" | "chargedTo">;
   readonly pickSessions: Pick<PickSessions, "get" | "open" | "turnPage" | "linkOverview">;
   readonly now: () => Date;
   readonly logError: (message: string) => void;
+  /** The Discord role ids that make a Member an Officer; an Officer's lookups are not limited. */
+  readonly officerRoleIds: readonly string[];
+  /** The Daily Allowance of today: the requests one Member's lookups may cause. */
+  readonly allowance: () => number;
+  /** The usage line of a caller, read after the request, so the count includes it. */
+  readonly usage: (caller: LookupCaller) => string;
   /** REAPER and the log channel, which a pick of the /reaper add pick list stores into; without them that pick is unavailable. */
   readonly reaper?: ReaperRecordContext["reaper"];
   readonly channels?: ReaperRecordContext["channels"];
@@ -112,31 +128,39 @@ async function showPicked(interaction: PickInteraction, label: string): Promise<
 async function answerPick<T>(
   interaction: PickInteraction,
   context: PickContext,
-  ask: () => Promise<LookupResult<T>>,
+  caller: LookupCaller,
+  ask: () => Promise<ChargedResult<T>>,
   card: (value: T, fetchedAt: Date, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
 ): Promise<void> {
-  let result: LookupResult<T>;
+  let result: ChargedResult<T>;
   try {
     result = await ask();
   } catch (error) {
     context.logError(`Looking up the picked match failed: ${errorText(error)}`);
-    await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+    await followUpPrivately(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
+    return;
+  }
+  if (result.kind === "allowance-spent") {
+    await followUpPrivately(interaction, {
+      content: refusalMessage(result.resetsAt, context.allowance(), context.now()),
+    });
     return;
   }
   if (result.kind !== "found") {
-    await followUpPrivately(interaction, failureMessage(result, context.now()));
+    await followUpPrivately(interaction, withCallerUsage(context, caller, failureMessage(result, context.now())));
     return;
   }
   try {
-    await interaction.followUp({ ...card(result.value, result.fetchedAt, context.now()), allowedMentions });
+    const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
+    await interaction.followUp({ ...message, allowedMentions });
   } catch (error) {
     context.logError(`Showing the picked card failed: ${errorText(error)}`);
-    await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+    await followUpPrivately(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
   }
 }
 
-/** The owner picked a Player match: the Player's card is posted publicly, looked up by uid for the lookup. */
+/** The owner picked a Player match: the Player's card is posted publicly, looked up by uid, charged to the picker. */
 async function pickPlayerMatch(
   interaction: PickInteraction,
   match: PickablePlayerMatch | undefined,
@@ -150,10 +174,12 @@ async function pickPlayerMatch(
 
   await showPicked(interaction, playerPickLabel(match));
   const uid = parsedUid.value;
+  const caller = callerOf(interaction, context.officerRoleIds);
   await answerPick(
     interaction,
     context,
-    () => context.gameApi.getPlayer(uid, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).getPlayer(uid),
     playerCardMessage,
     (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
   );
@@ -230,10 +256,12 @@ async function pickAllianceMatch(
   await showPicked(interaction, alliancePickLabel(match));
   const { kingdom, key } = target;
   const ownerId = interaction.user.id;
+  const caller = callerOf(interaction, context.officerRoleIds);
   await answerPick(
     interaction,
     context,
-    () => context.gameApi.getAlliance(kingdom, key, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key),
     (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions),
     (failure, now) =>
       allianceFailureMessage(
@@ -263,10 +291,12 @@ async function pickRosterMember(
     return;
   }
 
+  const caller = callerOf(interaction, context.officerRoleIds);
   await showLookup(
     interaction,
     context,
-    () => context.gameApi.getPlayer(entry.uid, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).getPlayer(entry.uid),
     playerCardMessage,
     (failure, now) => ({ content: playerFailureText(failure, entry.uid, now) }),
   );
@@ -313,10 +343,13 @@ async function turnRosterPage(
     return;
   }
   context.pickSessions.turnPage(session.id, page);
-  await interaction.update({
-    embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
-    components: renderAllianceComponents(choice.alliance, page, session.id),
-  });
+  const caller = callerOf(interaction, context.officerRoleIds);
+  await interaction.update(
+    withCallerUsage(context, caller, {
+      embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
+      components: renderAllianceComponents(choice.alliance, page, session.id),
+    }),
+  );
 }
 
 /**
@@ -385,12 +418,13 @@ async function pressOverview(
   }
 
   const askerId = interaction.user.id;
+  const caller = callerOf(interaction, context.officerRoleIds);
   const session = context.pickSessions.get(press.sessionId, context.now());
   if (session !== "expired" && session.choice.kind === "roster") {
     const { alliance, fetchedAt } = session.choice;
     const overview = overviewUnderCard(session, alliance, fetchedAt, askerId, context.pickSessions, context.now());
     await sendOverview(interaction, context, () =>
-      interaction.reply({ ...overview, flags: MessageFlags.Ephemeral, allowedMentions }),
+      interaction.reply({ ...withCallerUsage(context, caller, overview), flags: MessageFlags.Ephemeral, allowedMentions }),
     );
     return;
   }
@@ -400,7 +434,8 @@ async function pressOverview(
   await showLookup(
     interaction,
     context,
-    () => context.gameApi.getAlliance(kingdomNumber, tag, "lookup"),
+    caller,
+    () => context.gameApi.chargedTo(caller).getAlliance(kingdomNumber, tag),
     (alliance, fetchedAt, now) =>
       renderOverview(alliance, fetchedAt, now, openOverviewSession(alliance, fetchedAt, askerId, context.pickSessions, now), 0),
     (failure, now) =>
@@ -464,8 +499,11 @@ export async function handleOverview(interaction: PickInteraction, context: Pick
       return;
     }
     const { alliance, fetchedAt } = session.choice;
+    const caller = callerOf(interaction, context.officerRoleIds);
     await sendOverview(interaction, context, () =>
-      interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort)),
+      interaction.update(
+        withCallerUsage(context, caller, renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort)),
+      ),
     );
   });
 }

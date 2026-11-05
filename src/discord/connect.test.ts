@@ -132,6 +132,11 @@ class FakeGameApi {
     return Promise.resolve({ kind: "not-found" });
   }
 
+  /** The charged lookups of a Member: connect's tests never look up as a Member, so none is asked for. */
+  chargedTo(): never {
+    throw new Error("connect's tests do not look up as a Member");
+  }
+
   quotaToday() {
     return todaysQuota(undefined, NOW);
   }
@@ -218,6 +223,7 @@ describe("connect", () => {
       startRecord: recordStart(undefined, NOW),
       gameApi,
       quotaReserve: 50,
+      allowance: { allowance: () => 3, expected: () => 100, top: () => [], usageOf: () => 0 },
       officerRoleIds: [MODERATOR_ROLE_ID, KING_ROLE_ID],
       guildId: GUILD_ID,
       onboardingChannelId: ONBOARDING_CHANNEL_ID,

@@ -14,6 +14,7 @@ import type { Uid } from "../domain/lookup-input.js";
 import type { AllianceRank, PickablePlayerMatch, Player } from "../domain/player.js";
 import type { ApprovableRank, MemberId, RankApproval } from "../domain/rank-approval.js";
 import { optionLabel, timeLeft, utcTime } from "./lookup-cards.js";
+import { LINK_NOTE } from "./usage-texts.js";
 
 /** The Officer roles that are mentioned when a Member needs help or an Officer must approve. */
 export interface OfficerRoles {
@@ -408,10 +409,10 @@ export function quotaResetMessage(interviewId: number, member: MemberId): Button
   );
 }
 
-/** The thread message when a Member is Linked: greets them by mention and names the Player. */
+/** The thread message when a Member is Linked: greets them by mention, names the Player, and gives the Link note. */
 export function linkedMessage(member: MemberId, player: Player): Message {
   return {
-    content: `Done, <@${member}>: you're linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).`,
+    content: `Done, <@${member}>: you're linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).\n${LINK_NOTE}`,
     allowedMentions: { users: [member] },
   };
 }

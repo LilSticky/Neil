@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import { memberLeft, recommendationFound, timeOut } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
@@ -51,6 +52,7 @@ import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
 import { FakeDoctorRole, type DoctorRoleCall } from "./__fakes__/doctor-role.js";
 import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 import { FakePreferencesAfterLink } from "./__fakes__/preferences-after-link.js";
+import { FakePrivateMessages } from "./__fakes__/private-messages.js";
 import { FakeUnlink } from "./__fakes__/unlink.js";
 import {
   createInterviews,
@@ -223,6 +225,14 @@ class FakeGameApi {
     this.nameLookups.push({ name, kingdom, purpose });
     if (this.nameFailure !== undefined) return Promise.reject(this.nameFailure);
     return Promise.resolve(this.nameAnswer);
+  }
+
+  /** Each charged view asked for; the Interview never charges a Member, so the list must stay empty. */
+  readonly charges: LookupCaller[] = [];
+
+  chargedTo(caller: LookupCaller): never {
+    this.charges.push(caller);
+    throw new Error("the onboarding interview must not charge a Member");
   }
 }
 
@@ -435,6 +445,7 @@ interface Harness {
   readonly onboardingRole: FakeOnboardingRole;
   readonly doctorRole: FakeDoctorRole;
   readonly preferences: FakePreferencesAfterLink;
+  readonly privateMessages: FakePrivateMessages;
   readonly onServer: Set<MemberId>;
   readonly errors: string[];
   readonly service: ReturnType<typeof createInterviews>;
@@ -529,6 +540,7 @@ describe("createInterviews", () => {
     const onboardingRole = new FakeOnboardingRole();
     const doctorRole = new FakeDoctorRole();
     const preferences = new FakePreferencesAfterLink(trace);
+    const privateMessages = new FakePrivateMessages();
     const onServer = new Set<MemberId>();
     const errors: string[] = [];
     const deps: InterviewDeps = {
@@ -542,6 +554,7 @@ describe("createInterviews", () => {
       onboardingRole,
       doctorRole,
       preferences,
+      sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
@@ -561,6 +574,7 @@ describe("createInterviews", () => {
       onboardingRole,
       doctorRole,
       preferences,
+      privateMessages,
       onServer,
       errors,
       service,
@@ -918,6 +932,16 @@ describe("createInterviews", () => {
 
       expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "onboarding-interview" }]);
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
+    });
+
+    test("looks the uid up uncharged, so no Member's Daily Allowance is used", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "onboarding-interview" }]);
+      expect(h.gameApi.charges).toEqual([]);
     });
 
     test("answers privately while a second submit is still being checked", async () => {
@@ -2133,6 +2157,35 @@ describe("createInterviews", () => {
       expect(h.errors).toHaveLength(1);
       expect(h.rankApprovals.announced).toHaveLength(1);
       expect(h.channels.deleted).toEqual([]);
+    });
+  });
+
+  describe("the Link note after a Link", () => {
+    test("is sent privately to the Member at an Interview Link, with the Link note exactly", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.privateMessages.attempts).toEqual([
+        {
+          memberId: MEMBER,
+          message: {
+            content:
+              "You can look up Players and Alliances with /player and /alliance. Each Member has a Daily Allowance of Game API requests; cached answers are free. /usage shows yours.",
+          },
+        },
+      ]);
+    });
+
+    test("when the Member cannot be messaged privately, the Link stands and the failure is logged", async () => {
+      h.privateMessages.refuseWith(new Error("Cannot send messages to this user"));
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
+      expect(h.nameAndRoles.linked).toEqual([expect.objectContaining({ memberId: MEMBER })]);
+      expect(h.errors).toEqual([expect.stringContaining("Link note")]);
     });
   });
 

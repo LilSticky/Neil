@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { RankOnLink } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { LookupResult, Player } from "../domain/player.js";
@@ -125,6 +126,14 @@ class FakeGameApi {
     this.hold = undefined;
     hold.reached();
     return hold.released.then(() => answer);
+  }
+
+  /** Each charged view asked for; roles never charge a Member, so the list must stay empty. */
+  readonly charges: LookupCaller[] = [];
+
+  chargedTo(caller: LookupCaller): never {
+    this.charges.push(caller);
+    throw new Error("the nickname and roles must not charge a Member");
   }
 }
 
@@ -519,6 +528,17 @@ describe("createNameAndRoles", () => {
       await h.service.atStartup();
 
       expect(h.applied.get(ALICE)?.alliance).toEqual({ kingdom: HOME_KINGDOM, tag: "NML" });
+    });
+
+    test("reads the Player for the nickname and roles uncharged, so no Member's Daily Allowance is used", async () => {
+      joinMember(h, ALICE);
+      linkMember(h, ALICE, UID, GAME_RANK_R4);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "lookup" }]);
+      expect(h.gameApi.charges).toEqual([]);
     });
 
     test("skips a Linked Member who is not on the server, with no lookup", async () => {
