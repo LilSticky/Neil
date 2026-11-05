@@ -773,7 +773,12 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
     // One listing for the whole client: Discord refuses a second Request Guild Members within about 30 seconds.
-    const listMembers = sharedMemberListing({ list: () => guild.members.fetch(), now, sleep: (ms) => sleepFor(ms) });
+    // The wait does not hold a stopping Neil up, and a client that is gone is not asked.
+    const listMembers = sharedMemberListing({
+      list: () => (disconnecting ? Promise.reject(new Error("Neil is stopping")) : guild.members.fetch()),
+      now,
+      sleep: (ms) => sleepFor(ms, undefined, { ref: false }),
+    });
     // One Onboarding Role service and one Doctor Role service, for every path that gives or takes the roles off.
     const onboardingRole = createOnboardingRole({
       members: serverMembersOf(guild, listMembers),

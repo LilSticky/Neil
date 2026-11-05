@@ -87,4 +87,26 @@ describe("sharedMemberListing", () => {
     expect(sleep).not.toHaveBeenCalled();
     await expect(listing()).resolves.toBe("members");
   });
+
+  test("the window starts when the listing is answered, so a listing that waited is still reused after it", async () => {
+    let clock = new Date("2026-11-05T09:00:00Z");
+    const fetchList = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(rateLimited(29))
+      .mockResolvedValueOnce("members");
+    const listing = sharedMemberListing({
+      list: fetchList,
+      now: () => clock,
+      sleep: (ms) => {
+        clock = new Date(clock.getTime() + ms);
+        return Promise.resolve();
+      },
+    });
+
+    await listing();
+    clock = new Date(clock.getTime() + 20_000);
+    await listing();
+
+    expect(fetchList).toHaveBeenCalledTimes(2);
+  });
 });

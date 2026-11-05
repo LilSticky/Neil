@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** How long a listing is reused. Discord allows about one Request Guild Members per 30 seconds for a guild. */
+/** How long an answered listing is reused. Discord allows about one Request Guild Members per 30 seconds for a guild. */
 const KEEP_LISTING_MS = 35_000;
 
 /** Added to Discord's wait, so the second attempt does not land on the edge of its window. */
@@ -27,7 +27,7 @@ function retryAfterMs(error: unknown): number | undefined {
  * not kept. A reused listing can be up to the window old, so a caller must check what it acts on.
  */
 export function sharedMemberListing<T>(options: MemberListingOptions<T>): () => Promise<T> {
-  let kept: { readonly listing: Promise<T>; readonly askedAt: number } | undefined;
+  let kept: { readonly listing: Promise<T>; answeredAt?: number } | undefined;
 
   const ask = async (): Promise<T> => {
     try {
@@ -41,13 +41,20 @@ export function sharedMemberListing<T>(options: MemberListingOptions<T>): () => 
   };
 
   return () => {
-    const now = options.now().getTime();
-    if (kept !== undefined && now - kept.askedAt < KEEP_LISTING_MS) return kept.listing;
-    const current = { listing: ask(), askedAt: now };
+    if (kept !== undefined) {
+      const { answeredAt } = kept;
+      if (answeredAt === undefined || options.now().getTime() - answeredAt < KEEP_LISTING_MS) return kept.listing;
+    }
+    const current: NonNullable<typeof kept> = { listing: ask() };
     kept = current;
-    current.listing.catch(() => {
-      if (kept === current) kept = undefined;
-    });
+    current.listing.then(
+      () => {
+        current.answeredAt = options.now().getTime();
+      },
+      () => {
+        if (kept === current) kept = undefined;
+      },
+    );
     return current.listing;
   };
 }
