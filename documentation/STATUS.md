@@ -7,9 +7,10 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 015, Daily Allowance (`../Neil-015`, [specs](../specs/015-look-up-within-a-daily-allowance/), issue
-[#50](https://github.com/LilSticky/Neil/issues/50)): in progress on its branch, with `main` merged in. T001–T018 done (review and audit in the spec
-folder); the manual check (T019, [TEST-RUN.md](TEST-RUN.md) §6m) is open. Expected Lookup Members is at least 100 (the user's decision). `/reaper` is not charged (the user's decision). It takes migration 13 and ADR 10.
+Slice 015, Look up within a Daily Allowance ([specs](../specs/015-look-up-within-a-daily-allowance/), issue
+[#50](https://github.com/LilSticky/Neil/issues/50)): each Member's lookups are counted and stop at a Daily Allowance; `/usage` is new and `/quota` shows the top Members.
+Merged to `main` with T001–T018 done (review and audit in the spec folder). **Merged red:** the manual check
+([TEST-RUN.md](TEST-RUN.md) §6m, T019) needs the deploy, so Definition of Done 2 is open. Expected Lookup Members is at least 100 and `/reaper` is not charged (the user's decisions). Migration 13, ADR 10.
 
 Slice 017, Give Members the Doctor Role ([specs](../specs/017-give-members-the-doctor-role/), issue
 [#47](https://github.com/LilSticky/Neil/issues/47)): every Linked Member, Guests included, holds the Doctor Role, and
@@ -36,12 +37,12 @@ Earlier: slices 001–012 are done; their manual checks were run by the user on 
 **Next step:** for the user: Link both Members again on the Wispbyte Neil with `/interview` in `#onboarding`, and check that each gets
 `Doctor`. Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)). Then set up the channels
 ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9), then TEST-RUN.md §6i, §6j, §6k and §6l. `/reaper` and `/channels`
-are registered; slice 015's `/usage` needs another `npm run commands:register` after it deploys.
+are registered; slice 015's `/usage` needs another `npm run commands:register` and a Restart after it deploys.
 
 ## Known broken / WIP
 
 - The Links made so far exist only in the local `data/neil.db`, not on Wispbyte; both Members are being Linked again (the user's choice, 2026-11-05).
-- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run).
+- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).
