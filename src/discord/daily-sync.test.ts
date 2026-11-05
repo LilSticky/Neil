@@ -527,6 +527,19 @@ describe("runDailySync", () => {
     ]);
   });
 
+  test("charges no Member for its requests: a run that reads a roster and a Player leaves every charge with nobody (US1 scenario 9)", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
+    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
+    h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", HOME, 21)));
+
+    await runDailySync(h.deps);
+
+    expect(h.gameApi.requests.length).toBeGreaterThan(0);
+    expect(h.gameApi.charges).toEqual([]);
+    expect(h.errors).toEqual([]);
+  });
+
   test("logs a Player the Game API does not find by uid once, and keeps the Link", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
     joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");

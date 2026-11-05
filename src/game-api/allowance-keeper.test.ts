@@ -116,6 +116,12 @@ describe("AllowanceKeeper", () => {
     test("with no history is the limit less the Quota Reserve and the Sync Share, over 100: 14 at a limit of 2,000", () => {
       expect(keeperWithLimit(QUOTA_LIMIT).allowance()).toBe(14);
     });
+
+    test("before the Game API reports a limit uses the default limit of 1,000: 4, over 100 Expected Lookup Members", () => {
+      quotaStore = new FakeQuotaStore(undefined);
+
+      expect(keeperOver(store).allowance()).toBe(4);
+    });
   });
 
   describe("usageOf", () => {

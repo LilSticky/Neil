@@ -329,6 +329,24 @@ describe("handleReaperAdd", () => {
     expect(repliesOf(interaction)).toEqual([lookupMessages.quotaSpent(RESETS_AT, NOW)]);
     expect(store.all()).toEqual([]);
   });
+
+  test.each<[string, LookupResult<Player>]>([
+    ["a found Player", FOUND],
+    ["an ambiguous name", { kind: "ambiguous", matches: MATCHES }],
+    ["a spent Daily Quota", { kind: "quota-spent", resetsAt: RESETS_AT }],
+  ])("shows no usage line on the reply for %s: no Game API requests used today, no Daily Allowance, no reset time", async (_, lookup) => {
+    const { context } = addContext(store, { lookup });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(repliesOf(interaction)).not.toEqual([]);
+    const shown = JSON.stringify(interaction.calls);
+    expect(shown).not.toContain("Game API requests used today");
+    expect(shown).not.toContain("resets 00:00 UTC");
+    expect(shown).not.toContain("Daily Allowance");
+    expect(shown).not.toContain("cached answers are free");
+  });
 });
 
 describe("picking an Exile from the pick list of /reaper add", () => {

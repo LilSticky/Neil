@@ -460,6 +460,29 @@ describe("handleReaperClosest", () => {
     },
   );
 
+  test("shows no usage line on its answer: no Game API requests used today, no Daily Allowance, no reset time", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
+    const { context } = closestContext(store, {
+      link: CALLER_LINK,
+      read: readsOf(
+        playerOf(CALLER_UID, "Caller", HOME, { x: 0, y: 0 }),
+        playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }),
+        playerOf(MID, "Mid", HOME, { x: 0, y: 2 }),
+      ),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    const shown = JSON.stringify(interaction.calls);
+    expect(shown).toContain("Near");
+    expect(shown).not.toContain("Game API requests used today");
+    expect(shown).not.toContain("resets 00:00 UTC");
+    expect(shown).not.toContain("Daily Allowance");
+    expect(shown).not.toContain("cached answers are free");
+  });
+
   test("says the usual quota text when the Daily Quota is spent and no Exile has a stored position", async () => {
     store.add(exileOf(NEAR, "Near", undefined));
     store.add(exileOf(MID, "Mid", undefined));

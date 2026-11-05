@@ -14,6 +14,7 @@ import {
 import type { Player } from "../domain/player.js";
 import alliance from "./__fixtures__/alliance.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
+import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
 import { AllowanceKeeper, type LookupCaller } from "./allowance-keeper.js";
 import { GameApiClient, type ChargedResult } from "./client.js";
 import {
@@ -91,8 +92,8 @@ function answerFor(url: string): Response {
  * A client on a fake fetch, a fake Daily Quota store and a real AllowanceKeeper over a fake usage store. The default
  * Daily Allowance is 4: the limit of 1,000 less the reserve and the sync share, over 100 Expected Lookup Members.
  */
-function setUp(respond: (url: string) => Response = answerFor) {
-  const clock = new FakeClock(FIXED_NOW);
+function setUp(respond: (url: string) => Response = answerFor, start: Date = FIXED_NOW) {
+  const clock = new FakeClock(start);
   const quotaStore = new FakeQuotaStore();
   const quota = new QuotaKeeper({
     store: quotaStore,
@@ -177,6 +178,22 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     expect(quotaStore.current?.used).toBe(usedBefore);
   });
 
+  test("a name matching several Players takes the last request, and the pick of one of them is refused", async () => {
+    const { client, sent, allowance } = setUp((url) =>
+      url.endsWith(`/${DELTA}`) ? jsonResponse(409, playersAmbiguous) : answerFor(url),
+    );
+    await spend(client, alice, [ALPHA, BRAVO, CHARLIE]);
+    const charged = client.chargedTo(alice);
+
+    const ambiguous = await charged.findPlayer(DELTA, undefined);
+    const picked = await charged.getPlayer(UID);
+
+    expect(ambiguous).toMatchObject({ kind: "ambiguous" });
+    expect(picked).toEqual({ kind: "allowance-spent", resetsAt: NEXT_MIDNIGHT_UTC });
+    expect(sent).toHaveLength(DAILY_ALLOWANCE);
+    expect(allowance.usageOf(ALICE)).toBe(DAILY_ALLOWANCE);
+  });
+
   test("a cached answer is still found, with no request and no charge", async () => {
     const { client, sent, allowance } = setUp();
     const [firstAlpha] = await spend(client, alice, [
@@ -239,6 +256,25 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     expect(sent).toHaveLength(2);
     expect(clock.pauses).toHaveLength(1);
     expect(allowance.usageOf(ALICE)).toBe(2);
+  });
+
+  test("a retry sent after midnight UTC counts on the new UTC day, though the lookup started the day before", async () => {
+    let attempt = 0;
+    const { client, clock, quotaStore, sent, allowance } = setUp(
+      () => {
+        attempt += 1;
+        return attempt === 1 ? textResponse(503, "error code: 503") : jsonResponse(200, playerInAlliance);
+      },
+      new Date("2026-10-30T23:59:59.500Z"),
+    );
+
+    const result = await client.chargedTo(alice).getPlayer(UID);
+
+    expect(result).toMatchObject({ kind: "found" });
+    expect(sent).toHaveLength(2);
+    expect(clock.pauses).toEqual([1000]);
+    expect(quotaStore.current?.day).toBe("2026-10-31");
+    expect(allowance.usageOf(ALICE)).toBe(1);
   });
 
   test("no retry is made when the first attempt used up the Daily Allowance, and the lookup ends as try-again", async () => {
