@@ -34,6 +34,8 @@ capabilities and limitations. When they get close to that limit, include a warni
 - Q: Does `/reaper` (slice 014, merged after this spec) count against the Daily Allowance? → A: no. Its requests count
   only towards the Daily Quota and still stop at the Quota Reserve. `/reaper` replies show no usage line, and a Member
   who only uses `/reaper` is not a Lookup Member that day.
+- Q: On a public card, where does the usage line go? → A: in the card's footer, visible to the channel (plan D9).
+- Q: What is Expected Lookup Members when the same-weekday records average 0? → A: 100, as with no records (plan D1).
 
 ## User Scenarios & Testing *(mandatory)*
 
