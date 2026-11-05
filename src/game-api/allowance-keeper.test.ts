@@ -60,6 +60,8 @@ describe("AllowanceKeeper", () => {
   beforeEach(() => {
     dataDir = mkdtempSync(join(tmpdir(), "neil-allowance-"));
     db = openDatabase(dataDir);
+    // The scenarios charge hundreds of requests; without this each one waits for the disk and the test can time out.
+    db.exec("PRAGMA synchronous = OFF");
     store = new MemberUsageStore(db);
   });
 

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { MessageFlags, type APIModalInteractionResponseCallbackData, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import { memberLeft, recommendationFound, timeOut } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
@@ -222,6 +223,14 @@ class FakeGameApi {
     this.nameLookups.push({ name, kingdom, purpose });
     if (this.nameFailure !== undefined) return Promise.reject(this.nameFailure);
     return Promise.resolve(this.nameAnswer);
+  }
+
+  /** Each charged view asked for; the Interview never charges a Member, so the list must stay empty. */
+  readonly charges: LookupCaller[] = [];
+
+  chargedTo(caller: LookupCaller): never {
+    this.charges.push(caller);
+    throw new Error("the onboarding interview must not charge a Member");
   }
 }
 
@@ -713,6 +722,16 @@ describe("createInterviews", () => {
 
       expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "onboarding-interview" }]);
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
+    });
+
+    test("looks the uid up uncharged, so no Member's Daily Allowance is used", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "onboarding-interview" }]);
+      expect(h.gameApi.charges).toEqual([]);
     });
 
     test("answers privately while a second submit is still being checked", async () => {

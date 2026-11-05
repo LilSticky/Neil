@@ -27,8 +27,8 @@ Blocks every story.
 
 - [x] T005 [US1] Charged view (D2, D3) in `src/game-api/client.ts`: `chargedTo(caller: LookupCaller): ChargedLookups` with `getPlayer`, `findPlayer`, `getAlliance`, `findAlliance`, always the `lookup` purpose; `ChargedResult<T> = LookupResult<T> | { kind: "allowance-spent", resetsAt }`; existing methods keep their signatures.
 - [x] T006 [US1] Charging in `src/game-api/client.ts` (D6, D7, D8): `attempt` goes deadline, `mayCharge`, `tryCount`, `charge` with no `await` in between; `mayRetry` also asks `mayCharge`; failed requests and retries count; the flight key of a charged lookup holds the Member; `orStale` also covers `allowance-spent`. Cached answers charge nothing, and two simultaneous lookups with one request left send one.
-- [ ] T007 [US1] Caller (D10) in `src/discord/lookup.ts` and `src/discord/pick.ts`: `callerOf(interaction, officerRoleIds)` with `isOfficer` and `memberRoleIds()`, added to `PickInteraction` and the lookup interaction.
-- [ ] T008 [US1] Use the charged view for `/player`, `/alliance`, Alliance Overview, their pick lists and buttons in `src/discord/lookup.ts` and `src/discord/pick.ts`; the refusal from contracts/usage.md, private, in `src/discord/usage-texts.ts` and `src/discord/lookup-cards.ts`. `pickExileMatch` stays uncharged; a test proves `/reaper`, the Interview, the Daily Sync and role reads charge nobody (spec US1 scenarios 9–11).
+- [x] T007 [US1] Caller (D10) in `src/discord/lookup.ts` and `src/discord/pick.ts`: `callerOf(interaction, officerRoleIds)` with `isOfficer` and `memberRoleIds()`, added to `PickInteraction` and the lookup interaction.
+- [x] T008 [US1] Use the charged view for `/player`, `/alliance`, Alliance Overview, their pick lists and buttons in `src/discord/lookup.ts` and `src/discord/pick.ts`; the refusal from contracts/usage.md, private, in `src/discord/usage-texts.ts` and `src/discord/lookup-cards.ts`. `pickExileMatch` stays uncharged; a test proves `/reaper`, the Interview, the Daily Sync and role reads charge nobody (spec US1 scenarios 9–11).
 
 ## Phase 4: User Story 2, the allowance follows how many Members look up (P1)
 

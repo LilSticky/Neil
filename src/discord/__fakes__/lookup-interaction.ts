@@ -33,12 +33,20 @@ export class FakeLookupInteraction {
 
   private readonly failures = new Map<LookupCallName, Error>();
 
-  constructor(values: LookupOptionValues, userId: string = DEFAULT_LOOKUP_USER_ID) {
+  private readonly roleIds: readonly string[];
+
+  constructor(values: LookupOptionValues, userId: string = DEFAULT_LOOKUP_USER_ID, roleIds: readonly string[] = []) {
     this.user = { id: userId };
+    this.roleIds = roleIds;
     this.options = {
       getString: (name: string): string | null => values.strings?.[name] ?? null,
       getInteger: (name: string): number | null => values.integers?.[name] ?? null,
     };
+  }
+
+  /** The Discord role ids the Member holds, as /quota and the Officer check read them. */
+  memberRoleIds(): readonly string[] {
+    return this.roleIds;
   }
 
   fail(method: LookupCallName, error: Error): void {

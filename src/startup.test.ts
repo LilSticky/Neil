@@ -122,6 +122,10 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     findPlayer: () => Promise.resolve({ kind: "not-found" } as const),
     getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
     findAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+    /** Startup asks no charged lookup of a Member, so none is ever made from this fake. */
+    chargedTo: () => {
+      throw new Error("startup does not look up as a Member");
+    },
     quotaToday: () => ({
       day: utcDayOf(new Date("2026-10-29T12:00:00Z")),
       used: 0,

@@ -16,6 +16,7 @@ import {
 } from "discord.js";
 import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
+import type { AllowanceKeeper } from "../game-api/allowance-keeper.js";
 import type { GameApiClient } from "../game-api/client.js";
 import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { StartRecord } from "../domain/start-record.js";
@@ -102,15 +103,15 @@ export interface QuotaCommandInteraction {
 /** One handler per slash command, component and event this client answers. */
 export interface CommandHandlers {
   readonly ping: (interaction: PingInteraction) => Promise<void>;
-  readonly player: (interaction: LookupInteraction) => Promise<void>;
-  readonly alliance: (interaction: LookupInteraction) => Promise<void>;
+  readonly player: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  readonly alliance: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** An autocomplete request of /alliance, for its name or tag option. */
   readonly allianceAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
   /** The /channels command: a Linked Member sees their Preferences message, privately, and changes nothing. */
   readonly channels: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
-  readonly pick: (interaction: PickInteraction) => Promise<void>;
+  readonly pick: (press: ButtonInteraction | StringSelectMenuInteraction) => Promise<void>;
   /** /reaper closest: the Exiles nearest the caller, or nearest x and y. */
   readonly reaperClosest: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** /reaper list: every Exile on REAPER. */
@@ -124,7 +125,7 @@ export interface CommandHandlers {
   /** A button whose custom id starts with `reaper:`, the page buttons of a paged /reaper answer. */
   readonly reaperPage: (button: ButtonInteraction) => Promise<void>;
   /** A button whose custom id starts with `overview:`, the page buttons of an Alliance Overview. */
-  readonly overview: (interaction: PickInteraction) => Promise<void>;
+  readonly overview: (press: ButtonInteraction) => Promise<void>;
   /** A guild member joined the server; the Interview may start for them. */
   readonly memberJoined: (member: JoinedMember) => Promise<void>;
   /** A guild member left the server; their open Interview and pending Rank Approval end. */
@@ -339,6 +340,8 @@ export interface ConnectOptions {
   readonly gameApi: GameApi;
   /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
   readonly quotaReserve: number;
+  /** The Daily Allowance of today, read by the lookups to refuse a Member who has used it up. */
+  readonly allowance: Pick<AllowanceKeeper, "allowance">;
   /** The Moderator and King role IDs from config, in that order; holders of either are Officers. */
   readonly officerRoleIds: readonly [string, string];
   /** The server Neil serves; its channels are checked at ready. */
@@ -506,6 +509,64 @@ function buttonLike(button: ButtonInteraction | StringSelectMenuInteraction): Bu
   return button.isStringSelectMenu() ? { ...like, values: [...button.values] } : like;
 }
 
+/**
+ * The discord.js chat-input command as /player and /alliance read it: the caller and their roles, the options, and the
+ * placeholder and reply methods. Each method is passed on with the one shape the lookups use.
+ */
+function lookupLike(command: ChatInputCommandInteraction): LookupInteraction {
+  return {
+    user: command.user,
+    options: command.options,
+    memberRoleIds: () => memberRoleIds(command.member),
+    deferReply: async (options) => {
+      await command.deferReply(options);
+    },
+    editReply: async (options) => {
+      await command.editReply(options);
+    },
+    deleteReply: async () => {
+      await command.deleteReply();
+    },
+    followUp: async (message) => {
+      await command.followUp(message);
+    },
+    reply: async (message) => {
+      await command.reply(message);
+    },
+  };
+}
+
+/**
+ * The discord.js button press or string select menu press as a pick list reads it: the owner and the roles of the
+ * Member who pressed, the values picked, and the reply methods. See buttonLike for why each method is passed on.
+ */
+function pickLike(press: ButtonInteraction | StringSelectMenuInteraction): PickInteraction {
+  const like: PickInteraction = {
+    customId: press.customId,
+    user: press.user,
+    memberRoleIds: () => memberRoleIds(press.member),
+    deferReply: async (options) => {
+      await press.deferReply(options);
+    },
+    editReply: async (options) => {
+      await press.editReply(options);
+    },
+    deleteReply: async () => {
+      await press.deleteReply();
+    },
+    followUp: async (message) => {
+      await press.followUp(message);
+    },
+    reply: async (message) => {
+      await press.reply(message);
+    },
+    update: async (options) => {
+      await press.update(options);
+    },
+  };
+  return press.isStringSelectMenu() ? { ...like, values: [...press.values] } : like;
+}
+
 /** The discord.js button press as a Rank Approval reads it; see buttonLike for why each method is passed on. */
 function rankButtonLike(button: ButtonInteraction): RankButtonLike {
   return {
@@ -662,11 +723,17 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   const now = options.now;
   // One store for every paged /reaper answer: the list and closest answers open them, the page buttons turn them.
   const reaperPages = new ReaperPages<ReaperPageContent>();
+  // The lookups' view of the Officers and the Daily Allowance: the same for /player, /alliance, the pick lists and Overview.
+  const lookupRoles = {
+    officerRoleIds: options.officerRoleIds,
+    allowance: () => options.allowance.allowance(),
+  };
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,
     pickSessions,
     now,
     logError,
+    ...lookupRoles,
     homeKingdom: options.homeKingdom,
     knownAlliances: options.knownAlliances,
   };
@@ -686,13 +753,19 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           logError,
         }),
       player: (interaction) =>
-        handlePlayer(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
-      alliance: (interaction) => handleAlliance(interaction, allianceContext),
+        handlePlayer(lookupLike(interaction), {
+          gameApi: options.gameApi,
+          pickSessions,
+          now,
+          logError,
+          ...lookupRoles,
+        }),
+      alliance: (interaction) => handleAlliance(lookupLike(interaction), allianceContext),
       allianceAutocomplete: (interaction) =>
         answer("/alliance autocomplete", { logError }, () =>
           handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError }),
         ),
-      pick: async (interaction) => (await services).pick(interaction),
+      pick: async (press) => (await services).pick(pickLike(press)),
       reaperClosest: (interaction) =>
         handleReaperClosest(interaction, {
           links: options.links,
@@ -712,7 +785,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           handleReaperAutocomplete(interaction, { reaper: options.reaper }),
         ),
       reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
-      overview: (interaction) => handleOverview(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+      overview: (press) =>
+        handleOverview(pickLike(press), { gameApi: options.gameApi, pickSessions, now, logError, ...lookupRoles }),
       quota: (interaction) =>
         handleQuota(
           {
@@ -935,6 +1009,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       pickSessions,
       now,
       logError,
+      ...lookupRoles,
       reaper: options.reaper,
       channels,
       editorOf: editorOfMember,

@@ -135,6 +135,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       startRecord,
       gameApi,
       quotaReserve: config.quotaReserve,
+      allowance,
       officerRoleIds: config.officerRoleIds,
       guildId: config.guildId,
       onboardingChannelId: config.onboardingChannelId,
