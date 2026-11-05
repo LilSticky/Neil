@@ -376,6 +376,116 @@ describe("connect", () => {
     });
   });
 
+  describe("the Members online when Neil starts", () => {
+    const STARTUP_LINE = "Onboarding Interviews at startup: started 1, failed 0.";
+
+    /** The lines of the log channel, in the order the channel holds them. */
+    const logLines = (guild: FakeConnectGuild): string[] => guild.messagesIn(LOG_CHANNEL_ID);
+
+    test("opens an Interview for an unlinked Member who is online", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(interviews.openFor(BOB)).toBeDefined();
+      });
+    });
+
+    test("opens no Interview for a Linked Member who is online", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(ALICE);
+      guild.join(BOB);
+      guild.setPresence(ALICE, "online");
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      linkAppliedAlice();
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(logLines(guild)).toContain(STARTUP_LINE);
+      });
+      expect(interviews.openFor(ALICE)).toBeUndefined();
+    });
+
+    test("does not count an unlinked Member whose cached presence is offline", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.join(ALICE);
+      guild.setPresence(BOB, "online");
+      guild.setPresence(ALICE, "offline");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(logLines(guild)).toContain(STARTUP_LINE);
+      });
+      expect(interviews.openFor(ALICE)).toBeUndefined();
+    });
+
+    test("starts the Interviews after the Onboarding Role sweep, so the log shows that order", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(logLines(guild)).toContain(STARTUP_LINE);
+      });
+      const lines = logLines(guild);
+      const onboardingAt = lines.findIndex((line) => line.startsWith("Onboarding Role at startup: "));
+      expect(onboardingAt).toBeGreaterThanOrEqual(0);
+      expect(onboardingAt).toBeLessThan(lines.indexOf(STARTUP_LINE));
+    });
+
+    test("reads each online Member by id, and never asks Discord for every Member at once", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+
+      connection = await connect(TOKEN, connectOptions());
+
+      await vi.waitFor(() => {
+        expect(logLines(guild)).toContain(STARTUP_LINE);
+      });
+      expect(guild.unscopedFetches).toBe(0);
+    });
+
+    test("is not run when Neil is disconnecting before the Onboarding Role sweep has ended", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.setPresence(BOB, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+      guild.holdListing();
+
+      const connected = await connect(TOKEN, connectOptions());
+      connection = connected;
+      await connected.disconnect();
+      guild.releaseListing();
+
+      await vi.waitFor(() => {
+        expect(logLines(guild).some((line) => line.startsWith("Doctor Role at startup: ") || line.startsWith("Onboarding Role at startup: "))).toBe(true);
+      });
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      expect(logLines(guild)).not.toContain(STARTUP_LINE);
+      expect(interviews.openFor(BOB)).toBeUndefined();
+    });
+  });
+
   describe("a Linked Member who leaves", () => {
     test("is Unlinked: the Link ends and the log line names the Member, the uid and the nickname", async () => {
       const guild = serverWith(SERVER_PERMISSIONS);

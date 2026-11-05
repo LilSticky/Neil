@@ -561,3 +561,11 @@ export function rankCancelledLogLine(member: MemberId): Message {
     allowedMentions: noMentions(),
   };
 }
+
+/** The log line once Neil's startup check has started the Interviews of the Members online: how many started, how many failed. */
+export function onlineAtStartupLogLine(counts: { readonly started: number; readonly failed: number }): Message {
+  return {
+    content: `Onboarding Interviews at startup: started ${counts.started.toString()}, failed ${counts.failed.toString()}.`,
+    allowedMentions: noMentions(),
+  };
+}

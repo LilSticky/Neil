@@ -24,14 +24,14 @@ Blocks every story.
 **Independent test**: an unlinked Member goes from offline to online and an Interview opens; a Linked Member doing the same gets none.
 
 - [x] T003 [US1] `Interviews.onMemberOnline(member)` in `src/discord/interview.ts` (D2, D3): skips a bot, a Linked Member, an open Interview and a latest Interview with step `handed-off`; otherwise gives the Onboarding Role and calls `openInterview`; a second call for the same Member while one is starting returns at once; a failure is logged, never thrown. `joinMember` does not change.
-- [ ] T004 [US1] Adapter in `src/discord/client.ts` (D5): the `GuildPresences` intent; `Events.PresenceUpdate` checks the guild id, asks `cameOnline`, reads the Member from the event or `fetchMember`, and calls a new `memberOnline` handler. No `guild.members.fetch()` without an id.
+- [x] T004 [US1] Adapter in `src/discord/client.ts` (D5): the `GuildPresences` intent; `Events.PresenceUpdate` checks the guild id, asks `cameOnline`, reads the Member from the event or `fetchMember`, and calls a new `memberOnline` handler. No `guild.members.fetch()` without an id.
 
 ## Phase 4: User Story 2, Neil interviews the unlinked Members it sees when it starts (P1)
 
 **Independent test**: Neil starts with one unlinked Member online, one offline and one Linked online; only the first gets an Interview.
 
-- [ ] T005 [US2] `Interviews.onlineAtStartup(members)` in `src/discord/interview.ts` and the startup line in `src/discord/interview-texts.ts` (D4, contract): one Member after another, counts `started` and `failed`, a failure is logged and the next follows, one line when either count is above 0.
-- [ ] T006 [US2] Startup chain in `src/discord/client.ts` (D5): the online Members from `guild.presences.cache`, read with `fetchMember`, after the Onboarding and Doctor Role sweeps in the same chain; skipped when Neil is disconnecting.
+- [x] T005 [US2] `Interviews.onlineAtStartup(members)` in `src/discord/interview.ts` and the startup line in `src/discord/interview-texts.ts` (D4, contract): one Member after another, counts `started` and `failed`, a failure is logged and the next follows, one line when either count is above 0.
+- [x] T006 [US2] Startup chain in `src/discord/client.ts` (D5): the online Members from `guild.presences.cache`, read with `fetchMember`, after the Onboarding and Doctor Role sweeps in the same chain; skipped when Neil is disconnecting.
 
 ## Phase 5: Polish
 

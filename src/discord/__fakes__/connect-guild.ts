@@ -12,10 +12,20 @@ export interface ConnectRole {
   readonly position: number;
 }
 
-/** A Member of the guild as discord.js exposes it: the bot flag, the nickname, and the roles held (by id, as the cache). */
+/** A presence as discord.js caches it: the id of the Member it is for, and the status Discord reports. */
+export interface ConnectPresence {
+  readonly userId: string;
+  readonly status: "online" | "idle" | "dnd" | "offline";
+}
+
+/**
+ * A Member of the guild as discord.js exposes it: the bot flag, the username and display name (the Interview needs both),
+ * the nickname, and the roles held (by id, as the cache).
+ */
 export class FakeConnectMember {
   nickname: string | null = null;
-  readonly user: { readonly bot: boolean };
+  readonly displayName: string;
+  readonly user: { readonly bot: boolean; readonly username: string };
   readonly roles: {
     readonly cache: Map<string, ConnectRole>;
     add(roleId: string): Promise<void>;
@@ -27,7 +37,8 @@ export class FakeConnectMember {
     bot: boolean,
     guildRoles: ReadonlyMap<string, ConnectRole>,
   ) {
-    this.user = { bot };
+    this.displayName = `member_${id}`;
+    this.user = { bot, username: `member_${id}` };
     const held = new Map<string, ConnectRole>();
     this.roles = {
       cache: held,
@@ -57,9 +68,16 @@ export class FakeConnectGuild {
   private readonly joined = new Map<string, FakeConnectMember>();
   private readonly guildRoles = new Map<string, ConnectRole>();
   private readonly fetchFailures = new Map<string, number>();
+  private readonly presenceStore = new Map<string, ConnectPresence>();
+  private unscopedFetchCount = 0;
+  private listingGate: Promise<void> | undefined = undefined;
+  private openListingGate: (() => void) | undefined = undefined;
   private nextRoleId = 1;
 
   readonly channels = this.channelStore.channels;
+
+  /** The presences discord.js caches, by Member id: Discord reports the status of every Member it sends, offline ones too. */
+  readonly presences = { cache: this.presenceStore };
 
   /** The roles of the guild: the cache, and creation as the name and roles asks for it. */
   readonly roles = {
@@ -77,20 +95,24 @@ export class FakeConnectGuild {
       roles: { highest: { position: 10 } },
     },
     /** One page of the Members over REST, in id order, after the given id. */
-    list: (options: { readonly after?: string; readonly limit: number }): Promise<Map<string, FakeConnectMember>> => {
+    list: async (options: { readonly after?: string; readonly limit: number }): Promise<Map<string, FakeConnectMember>> => {
+      if (this.listingGate !== undefined) await this.listingGate;
       const after = options.after ?? "";
       const ids = [...this.joined.keys()].filter((id) => id > after).sort().slice(0, options.limit);
-      return Promise.resolve(new Map(ids.flatMap((id) => {
+      return new Map(ids.flatMap((id) => {
         const member = this.joined.get(id);
         return member === undefined ? [] : [[id, member] as const];
-      })));
+      }));
     },
     /**
      * The one Member, or Discord's refusal for a user it cannot find. With no id this is Request Guild Members (opcode 8):
      * always rate limited here, as Discord refused it at startup (#53), so a listing that goes back to it fails the tests.
      */
     fetch: (memberId?: string): Promise<FakeConnectMember> => {
-      if (memberId === undefined) return Promise.reject(new Error("Request with opcode 8 was rate limited."));
+      if (memberId === undefined) {
+        this.unscopedFetchCount += 1;
+        return Promise.reject(new Error("Request with opcode 8 was rate limited."));
+      }
       const code = this.fetchFailures.get(memberId);
       if (code !== undefined) return Promise.reject(Object.assign(new Error("Discord API error"), { code }));
       const member = this.joined.get(memberId);
@@ -98,6 +120,29 @@ export class FakeConnectGuild {
       return Promise.reject(Object.assign(new Error("Unknown Member"), { code: UNKNOWN_MEMBER }));
     },
   };
+
+  /** How many fetches of every Member, without an id, the code made: Discord refuses them, so a test checks it made none. */
+  get unscopedFetches(): number {
+    return this.unscopedFetchCount;
+  }
+
+  /** Caches the status Discord reports for a Member; a Member with no presence set is not in the cache. */
+  setPresence(memberId: string, status: ConnectPresence["status"]): void {
+    this.presenceStore.set(memberId, { userId: memberId, status });
+  }
+
+  /** Makes listing the Members wait, once the code asks for it, until releaseListing is called. */
+  holdListing(): void {
+    this.listingGate = new Promise<void>((resolve) => {
+      this.openListingGate = resolve;
+    });
+  }
+
+  releaseListing(): void {
+    this.openListingGate?.();
+    this.listingGate = undefined;
+    this.openListingGate = undefined;
+  }
 
   /** Makes fetching this member fail with Discord's error code, as Discord answers for a user it cannot find. */
   failFetch(memberId: string, code: number): void {

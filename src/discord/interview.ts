@@ -53,6 +53,7 @@ import {
   linkLogLine,
   malformedUidMessage,
   notFoundMessage,
+  onlineAtStartupLogLine,
   parseInterviewCustomId,
   pickListMessage,
   quotaSpentMessage,
@@ -157,6 +158,8 @@ export interface Interviews {
   onMemberJoined(member: JoinedMember): Promise<void>;
   /** A Member came online: starts an Interview for them when they want one. */
   onMemberOnline(member: JoinedMember): Promise<void>;
+  /** Neil started: starts an Interview for each of the Members online that wants one, one after another, and logs the counts. */
+  onlineAtStartup(members: JoinedMember[]): Promise<void>;
   onMemberLeft(member: LeftMember): Promise<void>;
   onCommand(command: CommandLike): Promise<void>;
   onButton(button: ButtonInteractionLike): Promise<void>;
@@ -179,6 +182,7 @@ export function createInterviews(deps: InterviewDeps): Interviews {
       guarded(deps, "Member coming online", async () => {
         await startIfWanted(deps, starting, member);
       }),
+    onlineAtStartup: (members) => startOnlineAtStartup(deps, starting, members),
     onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
     onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, command)),
     onButton: (button) => {
@@ -312,6 +316,29 @@ async function startIfWanted(deps: InterviewDeps, starting: Set<MemberId>, membe
     return threadId === undefined ? "skipped" : "started";
   } finally {
     starting.delete(member.id);
+  }
+}
+
+/**
+ * Starts an Interview for each Member in turn, as the startup finds them online. A failure is logged and the next Member
+ * follows; the counts of started and failed Interviews are logged in one line. Never rejects.
+ */
+async function startOnlineAtStartup(deps: InterviewDeps, starting: Set<MemberId>, members: JoinedMember[]): Promise<void> {
+  let started = 0;
+  let failed = 0;
+  for (const member of members) {
+    try {
+      if ((await startIfWanted(deps, starting, member)) === "started") started += 1;
+    } catch (error) {
+      failed += 1;
+      deps.logError(`Starting the Interview of ${member.id} at startup failed: ${errorText(error)}`);
+    }
+  }
+  if (started === 0 && failed === 0) return;
+  try {
+    await deps.channels.log(onlineAtStartupLogLine({ started, failed }));
+  } catch (error) {
+    deps.logError(`Logging the Interviews started at startup failed: ${errorText(error)}`);
   }
 }
 

@@ -18,6 +18,7 @@ import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
 import type { GameApiClient } from "../game-api/client.js";
 import type { KingdomNumber } from "../domain/lookup-input.js";
+import { cameOnline, type PresenceStatus } from "../domain/interview-start.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { AppliedStore } from "../storage/applied-store.js";
 import type { DailySyncStore } from "../storage/daily-sync-store.js";
@@ -128,6 +129,8 @@ export interface CommandHandlers {
   readonly overview: (interaction: PickInteraction) => Promise<void>;
   /** A guild member joined the server; the Interview may start for them. */
   readonly memberJoined: (member: JoinedMember) => Promise<void>;
+  /** A guild member came online; the Interview may start for them. */
+  readonly memberOnline: (member: JoinedMember) => Promise<void>;
   /** A guild member left the server; their open Interview and pending Rank Approval end. */
   readonly memberLeft: (member: LeftMember) => Promise<void>;
   /** The /interview command, which starts an Onboarding Interview on demand. */
@@ -230,12 +233,56 @@ function routeReaper(
   }
 }
 
-/** A discord.js client with the Guilds and GuildMembers intents that routes each event to its handler. */
+/** The status of a presence as Neil reads it, or undefined for no presence or a status Neil does not know. */
+const presenceStatusSchema = z
+  .enum(["online", "idle", "dnd", "invisible", "offline"])
+  .transform((status): PresenceStatus => (status === "invisible" ? "offline" : status));
+
+function presenceStatusOf(status: unknown): PresenceStatus | undefined {
+  const parsed = presenceStatusSchema.safeParse(status);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** A guild member as the Interview needs them. */
+function joinedMemberOf(member: GuildMember): JoinedMember {
+  return { id: member.id, username: member.user.username, displayName: member.displayName, bot: member.user.bot };
+}
+
+/** The Member who came online: the one the presence carries, else read with a single-Member fetch; undefined when not on the guild. */
+async function onlineMemberOf(
+  guild: Guild,
+  userId: string,
+  carried: GuildMember | null,
+): Promise<JoinedMember | undefined> {
+  const member = carried ?? (await fetchMember(guild, userId));
+  return member === undefined ? undefined : joinedMemberOf(member);
+}
+
+/**
+ * The Members Discord reports online, each read with a single-Member fetch. A Member who cannot be read is skipped; the
+ * listing never asks Discord for every Member at once.
+ */
+async function onlineMembersOf(guild: Guild): Promise<JoinedMember[]> {
+  const userIds = [...guild.presences.cache.values()]
+    .filter((presence) => {
+      const status = presenceStatusOf(presence.status);
+      return status !== undefined && status !== "offline";
+    })
+    .map((presence) => presence.userId);
+  const members: JoinedMember[] = [];
+  for (const userId of userIds) {
+    const member = await fetchMember(guild, userId).catch(() => undefined);
+    if (member !== undefined) members.push(joinedMemberOf(member));
+  }
+  return members;
+}
+
+/** A discord.js client with the Guilds, GuildMembers and GuildPresences intents that routes each event to its handler. */
 export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
   const logError = options.logError ?? console.error;
   // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences],
     partials: [Partials.GuildMember, Partials.User],
   });
   // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
@@ -255,6 +302,21 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
   client.on(Events.GuildMemberRemove, (member) => {
     if (member.guild.id !== options.guildId) return;
     void handlers.memberLeft({ id: member.id, username: member.user.username });
+  });
+  // A Member who was offline and now is not comes online; the status itself is not logged or kept (ADR 11).
+  client.on(Events.PresenceUpdate, (before, after) => {
+    const guild = after.guild;
+    if (guild === null || guild.id !== options.guildId) return;
+    const status = presenceStatusOf(after.status);
+    if (status === undefined || !cameOnline(presenceStatusOf(before?.status), status)) return;
+    void onlineMemberOf(guild, after.userId, after.member).then(
+      (member) => {
+        if (member !== undefined) void handlers.memberOnline(member);
+      },
+      (error: unknown) => {
+        logError(`Reading a Member who came online failed: ${String(error)}`);
+      },
+    );
   });
   client.on(Events.InteractionCreate, (interaction) => {
     if (interaction.isChatInputCommand()) {
@@ -732,6 +794,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           },
         ),
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
+      memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
       memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
       interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
       unlink: async (interaction) => (await services).corrections.unlink(correctionLike(interaction)),
@@ -970,6 +1033,13 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       .then(() => doctorRole.atStartup())
       .catch((error: unknown) => {
         logError(`Bringing the Doctor Role of the Members up to date at startup failed: ${String(error)}`);
+      })
+      .then(async () => {
+        if (disconnecting) return;
+        await interviews.onlineAtStartup(await onlineMembersOf(guild));
+      })
+      .catch((error: unknown) => {
+        logError(`Starting the Interviews of the Members online at startup failed: ${String(error)}`);
       });
     void nameAndRoles
       .atStartup()

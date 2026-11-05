@@ -33,6 +33,7 @@ import {
   linkedMessage,
   malformedUidMessage,
   notFoundMessage,
+  onlineAtStartupLogLine,
   parseInterviewCustomId,
   parseRankCustomId,
   quotaResetMessage,
@@ -699,5 +700,19 @@ describe("log channel lines", () => {
       content: `🎖️ Rank approval for <@${MEMBER}> cancelled (left).`,
       allowedMentions: { parse: [] },
     });
+  });
+});
+
+describe("the startup log line of Interviews", () => {
+  test("counts the Interviews started and the failures, in one line", () => {
+    expect(onlineAtStartupLogLine({ started: 2, failed: 0 }).content).toBe(
+      "Onboarding Interviews at startup: started 2, failed 0.",
+    );
+  });
+
+  test("shows zero started when only failures happened", () => {
+    expect(onlineAtStartupLogLine({ started: 0, failed: 3 }).content).toBe(
+      "Onboarding Interviews at startup: started 0, failed 3.",
+    );
   });
 });
