@@ -35,7 +35,7 @@ Blocks every story.
 
 ## Phase 5: Polish
 
-- [ ] T007 Docs: `documentation/HOSTING.md` Presence Intent before the deploy (D8), `documentation/TEST-RUN.md` section from quickstart.md, `documentation/STATUS.md`, `documentation/ROADMAP.md` row 018.
+- [x] T007 Docs: `documentation/HOSTING.md` Presence Intent before the deploy (D8), `documentation/TEST-RUN.md` section from quickstart.md, `documentation/STATUS.md`, `documentation/ROADMAP.md` row 018.
 - [ ] T008 `bot-reviewer` on the slice diff; findings into `specs/018-start-interviews-for-unlinked-members/review.md`; fix must and should items.
 - [ ] T009 `spec-auditor` against `spec.md`; report into `specs/018-start-interviews-for-unlinked-members/audit.md`; close the gaps.
 - [ ] T010 Manual check on the test server (`documentation/TEST-RUN.md`, user), after switching on Presence Intent and deploying.

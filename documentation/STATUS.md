@@ -7,6 +7,10 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 018, Start Interviews for unlinked Members (`../Neil-018`, [specs](../specs/018-start-interviews-for-unlinked-members/), issue
+[#58](https://github.com/LilSticky/Neil/issues/58)): in progress on its branch, T001–T007 done; review, audit and the manual check
+(TEST-RUN.md §6n) are open. It waits behind slice 015. Needs **Presence Intent** in the Developer Portal before its deploy (ADR 11).
+
 Slice 017, Give Members the Doctor Role ([specs](../specs/017-give-members-the-doctor-role/), issue
 [#47](https://github.com/LilSticky/Neil/issues/47)): every Linked Member, Guests included, holds the Doctor Role, and
 SERVER-SETUP.md step 8c sets out Home Kingdom and Shared information. Merged to `main` with T001–T010 done. **Merged red:**
