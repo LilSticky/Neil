@@ -41,6 +41,7 @@ import {
   timeLeft,
   trackerPicture,
 } from "./lookup-cards.js";
+import { usageLine, withUsage } from "./usage-texts.js";
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -1413,5 +1414,29 @@ describe("renderAllianceCard with details on every page", () => {
     expect(last.thumbnail).toEqual(first.thumbnail);
     expect(last.description).toBe(first.description);
     expect(last.fields?.slice(0, 7)).toEqual(first.fields?.slice(0, 7));
+  });
+});
+
+describe("renderAllianceCard with the usage line of an Officer's large count added to its footer", () => {
+  const LONGEST_USAGE_LINE = usageLine({ used: 1_000_000, allowance: 14, officer: true });
+
+  test("keeps the card within Discord's 6,000 characters for a page of 25 roster names of 100 to 300 characters", () => {
+    for (let length = 100; length <= 300; length += 1) {
+      const roster: RosterEntry[] = Array.from({ length: 25 }, (_value, index) =>
+        rosterEntryWithMight(
+          (100_000_000_000 + index).toString(),
+          `${"N".repeat(length - 4)}${index.toString().padStart(4, "0")}`,
+          "R4",
+          27_626_362,
+        ),
+      );
+      const card = renderAllianceCard({ ...fullAlliance, roster }, FETCHED_AT, NOW);
+
+      const withLine = withUsage({ embeds: [card] }, LONGEST_USAGE_LINE);
+
+      for (const embed of withLine.embeds) {
+        expect(embedCharacters(embed), `with names of ${length.toString()} characters`).toBeLessThanOrEqual(6000);
+      }
+    }
   });
 });

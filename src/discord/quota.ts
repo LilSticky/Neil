@@ -1,12 +1,33 @@
 import { MessageFlags, type InteractionReplyOptions } from "discord.js";
 import { isOfficer } from "../domain/officer.js";
 import { leftForLookups, nextReset, remaining, utcDayOf, type DailyQuota } from "../domain/daily-quota.js";
-import { timeLeft, utcTime } from "./lookup-cards.js";
+import type { AllowanceKeeper } from "../game-api/allowance-keeper.js";
+import { lookupMessages, timeLeft, utcTime } from "./lookup-cards.js";
 
 const NOT_OFFICER_TEXT = "/quota is for Officers (Moderator or King).";
 
-/** The lines of the Daily Quota reply, or variants when the limit is spent or unconfirmed. */
-function renderQuotaReply(quota: DailyQuota, quotaReserve: number, now: Date): string {
+/** The most Members the Most requests today list shows. */
+const MOST_LISTED = 10;
+
+/** The Daily Allowance lines: the allowance per Member, the Expected Lookup Members, and the Members with the most requests today. */
+function renderAllowanceLines(allowance: Pick<AllowanceKeeper, "allowance" | "expected" | "top">): string[] {
+  const header = `Daily Allowance: ${allowance.allowance().toLocaleString("en-US")} per Member (Expected Lookup Members: ${allowance.expected().toLocaleString("en-US", { maximumFractionDigits: 1 })})`;
+  const top = allowance.top(MOST_LISTED).slice(0, MOST_LISTED);
+  if (top.length === 0) return [header, "No lookups yet today."];
+  return [
+    header,
+    "Most requests today:",
+    ...top.map((usage, index) => `${(index + 1).toString()}. <@${usage.memberId}> · ${usage.requests.toLocaleString("en-US")}`),
+  ];
+}
+
+/** The lines of the Daily Quota reply, or variants when the limit is spent or unconfirmed, then the Daily Allowance lines. */
+function renderQuotaReply(
+  quota: DailyQuota,
+  quotaReserve: number,
+  now: Date,
+  allowance: Pick<AllowanceKeeper, "allowance" | "expected" | "top">,
+): string {
   const spent = quota.limitReached ? " · Spent: the Game API reported the limit reached" : "";
   const reset = nextReset(now);
   const confirmed =
@@ -19,6 +40,7 @@ function renderQuotaReply(quota: DailyQuota, quotaReserve: number, now: Date): s
     `Quota Reserve: ${quotaReserve.toLocaleString("en-US")} (for Onboarding Interviews) · Left for lookups: ${leftForLookups(quota, quotaReserve).toLocaleString("en-US")}`,
     `Resets at 00:00 UTC (${timeLeft(reset, now)}).`,
     confirmed,
+    ...renderAllowanceLines(allowance),
   ].join("\n");
 }
 
@@ -32,17 +54,28 @@ export interface QuotaContext {
   readonly quotaToday: () => DailyQuota;
   /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE. */
   readonly quotaReserve: number;
+  /** The Daily Allowance figures: the allowance per Member, the Expected Lookup Members and the Members with the most requests. */
+  readonly allowance: Pick<AllowanceKeeper, "allowance" | "expected" | "top">;
   readonly officerRoleIds: readonly string[];
   readonly now: () => Date;
   readonly logError: (message: string) => void;
 }
 
-/** Answers /quota privately: the Daily Quota for Officers, a refusal for everyone else. A failed reply is logged, never thrown. */
+/**
+ * Answers /quota privately: the Daily Quota for Officers, a refusal for everyone else. A failed read of the figures is
+ * logged and answered as unavailable; a failed reply is logged, never thrown.
+ */
 export async function handleQuota(interaction: QuotaInteraction, context: QuotaContext): Promise<void> {
+  let content: string;
   try {
-    const content = isOfficer(interaction.memberRoleIds(), context.officerRoleIds)
-      ? renderQuotaReply(context.quotaToday(), context.quotaReserve, context.now())
+    content = isOfficer(interaction.memberRoleIds(), context.officerRoleIds)
+      ? renderQuotaReply(context.quotaToday(), context.quotaReserve, context.now(), context.allowance)
       : NOT_OFFICER_TEXT;
+  } catch (error) {
+    context.logError(`Reading /quota failed: ${error instanceof Error ? error.message : String(error)}`);
+    content = lookupMessages.unavailable;
+  }
+  try {
     await interaction.reply({
       content,
       flags: MessageFlags.Ephemeral,

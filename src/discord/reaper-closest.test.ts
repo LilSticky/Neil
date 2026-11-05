@@ -10,6 +10,7 @@ import {
 } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RequestPurpose } from "../domain/daily-quota.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import { exileReasonOf, type Exile, type ExileReason, type Position } from "../domain/exile.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
@@ -123,18 +124,23 @@ function closestContext(
     memberId === CALLER_ID ? options.link : undefined,
   );
   const getPlayer = vi.fn<GetPlayer>(options.read ?? (() => Promise.reject(new Error("no Game API read was expected"))));
+  /** Never called by /reaper closest: a charged view of the caller would be a Daily Allowance spent on REAPER. */
+  const chargedTo = vi.fn<(caller: LookupCaller) => never>(() => {
+    throw new Error("/reaper closest must not charge a Member");
+  });
+  const gameApi = { getPlayer, chargedTo };
   const logError = vi.fn<(message: string) => void>();
   const pages = new ReaperPages<ReaperPageContent>();
   const context: ReaperClosestContext = {
     links: { linkFor },
-    gameApi: { getPlayer },
+    gameApi,
     reaper: store,
     homeKingdom: HOME,
     pages,
     now: () => NOW,
     logError,
   };
-  return { context, getPlayer, linkFor, logError, pages };
+  return { context, getPlayer, chargedTo, linkFor, logError, pages };
 }
 
 /** Every text the handler sent back, in order; a deferral carries none. */
@@ -228,6 +234,20 @@ describe("handleReaperClosest", () => {
     expect(getPlayer).not.toHaveBeenCalled();
     expect(repliesOf(interaction)).toHaveLength(1);
     expect(repliesOf(interaction)[0]).toMatch(/\bx\b.*\by\b/);
+  });
+
+  test("reads the caller's Linked Player uncharged, for the lookup purpose, so the caller's Daily Allowance is not used", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    const { context, getPlayer, chargedTo } = closestContext(store, {
+      link: CALLER_LINK,
+      read: () => Promise.resolve({ kind: "unavailable", reason: "unexpected" }),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup");
+    expect(chargedTo).not.toHaveBeenCalled();
   });
 
   test("asks for x and y when the caller's Linked Player cannot be read", async () => {
@@ -439,6 +459,29 @@ describe("handleReaperClosest", () => {
       expect(repliesOf(interaction)).toEqual([text]);
     },
   );
+
+  test("shows no usage line on its answer: no Game API requests used today, no Daily Allowance, no reset time", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
+    const { context } = closestContext(store, {
+      link: CALLER_LINK,
+      read: readsOf(
+        playerOf(CALLER_UID, "Caller", HOME, { x: 0, y: 0 }),
+        playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }),
+        playerOf(MID, "Mid", HOME, { x: 0, y: 2 }),
+      ),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    const shown = JSON.stringify(interaction.calls);
+    expect(shown).toContain("Near");
+    expect(shown).not.toContain("Game API requests used today");
+    expect(shown).not.toContain("resets 00:00 UTC");
+    expect(shown).not.toContain("Daily Allowance");
+    expect(shown).not.toContain("cached answers are free");
+  });
 
   test("says the usual quota text when the Daily Quota is spent and no Exile has a stored position", async () => {
     store.add(exileOf(NEAR, "Near", undefined));

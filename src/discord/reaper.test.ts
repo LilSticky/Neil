@@ -4,7 +4,6 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RequestPurpose } from "../domain/daily-quota.js";
 import {
   exileReasonOf,
   type Editor,
@@ -22,8 +21,10 @@ import {
 import type { LookupResult, Match, Player } from "../domain/player.js";
 import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
+import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
+import { FakeUsage } from "./__fakes__/usage.js";
 import { renderPlayerPickList, lookupMessages } from "./lookup-cards.js";
 import { handlePick } from "./pick.js";
 import { PickSessions, type PickChoice } from "./pick-sessions.js";
@@ -96,13 +97,6 @@ const MATCHES: readonly Match[] = [
 
 const LOOKUP_OPTIONS = { strings: { name: "Vex", reason: "  Hoarding gold  " } };
 
-type FindPlayer = (
-  name: PlayerName,
-  kingdom: KingdomNumber | undefined,
-  purpose: RequestPurpose,
-) => Promise<LookupResult<Player>>;
-type GetPlayer = (uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>;
-
 const FOUND: LookupResult<Player> = { kind: "found", value: VEX, fetchedAt: FETCHED_AT };
 
 /** The Exile of the Member as a store row: seeded before the test runs. */
@@ -129,7 +123,7 @@ function addContext(
   store: ReaperStore,
   options: { readonly editor?: Editor; readonly lookup?: LookupResult<Player> } = {},
 ) {
-  const findPlayer = vi.fn<FindPlayer>(() => Promise.resolve(options.lookup ?? FOUND));
+  const gameApi = new FakeGameApi({ player: options.lookup ?? FOUND });
   const open = vi.fn<(ownerId: string, choice: PickChoice, now: Date) => string>(() => PICK_ID);
   const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
   const logError = vi.fn<(message: string) => void>();
@@ -137,14 +131,14 @@ function addContext(
   const context: ReaperAddContext = {
     editorOf: () => editor,
     homeKingdom: HOME,
-    gameApi: { findPlayer },
+    gameApi,
     reaper: store,
     pickSessions: { open },
     channels: { log },
     now: () => NOW,
     logError,
   };
-  return { context, findPlayer, open, log, logError };
+  return { context, gameApi, findPlayer: gameApi.findPlayer, open, log, logError };
 }
 
 describe("handleReaperAdd", () => {
@@ -184,6 +178,16 @@ describe("handleReaperAdd", () => {
     expect(findPlayer).not.toHaveBeenCalled();
     expect(store.all()).toEqual([]);
     expect(repliesOf(interaction)).toHaveLength(1);
+  });
+
+  test("looks the Player up uncharged, for the lookup purpose, so no Member's Daily Allowance is used", async () => {
+    const { context, gameApi } = addContext(store);
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(gameApi.findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup");
+    expect(gameApi.chargedTo).not.toHaveBeenCalled();
   });
 
   test("stores a found Player as an Exile: the position read, the reason trimmed, the R5 as adder", async () => {
@@ -325,6 +329,24 @@ describe("handleReaperAdd", () => {
     expect(repliesOf(interaction)).toEqual([lookupMessages.quotaSpent(RESETS_AT, NOW)]);
     expect(store.all()).toEqual([]);
   });
+
+  test.each<[string, LookupResult<Player>]>([
+    ["a found Player", FOUND],
+    ["an ambiguous name", { kind: "ambiguous", matches: MATCHES }],
+    ["a spent Daily Quota", { kind: "quota-spent", resetsAt: RESETS_AT }],
+  ])("shows no usage line on the reply for %s: no Game API requests used today, no Daily Allowance, no reset time", async (_, lookup) => {
+    const { context } = addContext(store, { lookup });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(repliesOf(interaction)).not.toEqual([]);
+    const shown = JSON.stringify(interaction.calls);
+    expect(shown).not.toContain("Game API requests used today");
+    expect(shown).not.toContain("resets 00:00 UTC");
+    expect(shown).not.toContain("Daily Allowance");
+    expect(shown).not.toContain("cached answers are free");
+  });
 });
 
 describe("picking an Exile from the pick list of /reaper add", () => {
@@ -350,7 +372,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       { kind: "exile", matches: MATCHES, reason: reasonOf("Hoarding gold") },
       NOW,
     );
-    const getPlayer = vi.fn<GetPlayer>(() => Promise.resolve(FOUND));
+    const gameApi = new FakeGameApi({ player: FOUND });
     const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
     const interaction = new FakePickInteraction({
       customId: `pick:${sessionId}:select`,
@@ -360,7 +382,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
     });
 
     await handlePick(interaction, {
-      gameApi: { getPlayer, getAlliance: () => Promise.reject(new Error("no Alliance lookup when picking an Exile")) },
+      gameApi,
       pickSessions: sessions,
       now: () => NOW,
       logError: vi.fn<(message: string) => void>(),
@@ -368,9 +390,13 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       channels: { log },
       editorOf: () => R5_EDITOR,
       homeKingdom: HOME,
+      officerRoleIds: [],
+      allowance: () => 0,
+      usage: new FakeUsage().usage,
     });
 
-    expect(getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(gameApi.getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(gameApi.chargedTo).not.toHaveBeenCalled();
     expect(store.find(UID)).toEqual({
       uid: UID,
       name: "Vex",
@@ -395,7 +421,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       { kind: "exile", matches: MATCHES, reason: reasonOf("Hoarding gold") },
       NOW,
     );
-    const getPlayer = vi.fn<GetPlayer>(() => Promise.resolve(FOUND));
+    const gameApi = new FakeGameApi({ player: FOUND });
     const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
     const interaction = new FakePickInteraction({
       customId: `pick:${sessionId}:select`,
@@ -404,7 +430,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
     });
 
     await handlePick(interaction, {
-      gameApi: { getPlayer, getAlliance: () => Promise.reject(new Error("no Alliance lookup when picking an Exile")) },
+      gameApi,
       pickSessions: sessions,
       now: () => NOW,
       logError: vi.fn<(message: string) => void>(),
@@ -412,9 +438,13 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       channels: { log },
       editorOf: () => R4_EDITOR,
       homeKingdom: HOME,
+      officerRoleIds: [],
+      allowance: () => 0,
+      usage: new FakeUsage().usage,
     });
 
-    expect(getPlayer).not.toHaveBeenCalled();
+    expect(gameApi.getPlayer).not.toHaveBeenCalled();
+    expect(gameApi.chargedTo).not.toHaveBeenCalled();
     expect(store.all()).toEqual([]);
     expect(log).not.toHaveBeenCalled();
     expect(JSON.stringify(interaction.calls)).toContain("Only R5s of Home Kingdom Alliances may change REAPER.");

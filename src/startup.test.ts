@@ -15,6 +15,7 @@ import { openDatabase } from "./storage/database.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { ReaperStore } from "./storage/reaper-store.js";
 import { createPreferenceStore, type PreferenceStore } from "./storage/preference-store.js";
 import { formatStartupError, start, type StartupDeps } from "./startup.js";
@@ -97,8 +98,10 @@ function stubStores(): {
   readonly dailySync: DailySyncStore;
   readonly preferences: PreferenceStore;
   readonly reaper: ReaperStore;
+  readonly memberUsage: MemberUsageStore;
 } {
   return {
+    memberUsage: new MemberUsageStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     preferences: createPreferenceStore(new DatabaseSync(":memory:")),
     reaper: new ReaperStore(new DatabaseSync(":memory:")),
@@ -119,6 +122,10 @@ function fakeDeps(overrides: Partial<StartupDeps> = {}) {
     findPlayer: () => Promise.resolve({ kind: "not-found" } as const),
     getAlliance: () => Promise.resolve({ kind: "not-found" } as const),
     findAlliance: () => Promise.resolve({ kind: "not-found" } as const),
+    /** Startup asks no charged lookup of a Member, so none is ever made from this fake. */
+    chargedTo: () => {
+      throw new Error("startup does not look up as a Member");
+    },
     quotaToday: () => ({
       day: utcDayOf(new Date("2026-10-29T12:00:00Z")),
       used: 0,
@@ -453,7 +460,7 @@ describe("start and the Known Alliances", () => {
         ...stubStores(),
         knownAlliances,
       }),
-      createGameApi: (_apiKey, _version, _cacheTtlMs, _quota, onAllianceSeen) => {
+      createGameApi: (_apiKey, _version, _cacheTtlMs, _quota, _allowance, onAllianceSeen) => {
         hook = onAllianceSeen;
         return gameApi;
       },

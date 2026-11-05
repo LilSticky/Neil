@@ -1,4 +1,5 @@
 import { utcDayOf, type DailyQuota, type RequestPurpose } from "../../domain/daily-quota.js";
+import type { LookupCaller } from "../../game-api/allowance-keeper.js";
 import type { AllianceKey, KingdomNumber, Uid } from "../../domain/lookup-input.js";
 import type { Alliance, LookupResult, Player } from "../../domain/player.js";
 import type { DailySyncGameApi } from "../daily-sync.js";
@@ -58,6 +59,14 @@ export class FakeDailySyncGameApi implements DailySyncGameApi {
     this.requests.push({ kind: "player", uid: String(uid), purpose });
     this.sent();
     return Promise.resolve(this.players.get(String(uid)) ?? { kind: "not-found" });
+  }
+
+  /** Each charged view asked for; the Daily Sync never charges a Member, so the list must stay empty. */
+  readonly charges: LookupCaller[] = [];
+
+  chargedTo(caller: LookupCaller): never {
+    this.charges.push(caller);
+    throw new Error("the Daily Sync must not charge a Member");
   }
 
   quotaToday(): DailyQuota {

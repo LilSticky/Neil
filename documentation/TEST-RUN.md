@@ -275,6 +275,22 @@ channels from SERVER-SETUP.md steps 8c and 9 after 6l.1.
 | 6l.10 | With an account that isn't an Administrator: `/player` outside `#alliance-hall`, then inside | Not offered outside; works inside | | |
 | 6l.11 | `/interview` in `#onboarding` as a newcomer | Works | | |
 
+## 6m. Look up within a Daily Allowance (slice 015, collected 2026-11-05)
+
+Branch `015-look-up-within-a-daily-allowance`. After deploying, run `npm run commands:register` (`/usage` is new) and restart Neil.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6m.1 | Run `/usage` as a Member | A private reply with `0 of M`; `/quota` shows no new request | | |
+| 6m.2 | Run `/player` for a Player not looked up recently | The card's footer ends with `1 of M` and the reset time | | |
+| 6m.3 | Run the same `/player` again | The card shows `1 of M`: the cached answer is free | | |
+| 6m.4 | Use up the allowance, with a low limit or a test Member | The next uncached lookup is refused privately with the reset time | | |
+| 6m.5 | Run a cached lookup and `/reaper closest` as that Member | Both answer, and the count stays the same; `/reaper` shows no usage line | | |
+| 6m.6 | Run `/player` as an Officer past the allowance | It answers and says Officers are not limited | | |
+| 6m.7 | Run `/quota` as an Officer | Allowance, Expected Lookup Members, and the Members with the most requests; nobody is pinged | | |
+| 6m.8 | Restart Neil | Counts and the allowance are unchanged | | |
+| 6m.9 | Link a Member by Interview, then one by Officer Link | Each gets the note privately | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

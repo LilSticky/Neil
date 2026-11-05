@@ -25,11 +25,23 @@ export class FakePickInteraction {
   readonly customId: string;
   readonly user: { readonly id: string };
   readonly values: readonly string[];
+  private readonly roleIds: readonly string[];
 
-  constructor(input: { readonly customId: string; readonly userId: string; readonly values?: readonly string[] }) {
+  constructor(input: {
+    readonly customId: string;
+    readonly userId: string;
+    readonly values?: readonly string[];
+    readonly roleIds?: readonly string[];
+  }) {
     this.customId = input.customId;
     this.user = { id: input.userId };
     this.values = input.values ?? [];
+    this.roleIds = input.roleIds ?? [];
+  }
+
+  /** The Discord role ids the Member holds, as /quota and the Officer check read them. */
+  memberRoleIds(): readonly string[] {
+    return this.roleIds;
   }
 
   update(options: InteractionUpdateOptions): Promise<void> {

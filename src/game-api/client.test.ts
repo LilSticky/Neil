@@ -20,6 +20,7 @@ import playerByName from "./__fixtures__/player-by-name.json" with { type: "json
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
 import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
 import { type AllianceSeenHook, type FetchLike, GameApiClient } from "./client.js";
+import { fakeAllowance } from "./__fakes__/game-api-fakes.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./quota-keeper.js";
 
 const FAKE_API_KEY = "fake-api-key-never-shown-b81e4d";
@@ -178,6 +179,7 @@ function clientWith(
     fetch,
     now,
     quota,
+    allowance: fakeAllowance(quota, now),
     sleep,
     random: () => JITTER,
     cacheTtlMs: CACHE_TTL_MS,
@@ -334,6 +336,7 @@ function loggingClientWith(
     fetch,
     now,
     quota,
+    allowance: fakeAllowance(quota, now),
     sleep,
     random: () => JITTER,
     cacheTtlMs: CACHE_TTL_MS,
