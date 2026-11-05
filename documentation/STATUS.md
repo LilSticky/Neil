@@ -32,8 +32,8 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** for the user: click Restart in the Wispbyte panel once CI has deployed `main`, then run
-`npm run commands:register` (`/reaper` and `/channels` are new). After the restart, check that Linked Members hold
+**Next step:** for the user: click Restart in the Wispbyte panel once CI has deployed `main` (`/reaper` and `/channels`
+are registered; slice 015's `/usage` needs another `npm run commands:register` after it deploys). After the restart, check that Linked Members hold
 `Doctor`, and only then set up the channels ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9). Then TEST-RUN.md
 §6i, §6j, §6k and §6l.
 
