@@ -7,9 +7,9 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Slice 015, Daily Allowance (`../Neil-015`, [specs](../specs/015-look-up-within-a-daily-allowance/)): resumed on
-2026-11-05 on the user's word, with `main` merged in. Spec and plan are done, tasks are next. `/reaper` is not charged
-(the user's decision). It takes migration 13 and ADR 10.
+Slice 015, Daily Allowance (`../Neil-015`, [specs](../specs/015-look-up-within-a-daily-allowance/), issue
+[#50](https://github.com/LilSticky/Neil/issues/50)): in progress on its branch, with `main` merged in. T001–T012 done,
+T013–T019 open. `/reaper` is not charged (the user's decision). It takes migration 13 and ADR 10.
 
 Slice 017, Give Members the Doctor Role ([specs](../specs/017-give-members-the-doctor-role/), issue
 [#47](https://github.com/LilSticky/Neil/issues/47)): every Linked Member, Guests included, holds the Doctor Role, and
@@ -33,8 +33,7 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** `/speckit-tasks` for slice 015 in `../Neil-015`. Meanwhile, for the user: click Restart in the Wispbyte panel once CI has deployed `main`, then run
-`npm run commands:register` (`/reaper` and `/channels` are new). After the restart, check that Linked Members hold
+**Next step:** for the user: click Restart in the Wispbyte panel once CI has deployed the Member listing fix ([#53](https://github.com/LilSticky/Neil/issues/53)): the Doctor Role sweep failed at the last restart, as Discord refused a second listing of the Members. `/reaper` and `/channels` are registered; slice 015's `/usage` needs another `npm run commands:register` after it deploys. After the restart, check that the log has no `Listing the Members` failure and that Linked Members hold
 `Doctor`, and only then set up the channels ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9). Then TEST-RUN.md
 §6i, §6j, §6k and §6l.
 
