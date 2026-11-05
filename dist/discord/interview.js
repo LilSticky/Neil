@@ -3,15 +3,23 @@ import { acceptRecommendation, confirm, declineRecommendation, giveUid, memberLe
 import { needsRankApproval, rankOnLink } from "../domain/link.js";
 import { parseUid } from "../domain/lookup-input.js";
 import { listedPlayerMatches } from "../domain/player.js";
+import { wantsInterview } from "../domain/interview-start.js";
 import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover } from "../domain/rank-approval.js";
-import { abandonedLogLine, alreadyLinkedMessage, askUidMessage, askUidOfPlayerMessage, buttonOfSomeoneElseReply, checkingReply, foundCardMessage, handedOffLogLine, handedOffMessage, interviewAlreadyOpenReply, interviewEndedReply, interviewLinkedReply, interviewOpenedReply, linkedMessage, linkLogLine, malformedUidMessage, notFoundMessage, parseInterviewCustomId, pickListMessage, quotaSpentMessage, rankCancelledLogLine, recommendationMessage, refusedLogLine, rejectedMessage, somethingWentWrongReply, unavailableMessage, uidModal, } from "./interview-texts.js";
+import { abandonedLogLine, alreadyLinkedMessage, askUidMessage, askUidOfPlayerMessage, buttonOfSomeoneElseReply, checkingReply, foundCardMessage, handedOffLogLine, handedOffMessage, interviewAlreadyOpenReply, interviewEndedReply, interviewLinkedReply, interviewOpenedReply, linkedMessage, linkLogLine, malformedUidMessage, notFoundMessage, onlineAtStartupLogLine, parseInterviewCustomId, pickListMessage, quotaSpentMessage, rankCancelledLogLine, recommendationMessage, refusedLogLine, rejectedMessage, somethingWentWrongReply, unavailableMessage, uidModal, } from "./interview-texts.js";
 import { LINK_NOTE } from "./usage-texts.js";
+/** The most Interviews one startup works through, failures included: each may cost a Game API request. */
+const STARTUP_LIMIT = 10;
 export function createInterviews(deps) {
+    const starting = new Map();
     return {
-        onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
+        onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, starting, member)),
+        onMemberOnline: (member) => guarded(deps, "Member coming online", async () => {
+            await startIfWanted(deps, starting, member);
+        }),
+        onlineAtStartup: (members, isStopping) => startOnlineAtStartup(deps, starting, members, isStopping),
         onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
-        onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, command)),
+        onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, starting, command)),
         onButton: (button) => {
             const ack = { acknowledged: false };
             return guardedPress(deps, "Interview button", button, ack, () => pressButton(deps, trackedButton(button, ack)));
@@ -94,7 +102,23 @@ const UNNAMED_MATCH = "Unknown";
 function errorText(error) {
     return error instanceof Error ? error.message : "unknown error";
 }
-async function joinMember(deps, member) {
+/**
+ * Runs one Member's Interview start while the Member is held in `starting`, so that another start for them waits for
+ * this one. The caller checks `starting` first: this is not called for a Member already in it.
+ */
+function holdingStart(starting, memberId, start) {
+    const running = start();
+    starting.set(memberId, running);
+    return running.finally(() => {
+        starting.delete(memberId);
+    });
+}
+/** Gives the Onboarding Role to the Member, then opens their Interview; resolves the thread, or undefined when none was opened. */
+async function giveAndOpen(deps, member) {
+    await deps.onboardingRole.give(member.id);
+    return openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
+}
+async function joinMember(deps, starting, member) {
     if (member.bot)
         return;
     if (deps.links.linkFor(member.id) !== undefined) {
@@ -103,16 +127,78 @@ async function joinMember(deps, member) {
     }
     if (deps.interviews.openFor(member.id) !== undefined)
         return;
-    await deps.onboardingRole.give(member.id);
-    await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
+    if (starting.has(member.id))
+        return;
+    await holdingStart(starting, member.id, () => giveAndOpen(deps, member));
+}
+/** Whether the Member wants an Interview now: not a bot, not Linked, no open Interview, not handed off. */
+function wantsNow(deps, member) {
+    return wantsInterview({
+        bot: member.bot,
+        linked: deps.links.linkFor(member.id) !== undefined,
+        open: deps.interviews.openFor(member.id) !== undefined,
+        handedOff: deps.interviews.latestFor(member.id)?.step === "handed-off",
+    });
+}
+/**
+ * Starts an Interview for a Member who came online, when they want one: gives the Onboarding Role, then opens the
+ * Interview. Resolves "skipped" for a Member who does not want one, and for a Member whose start is already running.
+ * Throws when the start fails, so the caller logs it or counts it.
+ */
+async function startIfWanted(deps, starting, member) {
+    if (starting.has(member.id))
+        return "skipped";
+    if (!wantsNow(deps, member))
+        return "skipped";
+    const threadId = await holdingStart(starting, member.id, () => giveAndOpen(deps, member));
+    return threadId === undefined ? "skipped" : "started";
+}
+/**
+ * Starts an Interview for each Member in turn, as the startup finds them online, up to STARTUP_LIMIT started or failed.
+ * A Member past the limit who wants an Interview is counted as left for later and not started. A failure is logged and
+ * the next Member follows. Stops before a Member once `isStopping` says so. The counts are logged in one line. Never rejects.
+ */
+async function startOnlineAtStartup(deps, starting, members, isStopping = () => false) {
+    let started = 0;
+    let failed = 0;
+    let leftForLater = 0;
+    for (const member of members) {
+        if (isStopping())
+            break;
+        if ("unreadable" in member) {
+            failed += 1;
+            continue;
+        }
+        if (started + failed >= STARTUP_LIMIT) {
+            if (wantsNow(deps, member))
+                leftForLater += 1;
+            continue;
+        }
+        try {
+            if ((await startIfWanted(deps, starting, member)) === "started")
+                started += 1;
+        }
+        catch (error) {
+            failed += 1;
+            deps.logError(`Opening the Interview of ${member.id} failed: ${errorText(error)}`);
+        }
+    }
+    if (started === 0 && failed === 0 && leftForLater === 0)
+        return;
+    try {
+        await deps.channels.log(onlineAtStartupLogLine({ started, failed, leftForLater }));
+    }
+    catch (error) {
+        deps.logError(`Logging the Interviews started at startup failed: ${errorText(error)}`);
+    }
 }
 /** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
-async function startOnCommand(deps, command) {
+async function startOnCommand(deps, starting, command) {
     // Discord allows three seconds for a first answer; the thread work comes after this deferral, answered with editReply.
     await command.deferReply({ flags: MessageFlags.Ephemeral });
     let reply;
     try {
-        reply = await commandReply(deps, command);
+        reply = await commandReply(deps, starting, command);
     }
     catch (error) {
         deps.logError(`/interview failed: ${errorText(error)}`);
@@ -121,19 +207,26 @@ async function startOnCommand(deps, command) {
     await command.editReply(reply);
 }
 /** The private answer to /interview: the Member's uid when Linked, the open thread when one is open, else the new thread. */
-async function commandReply(deps, command) {
+async function commandReply(deps, starting, command) {
     const memberId = command.user.id;
     const link = deps.links.linkFor(memberId);
     if (link !== undefined)
         return interviewLinkedReply(link.uid);
+    // A start already running for the Member is waited for, so the answer is about its thread; the check and the new start
+    // below run in one synchronous step, so no second start can slip in between.
+    let pending = starting.get(memberId);
+    while (pending !== undefined) {
+        await pending.catch(() => undefined);
+        pending = starting.get(memberId);
+    }
     const open = deps.interviews.openFor(memberId);
     if (open !== undefined)
         return interviewAlreadyOpenReply(open.threadId);
-    const threadId = await openInterview(deps, {
+    const threadId = await holdingStart(starting, memberId, () => openInterview(deps, {
         id: memberId,
         username: command.user.username,
         displayName: command.displayName,
-    });
+    }));
     if (threadId !== undefined)
         return interviewOpenedReply(threadId);
     // An Interview was opened for the Member meanwhile: the Member is pointed to it.

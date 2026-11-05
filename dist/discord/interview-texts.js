@@ -433,4 +433,14 @@ export function rankCancelledLogLine(member) {
         allowedMentions: noMentions(),
     };
 }
+/**
+ * The log line once Neil's startup check has started the Interviews of the Members online: how many started, how many
+ * failed, and how many who wanted one were left for a later start.
+ */
+export function onlineAtStartupLogLine(counts) {
+    return {
+        content: `Onboarding Interviews at startup: started ${counts.started.toString()}, failed ${counts.failed.toString()}, left for later ${counts.leftForLater.toString()}.`,
+        allowedMentions: noMentions(),
+    };
+}
 //# sourceMappingURL=interview-texts.js.map
