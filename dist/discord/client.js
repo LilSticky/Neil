@@ -27,6 +27,8 @@ import { handleReaperAdd, handleReaperClosest, handleReaperList, handleReaperPag
 import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
 import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
+import { handleUsage } from "./usage.js";
+import { usageLine } from "./usage-texts.js";
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
 const PICK_PREFIX = "pick:";
 /** The custom id prefix of every Alliance Overview page button. */
@@ -114,6 +116,9 @@ export function createClient(handlers, options) {
                     break;
                 case "quota":
                     void handlers.quota(interaction);
+                    break;
+                case "usage":
+                    void handlers.usage(interaction);
                     break;
                 case "channels":
                     void handlers.channels(interaction);
@@ -316,6 +321,70 @@ function buttonLike(button) {
     };
     return button.isStringSelectMenu() ? { ...like, values: [...button.values] } : like;
 }
+/**
+ * The discord.js chat-input command as /player and /alliance read it: the caller and their roles, the options, and the
+ * placeholder and reply methods. Each method is passed on with the one shape the lookups use.
+ */
+/** The discord.js chat-input command as /usage reads it: who ran it, their roles, and the private reply. */
+function usageLike(command) {
+    return {
+        callerId: command.user.id,
+        memberRoleIds: () => memberRoleIds(command.member),
+        reply: (reply) => command.reply(reply),
+    };
+}
+function lookupLike(command) {
+    return {
+        user: command.user,
+        options: command.options,
+        memberRoleIds: () => memberRoleIds(command.member),
+        deferReply: async (options) => {
+            await command.deferReply(options);
+        },
+        editReply: async (options) => {
+            await command.editReply(options);
+        },
+        deleteReply: async () => {
+            await command.deleteReply();
+        },
+        followUp: async (message) => {
+            await command.followUp(message);
+        },
+        reply: async (message) => {
+            await command.reply(message);
+        },
+    };
+}
+/**
+ * The discord.js button press or string select menu press as a pick list reads it: the owner and the roles of the
+ * Member who pressed, the values picked, and the reply methods. See buttonLike for why each method is passed on.
+ */
+function pickLike(press) {
+    const like = {
+        customId: press.customId,
+        user: press.user,
+        memberRoleIds: () => memberRoleIds(press.member),
+        deferReply: async (options) => {
+            await press.deferReply(options);
+        },
+        editReply: async (options) => {
+            await press.editReply(options);
+        },
+        deleteReply: async () => {
+            await press.deleteReply();
+        },
+        followUp: async (message) => {
+            await press.followUp(message);
+        },
+        reply: async (message) => {
+            await press.reply(message);
+        },
+        update: async (options) => {
+            await press.update(options);
+        },
+    };
+    return press.isStringSelectMenu() ? { ...like, values: [...press.values] } : like;
+}
 /** The discord.js button press as a Rank Approval reads it; see buttonLike for why each method is passed on. */
 function rankButtonLike(button) {
     return {
@@ -464,11 +533,22 @@ export async function connect(token, options) {
     const now = options.now;
     // One store for every paged /reaper answer: the list and closest answers open them, the page buttons turn them.
     const reaperPages = new ReaperPages();
+    // The lookups' view of the Officers and the Daily Allowance: the same for /player, /alliance, the pick lists and Overview.
+    const lookupRoles = {
+        officerRoleIds: options.officerRoleIds,
+        allowance: () => options.allowance.allowance(),
+        usage: (caller) => usageLine({
+            used: options.allowance.usageOf(caller.memberId),
+            allowance: options.allowance.allowance(),
+            officer: caller.officer,
+        }),
+    };
     const allianceContext = {
         gameApi: options.gameApi,
         pickSessions,
         now,
         logError,
+        ...lookupRoles,
         homeKingdom: options.homeKingdom,
         knownAlliances: options.knownAlliances,
     };
@@ -485,10 +565,16 @@ export async function connect(token, options) {
             startRecord: options.startRecord,
             logError,
         }),
-        player: (interaction) => handlePlayer(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
-        alliance: (interaction) => handleAlliance(interaction, allianceContext),
+        player: (interaction) => handlePlayer(lookupLike(interaction), {
+            gameApi: options.gameApi,
+            pickSessions,
+            now,
+            logError,
+            ...lookupRoles,
+        }),
+        alliance: (interaction) => handleAlliance(lookupLike(interaction), allianceContext),
         allianceAutocomplete: (interaction) => answer("/alliance autocomplete", { logError }, () => handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError })),
-        pick: async (interaction) => (await services).pick(interaction),
+        pick: async (press) => (await services).pick(pickLike(press)),
         reaperClosest: (interaction) => handleReaperClosest(interaction, {
             links: options.links,
             gameApi: options.gameApi,
@@ -503,15 +589,22 @@ export async function connect(token, options) {
         reaperRemove: async (interaction) => (await services).reaperRemove(interaction),
         reaperAutocomplete: (interaction) => answer("/reaper autocomplete", { logError }, () => handleReaperAutocomplete(interaction, { reaper: options.reaper })),
         reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
-        overview: (interaction) => handleOverview(interaction, { gameApi: options.gameApi, pickSessions, now, logError }),
+        overview: (press) => handleOverview(pickLike(press), { gameApi: options.gameApi, pickSessions, now, logError, ...lookupRoles }),
         quota: (interaction) => handleQuota({
             memberRoleIds: () => memberRoleIds(interaction.member),
             reply: (reply) => interaction.reply(reply),
         }, {
             quotaToday: () => options.gameApi.quotaToday(),
             quotaReserve: options.quotaReserve,
+            allowance: options.allowance,
             officerRoleIds: options.officerRoleIds,
             now: () => new Date(),
+            logError,
+        }),
+        usage: (interaction) => handleUsage(usageLike(interaction), {
+            allowance: options.allowance,
+            officerRoleIds: options.officerRoleIds,
+            now,
             logError,
         }),
         memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
@@ -650,6 +743,7 @@ export async function connect(token, options) {
                 guidesForumId: options.guidesForumId,
                 now,
             }),
+            sendPrivateMessage,
             isOnServer,
             now,
             logError,
@@ -704,6 +798,7 @@ export async function connect(token, options) {
             pickSessions,
             now,
             logError,
+            ...lookupRoles,
             reaper: options.reaper,
             channels,
             editorOf: editorOfMember,

@@ -6,11 +6,18 @@ import { parseAllianceKey } from "../domain/lookup-input.js";
 import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 import { listedAllianceMatches, listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
+import { USAGE_SEPARATOR, usageLine } from "./usage-line.js";
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
 const TITLE_MAX_LENGTH = 256;
 /** Discord's limits: a field's value, and everything in one embed (title, footers, field names and values). */
 const FIELD_VALUE_MAX_LENGTH = 1024;
 const EMBED_MAX_LENGTH = 6000;
+/** A count no Member reaches in a day: the Daily Quota is far below it, so every real usage line fits the room left for it. */
+const LARGEST_USAGE_COUNT = 1_000_000;
+/** The length of the longest usage line a card's answer can end with, which a card leaves room for in its footer. */
+export const LONGEST_USAGE_LINE_LENGTH = Math.max(usageLine({ used: LARGEST_USAGE_COUNT, allowance: LARGEST_USAGE_COUNT, officer: true }).length, usageLine({ used: LARGEST_USAGE_COUNT, allowance: LARGEST_USAGE_COUNT, officer: false }).length);
+/** The room a usage line takes in a card's footer: the separator, then the line. */
+const USAGE_FOOTER_ROOM = USAGE_SEPARATOR.length + LONGEST_USAGE_LINE_LENGTH;
 const ROSTER_FIELD = "Roster";
 const EMPTY_ROSTER_TEXT = "The tracker lists no members.";
 /** Discord's limit on a select menu option's label. */
@@ -288,7 +295,8 @@ function rosterNote(hidden) {
 }
 /**
  * The roster fields of a card's page: an empty roster reads so; otherwise the rows of the page that fit under Discord's
- * embed limit, with a note counting the rest of the page when some do not. `fixed` is what the rest of the embed takes.
+ * embed limit, with a note counting the rest of the page when some do not. `fixed` is what the rest of the embed takes,
+ * the usage line included.
  */
 function rosterSection(shown, fixed) {
     if (shown.length === 0)
@@ -338,7 +346,7 @@ export function renderAllianceCard(alliance, fetchedAt, now, page = 0) {
         footer: footerFor(fetchedAt, now),
     };
     const shown = pageOf(sortRoster(alliance.roster), page);
-    return { ...embed, fields: [...fields, ...rosterSection(shown, embedCharacters(embed))] };
+    return { ...embed, fields: [...fields, ...rosterSection(shown, embedCharacters(embed) + USAGE_FOOTER_ROOM)] };
 }
 /** The Player pick list's note when matches were left out. */
 const PLAYER_PICK_LIMIT_NOTE = "Only the first 25 are listed; add a kingdom to narrow it.";

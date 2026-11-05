@@ -6,6 +6,7 @@ import { listedPlayerMatches } from "../domain/player.js";
 import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover } from "../domain/rank-approval.js";
 import { abandonedLogLine, alreadyLinkedMessage, askUidMessage, askUidOfPlayerMessage, buttonOfSomeoneElseReply, checkingReply, foundCardMessage, handedOffLogLine, handedOffMessage, interviewAlreadyOpenReply, interviewEndedReply, interviewLinkedReply, interviewOpenedReply, linkedMessage, linkLogLine, malformedUidMessage, notFoundMessage, parseInterviewCustomId, pickListMessage, quotaSpentMessage, rankCancelledLogLine, recommendationMessage, refusedLogLine, rejectedMessage, somethingWentWrongReply, unavailableMessage, uidModal, } from "./interview-texts.js";
+import { LINK_NOTE } from "./usage-texts.js";
 export function createInterviews(deps) {
     return {
         onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
@@ -529,6 +530,7 @@ async function finishLink(deps, interview, leaderMemberId, link, rankApproval) {
         await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
     }
     await deps.channels.log(linkLogLine(interview.memberId, interview.player, leaderMemberId));
+    await sendLinkNote(deps, interview.memberId);
     // Posted first: the message stores the preselected language that the name and roles' Preference Roles read.
     const preferencesPosted = await postPreferencesAfterLink(deps, interview, link);
     await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
@@ -536,6 +538,15 @@ async function finishLink(deps, interview, leaderMemberId, link, rankApproval) {
         return deps.rankApprovals.announce(pendingApproval, interview.player);
     if (!preferencesPosted)
         await deps.channels.deleteThread(interview.threadId);
+}
+/** Privately sends the Member the Link note after a Link; a failure is logged, never thrown, so the Link stands. */
+async function sendLinkNote(deps, memberId) {
+    try {
+        await deps.sendPrivateMessage(memberId, { content: LINK_NOTE });
+    }
+    catch (error) {
+        deps.logError(`Sending the Link note after a Link failed: ${errorText(error)}`);
+    }
 }
 /** Posts the Preferences message after a Link; a failure is logged, never thrown. True when the message is posted. */
 async function postPreferencesAfterLink(deps, interview, link) {

@@ -10,6 +10,7 @@ import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
 import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
+import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { ReaperStore } from "./storage/reaper-store.js";
@@ -32,6 +33,7 @@ await start({
             save: (record) => { store.save(record); },
             close: () => { db.close(); },
             dailyQuota: new DailyQuotaStore(db),
+            memberUsage: new MemberUsageStore(db),
             interviews: new InterviewStore(db, interviewTimeoutMs),
             links: new LinkStore(db),
             applied: new AppliedStore(db),
@@ -43,12 +45,13 @@ await start({
             }),
         };
     },
-    createGameApi: (apiKey, version, cacheTtlMs, quota, onAllianceSeen) => new GameApiClient({
+    createGameApi: (apiKey, version, cacheTtlMs, quota, allowance, onAllianceSeen) => new GameApiClient({
         apiKey,
         version,
         fetch: globalThis.fetch,
         now: () => new Date(),
         quota,
+        allowance,
         cacheTtlMs,
         onAllianceSeen,
         sleep: (ms) => sleepFor(ms),

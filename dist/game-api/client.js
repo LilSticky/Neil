@@ -18,6 +18,7 @@ export class GameApiClient {
     fetchFn;
     now;
     quota;
+    allowance;
     sleep;
     random;
     logError;
@@ -38,6 +39,7 @@ export class GameApiClient {
         this.fetchFn = options.fetch;
         this.now = options.now;
         this.quota = options.quota;
+        this.allowance = options.allowance;
         this.sleep = options.sleep;
         this.random = options.random;
         this.logError = options.logError;
@@ -58,18 +60,7 @@ export class GameApiClient {
      * request may use the Quota Reserve.
      */
     async getPlayer(uid, purpose) {
-        const key = `player:${uid}`;
-        const fresh = this.players.get(key, this.now());
-        if (fresh !== undefined)
-            return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
-        return this.playerLookups.share(flightKey(purpose, key), async () => {
-            const result = await this.fetchPlayer(uid, purpose);
-            if (result.kind === "found") {
-                this.players.store(key, result.value, result.fetchedAt);
-                this.sawPlayer(result.value);
-            }
-            return orStale(result, foundBy(this.players.getStale(key)));
-        });
+        return uncharged(await this.playerLookup(uid, purpose, undefined));
     }
     /**
      * A fresh cached answer, else one shared request; a found Player and a match list are cached, a failure is not.
@@ -77,36 +68,74 @@ export class GameApiClient {
      * whether the request may use the Quota Reserve.
      */
     async findPlayer(name, kingdom, purpose) {
-        const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
-        return this.byName(this.playerNames, this.playerNameLookups, key, purpose, async () => {
-            const result = await this.fetchPlayerByName(name, kingdom, purpose);
-            if (result.kind === "found")
-                this.sawPlayer(result.value);
-            return result;
-        });
+        return uncharged(await this.playerNameLookup(name, kingdom, purpose, undefined));
     }
     /**
      * A fresh cached answer, else one shared request; a found Alliance and a match list are cached, a failure is not.
      * The full name is compared in lower case. The purpose decides whether the request may use the Quota Reserve.
      */
     async findAlliance(name, purpose) {
-        return this.byName(this.allianceNames, this.allianceNameLookups, `alliance-name:${name.toLowerCase()}`, purpose, async () => {
-            const result = await this.fetchAllianceByName(name, purpose);
+        return uncharged(await this.allianceNameLookup(name, purpose, undefined));
+    }
+    /** The Player lookup by uid, for the Member charged for it, or uncharged when `caller` is undefined. */
+    async playerLookup(uid, purpose, caller) {
+        const key = `player:${uid}`;
+        const fresh = this.players.get(key, this.now());
+        if (fresh !== undefined)
+            return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+        return this.playerLookups.share(flightKey(purpose, key, caller), async () => {
+            const result = await this.fetchPlayer(uid, purpose, caller);
+            if (result.kind === "found") {
+                this.players.store(key, result.value, result.fetchedAt);
+                this.sawPlayer(result.value);
+            }
+            return orStale(result, foundBy(this.players.getStale(key)));
+        });
+    }
+    /** The Player lookup by name and Kingdom, for the Member charged for it, or uncharged when `caller` is undefined. */
+    playerNameLookup(name, kingdom, purpose, caller) {
+        const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
+        return this.byName(this.playerNames, this.playerNameLookups, key, purpose, caller, async () => {
+            const result = await this.fetchPlayerByName(name, kingdom, purpose, caller);
+            if (result.kind === "found")
+                this.sawPlayer(result.value);
+            return result;
+        });
+    }
+    /** The Alliance lookup by full name, for the Member charged for it, or uncharged when `caller` is undefined. */
+    allianceNameLookup(name, purpose, caller) {
+        return this.byName(this.allianceNames, this.allianceNameLookups, `alliance-name:${name.toLowerCase()}`, purpose, caller, async () => {
+            const result = await this.fetchAllianceByName(name, purpose, caller);
             if (result.kind === "found")
                 this.sawAlliance(result.value);
             return result;
         });
     }
+    /** The Alliance lookup by Kingdom and tag, for the Member charged for it, or uncharged when `caller` is undefined. */
+    async allianceLookup(kingdom, key, purpose, caller) {
+        const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
+        const fresh = this.alliances.get(cacheKey, this.now());
+        if (fresh !== undefined)
+            return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+        return this.allianceLookups.share(flightKey(purpose, cacheKey, caller), async () => {
+            const result = await this.fetchAlliance(kingdom, key, purpose, caller);
+            if (result.kind === "found") {
+                this.alliances.store(cacheKey, result.value, result.fetchedAt);
+                this.sawAlliance(result.value);
+            }
+            return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
+        });
+    }
     /**
      * The name lookups' cache flow: a fresh answer from the cache, else one request shared by concurrent callers with
-     * the same purpose. A found answer and a match list are cached; a failure is not. A spent or reserved quota answers
-     * with a stale entry.
+     * the same purpose and charge. A found answer and a match list are cached; a failure is not. A spent or reserved
+     * quota, or a spent Daily Allowance, answers with a stale entry.
      */
-    async byName(cache, inFlight, key, purpose, fetch) {
+    async byName(cache, inFlight, key, purpose, caller, fetch) {
         const fresh = cache.get(key, this.now());
         if (fresh !== undefined)
             return answerOf(fresh);
-        return inFlight.share(flightKey(purpose, key), async () => {
+        return inFlight.share(flightKey(purpose, key, caller), async () => {
             const result = await fetch();
             if (result.kind === "found") {
                 cache.store(key, { kind: "found", value: result.value }, result.fetchedAt);
@@ -123,22 +152,23 @@ export class GameApiClient {
      * The purpose decides whether the request may use the Quota Reserve.
      */
     async getAlliance(kingdom, key, purpose) {
-        const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
-        const fresh = this.alliances.get(cacheKey, this.now());
-        if (fresh !== undefined)
-            return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
-        return this.allianceLookups.share(flightKey(purpose, cacheKey), async () => {
-            const result = await this.fetchAlliance(kingdom, key, purpose);
-            if (result.kind === "found") {
-                this.alliances.store(cacheKey, result.value, result.fetchedAt);
-                this.sawAlliance(result.value);
-            }
-            return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
-        });
+        return uncharged(await this.allianceLookup(kingdom, key, purpose, undefined));
     }
-    async fetchPlayer(uid, purpose) {
+    /**
+     * The lookups of one Member. Each is charged to the Member against the Daily Allowance before its request is
+     * counted against the Daily Quota; a cached answer is free. The purpose is always `lookup`.
+     */
+    chargedTo(caller) {
+        return {
+            getPlayer: (uid) => this.playerLookup(uid, "lookup", caller),
+            findPlayer: (name, kingdom) => this.playerNameLookup(name, kingdom, "lookup", caller),
+            getAlliance: (kingdom, key) => this.allianceLookup(kingdom, key, "lookup", caller),
+            findAlliance: (name) => this.allianceNameLookup(name, "lookup", caller),
+        };
+    }
+    async fetchPlayer(uid, purpose, caller) {
         const endpoint = "/players/{uid}";
-        const reply = await this.request({ endpoint, path: `/players/${uid}`, purpose, conflictIsAnswer: false });
+        const reply = await this.request({ endpoint, path: `/players/${uid}`, purpose, conflictIsAnswer: false, caller });
         if (reply.kind !== "reply")
             return reply;
         const read = await this.readBody(endpoint, reply, playerBodySchema);
@@ -153,7 +183,7 @@ export class GameApiClient {
      * GET /players/name/{name}, or /players/{kingdom}/{name} with a Kingdom. A 409 is the matches; a 200 is a Player.
      * The name is percent-encoded into the path.
      */
-    async fetchPlayerByName(name, kingdom, purpose) {
+    async fetchPlayerByName(name, kingdom, purpose, caller) {
         const endpoint = kingdom === undefined ? "/players/name/{name}" : "/players/{kingdom}/{name}";
         const segments = kingdom === undefined ? "name" : kingdom.toString();
         const reply = await this.request({
@@ -161,6 +191,7 @@ export class GameApiClient {
             path: `/players/${segments}/${encodeURIComponent(name)}`,
             purpose,
             conflictIsAnswer: true,
+            caller,
         });
         if (reply.kind !== "reply")
             return reply;
@@ -209,19 +240,19 @@ export class GameApiClient {
         };
     }
     /** GET /alliances/{kingdom}/{key}: the Alliance of a Kingdom and tag. */
-    async fetchAlliance(kingdom, key, purpose) {
-        return this.requestAlliance("/alliances/{kingdom}/{key}", `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`, purpose, kingdom);
+    async fetchAlliance(kingdom, key, purpose, caller) {
+        return this.requestAlliance("/alliances/{kingdom}/{key}", `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`, purpose, caller, kingdom);
     }
     /** GET /alliances/name/{name}: the Alliance with a full name, in whichever Kingdom it is. */
-    async fetchAllianceByName(name, purpose) {
-        return this.requestAlliance("/alliances/name/{name}", `/alliances/name/${encodeURIComponent(name)}`, purpose, undefined);
+    async fetchAllianceByName(name, purpose, caller) {
+        return this.requestAlliance("/alliances/name/{name}", `/alliances/name/${encodeURIComponent(name)}`, purpose, caller, undefined);
     }
     /**
      * One Alliance request. A 409 is the matches; a 200 is an Alliance, which must be in the `expected` Kingdom when one
      * is given (a Kingdom and tag lookup); otherwise the Kingdom is the one the body names.
      */
-    async requestAlliance(endpoint, path, purpose, expected) {
-        const reply = await this.request({ endpoint, path, purpose, conflictIsAnswer: true });
+    async requestAlliance(endpoint, path, purpose, caller, expected) {
+        const reply = await this.request({ endpoint, path, purpose, conflictIsAnswer: true, caller });
         if (reply.kind !== "reply")
             return reply;
         if (reply.response.status === 409) {
@@ -255,7 +286,7 @@ export class GameApiClient {
             if (outcome.kind !== "transient")
                 return outcome;
             const pause = retryDelay(attempt, this.random());
-            if (!this.mayRetry(attempt, pause, deadline, call.purpose)) {
+            if (!this.mayRetry(attempt, pause, deadline, call)) {
                 return this.fail(call.endpoint, outcome.detail, { kind: "try-again" });
             }
             await this.sleep(pause);
@@ -263,18 +294,32 @@ export class GameApiClient {
     }
     /**
      * Whether another attempt may follow the pause: attempts left, a request for the purpose may still be sent today,
-     * and enough of the deadline.
+     * the caller (if any) may still be charged, and enough of the deadline.
      */
-    mayRetry(attempt, pause, deadline, purpose) {
+    mayRetry(attempt, pause, deadline, call) {
         const leftAfterPause = deadline - (this.now().getTime() + pause);
-        return attempt < MAX_ATTEMPTS && this.quota.mayCount(purpose) && leftAfterPause >= MIN_TIME_FOR_RETRY_MS;
+        return (attempt < MAX_ATTEMPTS &&
+            this.quota.mayCount(call.purpose) &&
+            this.allowsCharge(call.caller) &&
+            leftAfterPause >= MIN_TIME_FOR_RETRY_MS);
     }
-    /** One attempt, counted against the Daily Quota and settled once. A transient failure is returned unlogged. */
+    /** Whether a request may be charged to the caller: always for an uncharged lookup, else while the allowance lasts. */
+    allowsCharge(caller) {
+        return caller === undefined || this.allowance.mayCharge(caller);
+    }
+    /**
+     * One attempt, counted against the Daily Allowance and the Daily Quota, and settled once. A transient failure is
+     * returned unlogged. The order is fixed: the deadline, then the allowance, then the quota, then the charge, with no
+     * await in between, so a refused lookup counts nothing and two lookups cannot both take the last request.
+     */
     async attempt(call, deadline) {
-        const { endpoint, path, purpose, conflictIsAnswer } = call;
+        const { endpoint, path, purpose, conflictIsAnswer, caller } = call;
         // A pause may have used up the deadline; then the lookup ends here, before anything is counted or sent.
         if (this.now().getTime() >= deadline) {
             return this.fail(endpoint, "lookup deadline passed", { kind: "try-again" });
+        }
+        if (!this.allowsCharge(caller)) {
+            return { kind: "allowance-spent", resetsAt: nextReset(this.now()) };
         }
         const counted = this.quota.tryCount(purpose);
         if (!counted.ok) {
@@ -282,6 +327,16 @@ export class GameApiClient {
             return counted.reason === "spent" ? { kind: "quota-spent", resetsAt } : { kind: "reserve-kept", resetsAt };
         }
         const day = counted.day;
+        if (caller !== undefined) {
+            try {
+                this.allowance.charge(caller);
+            }
+            catch (error) {
+                // The request is not sent, so its count is settled as no figures, then the failure goes to the caller.
+                this.quota.settle(day, undefined);
+                throw error;
+            }
+        }
         // A pause that ran long can leave no time; a timeout of 0 then gives up at once rather than throwing.
         const timeoutMs = Math.max(0, Math.min(this.timeoutMs, deadline - this.now().getTime()));
         let response;
@@ -397,20 +452,31 @@ export class GameApiClient {
     }
 }
 /**
- * A spent Daily Quota, or one kept back by the Quota Reserve, answers with the cached answer, however old, when
- * there is one.
+ * A spent Daily Quota, one kept back by the Quota Reserve, or a spent Daily Allowance answers with the cached answer,
+ * however old, when there is one.
  */
 function orStale(result, stale) {
-    if ((result.kind !== "quota-spent" && result.kind !== "reserve-kept") || stale === undefined)
+    const spent = result.kind === "quota-spent" || result.kind === "reserve-kept" || result.kind === "allowance-spent";
+    if (!spent || stale === undefined)
         return result;
     return stale;
 }
 /**
- * The key one request is shared under while it is in flight. The purpose is part of it: an Onboarding Interview never
- * joins a lookup's request, which may have been refused at the Quota Reserve. The cache is shared by every purpose.
+ * The result of a lookup that no caller is charged for. Only a charged lookup can be refused by the Daily Allowance,
+ * so reaching that refusal here is a bug in the client.
  */
-function flightKey(purpose, key) {
-    return `${purpose}:${key}`;
+function uncharged(result) {
+    if (result.kind === "allowance-spent")
+        throw new Error("an uncharged lookup was refused by the Daily Allowance");
+    return result;
+}
+/**
+ * The key one request is shared under while it is in flight. The purpose is part of it: an Onboarding Interview never
+ * joins a lookup's request, which may have been refused at the Quota Reserve. A charged lookup's key holds its Member,
+ * so a refusal by the Daily Allowance never reaches another Member. The cache is shared by every purpose.
+ */
+function flightKey(purpose, key, caller) {
+    return caller === undefined ? `${purpose}:${key}` : `${purpose}:member:${caller.memberId}:${key}`;
 }
 /** A cached Player as a found answer. */
 function foundBy(entry) {

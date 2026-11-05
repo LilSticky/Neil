@@ -1,5 +1,6 @@
 import { ButtonStyle, ComponentType, escapeMarkdown, MessageFlags, TextInputStyle, } from "discord.js";
 import { optionLabel, timeLeft, utcTime } from "./lookup-cards.js";
+import { LINK_NOTE } from "./usage-texts.js";
 const THREAD_NAME_MAX_LENGTH = 100;
 const MAX_TRIES = 5;
 const EXAMPLE_UID = "145563254785";
@@ -301,10 +302,10 @@ export function quotaSpentMessage(resetsAt, now) {
 export function quotaResetMessage(interviewId, member) {
     return giveUidMessage(`<@${member}>, I can look players up again.\n${askUid()}`, interviewId, { users: [member] });
 }
-/** The thread message when a Member is Linked: greets them by mention and names the Player. */
+/** The thread message when a Member is Linked: greets them by mention, names the Player, and gives the Link note. */
 export function linkedMessage(member, player) {
     return {
-        content: `Done, <@${member}>: you're linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).`,
+        content: `Done, <@${member}>: you're linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).\n${LINK_NOTE}`,
         allowedMentions: { users: [member] },
     };
 }

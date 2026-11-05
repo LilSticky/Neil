@@ -10,6 +10,7 @@ import { keepsApprovalThread } from "./rank-approval.js";
 import { officerLinkPreferencesMessage } from "./preferences-texts.js";
 import { asApprovableRank, linkedMessage, officerLinkLogLine, rankSetLogLine, } from "./interview-texts.js";
 import { answer } from "./lookup.js";
+import { LINK_NOTE } from "./usage-texts.js";
 import { linkCardEndedMessage, linkCardMessage, linkEndedReply, linkInputReply, linkLookupFailureReply, linkNotYoursReply, linkRefusedReply, memberGoneReply, noAllianceReply, notHandedOffReply, notLinkedReply, notOfficerButtonReply, notOfficerReply, ownLinkReply, parseLinkCustomId, rankInputReply, rankSetReply, selfLinkReply, uidLinkedElsewhereReply, unlinkedByOfficerReply, unlinkedSelfReply, } from "./corrections-texts.js";
 /** How long the Confirm and Cancel buttons of an Officer Link stay usable. */
 const CONFIRMATION_MS = 5 * 60_000;
@@ -238,6 +239,7 @@ async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
     }
     await logLine(deps.logError, () => deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)));
     await answer("the /channels message after an Officer Link", { logError: deps.logError }, () => deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()));
+    await answer("the Link note after an Officer Link", { logError: deps.logError }, () => deps.sendPrivateMessage(pending.memberId, { content: LINK_NOTE }));
     try {
         await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);
     }

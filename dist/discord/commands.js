@@ -56,6 +56,10 @@ export const quota = new SlashCommandBuilder()
     .setDescription("Show today's Daily Quota of Game API requests (Officers)")
     .setDefaultMemberPermissions(HIDDEN_FROM_MEMBERS)
     .setContexts(InteractionContextType.Guild);
+export const usage = new SlashCommandBuilder()
+    .setName("usage")
+    .setDescription("Show your Game API requests today and your Daily Allowance")
+    .setContexts(InteractionContextType.Guild);
 export const interview = new SlashCommandBuilder()
     .setName("interview")
     .setDescription("Start your Onboarding Interview")
@@ -130,5 +134,6 @@ export const commands = [
     rank.toJSON(),
     link.toJSON(),
     reaper.toJSON(),
+    usage.toJSON(),
 ];
 //# sourceMappingURL=commands.js.map

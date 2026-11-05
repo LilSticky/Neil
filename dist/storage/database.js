@@ -139,6 +139,18 @@ const migrations = [
      thread_id TEXT NOT NULL,
      posted_at TEXT NOT NULL
    )`,
+    // Migration 13: the Daily Allowance (slice 015, ADR 10). member_usage holds one Member's requests on a UTC day, and
+    // lookup_member_day the Lookup Member count of each finished day. A Member without a request has no row.
+    `CREATE TABLE member_usage (
+     day TEXT NOT NULL,
+     member_id TEXT NOT NULL CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*'),
+     requests INTEGER NOT NULL CHECK (requests > 0),
+     PRIMARY KEY (day, member_id)
+   );
+   CREATE TABLE lookup_member_day (
+     day TEXT PRIMARY KEY,
+     lookup_members INTEGER NOT NULL CHECK (lookup_members >= 0)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

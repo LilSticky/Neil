@@ -1,9 +1,31 @@
 import { MessageFlags, } from "discord.js";
 import { matchAlliances } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { isOfficer } from "../domain/officer.js";
 import { parseAllianceKey, parseKingdom, parsePlayerName, parseUid, } from "../domain/lookup-input.js";
 import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
 import { lookupMessages, renderAllianceCard, renderAllianceComponents, renderAlliancePickList, renderCloseAlliancePickList, renderPlayerCard, renderPlayerPickList, } from "./lookup-cards.js";
+import { refusalMessage, withUsage } from "./usage-texts.js";
+/**
+ * Adds the caller's usage line to a reply that is about to be shown. Every reply of a charged lookup goes through here, so
+ * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
+ * line cannot be read, the failure is logged and the reply is given without the line: the Member still gets the answer.
+ */
+export function withCallerUsage(context, caller, message) {
+    let line;
+    try {
+        line = context.usage(caller);
+    }
+    catch (error) {
+        context.logError(`Reading the usage line failed: ${errorText(error)}`);
+        return message;
+    }
+    return withUsage(message, line);
+}
+/** Who makes a lookup: the Member who ran the command, and whether an Officer role is theirs. */
+export function callerOf(interaction, officerRoleIds) {
+    return { memberId: interaction.user.id, officer: isOfficer(interaction.memberRoleIds(), officerRoleIds) };
+}
 /** Lookups never mention anyone, whatever the Game API or the Member typed. */
 export const allowedMentions = { parse: [] };
 /** The private text for a lookup that the Daily Quota or the Quota Reserve kept from the Game API. */
@@ -128,9 +150,10 @@ async function removePlaceholderAndTell(interaction, message) {
 /**
  * The shared lookup flow: a public thinking placeholder, then the card. When the lookup gives no card, or the card
  * cannot be sent, the placeholder is removed and the reason is told privately; a failed send is logged, and a lookup
- * that throws is logged and told as unavailable. `placeholder` gives the placeholder's options, such as privacy.
+ * that throws is logged and told as unavailable. A charged lookup the Daily Allowance refuses is told privately with the
+ * refusal. `placeholder` gives the placeholder's options, such as privacy.
  */
-export async function showLookup(interaction, context, ask, card, failureMessage, placeholder) {
+export async function showLookup(interaction, context, caller, ask, card, failureMessage, placeholder) {
     await interaction.deferReply(placeholder);
     let result;
     try {
@@ -138,20 +161,26 @@ export async function showLookup(interaction, context, ask, card, failureMessage
     }
     catch (error) {
         context.logError(`Looking up failed: ${errorText(error)}`);
-        await removePlaceholderAndTell(interaction, { content: lookupMessages.unavailable });
+        await removePlaceholderAndTell(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
+        return;
+    }
+    if (result.kind === "allowance-spent") {
+        await removePlaceholderAndTell(interaction, {
+            content: refusalMessage(result.resetsAt, context.allowance(), context.now()),
+        });
         return;
     }
     if (result.kind !== "found") {
-        await removePlaceholderAndTell(interaction, failureMessage(result, context.now()));
+        await removePlaceholderAndTell(interaction, withCallerUsage(context, caller, failureMessage(result, context.now())));
         return;
     }
     try {
-        const message = card(result.value, result.fetchedAt, context.now());
+        const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
         await interaction.editReply({ ...message, allowedMentions });
     }
     catch (error) {
         context.logError(`Showing the card failed: ${errorText(error)}`);
-        await removePlaceholderAndTell(interaction, { content: lookupMessages.unavailable });
+        await removePlaceholderAndTell(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
     }
 }
 /** A Kingdom option that may be left out: none is valid, an invalid one is not. */
@@ -168,7 +197,8 @@ async function lookUpPlayerByUid(interaction, context, text) {
         return;
     }
     const uid = parsed.value;
-    await showLookup(interaction, context, () => context.gameApi.getPlayer(uid, "lookup"), playerCardMessage, (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
+    const caller = callerOf(interaction, context.officerRoleIds);
+    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(uid), playerCardMessage, (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
 }
 async function lookUpPlayerByName(interaction, context, text) {
     const name = parsePlayerName(text);
@@ -183,7 +213,8 @@ async function lookUpPlayerByName(interaction, context, text) {
     }
     const playerName = name.value;
     const playerKingdom = kingdom.value;
-    await showLookup(interaction, context, () => context.gameApi.findPlayer(playerName, playerKingdom, "lookup"), playerCardMessage, (failure, now) => playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now));
+    const caller = callerOf(interaction, context.officerRoleIds);
+    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).findPlayer(playerName, playerKingdom), playerCardMessage, (failure, now) => playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now));
 }
 /**
  * Answers /player: a uid or a name (with an optional Kingdom), never both. Invalid input is answered privately at
@@ -208,9 +239,9 @@ export async function handlePlayer(interaction, context) {
  * The shared Alliance flow for both ways of asking: the card with its roster menu, or the reason in private, given by
  * `failureMessage` when the answer gives no card.
  */
-async function showAlliance(interaction, context, ask, failureMessage) {
+async function showAlliance(interaction, context, caller, ask, failureMessage) {
     const ownerId = interaction.user.id;
-    await showLookup(interaction, context, ask, (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions), failureMessage);
+    await showLookup(interaction, context, caller, ask, (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions), failureMessage);
 }
 /** The Known Alliances close to a name, best first; a store that cannot be read is logged and leaves none. */
 function closeKnownAlliances(name, context, now) {
@@ -254,7 +285,8 @@ async function lookUpAllianceByTag(interaction, context, kingdomValue, tagText) 
     }
     const allianceKingdom = kingdom.value;
     const tag = parsedTag.value;
-    await showAlliance(interaction, context, () => context.gameApi.getAlliance(allianceKingdom, tag, "lookup"), (failure, now) => allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, allianceKingdom), interaction.user.id, context.pickSessions, now));
+    const caller = callerOf(interaction, context.officerRoleIds);
+    await showAlliance(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(allianceKingdom, tag), (failure, now) => allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, allianceKingdom), interaction.user.id, context.pickSessions, now));
 }
 /** /alliance with a full name alone: every Alliance with exactly that name, from any Kingdom. */
 async function lookUpAllianceByName(interaction, context, nameText) {
@@ -265,7 +297,8 @@ async function lookUpAllianceByName(interaction, context, nameText) {
     }
     const name = parsedName.value;
     const ownerId = interaction.user.id;
-    await showAlliance(interaction, context, () => context.gameApi.findAlliance(name, "lookup"), (failure, now) => failure.kind === "not-found"
+    const caller = callerOf(interaction, context.officerRoleIds);
+    await showAlliance(interaction, context, caller, () => context.gameApi.chargedTo(caller).findAlliance(name), (failure, now) => failure.kind === "not-found"
         ? nameNotFoundMessage(name, ownerId, context, now)
         : allianceFailureMessage(failure, name, lookupMessages.allianceNameNotFound(name), ownerId, context.pickSessions, now));
 }

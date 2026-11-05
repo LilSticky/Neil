@@ -1,5 +1,6 @@
 import { ConfigError, loadConfig } from "./config.js";
 import { recordStart } from "./domain/start-record.js";
+import { AllowanceKeeper } from "./game-api/allowance-keeper.js";
 import { QuotaKeeper } from "./game-api/quota-keeper.js";
 /** Turns a startup failure into the text printed to stderr, with every secret replaced. */
 export function formatStartupError(error, secrets, heading = "Neil cannot start") {
@@ -40,19 +41,28 @@ export async function start(deps) {
         if (config.quotaReserve >= today.limit) {
             deps.writeWarning(`Warning: GAME_API_QUOTA_RESERVE (${config.quotaReserve.toString()}) is at or above the Daily Quota limit (${today.limit.toString()}); lookups will never ask the Game API.`);
         }
+        // Each Member's lookups are kept within the Daily Allowance, from the same reserve and sync share as the quota.
+        const allowance = new AllowanceKeeper({
+            store: store.memberUsage,
+            quota,
+            now: deps.now,
+            reserve: config.quotaReserve,
+            syncShare: config.syncShare,
+        });
         // Only the Home Kingdom's Alliances are kept: they are the ones /alliance suggests by name and tag.
         const onAllianceSeen = (kingdom, tag, name) => {
             if (kingdom !== config.homeKingdom || tag.trim() === "" || name.trim() === "")
                 return;
             knownAlliances.seen({ kingdom, tag, name }, deps.now());
         };
-        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota, onAllianceSeen);
+        const gameApi = deps.createGameApi(config.gameApiKey, buildInfo === "dev" ? "dev" : buildInfo.version, config.cacheTtlMs, quota, allowance, onAllianceSeen);
         connection = await deps.connect(config.discordToken, {
             buildInfo,
             now: deps.now,
             startRecord,
             gameApi,
             quotaReserve: config.quotaReserve,
+            allowance,
             officerRoleIds: config.officerRoleIds,
             guildId: config.guildId,
             onboardingChannelId: config.onboardingChannelId,
