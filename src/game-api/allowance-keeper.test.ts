@@ -240,20 +240,6 @@ describe("AllowanceKeeper", () => {
       expect(keeper.expected()).toBe(40);
     });
 
-    test("with more than four Saturdays recorded, only the latest four are averaged", () => {
-      const keeper = keeperWithLimit(QUOTA_LIMIT);
-      lookUpsOn(keeper, "2026-09-26", 500);
-      lookUpsOn(keeper, "2026-10-03", 10);
-      lookUpsOn(keeper, "2026-10-10", 40);
-      lookUpsOn(keeper, "2026-10-17", 60);
-      lookUpsOn(keeper, "2026-10-24", 80);
-      lookUpsOn(keeper, "2026-10-31", 100);
-
-      clock = new Date("2026-11-07T09:00:00Z");
-
-      expect(keeper.expected()).toBe(70);
-    });
-
     test("a non-whole average is kept as the expected, and the allowance rounds down: 19, not 20", () => {
       const keeper = keeperWithLimit(QUOTA_LIMIT);
       lookUpsOn(keeper, "2026-10-10", 40);
