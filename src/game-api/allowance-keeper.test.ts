@@ -68,17 +68,35 @@ describe("AllowanceKeeper", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
+  /** The Daily Quota row the keepers share, as the database keeps it across restarts. */
+  let quotaStore: FakeQuotaStore;
+  /** The Daily Quota keeper of the last keeper built; the Game API's reported limit goes through it. */
+  let quota: QuotaKeeper;
+
   /** A keeper over the real usage store, with today's Daily Quota limit set to `limit`. */
   function keeperWithLimit(limit: number): AllowanceKeeper {
-    const quotaStore = new FakeQuotaStore({
+    quotaStore = new FakeQuotaStore({
       day: utcDayOf(clock),
       used: 0,
       limit,
       limitReached: false,
       confirmedAt: undefined,
     });
-    const quota = new QuotaKeeper({ store: quotaStore, now, reserve: QUOTA_RESERVE });
-    return new AllowanceKeeper({ store, quota, now, reserve: QUOTA_RESERVE, syncShare: SYNC_SHARE });
+    return keeperOver(store);
+  }
+
+  /** A keeper over the given usage store and the same Daily Quota row: a restart over the same database. */
+  function keeperOver(usage: MemberUsageStore): AllowanceKeeper {
+    quota = new QuotaKeeper({ store: quotaStore, now, reserve: QUOTA_RESERVE });
+    return new AllowanceKeeper({ store: usage, quota, now, reserve: QUOTA_RESERVE, syncShare: SYNC_SHARE });
+  }
+
+  /** On the UTC day given as YYYY-MM-DD, `count` different Members each make one lookup. */
+  function lookUpsOn(keeper: AllowanceKeeper, day: string, count: number): void {
+    clock = new Date(`${day}T09:00:00Z`);
+    for (let n = 1; n <= count; n += 1) {
+      keeper.charge({ memberId: memberIdOf(n), officer: false });
+    }
   }
 
   /** Charges the caller `times` requests. */
@@ -193,6 +211,121 @@ describe("AllowanceKeeper", () => {
       keeper.allowance();
 
       expect(store.records()).toEqual([{ day: "2026-11-05", lookupMembers: 3 }]);
+    });
+  });
+
+  describe("the allowance follows how many Members look up (US2)", () => {
+    test("Saturdays with 40, 60, 80 and 100 Lookup Members give an expected 70 and an allowance of 20", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-10-10", 40);
+      lookUpsOn(keeper, "2026-10-17", 60);
+      lookUpsOn(keeper, "2026-10-24", 80);
+      lookUpsOn(keeper, "2026-10-31", 100);
+
+      clock = new Date("2026-11-07T09:00:00Z");
+
+      expect(keeper.expected()).toBe(70);
+      expect(keeper.allowance()).toBe(20);
+    });
+
+    test("with only two earlier Saturdays, 30 and 50 Lookup Members, the expected is 40", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-10-24", 30);
+      lookUpsOn(keeper, "2026-10-31", 50);
+
+      clock = new Date("2026-11-07T09:00:00Z");
+
+      expect(keeper.expected()).toBe(40);
+    });
+
+    test("with more than four Saturdays recorded, only the latest four are averaged", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-09-26", 500);
+      lookUpsOn(keeper, "2026-10-03", 10);
+      lookUpsOn(keeper, "2026-10-10", 40);
+      lookUpsOn(keeper, "2026-10-17", 60);
+      lookUpsOn(keeper, "2026-10-24", 80);
+      lookUpsOn(keeper, "2026-10-31", 100);
+
+      clock = new Date("2026-11-07T09:00:00Z");
+
+      expect(keeper.expected()).toBe(70);
+    });
+
+    test("a non-whole average is kept as the expected, and the allowance rounds down: 19, not 20", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-10-10", 40);
+      lookUpsOn(keeper, "2026-10-17", 60);
+      lookUpsOn(keeper, "2026-10-24", 80);
+      lookUpsOn(keeper, "2026-10-31", 101);
+
+      clock = new Date("2026-11-07T09:00:00Z");
+
+      expect(keeper.expected()).toBe(70.25);
+      expect(keeper.allowance()).toBe(19);
+    });
+
+    test("a day with no usage after a day with usage is recorded as 0", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-11-02", 3);
+
+      clock = new Date("2026-11-04T09:00:00Z");
+      keeper.allowance();
+
+      expect(store.records()).toEqual([
+        { day: "2026-11-02", lookupMembers: 3 },
+        { day: "2026-11-03", lookupMembers: 0 },
+      ]);
+    });
+
+    test("a Daily Quota limit reported during the day applies at the next read", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      expect(keeper.allowance()).toBe(14);
+
+      quota.settle(utcDayOf(clock), { used: 0, limit: 2400 });
+
+      expect(keeper.allowance()).toBe(18);
+    });
+
+    test("closing and reopening the database mid-day leaves each count and the allowance unchanged", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-11-04", 5);
+      clock = new Date("2026-11-05T09:00:00Z");
+      chargeTimes(keeper, alice, 2);
+      chargeTimes(keeper, bob, 1);
+      const before = {
+        alice: keeper.usageOf(ALICE),
+        bob: keeper.usageOf(BOB),
+        allowance: keeper.allowance(),
+        records: store.records(),
+      };
+
+      db.close();
+      db = openDatabase(dataDir);
+      store = new MemberUsageStore(db);
+      const reopened = keeperOver(store);
+
+      expect({
+        alice: reopened.usageOf(ALICE),
+        bob: reopened.usageOf(BOB),
+        allowance: reopened.allowance(),
+        records: store.records(),
+      }).toEqual(before);
+    });
+
+    test("after Neil was down for several days, each missed day is recorded as 0", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      lookUpsOn(keeper, "2026-11-02", 2);
+
+      clock = new Date("2026-11-06T09:00:00Z");
+      keeper.allowance();
+
+      expect(store.records()).toEqual([
+        { day: "2026-11-02", lookupMembers: 2 },
+        { day: "2026-11-03", lookupMembers: 0 },
+        { day: "2026-11-04", lookupMembers: 0 },
+        { day: "2026-11-05", lookupMembers: 0 },
+      ]);
     });
   });
 });

@@ -34,7 +34,7 @@ Blocks every story.
 
 **Independent test**: no history gives a divisor of 100; 40, 60, 80, 100 on the last four Saturdays give 70, and a limit of 2,000, reserve of 100 and share of 500 give 20.
 
-- [ ] T009 [US2] Keeper scenarios in `src/game-api/allowance-keeper.test.ts`: the spec's US2 scenarios 1–7 end to end through the store (rollover records a day with 0, a new limit applies at the next read, counts and allowance unchanged after reopening the database); fix what they find in `src/game-api/allowance-keeper.ts`.
+- [x] T009 [US2] Keeper scenarios in `src/game-api/allowance-keeper.test.ts`: the spec's US2 scenarios 1–7 end to end through the store (rollover records a day with 0, a new limit applies at the next read, counts and allowance unchanged after reopening the database); fix what they find in `src/game-api/allowance-keeper.ts`.
 - [x] T010 [US2] Composition in `src/startup.ts`: build `MemberUsageStore` and the keeper from `GAME_API_QUOTA_RESERVE` and `SYNC_SHARE`, and hand the keeper to the client.
 
 ## Phase 5: User Story 3, every lookup reply shows the usage (P1)
