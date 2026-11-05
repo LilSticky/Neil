@@ -16,6 +16,7 @@ import {
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
+import { FakeUsage, usageLineFor, FAKE_USED_BEFORE } from "./__fakes__/usage.js";
 import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
 import { callerOf, handleAlliance, handlePlayer } from "./lookup.js";
@@ -72,6 +73,7 @@ function pickSessionsSpy() {
 function contextFor(gameApi: FakeGameApi) {
   const logged: string[] = [];
   const pickSessions = pickSessionsSpy();
+  const usage = new FakeUsage();
   const context = {
     gameApi,
     pickSessions,
@@ -81,6 +83,7 @@ function contextFor(gameApi: FakeGameApi) {
     },
     officerRoleIds: [OFFICER_ROLE_ID],
     allowance: () => ALLOWANCE,
+    usage: usage.usage,
   };
   return {
     context,
@@ -88,8 +91,14 @@ function contextFor(gameApi: FakeGameApi) {
     getPlayer: gameApi.charged.getPlayer,
     findPlayer: gameApi.charged.findPlayer,
     pickSessions,
+    usage,
     logged,
   };
+}
+
+/** The failure text followed by the usage line of the Member before the test's request, as the reply shows it. */
+function withUsageBefore(text: string): string {
+  return `${text}\n${usageLineFor(MEMBER, FAKE_USED_BEFORE)}`;
 }
 
 /** A context whose fake Game API answers every Player lookup, by uid or by name, with the given result. */
@@ -144,7 +153,7 @@ describe("handlePlayer", () => {
           embeds: [
             expect.objectContaining({
               title: "Vex",
-              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+              footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           allowedMentions: { parse: [] },
@@ -170,7 +179,9 @@ describe("handlePlayer", () => {
         options: {
           embeds: [
             expect.objectContaining({
-              footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
+              footer: {
+                text: `Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}`,
+              },
             }),
           ],
           allowedMentions: { parse: [] },
@@ -191,7 +202,7 @@ describe("handlePlayer", () => {
       {
         method: "followUp",
         options: {
-          content: "No player has the uid 145563254785.",
+          content: withUsageBefore("No player has the uid 145563254785."),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -367,7 +378,7 @@ describe("handlePlayer when a name matches several players", () => {
       {
         method: "followUp",
         options: {
-          content: 'Several players are named "DrLOL". Pick one:',
+          content: withUsageBefore('Several players are named "DrLOL". Pick one:'),
           components: [
             {
               type: ComponentType.ActionRow,
@@ -415,7 +426,7 @@ describe("handlePlayer when no player has the name", () => {
       {
         method: "followUp",
         options: {
-          content: text,
+          content: withUsageBefore(text),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -435,8 +446,9 @@ describe("handlePlayer when no player has the name", () => {
       {
         method: "followUp",
         options: {
-          content:
+          content: withUsageBefore(
             "Couldn't find a player named \"Vex\". Check the name; if it's right, the tracker may be busy, so try again later.",
+          ),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -477,8 +489,9 @@ describe("handlePlayer when the tracker could not prepare the profile", () => {
       {
         method: "followUp",
         options: {
-          content:
+          content: withUsageBefore(
             "Couldn't find a player with the uid 145563254785. Check the uid; if it's right, the tracker may be busy, so try again later.",
+          ),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -502,7 +515,7 @@ describe("handlePlayer failures that give no card", () => {
         {
           method: "followUp",
           options: {
-            content: text,
+            content: withUsageBefore(text),
             flags: MessageFlags.Ephemeral,
             allowedMentions: { parse: [] },
           },
@@ -557,6 +570,7 @@ function allianceContextReturning(result: LookupResult<Alliance>, known: readonl
     getAlliance: gameApi.charged.getAlliance,
     findAlliance: gameApi.charged.findAlliance,
     pickSessions: base.pickSessions,
+    usage: base.usage,
     logged: base.logged,
   };
 }
@@ -660,7 +674,7 @@ describe("handleAlliance", () => {
           embeds: [
             expect.objectContaining({
               title: "[NML] No Man's Land",
-              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+              footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           allowedMentions: { parse: [] },
@@ -684,7 +698,7 @@ describe("handleAlliance", () => {
       {
         method: "followUp",
         options: {
-          content: 'No alliance "NML" in kingdom #1.',
+          content: withUsageBefore('No alliance "NML" in kingdom #1.'),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -715,7 +729,7 @@ describe("handleAlliance", () => {
       {
         method: "followUp",
         options: {
-          content: 'Several alliances are named "NML". Pick one:',
+          content: withUsageBefore('Several alliances are named "NML". Pick one:'),
           components: [
             {
               type: ComponentType.ActionRow,
@@ -801,7 +815,7 @@ describe("handleAlliance failures that give no card", () => {
         {
           method: "followUp",
           options: {
-            content: text,
+            content: withUsageBefore(text),
             flags: MessageFlags.Ephemeral,
             allowedMentions: { parse: [] },
           },
@@ -927,7 +941,7 @@ describe("handleAlliance by the Alliance's full name", () => {
       {
         method: "followUp",
         options: {
-          content: 'Several alliances are named "No Man\'s Land". Pick one:',
+          content: withUsageBefore('Several alliances are named "No Man\'s Land". Pick one:'),
           components: [
             {
               type: ComponentType.ActionRow,
@@ -963,7 +977,7 @@ describe("handleAlliance by the Alliance's full name", () => {
         method: "followUp",
         options: {
           content:
-            'No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
+            withUsageBefore('No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.'),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1038,7 +1052,7 @@ describe("handleAlliance with a tag and no Kingdom", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.allianceNotFound(allianceKey("NML"), homeKingdom),
+          content: withUsageBefore(lookupMessages.allianceNotFound(allianceKey("NML"), homeKingdom)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1107,7 +1121,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: expect.objectContaining({
-        content: 'No alliance is named "no\\_mans\\*". Did you mean one of these?',
+        content: withUsageBefore('No alliance is named "no\\_mans\\*". Did you mean one of these?'),
         components: pickSelect(PICK_ID, [{ label: "[NML] No_Man's *Land*", value: "0" }]),
       }) as unknown,
     });
@@ -1152,7 +1166,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
         method: "followUp",
         options: {
           content:
-            'No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
+            withUsageBefore('No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.'),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1182,7 +1196,7 @@ describe("handlePlayer when the card cannot be sent", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1209,7 +1223,7 @@ describe("handlers when the Daily Quota is spent", () => {
       {
         method: "followUp",
         options: {
-          content: spentText,
+          content: withUsageBefore(spentText),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1232,7 +1246,7 @@ describe("handlers when the Daily Quota is spent", () => {
       {
         method: "followUp",
         options: {
-          content: spentText,
+          content: withUsageBefore(spentText),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1288,7 +1302,7 @@ describe("handlers when the Quota Reserve is kept for Onboarding Interviews", ()
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: reserveText,
+        content: withUsageBefore(reserveText),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -1321,7 +1335,7 @@ describe("handleAlliance when the card cannot be sent", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1346,6 +1360,7 @@ describe("handlePlayer when the Game API throws", () => {
       },
       officerRoleIds: [OFFICER_ROLE_ID],
       allowance: () => ALLOWANCE,
+      usage: new FakeUsage().usage,
     };
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
@@ -1356,7 +1371,7 @@ describe("handlePlayer when the Game API throws", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1385,6 +1400,7 @@ describe("handleAlliance when the Game API throws", () => {
       },
       officerRoleIds: [OFFICER_ROLE_ID],
       allowance: () => ALLOWANCE,
+      usage: new FakeUsage().usage,
       homeKingdom,
       knownAlliances: { all: (): KnownAlliance[] => [] },
     };
@@ -1397,7 +1413,7 @@ describe("handleAlliance when the Game API throws", () => {
       {
         method: "followUp",
         options: {
-          content: lookupMessages.unavailable,
+          content: withUsageBefore(lookupMessages.unavailable),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1575,5 +1591,98 @@ describe("handleAlliance by full name charges the Member who ran the command", (
         },
       },
     ]);
+  });
+});
+
+const OFFICER: LookupCaller = { memberId: USER_ID, officer: true };
+
+describe("handlePlayer shows the usage line, read after the request", () => {
+  test("shows 5 of 14 on an uncached card, because the usage is read after the request that was just made", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, gameApi, usage } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    gameApi.charged.getPlayer.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("shows the count of the Member, not of the Officers, to an Officer, who is not limited", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID, [OFFICER_ROLE_ID]);
+    const { context, usage } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(usage.usage).toHaveBeenCalledWith(OFFICER);
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(OFFICER, FAKE_USED_BEFORE)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("adds the line after the text of a not-found reply, counting the uncached request just made", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, gameApi, usage } = contextReturning({ kind: "not-found" });
+    gameApi.charged.getPlayer.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "not-found" });
+    });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: {
+        content: `No player has the uid 145563254785.\n${usageLineFor(MEMBER, 5)}`,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+  });
+});
+
+describe("handleAlliance shows the usage line on the Alliance card, read after the request", () => {
+  test("shows 5 of 14 in the card footer after an uncached request", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const { context, gameApi, usage } = allianceContextReturning({
+      kind: "found",
+      value: alliance,
+      fetchedAt: FETCHED_AT,
+    });
+    gameApi.charged.getAlliance.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: alliance, fetchedAt: FETCHED_AT });
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
   });
 });

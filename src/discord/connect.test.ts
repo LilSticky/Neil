@@ -223,7 +223,7 @@ describe("connect", () => {
       startRecord: recordStart(undefined, NOW),
       gameApi,
       quotaReserve: 50,
-      allowance: { allowance: () => 3 },
+      allowance: { allowance: () => 3, usageOf: () => 0 },
       officerRoleIds: [MODERATOR_ROLE_ID, KING_ROLE_ID],
       guildId: GUILD_ID,
       onboardingChannelId: ONBOARDING_CHANNEL_ID,

@@ -2,6 +2,7 @@ import {
   ComponentType,
   MessageFlags,
   type APIButtonComponentWithCustomId,
+  type APIEmbed,
   type InteractionReplyOptions,
   type InteractionUpdateOptions,
 } from "discord.js";
@@ -19,8 +20,9 @@ import {
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakePickInteraction, type PickCall } from "./__fakes__/pick-interaction.js";
+import { FakeUsage, FAKE_USED_BEFORE, usageLineFor } from "./__fakes__/usage.js";
 import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
-import { renderOverview } from "./overview-texts.js";
+import { renderOverview, type OverviewReply } from "./overview-texts.js";
 import { handleOverview, handlePick, type PickContext } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
 
@@ -37,6 +39,21 @@ const ALLOWANCE = 3;
 const REFUSAL_TEXT =
   "Your Daily Allowance is spent: 3 of 3 Game API requests used today. Cached answers still work. It resets at 00:00 UTC (in 7 h 55 min).";
 const OWNER: LookupCaller = { memberId: OWNER_ID, officer: false };
+
+/** A failure reply followed by the usage line of the owner before the test's request, as the reply shows it. */
+function withUsageBefore(text: string): string {
+  return `${text}\n${usageLineFor(OWNER, FAKE_USED_BEFORE)}`;
+}
+
+/** The usage line of a Member before the test's request, in the footer of an Overview's overview embed. */
+const LINE_BEFORE = usageLineFor(OWNER, FAKE_USED_BEFORE);
+
+/** An Alliance Overview's embeds, with the usage line last in the footer of the overview embed, which comes first. */
+function overviewEmbedsWithLine(reply: OverviewReply): APIEmbed[] {
+  return reply.embeds.map((embed, index) =>
+    index === 0 ? { ...embed, footer: { text: `${embed.footer?.text ?? ""} · ${LINE_BEFORE}` } } : embed,
+  );
+}
 
 const NOT_OWNER_TEXT =
   "Only the Member who ran this command can use this menu. Run /player or /alliance yourself.";
@@ -88,6 +105,7 @@ function contextWith(
 ) {
   const logged: string[] = [];
   const gameApi = new FakeGameApi({ player: result, alliance: allianceResult, refusedUntil });
+  const usage = new FakeUsage();
   const context = {
     gameApi,
     pickSessions: sessions,
@@ -97,12 +115,14 @@ function contextWith(
     },
     officerRoleIds: [OFFICER_ROLE_ID],
     allowance: () => ALLOWANCE,
+    usage: usage.usage,
   };
   return {
     context,
     gameApi,
     getPlayer: gameApi.charged.getPlayer,
     getAlliance: gameApi.charged.getAlliance,
+    usage,
     logged,
   };
 }
@@ -241,7 +261,7 @@ describe("handlePick for the owner choosing a Player match", () => {
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: "No player has the uid 93159425.",
+        content: withUsageBefore("No player has the uid 93159425."),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -570,7 +590,7 @@ describe("handlePick when the Quota Reserve is kept for Onboarding Interviews", 
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: RESERVE_TEXT,
+        content: withUsageBefore(RESERVE_TEXT),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -599,7 +619,7 @@ describe("handlePick when the Quota Reserve is kept for Onboarding Interviews", 
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: RESERVE_TEXT,
+        content: withUsageBefore(RESERVE_TEXT),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -705,7 +725,7 @@ describe("handlePick when the public card cannot be posted after the menu said w
     expect(interaction.calls.at(-1)).toEqual({
       method: "followUp",
       options: {
-        content: "Lookups are not working right now. Please tell an Officer.",
+        content: withUsageBefore("Lookups are not working right now. Please tell an Officer."),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -759,7 +779,7 @@ describe("handlePick for the Overview button of an Alliance card while its pick 
       {
         method: "reply",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, pickId, 0).embeds,
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, pickId, 0)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         }) as unknown,
@@ -796,7 +816,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
       {
         method: "editReply",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, NOW, NOW, UNKNOWN_SESSION_ID, 0).embeds,
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, NOW, NOW, UNKNOWN_SESSION_ID, 0)),
         }) as unknown,
       },
     ]);
@@ -815,7 +835,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: lookupMessages.tryAgain,
+        content: withUsageBefore(lookupMessages.tryAgain),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -838,7 +858,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might").embeds,
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might")),
         }) as unknown,
       },
     ]);
@@ -857,7 +877,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might").embeds,
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might")),
         }) as unknown,
       },
     ]);
@@ -899,7 +919,7 @@ describe("handleOverview sort buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 0, "dailyHonor").embeds,
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 0, "dailyHonor")),
         }) as unknown,
       },
     ]);
@@ -1019,7 +1039,7 @@ describe("handlePick for the Overview button of an Alliance card while its pick 
     expect(interaction.calls).toContainEqual({
       method: "followUp",
       options: {
-        content: lookupMessages.tryAgain,
+        content: withUsageBefore(lookupMessages.tryAgain),
         flags: MessageFlags.Ephemeral,
         allowedMentions: { parse: [] },
       },
@@ -1197,5 +1217,136 @@ describe("handlePick for the Overview button of an Alliance card, charged to the
 
     expect(interaction.calls.map((call) => call.method)).toEqual(["deferReply", "deleteReply", "followUp"]);
     expect(interaction.calls.at(-1)).toEqual(REFUSAL_FOLLOW_UP);
+  });
+});
+
+const OTHER_MEMBER: LookupCaller = { memberId: OTHER_MEMBER_ID, officer: false };
+
+describe("handlePick shows the usage line, read after the request", () => {
+  test("shows 5 of 14 on the Player card an owner's pick posts, after an uncached request", async () => {
+    const sessions = new PickSessions();
+    const pickId = openPickList(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["1"] });
+    const { context, getPlayer, usage } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    getPlayer.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: drLol, fetchedAt: NOW });
+    });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("shows 5 of 14 on the Alliance card an owner's pick posts, after an uncached request", async () => {
+    const sessions = new PickSessions();
+    const pickId = openAlliances(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["1"] });
+    const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "found",
+      value: allianceNmx,
+      fetchedAt: NOW,
+    });
+    getAlliance.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: allianceNmx, fetchedAt: NOW });
+    });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "followUp",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("shows 5 of 14 on the Player card that a roster menu's answer posts, after an uncached request", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["0"] });
+    const { context, getPlayer, usage } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    getPlayer.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: memberOne, fetchedAt: NOW });
+    });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+          }),
+        ],
+      }) as unknown,
+    });
+  });
+
+  test("shows 5 of 14 on the Alliance Overview that a fresh Overview button shows, after an uncached request", async () => {
+    const sessions = new PickSessions();
+    const interaction = new FakePickInteraction({
+      customId: overviewButtonOf(UNKNOWN_SESSION_ID, allianceNmx).custom_id,
+      userId: OTHER_MEMBER_ID,
+    });
+    const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "found",
+      value: allianceNmx,
+      fetchedAt: NOW,
+    });
+    getAlliance.mockImplementation(() => {
+      usage.used += 1;
+      return Promise.resolve({ kind: "found", value: allianceNmx, fetchedAt: NOW });
+    });
+
+    await handlePick(interaction, context);
+
+    expect(usage.usage).toHaveBeenLastCalledWith(OTHER_MEMBER);
+    expect(interaction.calls).toContainEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        embeds: expect.arrayContaining([
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OTHER_MEMBER, 5)}` },
+          }),
+        ]) as unknown,
+      }) as unknown,
+    });
+  });
+
+  test("keeps the usage line in the footer of the Alliance card when a roster page turn redraws it", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID });
+    const { context } = contextWith(sessions, { kind: "not-found" });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls).toContainEqual({
+      method: "update",
+      options: expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            footer: { text: `Data from Last Asylum Tracker · as of 16:00 UTC · ${LINE_BEFORE}` },
+          }),
+        ],
+      }) as unknown,
+    });
   });
 });

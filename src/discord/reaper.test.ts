@@ -24,6 +24,7 @@ import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
+import { FakeUsage } from "./__fakes__/usage.js";
 import { renderPlayerPickList, lookupMessages } from "./lookup-cards.js";
 import { handlePick } from "./pick.js";
 import { PickSessions, type PickChoice } from "./pick-sessions.js";
@@ -373,6 +374,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       homeKingdom: HOME,
       officerRoleIds: [],
       allowance: () => 0,
+      usage: new FakeUsage().usage,
     });
 
     expect(gameApi.getPlayer).toHaveBeenCalledWith(UID, "lookup");
@@ -420,6 +422,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       homeKingdom: HOME,
       officerRoleIds: [],
       allowance: () => 0,
+      usage: new FakeUsage().usage,
     });
 
     expect(gameApi.getPlayer).not.toHaveBeenCalled();

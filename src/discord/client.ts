@@ -16,7 +16,7 @@ import {
 } from "discord.js";
 import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
-import type { AllowanceKeeper } from "../game-api/allowance-keeper.js";
+import type { AllowanceKeeper, LookupCaller } from "../game-api/allowance-keeper.js";
 import type { GameApiClient } from "../game-api/client.js";
 import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { StartRecord } from "../domain/start-record.js";
@@ -90,6 +90,7 @@ import {
 import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
 import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
+import { usageLine } from "./usage-texts.js";
 
 /** The Game API client as connect uses it: the lookups and the Daily Quota figures. */
 export type GameApi = LookupApi & Pick<GameApiClient, "quotaToday">;
@@ -341,7 +342,7 @@ export interface ConnectOptions {
   /** Requests kept back for Onboarding Interviews; from GAME_API_QUOTA_RESERVE, shown by /quota. */
   readonly quotaReserve: number;
   /** The Daily Allowance of today, read by the lookups to refuse a Member who has used it up. */
-  readonly allowance: Pick<AllowanceKeeper, "allowance">;
+  readonly allowance: Pick<AllowanceKeeper, "allowance" | "usageOf">;
   /** The Moderator and King role IDs from config, in that order; holders of either are Officers. */
   readonly officerRoleIds: readonly [string, string];
   /** The server Neil serves; its channels are checked at ready. */
@@ -727,6 +728,12 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   const lookupRoles = {
     officerRoleIds: options.officerRoleIds,
     allowance: () => options.allowance.allowance(),
+    usage: (caller: LookupCaller): string =>
+      usageLine({
+        used: options.allowance.usageOf(caller.memberId),
+        allowance: options.allowance.allowance(),
+        officer: caller.officer,
+      }),
   };
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,

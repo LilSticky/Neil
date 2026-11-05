@@ -1,6 +1,7 @@
 import { MessageFlags, type InteractionReplyOptions, type InteractionUpdateOptions } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { mayChangeReaper, type Editor, type ExileReason } from "../domain/exile.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { ChargedResult } from "../game-api/client.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { parseAllianceKey, parseKingdom, parseUid, type AllianceKey, type KingdomNumber } from "../domain/lookup-input.js";
@@ -33,6 +34,7 @@ import {
   playerFailureText,
   replyPrivately,
   showLookup,
+  withCallerUsage,
   type CardMessage,
   type Failure,
   type LookupApi,
@@ -76,6 +78,8 @@ export interface PickContext {
   readonly officerRoleIds: readonly string[];
   /** The Daily Allowance of today: the requests one Member's lookups may cause. */
   readonly allowance: () => number;
+  /** The usage line of a caller, read after the request, so the count includes it. */
+  readonly usage: (caller: LookupCaller) => string;
   /** REAPER and the log channel, which a pick of the /reaper add pick list stores into; without them that pick is unavailable. */
   readonly reaper?: ReaperRecordContext["reaper"];
   readonly channels?: ReaperRecordContext["channels"];
@@ -124,6 +128,7 @@ async function showPicked(interaction: PickInteraction, label: string): Promise<
 async function answerPick<T>(
   interaction: PickInteraction,
   context: PickContext,
+  caller: LookupCaller,
   ask: () => Promise<ChargedResult<T>>,
   card: (value: T, fetchedAt: Date, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
@@ -133,7 +138,7 @@ async function answerPick<T>(
     result = await ask();
   } catch (error) {
     context.logError(`Looking up the picked match failed: ${errorText(error)}`);
-    await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+    await followUpPrivately(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
     return;
   }
   if (result.kind === "allowance-spent") {
@@ -143,14 +148,15 @@ async function answerPick<T>(
     return;
   }
   if (result.kind !== "found") {
-    await followUpPrivately(interaction, failureMessage(result, context.now()));
+    await followUpPrivately(interaction, withCallerUsage(context, caller, failureMessage(result, context.now())));
     return;
   }
   try {
-    await interaction.followUp({ ...card(result.value, result.fetchedAt, context.now()), allowedMentions });
+    const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
+    await interaction.followUp({ ...message, allowedMentions });
   } catch (error) {
     context.logError(`Showing the picked card failed: ${errorText(error)}`);
-    await followUpPrivately(interaction, { content: lookupMessages.unavailable });
+    await followUpPrivately(interaction, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
   }
 }
 
@@ -172,6 +178,7 @@ async function pickPlayerMatch(
   await answerPick(
     interaction,
     context,
+    caller,
     () => context.gameApi.chargedTo(caller).getPlayer(uid),
     playerCardMessage,
     (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
@@ -253,6 +260,7 @@ async function pickAllianceMatch(
   await answerPick(
     interaction,
     context,
+    caller,
     () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key),
     (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions),
     (failure, now) =>
@@ -287,6 +295,7 @@ async function pickRosterMember(
   await showLookup(
     interaction,
     context,
+    caller,
     () => context.gameApi.chargedTo(caller).getPlayer(entry.uid),
     playerCardMessage,
     (failure, now) => ({ content: playerFailureText(failure, entry.uid, now) }),
@@ -334,10 +343,13 @@ async function turnRosterPage(
     return;
   }
   context.pickSessions.turnPage(session.id, page);
-  await interaction.update({
-    embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
-    components: renderAllianceComponents(choice.alliance, page, session.id),
-  });
+  const caller = callerOf(interaction, context.officerRoleIds);
+  await interaction.update(
+    withCallerUsage(context, caller, {
+      embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
+      components: renderAllianceComponents(choice.alliance, page, session.id),
+    }),
+  );
 }
 
 /**
@@ -406,22 +418,23 @@ async function pressOverview(
   }
 
   const askerId = interaction.user.id;
+  const caller = callerOf(interaction, context.officerRoleIds);
   const session = context.pickSessions.get(press.sessionId, context.now());
   if (session !== "expired" && session.choice.kind === "roster") {
     const { alliance, fetchedAt } = session.choice;
     const overview = overviewUnderCard(session, alliance, fetchedAt, askerId, context.pickSessions, context.now());
     await sendOverview(interaction, context, () =>
-      interaction.reply({ ...overview, flags: MessageFlags.Ephemeral, allowedMentions }),
+      interaction.reply({ ...withCallerUsage(context, caller, overview), flags: MessageFlags.Ephemeral, allowedMentions }),
     );
     return;
   }
 
   const kingdomNumber = kingdom.value;
   const tag = key.value;
-  const caller = callerOf(interaction, context.officerRoleIds);
   await showLookup(
     interaction,
     context,
+    caller,
     () => context.gameApi.chargedTo(caller).getAlliance(kingdomNumber, tag),
     (alliance, fetchedAt, now) =>
       renderOverview(alliance, fetchedAt, now, openOverviewSession(alliance, fetchedAt, askerId, context.pickSessions, now), 0),
@@ -486,8 +499,11 @@ export async function handleOverview(interaction: PickInteraction, context: Pick
       return;
     }
     const { alliance, fetchedAt } = session.choice;
+    const caller = callerOf(interaction, context.officerRoleIds);
     await sendOverview(interaction, context, () =>
-      interaction.update(renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort)),
+      interaction.update(
+        withCallerUsage(context, caller, renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort)),
+      ),
     );
   });
 }

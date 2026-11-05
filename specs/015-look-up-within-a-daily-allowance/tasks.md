@@ -41,8 +41,8 @@ Blocks every story.
 
 **Independent test**: the usage line appears on a card, a pick list, a "not found" reply and a refusal, with the Member's numbers after the request.
 
-- [ ] T011 [US3] Usage line (D9) in `src/discord/usage-texts.ts`: the Member and Officer texts from contracts/usage.md; `withUsage(message, line)` puts the line last in the embed footer, or at the end of the text when there is no embed.
-- [ ] T012 [US3] Show it in `src/discord/lookup.ts` and `src/discord/pick.ts`: `showLookup` and `answerPick` take a `usage` function read after the request, on cards, pick lists, failure replies, the Alliance Overview and its pages, and the roster menu's answers; not on replies to invalid input nor on `/reaper`.
+- [x] T011 [US3] Usage line (D9) in `src/discord/usage-texts.ts`: the Member and Officer texts from contracts/usage.md; `withUsage(message, line)` puts the line last in the embed footer, or at the end of the text when there is no embed.
+- [x] T012 [US3] Show it in `src/discord/lookup.ts` and `src/discord/pick.ts`: `showLookup` and `answerPick` take a `usage` function read after the request, on cards, pick lists, failure replies, the Alliance Overview and its pages, and the roster menu's answers; not on replies to invalid input nor on `/reaper`.
 
 ## Phase 6: User Story 4, a Member learns about the allowance (P2)
 
