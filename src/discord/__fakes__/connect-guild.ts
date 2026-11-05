@@ -68,6 +68,8 @@ export class FakeConnectGuild {
   private readonly joined = new Map<string, FakeConnectMember>();
   private readonly guildRoles = new Map<string, ConnectRole>();
   private readonly fetchFailures = new Map<string, number>();
+  private readonly heldFetches = new Map<string, Promise<void>>();
+  private readonly fetchedIds: string[] = [];
   private readonly presenceStore = new Map<string, ConnectPresence>();
   private unscopedFetchCount = 0;
   private listingGate: Promise<void> | undefined = undefined;
@@ -113,11 +115,16 @@ export class FakeConnectGuild {
         this.unscopedFetchCount += 1;
         return Promise.reject(new Error("Request with opcode 8 was rate limited."));
       }
-      const code = this.fetchFailures.get(memberId);
-      if (code !== undefined) return Promise.reject(Object.assign(new Error("Discord API error"), { code }));
-      const member = this.joined.get(memberId);
-      if (member !== undefined) return Promise.resolve(member);
-      return Promise.reject(Object.assign(new Error("Unknown Member"), { code: UNKNOWN_MEMBER }));
+      this.fetchedIds.push(memberId);
+      const answer = (): Promise<FakeConnectMember> => {
+        const code = this.fetchFailures.get(memberId);
+        if (code !== undefined) return Promise.reject(Object.assign(new Error("Discord API error"), { code }));
+        const member = this.joined.get(memberId);
+        if (member !== undefined) return Promise.resolve(member);
+        return Promise.reject(Object.assign(new Error("Unknown Member"), { code: UNKNOWN_MEMBER }));
+      };
+      const held = this.heldFetches.get(memberId);
+      return held === undefined ? answer() : held.then(answer);
     },
   };
 
@@ -142,6 +149,20 @@ export class FakeConnectGuild {
     this.openListingGate?.();
     this.listingGate = undefined;
     this.openListingGate = undefined;
+  }
+
+  /** Holds every fetch of this member until the returned function is called. */
+  holdFetch(memberId: string): () => void {
+    let release: () => void = () => undefined;
+    this.heldFetches.set(memberId, new Promise((resolve) => { release = resolve; }));
+    return () => {
+      release();
+    };
+  }
+
+  /** How many fetches of this member the code made. */
+  fetchesOf(memberId: string): number {
+    return this.fetchedIds.filter((id) => id === memberId).length;
   }
 
   /** Makes fetching this member fail with Discord's error code, as Discord answers for a user it cannot find. */

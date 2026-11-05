@@ -979,6 +979,14 @@ describe("createInterviews", () => {
       ]);
     });
 
+    test("a Member who could not be read counts as failed, also past the 10", async () => {
+      await h.service.onlineAtStartup([...unlinkedMembers(10), { id: LINKED.id, unreadable: true }]);
+
+      expect(h.channels.logs.map((line) => line.content)).toEqual([
+        "Onboarding Interviews at startup: started 10, failed 1, left for later 0.",
+      ]);
+    });
+
     test("stops before the next Member when the stop check says so, and starts no Interview after it", async () => {
       await h.service.onlineAtStartup(unlinkedMembers(3), () => h.channels.opened.length >= 1);
 

@@ -590,6 +590,35 @@ describe("connect", () => {
       }
     });
 
+    test("disconnect stops the listing of the Members online before the next Member is read", async () => {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.join(BOB);
+      guild.join(CAROL);
+      guild.setPresence(BOB, "online");
+      guild.setPresence(CAROL, "online");
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+      const release = guild.holdFetch(BOB);
+
+      try {
+        const connected = await connect(TOKEN, connectOptions());
+        connection = connected;
+        await vi.waitFor(() => {
+          expect(guild.fetchesOf(BOB)).toBeGreaterThan(0);
+        });
+        const carolFetches = guild.fetchesOf(CAROL);
+
+        const disconnecting = connected.disconnect();
+        release();
+        await disconnecting;
+
+        expect(guild.fetchesOf(CAROL)).toBe(carolFetches);
+        expect(interviews.openFor(BOB)).toBeUndefined();
+      } finally {
+        release();
+      }
+    });
+
     test("a presence update for a Member whose Interview is being started at startup opens one thread", async () => {
       const guild = serverWith(SERVER_PERMISSIONS);
       guild.join(BOB);

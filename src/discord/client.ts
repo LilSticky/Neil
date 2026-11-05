@@ -266,9 +266,13 @@ async function onlineMemberOf(guild: Guild, userId: string): Promise<JoinedMembe
 /**
  * The Members Discord reports online, each read with a single-Member fetch; the listing never asks Discord for every
  * Member at once. A Member who is not on the guild any more is skipped. A Member who cannot be read is logged and listed
- * as unreadable, so the startup counts them as failed.
+ * as unreadable, so the startup counts them as failed. Stops before the next Member once `isStopping` says so.
  */
-async function onlineMembersOf(guild: Guild, logError: (message: string) => void): Promise<StartupMember[]> {
+async function onlineMembersOf(
+  guild: Guild,
+  logError: (message: string) => void,
+  isStopping: () => boolean,
+): Promise<StartupMember[]> {
   const userIds = [...guild.presences.cache.values()]
     .filter((presence) => {
       const status = presenceStatusOf(presence.status);
@@ -277,6 +281,7 @@ async function onlineMembersOf(guild: Guild, logError: (message: string) => void
     .map((presence) => presence.userId);
   const members: StartupMember[] = [];
   for (const userId of userIds) {
+    if (isStopping()) break;
     try {
       const member = await fetchMember(guild, userId);
       if (member !== undefined) members.push(joinedMemberOf(member));
@@ -1142,7 +1147,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     // Interview check is skipped once disconnect has begun, and stops before the next Member when it has. The Daily Sync
     // starts once the startup apply has settled, so their Game API lookups do not overlap.
     const startOnlineInterviews = (): Promise<void> =>
-      onlineMembersOf(guild, logError)
+      onlineMembersOf(guild, logError, () => disconnecting)
         .then((members) => interviews.onlineAtStartup(members, () => disconnecting))
         .catch((error: unknown) => {
           logError(`Starting the Interviews of the Members online at startup failed: ${String(error)}`);

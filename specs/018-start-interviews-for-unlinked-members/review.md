@@ -13,3 +13,13 @@
 | 7 | Should fix | Interview rows and the error line tie a Member to being online | ADR 11 states the by-product; T013 changes the line |
 | 8 | Nit | An unknown `before` status reads as coming online; a comment in `client.ts` omits the new step | Status left: the rule still skips a Linked Member. Comment: T014 |
 | 9 | Nit | A role give reaches the log channel only as counts | Left, the same as on the join path |
+
+## Second pass
+
+`bot-reviewer` on the fix commit: findings 1–5 and 7 fixed, no Must fix.
+
+| # | Severity | Finding | Outcome |
+|---|----------|---------|---------|
+| 10 | Should fix | `interview.ts`: past the limit, a Member who could not be read was not counted as failed | Fixed |
+| 11 | Should fix | `client.ts`: the listing of the Members online ignored disconnect | Fixed |
+| 12 | Should fix | Disconnect does not wait for an Interview started by a presence update, so it can meet the closed database | Left: a join has the same window, and the failure is logged. Not a regression |

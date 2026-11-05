@@ -375,12 +375,12 @@ async function startOnlineAtStartup(
   let leftForLater = 0;
   for (const member of members) {
     if (isStopping()) break;
-    if (started + failed >= STARTUP_LIMIT) {
-      if (!("unreadable" in member) && wantsNow(deps, member)) leftForLater += 1;
-      continue;
-    }
     if ("unreadable" in member) {
       failed += 1;
+      continue;
+    }
+    if (started + failed >= STARTUP_LIMIT) {
+      if (wantsNow(deps, member)) leftForLater += 1;
       continue;
     }
     try {
