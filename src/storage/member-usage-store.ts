@@ -13,7 +13,6 @@ export interface MemberUsage {
   readonly requests: number;
 }
 
-
 const memberIdColumn = z.string().regex(/^\d+$/);
 const isoDay = z
   .string()
@@ -32,6 +31,8 @@ const recordRow = z.object({
 });
 
 const requestsRow = z.object({ requests: z.number().int().min(1) });
+
+const dayRow = z.object({ day: isoDay });
 
 function corruptUsageError(): Error {
   return new Error("neil.db is corrupt: fix or remove the member usage by hand");
@@ -60,6 +61,15 @@ export class MemberUsageStore {
     const parsed = requestsRow.safeParse(raw);
     if (!parsed.success) throw corruptUsageError();
     return parsed.data.requests;
+  }
+
+  /** The earliest day with a Member's request in the usage, or undefined when there is none. */
+  firstUsageDay(): UtcDay | undefined {
+    const raw = this.db.prepare("SELECT day FROM member_usage ORDER BY day ASC LIMIT 1").get();
+    if (raw === undefined) return undefined;
+    const parsed = dayRow.safeParse(raw);
+    if (!parsed.success) throw corruptUsageError();
+    return parsed.data.day;
   }
 
   /** The Members who made requests on the day, most requests first, ties by Member id. */

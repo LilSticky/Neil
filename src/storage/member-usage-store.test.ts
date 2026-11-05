@@ -181,4 +181,15 @@ describe("MemberUsageStore", () => {
 
     expect(() => read(new MemberUsageStore(db))).toThrow(/neil\.db is corrupt/);
   });
+
+  test("the first usage day is the earliest day with a request, and undefined with none", () => {
+    const store = new MemberUsageStore(db);
+
+    expect(store.firstUsageDay()).toBeUndefined();
+
+    store.countRequest(ALICE, YESTERDAY);
+    store.countRequest(BOB, TWO_DAYS_AGO);
+
+    expect(store.firstUsageDay()).toBe(TWO_DAYS_AGO);
+  });
 });
