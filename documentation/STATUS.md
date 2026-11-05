@@ -8,8 +8,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 ## Current slice
 
 Slice 015, Daily Allowance (`../Neil-015`, [specs](../specs/015-look-up-within-a-daily-allowance/), issue
-[#50](https://github.com/LilSticky/Neil/issues/50)): in progress on its branch, with `main` merged in. T001–T016 done; review, audit and
-the manual check (T017–T019, [TEST-RUN.md](TEST-RUN.md) §6m) are open. `/reaper` is not charged (the user's decision). It takes migration 13 and ADR 10.
+[#50](https://github.com/LilSticky/Neil/issues/50)): in progress on its branch, with `main` merged in. T001–T018 done (review and audit in the spec
+folder); the manual check (T019, [TEST-RUN.md](TEST-RUN.md) §6m) is open. Expected Lookup Members is at least 100 (the user's decision). `/reaper` is not charged (the user's decision). It takes migration 13 and ADR 10.
 
 Slice 017, Give Members the Doctor Role ([specs](../specs/017-give-members-the-doctor-role/), issue
 [#47](https://github.com/LilSticky/Neil/issues/47)): every Linked Member, Guests included, holds the Doctor Role, and
