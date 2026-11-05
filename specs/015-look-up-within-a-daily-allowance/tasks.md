@@ -25,8 +25,8 @@ Blocks every story.
 
 **Independent test**: a Member with an allowance of 3 makes 3 uncached lookups, the 4th is refused with the reset time, and a cached lookup still answers.
 
-- [ ] T005 [US1] Charged view (D2, D3) in `src/game-api/client.ts`: `chargedTo(caller: LookupCaller): ChargedLookups` with `getPlayer`, `findPlayer`, `getAlliance`, `findAlliance`, always the `lookup` purpose; `ChargedResult<T> = LookupResult<T> | { kind: "allowance-spent", resetsAt }`; existing methods keep their signatures.
-- [ ] T006 [US1] Charging in `src/game-api/client.ts` (D6, D7, D8): `attempt` goes deadline, `mayCharge`, `tryCount`, `charge` with no `await` in between; `mayRetry` also asks `mayCharge`; failed requests and retries count; the flight key of a charged lookup holds the Member; `orStale` also covers `allowance-spent`. Cached answers charge nothing, and two simultaneous lookups with one request left send one.
+- [x] T005 [US1] Charged view (D2, D3) in `src/game-api/client.ts`: `chargedTo(caller: LookupCaller): ChargedLookups` with `getPlayer`, `findPlayer`, `getAlliance`, `findAlliance`, always the `lookup` purpose; `ChargedResult<T> = LookupResult<T> | { kind: "allowance-spent", resetsAt }`; existing methods keep their signatures.
+- [x] T006 [US1] Charging in `src/game-api/client.ts` (D6, D7, D8): `attempt` goes deadline, `mayCharge`, `tryCount`, `charge` with no `await` in between; `mayRetry` also asks `mayCharge`; failed requests and retries count; the flight key of a charged lookup holds the Member; `orStale` also covers `allowance-spent`. Cached answers charge nothing, and two simultaneous lookups with one request left send one.
 - [ ] T007 [US1] Caller (D10) in `src/discord/lookup.ts` and `src/discord/pick.ts`: `callerOf(interaction, officerRoleIds)` with `isOfficer` and `memberRoleIds()`, added to `PickInteraction` and the lookup interaction.
 - [ ] T008 [US1] Use the charged view for `/player`, `/alliance`, Alliance Overview, their pick lists and buttons in `src/discord/lookup.ts` and `src/discord/pick.ts`; the refusal from contracts/usage.md, private, in `src/discord/usage-texts.ts` and `src/discord/lookup-cards.ts`. `pickExileMatch` stays uncharged; a test proves `/reaper`, the Interview, the Daily Sync and role reads charge nobody (spec US1 scenarios 9–11).
 
@@ -35,7 +35,7 @@ Blocks every story.
 **Independent test**: no history gives a divisor of 100; 40, 60, 80, 100 on the last four Saturdays give 70, and a limit of 2,000, reserve of 100 and share of 500 give 20.
 
 - [ ] T009 [US2] Keeper scenarios in `src/game-api/allowance-keeper.test.ts`: the spec's US2 scenarios 1–7 end to end through the store (rollover records a day with 0, a new limit applies at the next read, counts and allowance unchanged after reopening the database); fix what they find in `src/game-api/allowance-keeper.ts`.
-- [ ] T010 [US2] Composition in `src/startup.ts`: build `MemberUsageStore` and the keeper from `GAME_API_QUOTA_RESERVE` and `SYNC_SHARE`, and hand the keeper to the client.
+- [x] T010 [US2] Composition in `src/startup.ts`: build `MemberUsageStore` and the keeper from `GAME_API_QUOTA_RESERVE` and `SYNC_SHARE`, and hand the keeper to the client.
 
 ## Phase 5: User Story 3, every lookup reply shows the usage (P1)
 
