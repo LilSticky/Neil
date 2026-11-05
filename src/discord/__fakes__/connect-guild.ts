@@ -76,9 +76,21 @@ export class FakeConnectGuild {
       },
       roles: { highest: { position: 10 } },
     },
-    /** Every Member on the server when no id is given; otherwise the one Member, or Discord's refusal for a user it cannot find. */
-    fetch: (memberId?: string): Promise<FakeConnectMember | Map<string, FakeConnectMember>> => {
-      if (memberId === undefined) return Promise.resolve(new Map(this.joined));
+    /** One page of the Members over REST, in id order, after the given id. */
+    list: (options: { readonly after?: string; readonly limit: number }): Promise<Map<string, FakeConnectMember>> => {
+      const after = options.after ?? "";
+      const ids = [...this.joined.keys()].filter((id) => id > after).sort().slice(0, options.limit);
+      return Promise.resolve(new Map(ids.flatMap((id) => {
+        const member = this.joined.get(id);
+        return member === undefined ? [] : [[id, member] as const];
+      })));
+    },
+    /**
+     * The one Member, or Discord's refusal for a user it cannot find. With no id this is Request Guild Members (opcode 8):
+     * always rate limited here, as Discord refused it at startup (#53), so a listing that goes back to it fails the tests.
+     */
+    fetch: (memberId?: string): Promise<FakeConnectMember> => {
+      if (memberId === undefined) return Promise.reject(new Error("Request with opcode 8 was rate limited."));
       const code = this.fetchFailures.get(memberId);
       if (code !== undefined) return Promise.reject(Object.assign(new Error("Discord API error"), { code }));
       const member = this.joined.get(memberId);
