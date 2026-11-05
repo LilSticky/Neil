@@ -133,8 +133,8 @@ discovery.
 
 ## Daily Allowance
 * The number of Game API requests one Member's lookups may cause per UTC day: (the Daily Quota's limit − Quota Reserve − Sync Share) ÷ Expected Lookup Members, rounded down, at least 1
-* Expected Lookup Members: the average Lookup Member count of the last 4 recorded days on the same weekday (100 while none is recorded)
-* Answers from the cache, Onboarding Interviews and the Daily Sync are not charged; Officers are counted but never refused
+* Expected Lookup Members: the average Lookup Member count of the last 4 recorded days on the same weekday, and at least 100 (also while none is recorded)
+* Answers from the cache, Onboarding Interviews, the Daily Sync, /reaper and the reads for nicknames and roles are not charged; Officers are counted but never refused
 
 ## Lookup Member
 * A Member whose lookups caused at least one Game API request on a UTC day; Neil records their count per day

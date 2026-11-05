@@ -36,6 +36,9 @@ capabilities and limitations. When they get close to that limit, include a warni
   who only uses `/reaper` is not a Lookup Member that day.
 - Q: On a public card, where does the usage line go? → A: in the card's footer, visible to the channel (plan D9).
 - Q: What is Expected Lookup Members when the same-weekday records average 0? → A: 100, as with no records (plan D1).
+- Q: Does Expected Lookup Members have a minimum? → A: yes, 100, which also covers an average of 0. Quiet history (1, 0, 0, 0)
+  would otherwise give an allowance above the whole limit, and a day Neil was down counts as 0. So the allowance is at
+  most 14 at a limit of 2,000, and the history only lowers it, on weekdays that average more than 100 Lookup Members.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -78,20 +81,21 @@ refused with the reset time, and a cached lookup still answers.
 
 At the start of each UTC day Neil sets the Daily Allowance from the Daily Quota's limit, minus the Quota Reserve and the
 Sync Share, divided by the Expected Lookup Members for that weekday, rounded down and at least 1. Neil records each
-day's Lookup Member count so the estimate learns the server's weekly rhythm.
+day's Lookup Member count so the estimate learns the server's weekly rhythm. Expected Lookup Members is at least 100.
 
-**Why this priority**: a fixed guess is either too stingy on quiet days or too generous on busy ones.
+**Why this priority**: a fixed allowance is too generous on busy days, and a quiet day must not let one Member use up the
+shared lookups.
 
-**Independent Test**: automated: with no history the divisor is 100; with Lookup Member counts of 40, 60, 80 and 100 on
-the last four Saturdays, a Saturday's divisor is 70; with a limit of 2,000, a reserve of 100 and a share of 500, the
-allowance is 1,400 ÷ 70 = 20.
+**Independent Test**: automated: with no history the divisor is 100; with Lookup Member counts of 140, 160, 180 and 200
+on the last four Saturdays, a Saturday's divisor is 170; with a limit of 2,000, a reserve of 100 and a share of 500, the
+allowance is 1,400 ÷ 170 = 8; with counts of 40, 60, 80 and 100 the divisor stays 100.
 
 **Acceptance Scenarios**:
 
 1. **Given** no Lookup Member counts are recorded, **When** the Daily Allowance is set, **Then** Expected Lookup Members
    is 100 (2,000 − 100 − 500 = 1,400 → 14 per Member).
-2. **Given** counts are recorded for only two earlier Saturdays (30 and 50), **When** a Saturday's allowance is set,
-   **Then** Expected Lookup Members is 40.
+2. **Given** counts are recorded for only two earlier Saturdays (130 and 150), **When** a Saturday's allowance is set,
+   **Then** Expected Lookup Members is 140.
 3. **Given** more than four Saturdays are recorded, **When** a Saturday's allowance is set, **Then** only the latest four
    are averaged.
 4. **Given** the average is not a whole number, **When** the allowance is computed, **Then** the result is rounded down
@@ -102,6 +106,8 @@ allowance is 1,400 ÷ 70 = 20.
    recomputed with the new limit.
 7. **Given** Neil restarts during the day, **When** it comes back, **Then** each Member's count and today's allowance are
    unchanged.
+8. **Given** the same-weekday records average below 100 (1, 0, 0, 0, or 40, 60, 80, 100), **When** the allowance is
+   computed, **Then** Expected Lookup Members is 100.
 
 ---
 
@@ -173,8 +179,8 @@ when there are none.
 - Two lookups by one Member at the same moment with one request left: only one is sent.
 - A Member who leaves the server keeps their count for the day; it matters only for the Lookup Member count.
 - The allowance computes to less than 1 (e.g. a tiny limit): it is 1.
-- The same-weekday records average 0 (nobody looked up on those days): Expected Lookup Members is 100, as with no
-  records, because the formula cannot divide by 0.
+- The same-weekday records average below 100, 0 included (quiet days, or days Neil was down): Expected Lookup Members is
+  100, as with no records.
 - The Daily Quota's limit is unknown at startup: the default limit Neil uses today applies until the Game API reports
   one.
 - A Member's interaction comes in after midnight UTC for a lookup started before: it counts on the day the request is
@@ -196,7 +202,7 @@ when there are none.
 - **FR-005**: The Daily Allowance MUST be (the Daily Quota's limit − Quota Reserve − Sync Share) ÷ Expected Lookup
   Members, rounded down, at least 1.
 - **FR-006**: Expected Lookup Members MUST be the average of the Lookup Member counts of the last 4 recorded days on the
-  same weekday as today (fewer if fewer are recorded), and 100 while none is recorded.
+  same weekday as today (fewer if fewer are recorded), and at least 100, also while none is recorded.
 - **FR-007**: Neil MUST record each UTC day's Lookup Member count: the number of distinct Members whose lookups caused at
   least one Game API request that day.
 - **FR-008**: Counts, today's allowance basis and the recorded Lookup Member counts MUST survive a restart.
@@ -236,7 +242,7 @@ when there are none.
 
 ## Assumptions
 
-- The divisor 100 is the starting estimate the user chose; the user's "150 active users" is the maximum the server
+- The divisor 100 is the starting estimate and the minimum the user chose; the user's "150 active users" is the maximum the server
   expects, which the recorded history replaces.
 - On a day busier than its estimate, Members may each stay within their allowance and the shared lookups still stop at
   the Quota Reserve; that existing rule protects Onboarding Interviews.

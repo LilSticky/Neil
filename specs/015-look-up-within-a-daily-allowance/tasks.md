@@ -17,7 +17,7 @@ No setup: no new dependency, environment variable, intent or permission.
 Blocks every story.
 
 - [x] T001 [P] Write ADR 10, personal data of Member usage (kept for the current UTC day only, D4) in `documentation/adr/0010-personal-data-of-member-usage.md` and its index line in `documentation/adr/README.md`.
-- [x] T002 [P] Domain (D1) in `src/domain/daily-allowance.ts`: `expectedLookupMembers(records, day)` (average of the latest 4 records on `day`'s weekday before `day`, not rounded; 100 with no records or an average of 0), `dailyAllowance({ limit, reserve, syncShare, expected })` (`floor((limit − reserve − syncShare) ÷ expected)`, at least 1), `mayUse(used, allowance, officer)` (an Officer always may; otherwise `used < allowance`), `daysToRecord(lastRecorded, firstUsage, today)` (at most 28).
+- [x] T002 [P] Domain (D1) in `src/domain/daily-allowance.ts`: `expectedLookupMembers(records, day)` (average of the latest 4 records on `day`'s weekday before `day`, not rounded; at least 100, also with no records), `dailyAllowance({ limit, reserve, syncShare, expected })` (`floor((limit − reserve − syncShare) ÷ expected)`, at least 1), `mayUse(used, allowance, officer)` (an Officer always may; otherwise `used < allowance`), `daysToRecord(lastRecorded, firstUsage, today)` (at most 28).
 - [x] T003 [P] Storage (D4) in `src/storage/database.ts` and `src/storage/member-usage-store.ts`: migration 13 with `member_usage` (`day` TEXT, `member_id` TEXT `CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*')`, `requests` INTEGER `CHECK (requests > 0)`, primary key `(day, member_id)`) and `lookup_member_day` (`day` TEXT primary key, `lookup_members` INTEGER `CHECK (lookup_members >= 0)`); a request counted with an upsert; the rollover in one transaction (data-model.md, steps 1–3); reads validated by zod; survives reopening.
 - [x] T004 Keeper (D5) in `src/game-api/allowance-keeper.ts`, after T002 and T003: `allowance()`, `expected()`, `usageOf(memberId)`, `top(10)` (most first, ties by Member id), `mayCharge(caller)`, `charge(caller)`; rolls over lazily on any read; the allowance follows `QuotaKeeper.today().limit` at the next read.
 
@@ -32,7 +32,7 @@ Blocks every story.
 
 ## Phase 4: User Story 2, the allowance follows how many Members look up (P1)
 
-**Independent test**: no history gives a divisor of 100; 40, 60, 80, 100 on the last four Saturdays give 70, and a limit of 2,000, reserve of 100 and share of 500 give 20.
+**Independent test**: no history gives a divisor of 100; 140, 160, 180, 200 on the last four Saturdays give 170, and a limit of 2,000, reserve of 100 and share of 500 give 8; 40, 60, 80, 100 stay at 100.
 
 - [x] T009 [US2] Keeper scenarios in `src/game-api/allowance-keeper.test.ts`: the spec's US2 scenarios 1–7 end to end through the store (rollover records a day with 0, a new limit applies at the next read, counts and allowance unchanged after reopening the database); fix what they find in `src/game-api/allowance-keeper.ts`.
 - [x] T010 [US2] Composition in `src/startup.ts`: build `MemberUsageStore` and the keeper from `GAME_API_QUOTA_RESERVE` and `SYNC_SHARE`, and hand the keeper to the client.

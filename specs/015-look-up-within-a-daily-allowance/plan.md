@@ -38,8 +38,8 @@ No deviations.
 ## Decisions
 
 - **D1 Domain** `src/domain/daily-allowance.ts` (pure):
-  - `expectedLookupMembers(records, day)`: the average of the latest 4 records on `day`'s weekday, before `day`. It is
-    100 when there are none, or when their average is 0 (spec, Edge Cases). Not rounded.
+  - `expectedLookupMembers(records, day)`: the average of the latest 4 records on `day`'s weekday, before `day`, and at
+    least 100, also when there are none (spec, Clarifications). Not rounded.
   - `dailyAllowance({ limit, reserve, syncShare, expected })`: `floor((limit − reserve − syncShare) ÷ expected)`, at
     least 1.
   - `mayUse(used, allowance, officer)`: an Officer always may; otherwise `used < allowance`.
