@@ -4,6 +4,7 @@ import {
   type AutocompleteInteraction,
   type BaseMessageOptions,
   GatewayIntentBits,
+  type Collection,
   GuildMember,
   Partials,
   type ButtonInteraction,
@@ -14,6 +15,7 @@ import {
   type Role,
   type StringSelectMenuInteraction,
 } from "discord.js";
+import { setTimeout as sleepFor } from "node:timers/promises";
 import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
 import type { GameApiClient } from "../game-api/client.js";
@@ -42,6 +44,7 @@ import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
 import { createDoctorRole } from "./doctor-role.js";
+import { sharedMemberListing } from "./member-listing.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
 import { createOnboardingRole } from "./onboarding-role.js";
 import { createPreferenceRoles } from "./preferences.js";
@@ -461,7 +464,7 @@ async function reportServerPermissions(
 }
 
 /** The members of the guild for the name and roles; undefined for a user who is not on the guild. */
-function serverMembersOf(guild: Guild): ServerMembers {
+function serverMembersOf(guild: Guild, listMembers: () => Promise<Collection<string, GuildMember>>): ServerMembers {
   return {
     memberOf: async (memberId) => {
       const member = await fetchMember(guild, memberId);
@@ -470,7 +473,7 @@ function serverMembersOf(guild: Guild): ServerMembers {
       return { guild: rolesGuildOf(guild, me.roles.highest.position), member: rolesMemberOf(member) };
     },
     all: async () => {
-      const members = await guild.members.fetch();
+      const members = await listMembers();
       const me = guild.members.me ?? (await guild.members.fetchMe());
       const botTopRolePosition = me.roles.highest.position;
       return [...members.values()].map((member) => ({
@@ -769,16 +772,18 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    // One listing for the whole client: Discord refuses a second Request Guild Members within about 30 seconds.
+    const listMembers = sharedMemberListing({ list: () => guild.members.fetch(), now, sleep: (ms) => sleepFor(ms) });
     // One Onboarding Role service and one Doctor Role service, for every path that gives or takes the roles off.
     const onboardingRole = createOnboardingRole({
-      members: serverMembersOf(guild),
+      members: serverMembersOf(guild, listMembers),
       links: options.links,
       logError,
       log: (message) => channels.log(message),
       officerRoleIds: options.officerRoleIds,
     });
     const doctorRole = createDoctorRole({
-      members: serverMembersOf(guild),
+      members: serverMembersOf(guild, listMembers),
       links: options.links,
       logError,
       log: (message) => channels.log(message),
@@ -790,7 +795,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       await user.send(message);
     };
     const preferenceRoles = createPreferenceRoles({
-      members: serverMembersOf(guild),
+      members: serverMembersOf(guild, listMembers),
       links: options.links,
       preferences: options.preferences,
       channels,
@@ -818,7 +823,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       applied: options.applied,
       channels,
-      members: serverMembersOf(guild),
+      members: serverMembersOf(guild, listMembers),
       onboardingRole,
       doctorRole,
       preferenceRoles,
@@ -828,7 +833,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     const nameAndRoles = createNameAndRoles({
-      members: serverMembersOf(guild),
+      members: serverMembersOf(guild, listMembers),
       applied: options.applied,
       links: options.links,
       gameApi: options.gameApi,
@@ -979,7 +984,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
             links: options.links,
             applied: options.applied,
             runs: options.dailySync,
-            members: serverMembersOf(guild),
+            members: serverMembersOf(guild, listMembers),
             gameApi: options.gameApi,
             nameAndRoles,
             unlink,
