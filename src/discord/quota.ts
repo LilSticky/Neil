@@ -2,7 +2,7 @@ import { MessageFlags, type InteractionReplyOptions } from "discord.js";
 import { isOfficer } from "../domain/officer.js";
 import { leftForLookups, nextReset, remaining, utcDayOf, type DailyQuota } from "../domain/daily-quota.js";
 import type { AllowanceKeeper } from "../game-api/allowance-keeper.js";
-import { timeLeft, utcTime } from "./lookup-cards.js";
+import { lookupMessages, timeLeft, utcTime } from "./lookup-cards.js";
 
 const NOT_OFFICER_TEXT = "/quota is for Officers (Moderator or King).";
 
@@ -61,12 +61,21 @@ export interface QuotaContext {
   readonly logError: (message: string) => void;
 }
 
-/** Answers /quota privately: the Daily Quota for Officers, a refusal for everyone else. A failed reply is logged, never thrown. */
+/**
+ * Answers /quota privately: the Daily Quota for Officers, a refusal for everyone else. A failed read of the figures is
+ * logged and answered as unavailable; a failed reply is logged, never thrown.
+ */
 export async function handleQuota(interaction: QuotaInteraction, context: QuotaContext): Promise<void> {
+  let content: string;
   try {
-    const content = isOfficer(interaction.memberRoleIds(), context.officerRoleIds)
+    content = isOfficer(interaction.memberRoleIds(), context.officerRoleIds)
       ? renderQuotaReply(context.quotaToday(), context.quotaReserve, context.now(), context.allowance)
       : NOT_OFFICER_TEXT;
+  } catch (error) {
+    context.logError(`Reading /quota failed: ${error instanceof Error ? error.message : String(error)}`);
+    content = lookupMessages.unavailable;
+  }
+  try {
     await interaction.reply({
       content,
       flags: MessageFlags.Ephemeral,

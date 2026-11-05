@@ -16,7 +16,13 @@ import {
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakeLookupInteraction } from "./__fakes__/lookup-interaction.js";
-import { FakeUsage, usageLineFor, FAKE_USED_BEFORE } from "./__fakes__/usage.js";
+import {
+  FakeUsage,
+  UNREADABLE_USAGE_MESSAGE,
+  unreadableUsage,
+  usageLineFor,
+  FAKE_USED_BEFORE,
+} from "./__fakes__/usage.js";
 import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
 import { callerOf, handleAlliance, handlePlayer } from "./lookup.js";
@@ -1684,5 +1690,70 @@ describe("handleAlliance shows the usage line on the Alliance card, read after t
         ],
       }) as unknown,
     });
+  });
+});
+
+describe("handlePlayer when the usage line cannot be read", () => {
+  test("shows the Player card without the usage line, and logs the failure", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+
+    await expect(handlePlayer(interaction, { ...context, usage: unreadableUsage })).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [
+            expect.objectContaining({
+              title: "Vex",
+              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+            }),
+          ],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining(UNREADABLE_USAGE_MESSAGE)]);
+  });
+
+  test("removes the placeholder and tells the caller it is unavailable, without the usage line, when the lookup also failed", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
+    const logged: string[] = [];
+    const gameApi = new FakeGameApi();
+    gameApi.charged.getPlayer.mockImplementation(() => Promise.reject(new Error("tracker connection reset")));
+    const context = {
+      gameApi,
+      pickSessions: pickSessionsSpy(),
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+      officerRoleIds: [OFFICER_ROLE_ID],
+      allowance: () => ALLOWANCE,
+      usage: unreadableUsage,
+    };
+
+    await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: lookupMessages.unavailable,
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("tracker connection reset"),
+        expect.stringContaining(UNREADABLE_USAGE_MESSAGE),
+      ]),
+    );
   });
 });

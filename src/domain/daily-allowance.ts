@@ -6,8 +6,8 @@ export interface LookupMemberRecord {
   readonly lookupMembers: number;
 }
 
-/** The Lookup Members assumed when there is no usable history. */
-const DEFAULT_EXPECTED_LOOKUP_MEMBERS = 100;
+/** The fewest Lookup Members expected: the floor under the average, and the expectation with no history. */
+const MINIMUM_EXPECTED_LOOKUP_MEMBERS = 100;
 
 /** How many earlier same-weekday records the expectation averages. */
 const SAMPLE_SIZE = 4;
@@ -29,7 +29,7 @@ function weekdayOf(day: UtcDay): number {
 
 /**
  * The Lookup Members expected on a day: the average of the latest four records on the same weekday before it, not
- * rounded. 100 when there are no such records or their average is 0.
+ * rounded, but never below 100. 100 as well when there are no such records.
  */
 export function expectedLookupMembers(records: readonly LookupMemberRecord[], day: UtcDay): number {
   const weekday = weekdayOf(day);
@@ -37,9 +37,9 @@ export function expectedLookupMembers(records: readonly LookupMemberRecord[], da
     .filter((record) => record.day < day && weekdayOf(record.day) === weekday)
     .sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0))
     .slice(0, SAMPLE_SIZE);
-  if (sample.length === 0) return DEFAULT_EXPECTED_LOOKUP_MEMBERS;
+  if (sample.length === 0) return MINIMUM_EXPECTED_LOOKUP_MEMBERS;
   const average = sample.reduce((sum, record) => sum + record.lookupMembers, 0) / sample.length;
-  return average === 0 ? DEFAULT_EXPECTED_LOOKUP_MEMBERS : average;
+  return Math.max(MINIMUM_EXPECTED_LOOKUP_MEMBERS, average);
 }
 
 /**

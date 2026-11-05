@@ -101,6 +101,11 @@ describe("AllowanceKeeper", () => {
     }
   }
 
+  /** Records a finished UTC day with its Lookup Member count straight into the database, as a past rollover would have. */
+  function seedLookupMembers(day: string, lookupMembers: number): void {
+    db.prepare("INSERT INTO lookup_member_day (day, lookup_members) VALUES (?, ?)").run(day, lookupMembers);
+  }
+
   /** Charges the caller `times` requests. */
   function chargeTimes(keeper: AllowanceKeeper, caller: LookupCaller, times: number): void {
     for (let i = 0; i < times; i += 1) keeper.charge(caller);
@@ -223,40 +228,65 @@ describe("AllowanceKeeper", () => {
   });
 
   describe("the allowance follows how many Members look up (US2)", () => {
-    test("Saturdays with 40, 60, 80 and 100 Lookup Members give an expected 70 and an allowance of 20", () => {
+    test("Saturdays with 140, 160, 180 and 200 Lookup Members give an expected 170 and an allowance of 8", () => {
       const keeper = keeperWithLimit(QUOTA_LIMIT);
-      lookUpsOn(keeper, "2026-10-10", 40);
-      lookUpsOn(keeper, "2026-10-17", 60);
-      lookUpsOn(keeper, "2026-10-24", 80);
-      lookUpsOn(keeper, "2026-10-31", 100);
+      seedLookupMembers("2026-10-10", 140);
+      seedLookupMembers("2026-10-17", 160);
+      seedLookupMembers("2026-10-24", 180);
+      seedLookupMembers("2026-10-31", 200);
 
       clock = new Date("2026-11-07T09:00:00Z");
 
-      expect(keeper.expected()).toBe(70);
-      expect(keeper.allowance()).toBe(20);
+      expect(keeper.expected()).toBe(170);
+      expect(keeper.allowance()).toBe(8);
     });
 
-    test("with only two earlier Saturdays, 30 and 50 Lookup Members, the expected is 40", () => {
+    test("with only two earlier Saturdays, 130 and 150 Lookup Members, the expected is 140", () => {
       const keeper = keeperWithLimit(QUOTA_LIMIT);
-      lookUpsOn(keeper, "2026-10-24", 30);
-      lookUpsOn(keeper, "2026-10-31", 50);
+      seedLookupMembers("2026-10-24", 130);
+      seedLookupMembers("2026-10-31", 150);
 
       clock = new Date("2026-11-07T09:00:00Z");
 
-      expect(keeper.expected()).toBe(40);
+      expect(keeper.expected()).toBe(140);
     });
 
-    test("a non-whole average is kept as the expected, and the allowance rounds down: 19, not 20", () => {
+    test("Saturdays with 40, 60, 80 and 100 Lookup Members stay at the expected 100 and an allowance of 14", () => {
       const keeper = keeperWithLimit(QUOTA_LIMIT);
-      lookUpsOn(keeper, "2026-10-10", 40);
-      lookUpsOn(keeper, "2026-10-17", 60);
-      lookUpsOn(keeper, "2026-10-24", 80);
-      lookUpsOn(keeper, "2026-10-31", 101);
+      seedLookupMembers("2026-10-10", 40);
+      seedLookupMembers("2026-10-17", 60);
+      seedLookupMembers("2026-10-24", 80);
+      seedLookupMembers("2026-10-31", 100);
 
       clock = new Date("2026-11-07T09:00:00Z");
 
-      expect(keeper.expected()).toBe(70.25);
-      expect(keeper.allowance()).toBe(19);
+      expect(keeper.expected()).toBe(100);
+      expect(keeper.allowance()).toBe(14);
+    });
+
+    test("Saturdays with 1, 0, 0 and 0 Lookup Members stay at the expected 100", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      seedLookupMembers("2026-10-10", 1);
+      seedLookupMembers("2026-10-17", 0);
+      seedLookupMembers("2026-10-24", 0);
+      seedLookupMembers("2026-10-31", 0);
+
+      clock = new Date("2026-11-07T09:00:00Z");
+
+      expect(keeper.expected()).toBe(100);
+    });
+
+    test("a non-whole average above 100 is kept as the expected, and the allowance rounds down: 9, not 10", () => {
+      const keeper = keeperWithLimit(QUOTA_LIMIT);
+      seedLookupMembers("2026-10-10", 140);
+      seedLookupMembers("2026-10-17", 145);
+      seedLookupMembers("2026-10-24", 146);
+      seedLookupMembers("2026-10-31", 151);
+
+      clock = new Date("2026-11-07T09:00:00Z");
+
+      expect(keeper.expected()).toBe(145.5);
+      expect(keeper.allowance()).toBe(9);
     });
 
     test("a day with no usage after a day with usage is recorded as 0", () => {

@@ -536,8 +536,16 @@ export class GameApiClient {
       const resetsAt = nextReset(this.now());
       return counted.reason === "spent" ? { kind: "quota-spent", resetsAt } : { kind: "reserve-kept", resetsAt };
     }
-    if (caller !== undefined) this.allowance.charge(caller);
     const day = counted.day;
+    if (caller !== undefined) {
+      try {
+        this.allowance.charge(caller);
+      } catch (error) {
+        // The request is not sent, so its count is settled as no figures, then the failure goes to the caller.
+        this.quota.settle(day, undefined);
+        throw error;
+      }
+    }
 
     // A pause that ran long can leave no time; a timeout of 0 then gives up at once rather than throwing.
     const timeoutMs = Math.max(0, Math.min(this.timeoutMs, deadline - this.now().getTime()));

@@ -60,7 +60,7 @@ Blocks every story.
 ## Phase 8: Polish
 
 - [x] T016 Docs: `documentation/TEST-RUN.md` section from quickstart.md, `documentation/DICTIONARY.md` checked against the slice's terms, `documentation/STATUS.md`, `documentation/ROADMAP.md` row 015.
-- [ ] T017 `bot-reviewer` on the slice diff; findings into `specs/015-look-up-within-a-daily-allowance/review.md`; fix must and should items.
+- [x] T017 `bot-reviewer` on the slice diff; findings into `specs/015-look-up-within-a-daily-allowance/review.md`; fix must and should items.
 - [x] T018 `spec-auditor` against `spec.md`; report into `specs/015-look-up-within-a-daily-allowance/audit.md`; close the gaps.
 - [ ] T019 Manual check on the test server (`documentation/TEST-RUN.md`, user) after deploying and `npm run commands:register`.
 

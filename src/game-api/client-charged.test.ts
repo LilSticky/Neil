@@ -402,3 +402,19 @@ describe("GameApiClient uncharged methods", () => {
     },
   );
 });
+
+describe("GameApiClient.chargedTo when the charge cannot be made", () => {
+  test("rejects with the error to the caller, and settles the request in flight, so later reported figures are not 1 too high", async () => {
+    const { client, allowance, quotaStore } = setUp(() =>
+      jsonResponse(200, { ...alliance, quota: { limit: 2000, used: 10, remaining: 1990 } }),
+    );
+    vi.spyOn(allowance, "charge").mockImplementationOnce(() => {
+      throw new Error("allowance store is down");
+    });
+
+    await expect(client.chargedTo(alice).getPlayer(UID)).rejects.toThrow("allowance store is down");
+    await expect(client.chargedTo(bob).getAlliance(KINGDOM_ONE, NML)).resolves.toMatchObject({ kind: "found" });
+
+    expect(quotaStore.load()?.used).toBe(10);
+  });
+});

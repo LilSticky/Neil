@@ -89,14 +89,22 @@ export interface LookupReplyContext {
 
 /**
  * Adds the caller's usage line to a reply that is about to be shown. Every reply of a charged lookup goes through here, so
- * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview.
+ * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
+ * line cannot be read, the failure is logged and the reply is given without the line: the Member still gets the answer.
  */
 export function withCallerUsage<M extends { readonly content?: string; readonly embeds?: readonly APIEmbed[] }>(
-  context: { readonly usage: (caller: LookupCaller) => string },
+  context: Pick<LookupContext, "usage" | "logError">,
   caller: LookupCaller,
   message: M,
 ): M {
-  return withUsage(message, context.usage(caller));
+  let line: string;
+  try {
+    line = context.usage(caller);
+  } catch (error) {
+    context.logError(`Reading the usage line failed: ${errorText(error)}`);
+    return message;
+  }
+  return withUsage(message, line);
 }
 
 /** Who makes a lookup: the Member who ran the command, and whether an Officer role is theirs. */

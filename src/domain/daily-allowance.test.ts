@@ -30,59 +30,79 @@ describe("expectedLookupMembers", () => {
     expect(expectedLookupMembers(records, SATURDAY)).toBe(100);
   });
 
+  test("is 100 when the last four same-weekday records are 1, 0, 0 and 0", () => {
+    const records = [
+      lookupMemberDay("2026-10-10", 1),
+      lookupMemberDay("2026-10-17", 0),
+      lookupMemberDay("2026-10-24", 0),
+      lookupMemberDay("2026-10-31", 0),
+    ];
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(100);
+  });
+
+  test("is 100 when the last four same-weekday records are 40, 60, 80 and 100, an average of 70", () => {
+    const records = [
+      lookupMemberDay("2026-10-10", 40),
+      lookupMemberDay("2026-10-17", 60),
+      lookupMemberDay("2026-10-24", 80),
+      lookupMemberDay("2026-10-31", 100),
+    ];
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(100);
+  });
+
   test("ignores records on other weekdays, on the day itself and on later days", () => {
     const records = [
       lookupMemberDay("2026-10-30", 900),
       lookupMemberDay("2026-11-07", 900),
       lookupMemberDay("2026-11-14", 900),
-      lookupMemberDay("2026-10-17", 60),
+      lookupMemberDay("2026-10-17", 160),
     ];
-    expect(expectedLookupMembers(records, SATURDAY)).toBe(60);
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(160);
   });
 
-  test("averages two earlier same-weekday records of 30 and 50 to 40", () => {
-    const records = [lookupMemberDay("2026-10-24", 30), lookupMemberDay("2026-10-31", 50)];
-    expect(expectedLookupMembers(records, SATURDAY)).toBe(40);
+  test("averages two earlier same-weekday records of 130 and 150 to 140", () => {
+    const records = [lookupMemberDay("2026-10-24", 130), lookupMemberDay("2026-10-31", 150)];
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(140);
   });
 
-  test("averages the last four same-weekday records of 40, 60, 80 and 100 to 70", () => {
+  test("averages the last four same-weekday records of 140, 160, 180 and 200 to 170", () => {
     const records = [
-      lookupMemberDay("2026-10-10", 40),
-      lookupMemberDay("2026-10-17", 60),
-      lookupMemberDay("2026-10-24", 80),
-      lookupMemberDay("2026-10-31", 100),
+      lookupMemberDay("2026-10-10", 140),
+      lookupMemberDay("2026-10-17", 160),
+      lookupMemberDay("2026-10-24", 180),
+      lookupMemberDay("2026-10-31", 200),
     ];
-    expect(expectedLookupMembers(records, SATURDAY)).toBe(70);
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(170);
   });
 
-  test("averages only the latest four same-weekday records", () => {
+  test("averages only the latest four same-weekday records, all above 100", () => {
     const records = [
       lookupMemberDay("2026-10-03", 5000),
-      lookupMemberDay("2026-10-10", 40),
-      lookupMemberDay("2026-10-17", 60),
-      lookupMemberDay("2026-10-24", 80),
-      lookupMemberDay("2026-10-31", 100),
+      lookupMemberDay("2026-10-10", 110),
+      lookupMemberDay("2026-10-17", 120),
+      lookupMemberDay("2026-10-24", 130),
+      lookupMemberDay("2026-10-31", 140),
     ];
-    expect(expectedLookupMembers(records, SATURDAY)).toBe(70);
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(125);
   });
 
-  test("is not rounded", () => {
-    const records = [lookupMemberDay("2026-10-24", 1), lookupMemberDay("2026-10-31", 2)];
-    expect(expectedLookupMembers(records, SATURDAY)).toBe(1.5);
+  test("keeps a non-whole average above 100 unrounded: 150 and 151 give 150.5", () => {
+    const records = [lookupMemberDay("2026-10-24", 150), lookupMemberDay("2026-10-31", 151)];
+    expect(expectedLookupMembers(records, SATURDAY)).toBe(150.5);
   });
 });
 
 describe("dailyAllowance", () => {
-  test("divides 1,400 by an expected 70 Lookup Members to 20", () => {
-    expect(dailyAllowance({ limit: 2000, reserve: 100, syncShare: 500, expected: 70 })).toBe(20);
+  test("divides 1,400 by an expected 170 to 8", () => {
+    expect(dailyAllowance({ limit: 2000, reserve: 100, syncShare: 500, expected: 170 })).toBe(8);
   });
 
   test("divides 1,400 by the default expected 100 to 14", () => {
     expect(dailyAllowance({ limit: 2000, reserve: 100, syncShare: 500, expected: 100 })).toBe(14);
   });
 
-  test("rounds down", () => {
-    expect(dailyAllowance({ limit: 2000, reserve: 100, syncShare: 500, expected: 60 })).toBe(23);
+  test("rounds down, not to nearest: 1,400 over 145.5 is 9, where rounding would give 10", () => {
+    expect(dailyAllowance({ limit: 2000, reserve: 100, syncShare: 500, expected: 145.5 })).toBe(9);
   });
 
   test("is at least 1 when the division gives less than 1", () => {
@@ -90,7 +110,7 @@ describe("dailyAllowance", () => {
   });
 
   test("is at least 1 when the budget is negative", () => {
-    expect(dailyAllowance({ limit: 300, reserve: 100, syncShare: 500, expected: 70 })).toBe(1);
+    expect(dailyAllowance({ limit: 300, reserve: 100, syncShare: 500, expected: 100 })).toBe(1);
   });
 });
 

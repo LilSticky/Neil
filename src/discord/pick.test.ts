@@ -20,8 +20,14 @@ import {
 import type { Alliance, LookupResult, Match, Player, RosterEntry } from "../domain/player.js";
 import { FakeGameApi } from "./__fakes__/game-api.js";
 import { FakePickInteraction, type PickCall } from "./__fakes__/pick-interaction.js";
-import { FakeUsage, FAKE_USED_BEFORE, usageLineFor } from "./__fakes__/usage.js";
-import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
+import {
+  FakeUsage,
+  FAKE_USED_BEFORE,
+  UNREADABLE_USAGE_MESSAGE,
+  unreadableUsage,
+  usageLineFor,
+} from "./__fakes__/usage.js";
+import { lookupMessages, renderAllianceCard, renderAllianceComponents } from "./lookup-cards.js";
 import { renderOverview, type OverviewReply } from "./overview-texts.js";
 import { handleOverview, handlePick, type PickContext } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
@@ -1348,5 +1354,85 @@ describe("handlePick shows the usage line, read after the request", () => {
         ],
       }) as unknown,
     });
+  });
+});
+
+describe("handlePick when the usage line cannot be read, for a Player the owner picked", () => {
+  test("posts the Player card publicly without the usage line, and logs the failure", async () => {
+    const sessions = new PickSessions();
+    const pickId = openPickList(sessions);
+    const interaction = new FakePickInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+    const { context, logged } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+
+    await handlePick(interaction, { ...context, usage: unreadableUsage });
+
+    expect(interaction.calls.at(-1)).toEqual({
+      method: "followUp",
+      options: {
+        embeds: [
+          expect.objectContaining({
+            title: "DrLOL",
+            footer: { text: "Data from Last Asylum Tracker · as of 16:05 UTC" },
+          }),
+        ],
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(logged).toEqual([expect.stringContaining(UNREADABLE_USAGE_MESSAGE)]);
+  });
+
+  test("tells the owner privately that lookups are unavailable, without the usage line, when the lookup also failed", async () => {
+    const sessions = new PickSessions();
+    const pickId = openPickList(sessions);
+    const interaction = new FakePickInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+    const { context, getPlayer, logged } = contextWith(sessions, { kind: "not-found" });
+    getPlayer.mockImplementation(() => Promise.reject(new Error("tracker connection reset")));
+
+    await handlePick(interaction, { ...context, usage: unreadableUsage });
+
+    expect(interaction.calls.at(-1)).toEqual({
+      method: "followUp",
+      options: {
+        content: lookupMessages.unavailable,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    });
+    expect(logged).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("tracker connection reset"),
+        expect.stringContaining(UNREADABLE_USAGE_MESSAGE),
+      ]),
+    );
+  });
+});
+
+describe("handlePick when the usage line cannot be read, for a roster page turn", () => {
+  test("redraws the Alliance card on the page turned to, without the usage line, and logs the failure", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID });
+    const { context, logged } = contextWith(sessions, { kind: "not-found" });
+
+    await handlePick(interaction, { ...context, usage: unreadableUsage });
+
+    expect(interaction.calls).toEqual([
+      {
+        method: "update",
+        options: {
+          embeds: [renderAllianceCard(allianceNmx, OPENED_AT, NOW, 1)],
+          components: renderAllianceComponents(allianceNmx, 1, pickId),
+        },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining(UNREADABLE_USAGE_MESSAGE)]);
   });
 });

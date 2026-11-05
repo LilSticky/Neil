@@ -2,7 +2,10 @@ import { MessageFlags, type InteractionReplyOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { utcDayOf, type DailyQuota } from "../domain/daily-quota.js";
 import type { AllowanceKeeper, MemberUsage } from "../game-api/allowance-keeper.js";
+import { lookupMessages } from "./lookup-cards.js";
 import { handleQuota, type QuotaContext, type QuotaInteraction } from "./quota.js";
+
+const UNREADABLE_ALLOWANCE_MESSAGE = "allowance store is down";
 
 const MODERATOR_ROLE_ID = "12345678901234567";
 const KING_ROLE_ID = "12345678901234567890";
@@ -339,5 +342,44 @@ describe("handleQuota when Discord refuses the reply", () => {
     await expect(handleQuota(interaction, context)).resolves.toBeUndefined();
 
     expect(logged).toEqual([expect.stringContaining("/quota")]);
+  });
+});
+
+describe("handleQuota when the Daily Allowance cannot be read", () => {
+  /** The Daily Allowance figures, with the allowance per Member throwing. */
+  function unreadableAllowance(): Pick<AllowanceKeeper, "allowance" | "expected" | "top"> {
+    return {
+      ...allowanceWith(),
+      allowance: () => {
+        throw new Error(UNREADABLE_ALLOWANCE_MESSAGE);
+      },
+    };
+  }
+
+  test("replies privately to an Officer with the unavailable text, and logs the failure", async () => {
+    const interaction = new FakeQuotaInteraction([MODERATOR_ROLE_ID]);
+    const logged: string[] = [];
+    const { context } = contextWith(quota(), logged, 100, unreadableAllowance());
+
+    await handleQuota(interaction, context);
+
+    expect(interaction.replies).toEqual([
+      {
+        content: expect.stringContaining(lookupMessages.unavailable) as unknown,
+        flags: MessageFlags.Ephemeral,
+        allowedMentions: { parse: [] },
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining(UNREADABLE_ALLOWANCE_MESSAGE)]);
+  });
+
+  test("logs a refused unavailable reply and resolves instead of throwing", async () => {
+    const interaction = new FakeQuotaInteraction([KING_ROLE_ID], new Error("Unknown interaction"));
+    const logged: string[] = [];
+    const { context } = contextWith(quota(), logged, 100, unreadableAllowance());
+
+    await expect(handleQuota(interaction, context)).resolves.toBeUndefined();
+
+    expect(logged).toEqual(expect.arrayContaining([expect.stringContaining("Unknown interaction")]));
   });
 });

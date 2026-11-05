@@ -2,7 +2,10 @@ import { MessageFlags, type InteractionReplyOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { AllowanceKeeper } from "../game-api/allowance-keeper.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import { lookupMessages } from "./lookup-cards.js";
 import { handleUsage, type UsageContext, type UsageInteraction } from "./usage.js";
+
+const UNREADABLE_ALLOWANCE_MESSAGE = "allowance store is down";
 
 const MODERATOR_ROLE_ID = "12345678901234567";
 const KING_ROLE_ID = "12345678901234567890";
@@ -115,5 +118,52 @@ describe("handleUsage for an Officer", () => {
         flags: MessageFlags.Ephemeral,
       },
     ]);
+  });
+});
+
+describe("handleUsage when the Daily Allowance cannot be read", () => {
+  /** A context whose Daily Allowance figures throw, logging into `logged`. */
+  function contextWithUnreadableAllowance(logged: string[]): UsageContext {
+    return {
+      allowance: {
+        allowance: () => {
+          throw new Error(UNREADABLE_ALLOWANCE_MESSAGE);
+        },
+        usageOf: () => 4,
+      },
+      officerRoleIds: [MODERATOR_ROLE_ID, KING_ROLE_ID],
+      now: () => NOW,
+      logError: (message: string) => {
+        logged.push(message);
+      },
+    };
+  }
+
+  test("replies privately with the unavailable text, and logs the failure", async () => {
+    const interaction = new FakeUsageInteraction([MEMBER_ROLE_ID]);
+    const logged: string[] = [];
+
+    await handleUsage(interaction, contextWithUnreadableAllowance(logged));
+
+    expect(interaction.replies).toEqual([
+      {
+        content: lookupMessages.unavailable,
+        flags: MessageFlags.Ephemeral,
+      },
+    ]);
+    expect(logged).toEqual([expect.stringContaining(UNREADABLE_ALLOWANCE_MESSAGE)]);
+  });
+
+  test("logs a refused unavailable reply and resolves instead of throwing", async () => {
+    const interaction: UsageInteraction = {
+      callerId: CALLER,
+      memberRoleIds: () => [MEMBER_ROLE_ID],
+      reply: () => Promise.reject(new Error("Unknown interaction")),
+    };
+    const logged: string[] = [];
+
+    await expect(handleUsage(interaction, contextWithUnreadableAllowance(logged))).resolves.toBeUndefined();
+
+    expect(logged).toEqual(expect.arrayContaining([expect.stringContaining("Unknown interaction")]));
   });
 });

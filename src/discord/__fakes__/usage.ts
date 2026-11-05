@@ -14,6 +14,14 @@ export function usageLineFor(caller: LookupCaller, used: number): string {
     : `${used.toString()} of ${FAKE_LINE_ALLOWANCE.toString()} Game API requests used today · cached answers are free · resets 00:00 UTC`;
 }
 
+/** The message of the error an unreadable Daily Allowance throws: the usage store is down. */
+export const UNREADABLE_USAGE_MESSAGE = "allowance store is down";
+
+/** The usage function of a context whose usage store cannot be read: every call throws. */
+export function unreadableUsage(): string {
+  throw new Error(UNREADABLE_USAGE_MESSAGE);
+}
+
 /**
  * The context's usage function, read by the handlers after a request. `used` is the count the line shows; a test that
  * makes a request charged to the Member raises it, as the Game API client does for an uncached answer.
