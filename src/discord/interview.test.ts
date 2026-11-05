@@ -644,6 +644,104 @@ describe("createInterviews", () => {
     });
   });
 
+  describe("when a Member comes online (onMemberOnline)", () => {
+    test("gives the Onboarding Role to an unlinked Member with no Interview, and opens their Interview", async () => {
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+      expect(h.channels.opened).toEqual([{ id: MEMBER, username: "vex_fan" }]);
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
+      expect(h.channels.posts).toEqual([
+        { threadId: THREAD, message: askUidMessage(openInterviewIdOf(h, MEMBER), MEMBER) },
+      ]);
+    });
+
+    test("starts nothing for a bot account", async () => {
+      await h.service.onMemberOnline({ id: MEMBER, username: "neil_bot", displayName: "neil_bot", bot: true });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.channels.posts).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
+    test("starts nothing for a Linked Member, and gives them no Doctor Role either", async () => {
+      h.links.confirm({ link: { memberId: MEMBER, uid: UID, linkedAt: NOW, allianceRank: { source: "no-alliance" }, madeBy: { kind: "in-game-proof" } } }, () => undefined);
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.doctorRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+    });
+
+    test("starts nothing for a Member who has an open Interview", async () => {
+      h.interviews.create({ memberId: MEMBER, threadId: THREAD }, NOW);
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.onboardingRole.calls).toEqual([]);
+      expect(h.channels.opened).toEqual([]);
+      expect(h.channels.posts).toEqual([]);
+    });
+
+    test("starts nothing for a Member whose latest Interview was handed off", async () => {
+      const handedOffId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "not-found" });
+      await failUidTimes(h, handedOffId, 5);
+      const threadsBefore = h.channels.opened.length;
+      const postsBefore = h.channels.posts.length;
+      const roleCallsBefore = h.onboardingRole.calls.length;
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.interviews.latestFor(MEMBER)).toMatchObject({ id: handedOffId, step: "handed-off" });
+      expect(h.channels.opened).toHaveLength(threadsBefore);
+      expect(h.channels.posts).toHaveLength(postsBefore);
+      expect(h.onboardingRole.calls).toHaveLength(roleCallsBefore);
+    });
+
+    test("starts a new Interview for a Member whose latest Interview was abandoned, as left", async () => {
+      const abandonedId = await joinedMember(h);
+      await h.service.onMemberLeft({ id: MEMBER, username: "vex_fan" });
+      expect(h.interviews.get(abandonedId)).toMatchObject({ step: "abandoned", reason: "left" });
+
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      const newId = openInterviewIdOf(h, MEMBER);
+      expect(newId).not.toBe(abandonedId);
+      expect(h.channels.opened).toHaveLength(2);
+    });
+
+    test("opens one thread when two calls for the same Member run at once", async () => {
+      const member = { id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false };
+
+      await Promise.all([h.service.onMemberOnline(member), h.service.onMemberOnline(member)]);
+
+      expect(h.channels.opened).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+      expect(h.channels.posts).toHaveLength(1);
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
+    });
+
+    test("logs a thread that cannot be opened, without throwing, and tries again on the next call", async () => {
+      h.channels.refuseOpen = true;
+
+      await expect(
+        h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false }),
+      ).resolves.toBeUndefined();
+
+      expect(h.errors).toEqual([expect.stringContaining("Discord refused to open the thread")]);
+      expect(h.interviews.openFor(MEMBER)).toBeUndefined();
+
+      h.channels.refuseOpen = false;
+      await h.service.onMemberOnline({ id: MEMBER, username: "vex_fan", displayName: "vex_fan", bot: false });
+
+      expect(h.interviews.openFor(MEMBER)?.threadId).toBe(THREAD);
+    });
+  });
+
   describe("when the Member's Interview opens while their thread is being created", () => {
     test("deletes the thread just created, asks nothing in it, and keeps the Interview that won", async () => {
       h.channels.beforeOpen = () => {

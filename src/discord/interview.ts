@@ -23,6 +23,7 @@ import {
 import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
 import { parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import { listedPlayerMatches, type LookupResult, type PickablePlayerMatch, type Player } from "../domain/player.js";
+import { wantsInterview } from "../domain/interview-start.js";
 import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { CreateOutcome, InterviewStore } from "../storage/interview-store.js";
@@ -154,6 +155,8 @@ export interface InterviewDeps {
 /** The Interview entry points the Discord client routes to. Each one reports its own failures and never throws. */
 export interface Interviews {
   onMemberJoined(member: JoinedMember): Promise<void>;
+  /** A Member came online: starts an Interview for them when they want one. */
+  onMemberOnline(member: JoinedMember): Promise<void>;
   onMemberLeft(member: LeftMember): Promise<void>;
   onCommand(command: CommandLike): Promise<void>;
   onButton(button: ButtonInteractionLike): Promise<void>;
@@ -168,8 +171,14 @@ type Ownership =
   | { readonly kind: "refused"; readonly reply: PrivateReply };
 
 export function createInterviews(deps: InterviewDeps): Interviews {
+  /** The Members whose Interview is being started right now, so that a second call for one of them returns at once. */
+  const starting = new Set<MemberId>();
   return {
     onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
+    onMemberOnline: (member) =>
+      guarded(deps, "Member coming online", async () => {
+        await startIfWanted(deps, starting, member);
+      }),
     onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
     onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, command)),
     onButton: (button) => {
@@ -277,6 +286,33 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
   if (deps.interviews.openFor(member.id) !== undefined) return;
   await deps.onboardingRole.give(member.id);
   await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
+}
+
+/** Whether a step started an Interview for the Member, or the Member did not want one (or a start was already running). */
+type StartOutcome = "started" | "skipped";
+
+/**
+ * Starts an Interview for a Member who came online, when they want one: gives the Onboarding Role, then opens the
+ * Interview. Resolves "skipped" for a bot, a Linked Member, a Member with an open Interview or one handed off, and for a
+ * Member whose start is already running. Throws when the start fails, so the caller logs it or counts it.
+ */
+async function startIfWanted(deps: InterviewDeps, starting: Set<MemberId>, member: JoinedMember): Promise<StartOutcome> {
+  if (starting.has(member.id)) return "skipped";
+  const wanted = wantsInterview({
+    bot: member.bot,
+    linked: deps.links.linkFor(member.id) !== undefined,
+    open: deps.interviews.openFor(member.id) !== undefined,
+    handedOff: deps.interviews.latestFor(member.id)?.step === "handed-off",
+  });
+  if (!wanted) return "skipped";
+  starting.add(member.id);
+  try {
+    await deps.onboardingRole.give(member.id);
+    const threadId = await openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
+    return threadId === undefined ? "skipped" : "started";
+  } finally {
+    starting.delete(member.id);
+  }
 }
 
 /** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */

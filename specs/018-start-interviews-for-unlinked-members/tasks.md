@@ -17,13 +17,13 @@ No setup: no new dependency, migration or environment variable.
 Blocks every story.
 
 - [x] T001 [P] Write ADR 11, reading the presence of Members (D6), in `documentation/adr/0011-reading-the-presence-of-members.md` and its index line in `documentation/adr/README.md`.
-- [ ] T002 [P] Domain (D1) in `src/domain/interview-start.ts`: `cameOnline(before, after)` (true when `before` is offline or undefined and `after` is not offline) and `wantsInterview({ bot, linked, open, handedOff })` (true when all four are false).
+- [x] T002 [P] Domain (D1) in `src/domain/interview-start.ts`: `cameOnline(before, after)` (true when `before` is offline or undefined and `after` is not offline) and `wantsInterview({ bot, linked, open, handedOff })` (true when all four are false).
 
 ## Phase 3: User Story 1, a Member who comes online is interviewed (P1)
 
 **Independent test**: an unlinked Member goes from offline to online and an Interview opens; a Linked Member doing the same gets none.
 
-- [ ] T003 [US1] `Interviews.onMemberOnline(member)` in `src/discord/interview.ts` (D2, D3): skips a bot, a Linked Member, an open Interview and a latest Interview with step `handed-off`; otherwise gives the Onboarding Role and calls `openInterview`; a second call for the same Member while one is starting returns at once; a failure is logged, never thrown. `joinMember` does not change.
+- [x] T003 [US1] `Interviews.onMemberOnline(member)` in `src/discord/interview.ts` (D2, D3): skips a bot, a Linked Member, an open Interview and a latest Interview with step `handed-off`; otherwise gives the Onboarding Role and calls `openInterview`; a second call for the same Member while one is starting returns at once; a failure is logged, never thrown. `joinMember` does not change.
 - [ ] T004 [US1] Adapter in `src/discord/client.ts` (D5): the `GuildPresences` intent; `Events.PresenceUpdate` checks the guild id, asks `cameOnline`, reads the Member from the event or `fetchMember`, and calls a new `memberOnline` handler. No `guild.members.fetch()` without an id.
 
 ## Phase 4: User Story 2, Neil interviews the unlinked Members it sees when it starts (P1)
