@@ -153,6 +153,12 @@ than starting over.
 **Running locally**: there is only one bot application, so **Stop** the Wispbyte server before
 `npm run dev`, and **Start** it again when done.
 
+A local Neil and the Wispbyte Neil each have their own `data/neil.db`, but act on the same server. The startup sweeps
+follow whichever database they run on, so Links made on one are unknown to the other: on 2026-11-05 a Wispbyte start took
+`Doctor` off two Members who were Linked only in the local database. Both running at once also share Discord's limits.
+Signs: a role flips between starts in `#neil-log`, or two Daily Sync lines for one UTC day. Production data is the one on
+Wispbyte.
+
 **If `git pull` fails on start** with "untracked working tree files would be overwritten", the old
 build keeps running. Delete the named file in **Files** (never `.env` or `data/`) and **Start**. It happened
 once, on 2026-10-29: the placeholder had no lockfile, so the server's `npm install` created an untracked

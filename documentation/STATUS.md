@@ -32,12 +32,14 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** for the user: click Restart in the Wispbyte panel once CI has deployed the Member listing fix ([#53](https://github.com/LilSticky/Neil/issues/53)): the Doctor Role sweep failed at the last restarts with an opcode 8 rate limit; Neil now lists the Members over REST. `/reaper` and `/channels` are registered; slice 015's `/usage` needs another `npm run commands:register` after it deploys. After the restart, check that the log has no `Listing the Members` failure and that Linked Members hold
-`Doctor`, and only then set up the channels ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9). Then TEST-RUN.md
-§6i, §6j, §6k and §6l.
+**Next step:** for the user: Link both Members again on the Wispbyte Neil with `/interview` in `#onboarding`, and check that each gets
+`Doctor`. Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)). Then set up the channels
+([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9), then TEST-RUN.md §6i, §6j, §6k and §6l. `/reaper` and `/channels`
+are registered; slice 015's `/usage` needs another `npm run commands:register` after it deploys.
 
 ## Known broken / WIP
 
+- The Links made so far exist only in the local `data/neil.db`, not on Wispbyte; both Members are being Linked again (the user's choice, 2026-11-05).
 - Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
