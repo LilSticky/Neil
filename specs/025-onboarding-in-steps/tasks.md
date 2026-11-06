@@ -11,18 +11,18 @@
 
 ## Phase B: Steps (after slice 024 is corrected and merged; rebase first)
 
-- [ ] T005 [US1] Step order in `src/domain/preferences.ts`: Languages, Interests, Region, Experience, with next and previous (FR-001)
-- [ ] T006 [US1] Custom ids: `pref:go:{step}:{memberId}` alongside the existing forms (plan D2)
-- [ ] T007 [US1] Step messages in `src/discord/preferences-texts.ts`: one menu, explanation, place among the steps; Interests explained per option (FR-002, FR-003)
-- [ ] T008 [US2] Buttons per step: Skip or Next, Back, Done; Region and Experience say they are optional (FR-004, FR-005)
+- [x] T005 [US1] Step order in `src/domain/preferences.ts`: Languages, Interests, Region, Experience, with next and previous (FR-001)
+- [x] T006 [US1] Custom ids: `pref:go:{step}:{memberId}` alongside the existing forms (plan D2)
+- [x] T007 [US1] Step messages in `src/discord/preferences-texts.ts`: one menu, explanation, place among the steps; Interests explained per option (FR-002, FR-003)
+- [x] T008 [US2] Buttons per step: Skip or Next, Back, Done; Region and Experience say they are optional (FR-004, FR-005)
 - [ ] T009 [US1] A select press saves, applies, logs and re-renders the same step (FR-006)
 - [ ] T010 [US2] A go press shows that step from stored answers and changes nothing (FR-004, SC-003)
-- [ ] T011 [US2] Finishing message: `/channels` and the guides line, no menus (FR-007)
+- [x] T011 [US2] Finishing message: `/channels` and the guides line, no menus (FR-007)
 - [ ] T012 [US3] `/channels` answers privately with the Languages step (FR-009)
 - [ ] T013 [US3] Guests and Members who are not Linked are refused on go presses too (FR-011)
 - [ ] T014 [US1] At the Link the thread stays open and shows the Languages step; Done or the timeout closes it, and a pending Rank Approval still keeps it (FR-008, FR-010)
 - [ ] T015 [US1] A Guest at the Link gets no steps and the thread closes as today; an Officer Link gets the `/channels` note (edge cases)
-- [ ] T016 Every step and text fits Discord's limits (FR-015, SC-005)
+- [x] T016 Every step and text fits Discord's limits (FR-015, SC-005)
 
 ## Phase C: Finish
 
