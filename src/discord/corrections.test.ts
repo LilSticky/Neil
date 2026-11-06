@@ -577,6 +577,44 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
 
     expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
   });
+
+  test("a Linked Guest with no rank in the game gets /rank as any Link: the rank is stored and the name and roles are re-applied", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED_OUTSIDE_HOME, fetchedAt: NOW };
+    linkMember(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    const members = new FakeServerMembers();
+    const guild = new FakeRolesGuild(OWNER_ID);
+    members.join(LINKED, guild, guild.member(LINKED, []));
+    const nameAndRoles = createNameAndRoles({
+      members,
+      applied: new AppliedStore(h.db),
+      links: h.links,
+      gameApi: h.gameApi,
+      unlink: h.unlink,
+      preferenceRoles: new FakePreferenceRoles(),
+      homeKingdom: KINGDOM,
+      troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
+      officerRoleIds: OFFICER_ROLE_IDS,
+      log: () => Promise.resolve(),
+      now: () => NOW,
+      logError: (line: string) => h.errors.push(line),
+    });
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, {
+      links: h.links,
+      preferences: h.preferences,
+      channels: h.channels,
+      nameAndRoles,
+      officerRoles: OFFICERS,
+      now: () => NOW,
+      logError: (line) => h.errors.push(line),
+    });
+
+    expect(h.links.linkFor(LINKED)?.allianceRank).toEqual(
+      expect.objectContaining({ source: "rank-approval", rank: "R4" }),
+    );
+    expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
+  });
 });
 
 /* Confirm of an Officer Link, pressed by the Officer who asked: the press is acknowledged first, and a refusal is answered
@@ -790,6 +828,8 @@ const PLAYER_RANKED: Player = {
 const PLAYER_UNRANKED: Player = { ...PLAYER_RANKED, allianceRank: "unknown" };
 /** A Player in Kingdom 12, outside the Home Kingdom (245): the Member Linked to them is a Guest. */
 const PLAYER_OUTSIDE_HOME: Player = { ...PLAYER_RANKED, kingdom: kingdomOf(12) };
+/** A Guest's Player, outside the Home Kingdom (245), whose rank the Game API does not list. */
+const PLAYER_UNRANKED_OUTSIDE_HOME: Player = { ...PLAYER_UNRANKED, kingdom: kingdomOf(12) };
 
 /** The Game API for a uid: records every lookup and answers with the result set. */
 class FakeLinkGameApi {
@@ -1324,6 +1364,32 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
     expect(line).toContain("Vera");
     expect(line).toContain(`<@${OFFICER}>`);
     expect(h.errors).toEqual([]);
+  });
+});
+
+describe("handleLinkButton: an Officer Link of a Guest with no rank in the game opens no Rank Approval", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("Confirm stores the Officer Link, stores no Rank Approval, and deletes the Interview thread", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED_OUTSIDE_HOME, fetchedAt: NOW };
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.links.linkFor(HANDED_OFF)).toMatchObject({ memberId: HANDED_OFF, uid: FOUND_UID });
+    expect(h.links.pendingFor(HANDED_OFF)).toBeUndefined();
+    expect(h.rankApprovals.announced).toEqual([]);
+    expect(h.channels.posts).toEqual([]);
+    expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
   });
 });
 

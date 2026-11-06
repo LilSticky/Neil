@@ -1072,6 +1072,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       }),
       sendPrivateMessage,
       isOnServer,
+      homeKingdom: options.homeKingdom,
       now,
       logError,
     });

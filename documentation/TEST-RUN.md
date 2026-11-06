@@ -343,6 +343,16 @@ On the test server, with its token and ID in `.env`. Neil needs a role there fir
 | 6q.8 | A Linked Member with a plain `NML` role, after the Daily Sync | The same role, named `[NML]`, still held | |
 | 6q.9 | With Community on, if you can | Forums and announcement channels are created as such | |
 
+## 6r. No Rank Approval for Guests (slice 023, collected 2026-11-06)
+
+Branch `023-no-rank-approval-for-guests`. No new commands.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6r.1 | Link a test account to a Player outside the Home Kingdom whose rank the game doesn't list | No Rank Approval, nobody asked; the thread is deleted | | |
+| 6r.2 | `/rank` that Member as an Officer, with R4 | The nickname shows `\|R4`; no `R4` role | | |
+| 6r.3 | Link a test account in the Home Kingdom whose rank the game doesn't list | The Rank Approval is asked, as before | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
