@@ -4,6 +4,7 @@
     "King",
     "Onboarding",
     "Doctor",
+    "R4",
     "R5",
     "#<Home Kingdom>",
     "PvP",
@@ -136,6 +137,23 @@
           "name": "home-kingdom-announcements",
           "type": "announcement",
           "mode": "only-king-posts"
+        },
+        {
+          "name": "gift-codes",
+          "type": "text",
+          "mode": "only-king-posts",
+          "overwrites": {
+            "R4": {
+              "allow": [
+                "SendMessages"
+              ]
+            },
+            "R5": {
+              "allow": [
+                "SendMessages"
+              ]
+            }
+          }
         }
       ]
     },

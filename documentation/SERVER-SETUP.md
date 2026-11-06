@@ -111,7 +111,7 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Onboarding | `#onboarding` | Onboarding, Moderator, King, `R5` | 🔴 |
 | Officers | `#neil-log`, Moderator channel | Moderator, King | 🔴 for the log; 🟡 for the Moderator channel |
 | Basic information | `#rules`, `#welcome` (read only) | Kingdom | 🟡 |
-| Home Kingdom | Home Kingdom announcements (only King posts) and your other Home Kingdom channels | Kingdom | 🟡 |
+| Home Kingdom | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server) and your other Home Kingdom channels | Kingdom | 🟡 |
 | Hangout | `#general`, voice, `#alliance-hall` (commands) | Kingdom | 🟡 |
 | Guest area | guest rules (read only), text, voice, announcements for everyone (only King posts) | Doctor | 🟡 |
 | NaP | closed discussion | NaP discussions, King | 🟡 |
@@ -250,6 +250,7 @@ check section 5 for any new command.
 | set an Alliance Rank the game doesn't show | `/rank member:@them rank:R4` (Officer) |
 | let newcomers see one more channel (e.g. `#rules`) | that channel → **Edit Channel** → **Permissions** → **Onboarding**: View Channel ✅ |
 | give the Home Kingdom a new channel | the channel or its category → **Permissions** → `#<Home Kingdom>`: View Channel ✅ |
+| feed `#gift-codes` from the game's official server | in the official server's announcement channel, press **Follow** and choose `#gift-codes`. You need **Manage Webhooks** on this server; the posts arrive whatever the channel's Send Messages settings say |
 | give Guests a new channel | put it in the Guest area, or give **Doctor** View Channel ✅ |
 | give a new Alliance its area | run the setup script again ([STARTUP-GUIDE.md](STARTUP-GUIDE.md#6-add-alliance-areas)) |
 | change the Server Layout | edit `server-layout.json`, then run the setup script again; what you remove from it stays on the server and is reported |

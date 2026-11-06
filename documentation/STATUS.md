@@ -65,6 +65,8 @@ Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Pres
 Neil isn't live yet and the test server is empty: no backwards compatibility until the user announces the release (the user's word, 2026-11-06).
 Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 
+`#gift-codes` is in the Server Layout (the user's request, 2026-11-07): Home Kingdom only, posted in by `R4`, `R5` and King, or fed by a **Follow** from the game's official server, which the user sets up by hand ([SERVER-SETUP.md](SERVER-SETUP.md)). Check: TEST-RUN.md 6q.10 and 6q.11.
+
 ## Known broken / WIP
 
 - The setup script's real run hides existing layout channels from @everyone at once. On the live server it is the cutover: only on the announced date ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md) step 6).
