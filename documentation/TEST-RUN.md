@@ -240,7 +240,7 @@ need a Member Linked to the R5 of a Home Kingdom Alliance and a second Member wh
 ## 6k. Choose your channels (slice 016, collected 2026-11-04)
 
 Branch `016-choose-your-channels`. New command: `/channels`. Before: set the Preference Role channel permissions
-from SERVER-SETUP.md (step 8b) and HOSTING.md, and set `DISCORD_GUIDES_FORUM_ID` if you want the guides forum named.
+from SERVER-SETUP.md (section 3) and HOSTING.md, and set `DISCORD_GUIDES_FORUM_ID` if you want the guides forum named.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
@@ -259,7 +259,7 @@ from SERVER-SETUP.md (step 8b) and HOSTING.md, and set `DISCORD_GUIDES_FORUM_ID`
 ## 6l. Give Members the Doctor Role (slice 017, collected 2026-11-04)
 
 Branch `017-give-members-the-doctor-role`. No new commands. Restart Neil before moving any channel to Doctor. Set up the
-channels from SERVER-SETUP.md steps 8c and 9 after 6l.1.
+channels from SERVER-SETUP.md sections 3 and 5 after 6l.1. Since slice 019, Guests see only the Guest area, so expectations that a Guest sees basic information or `#alliance-hall` no longer hold.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
