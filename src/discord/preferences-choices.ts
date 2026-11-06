@@ -114,6 +114,10 @@ async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress):
     await finish(deps, press, memberId);
     return;
   }
+  if (isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom)) {
+    await press.reply(guestChannelsReply());
+    return;
+  }
   await change(deps, press, { memberId, rank: link.allianceRank, question });
 }
 

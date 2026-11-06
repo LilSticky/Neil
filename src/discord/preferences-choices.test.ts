@@ -372,6 +372,50 @@ describe("a select change", () => {
   });
 });
 
+describe("a select change by a Guest, or by a Member the Applied State does not place", () => {
+  test("a known Guest's select menu press gets the Guest refusal, and stores, gives and logs nothing", async () => {
+    const { store, roles, channels, applied, linkAlice, selectOf, choices, trace } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    const press = selectOf("languages", ["de"]);
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([guestChannelsReply()]);
+    expect(press.updates).toEqual([]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual([]);
+  });
+
+  test("a known Guest pressing Done still closes the open prompt and deletes its thread", async () => {
+    const { store, channels, applied, linkAlice, doneOf, choices } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    store.openPrompt(ALICE, ALICE_THREAD);
+
+    await choices.press(doneOf());
+
+    expect(store.prompt(ALICE)).toBeUndefined();
+    expect(channels.deleted).toEqual([ALICE_THREAD]);
+  });
+
+  test("a Linked Member with no Applied State pressing a select menu is saved and not refused", async () => {
+    const { store, roles, linkAlice, selectOf, choices } = setUp();
+    linkAlice(R3);
+    const press = selectOf("languages", ["de"]);
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([]);
+    expect(press.updates).toHaveLength(1);
+    expect(store.writes).toEqual(["setLanguages"]);
+    expect(store.get(ALICE).languages).toEqual(languages("de"));
+    expect(roles.applied).toEqual([ALICE]);
+  });
+});
+
 describe("a press by another Member", () => {
   test("replies that the choices belong to another Member and changes nothing", async () => {
     const { store, roles, channels, linkAlice, selectOf, choices, trace } = setUp();

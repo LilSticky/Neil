@@ -30,9 +30,9 @@
 
 **Independent Test**: a Daily Sync of a Guest holding Preference Roles takes them off, logs one line and keeps the Preferences.
 
-- [ ] T007 [US2] `applyTo` in `src/discord/preferences.ts` gives roles only to a Member known to be in the Home Kingdom, takes every Preference Role off anyone else, and stores NaP discussions by rank only for a Member known to be in the Home Kingdom; stored Preferences stay (FR-004, FR-005, FR-006, FR-010, FR-011)
-- [ ] T008 [US2] A known Guest's select menu press in `src/discord/preferences-choices.ts` gets the refusal and stores nothing; Done still closes; a Member with no Applied State is not refused (FR-009)
-- [ ] T009 [US2] Wire the Applied State and the Home Kingdom into the Preferences services in `src/discord/client.ts`
+- [x] T007 [US2] `applyTo` in `src/discord/preferences.ts` gives roles only to a Member known to be in the Home Kingdom, takes every Preference Role off anyone else, and stores NaP discussions by rank only for a Member known to be in the Home Kingdom; stored Preferences stay (FR-004, FR-005, FR-006, FR-010, FR-011)
+- [x] T008 [US2] A known Guest's select menu press in `src/discord/preferences-choices.ts` gets the refusal and stores nothing; Done still closes; a Member with no Applied State is not refused (FR-009)
+- [x] T009 [US2] Wire the Applied State and the Home Kingdom into the Preferences services in `src/discord/client.ts`
 
 ## Phase 5: User Story 3 - A Member who moves Kingdom (P2)
 
@@ -40,13 +40,13 @@
 
 **Independent Test**: a sync out of the Home Kingdom takes the roles off; a sync back gives the same roles.
 
-- [ ] T010 [US3] Test in `src/discord/daily-sync.test.ts` that a Member leaving and returning loses and regains the same Preference Roles without answering, using the real Preference Roles service (FR-006, FR-007)
+- [x] T010 [US3] Test in `src/discord/daily-sync.test.ts` that a Member leaving and returning loses and regains the same Preference Roles without answering, using the real Preference Roles service (FR-006, FR-007)
 
 ## Phase 6: Polish
 
-- [ ] T011 Dictionary: Preference, Preference Role and Guest wording in `documentation/DICTIONARY.md`, after the user's approval
-- [ ] T012 [P] Remove the #64 limit notes from `documentation/SERVER-SETUP.md`, `documentation/STARTUP-GUIDE.md` and `documentation/MIGRATION-GUIDE.md` (FR-012)
-- [ ] T013 [P] Add §6o to `documentation/TEST-RUN.md` from [quickstart.md](quickstart.md)
+- [x] T011 Dictionary: Preference, Preference Role and Guest wording in `documentation/DICTIONARY.md`, after the user's approval
+- [x] T012 [P] Remove the #64 limit notes from `documentation/SERVER-SETUP.md`, `documentation/STARTUP-GUIDE.md` and `documentation/MIGRATION-GUIDE.md` (FR-012)
+- [x] T013 [P] Add §6o to `documentation/TEST-RUN.md` from [quickstart.md](quickstart.md)
 - [ ] T014 `bot-reviewer` pass, findings in `review.md`
 - [ ] T015 `spec-auditor` pass, findings in `audit.md`
 - [ ] T016 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`

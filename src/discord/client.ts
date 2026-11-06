@@ -978,6 +978,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       members: serverMembersOf(guild),
       links: options.links,
       preferences: options.preferences,
+      applied: options.applied,
+      homeKingdom: options.homeKingdom,
       channels,
       logError,
       // A change of roles is one plain line in the log channel, without mentions; a refused post is logged and the change stands.

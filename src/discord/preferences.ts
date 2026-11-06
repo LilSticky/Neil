@@ -1,5 +1,7 @@
-import { ALL_PREFERENCE_ROLE_NAMES, allianceRankOf, preferenceRolesFor, type InterestKey } from "../domain/preferences.js";
+import { ALL_PREFERENCE_ROLE_NAMES, allianceRankOf, isKnownInHomeKingdom, preferenceRolesFor, type InterestKey } from "../domain/preferences.js";
+import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import type { AppliedStore } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import { giveNamedRole, takeOffNamedRole, type RolesGuild, type RolesMember, type Skipped } from "./member-roles.js";
@@ -10,6 +12,9 @@ export interface PreferenceRolesDeps {
   readonly members: ServerMembers;
   readonly links: Pick<LinkStore, "linkFor" | "pendingFor">;
   readonly preferences: Pick<PreferenceStore, "get" | "setInterests" | "forget" | "prompt">;
+  readonly applied: Pick<AppliedStore, "get">;
+  /** The Home Kingdom from config: only a Member known to be in it gets Preference Roles. */
+  readonly homeKingdom: KingdomNumber;
   readonly channels: Pick<OnboardingChannels, "deleteThread">;
   readonly logError: (line: string) => void;
   /** The log channel's line for a change of roles: one per apply that changed a role. */
@@ -26,7 +31,10 @@ export interface PreferenceRolesDeps {
 export interface PreferenceRoles {
   /**
    * Gives the Member the Preference Roles wanted by their Preferences and Alliance Rank (read from the Link when the
-   * change runs), and takes off the other Preference Roles they hold. A Member not on the server is left alone.
+   * change runs), and takes off the other Preference Roles they hold. A Member is wanted no Preference Role unless they
+   * are Linked and known in the Home Kingdom (from their Applied State): a Guest or a Member with no Applied State gets
+   * none, and any they hold is taken off. Only an R5 known in the Home Kingdom gets NaP discussions stored by rank. The
+   * stored Preferences are never changed otherwise. A Member not on the server is left alone.
    */
   apply(memberId: MemberId): Promise<void>;
   /**
@@ -71,11 +79,12 @@ function queueFor(
 async function applyTo(deps: PreferenceRolesDeps, memberId: MemberId): Promise<void> {
   try {
     const link = deps.links.linkFor(memberId);
-    const rank = link === undefined ? undefined : allianceRankOf(link.allianceRank);
+    const knownAtHome = isKnownInHomeKingdom(deps.applied.get(memberId)?.roles, deps.homeKingdom);
+    const rank = link === undefined || !knownAtHome ? undefined : allianceRankOf(link.allianceRank);
     if (rank === "R5") keepNapDiscussions(deps, memberId);
     const server = await deps.members.memberOf(memberId);
     if (server === undefined) return;
-    const wanted = link === undefined ? [] : preferenceRolesFor(deps.preferences.get(memberId), rank);
+    const wanted = link === undefined || !knownAtHome ? [] : preferenceRolesFor(deps.preferences.get(memberId), rank);
     const held = heldNames(server.member);
     const unwanted = ALL_PREFERENCE_ROLE_NAMES.filter((name) => held.has(name) && !wanted.includes(name));
     const missing = wanted.filter((name) => !held.has(name));

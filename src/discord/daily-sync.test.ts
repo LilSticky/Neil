@@ -10,10 +10,12 @@ import type { RankOnLink } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, AllianceRank, LookupResult, Player, RosterEntry } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import type { GameLanguageCode } from "../domain/preferences.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
+import { createPreferenceStore, type PreferenceStore } from "../storage/preference-store.js";
 import type { DailySyncRecord } from "../storage/daily-sync-store.js";
 import { FakeDailySyncGameApi } from "./__fakes__/daily-sync-game-api.js";
 import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
@@ -22,6 +24,7 @@ import { FakeUnlink } from "./__fakes__/unlink.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { runDailySync, startDailySync, type DailySyncDeps } from "./daily-sync.js";
 import { createNameAndRoles } from "./name-and-roles.js";
+import { createPreferenceRoles } from "./preferences.js";
 import type { Schedule } from "./interview-sweeper.js";
 
 function uidOf(digits: string): Uid {
@@ -147,11 +150,17 @@ function rosterTags(h: Harness): string[] {
   return h.gameApi.requests.flatMap((request) => (request.kind === "roster" ? [request.tag] : []));
 }
 
+interface HarnessOptions {
+  /** Wires the real Preference Roles service over the real Preference store, instead of the fake. */
+  readonly realPreferenceRoles?: boolean;
+}
+
 interface Harness {
   readonly guild: FakeRolesGuild;
   readonly server: FakeServerMembers;
   readonly applied: AppliedStore;
   readonly links: LinkStore;
+  readonly preferences: PreferenceStore;
   readonly runs: DailySyncStore;
   readonly gameApi: FakeDailySyncGameApi;
   readonly unlink: FakeUnlink;
@@ -163,7 +172,7 @@ interface Harness {
 }
 
 /** The Daily Sync with fakes at the Discord and Game API ports, the real stores and the real name and roles. */
-function makeHarness(): Harness {
+function makeHarness(options: HarnessOptions = {}): Harness {
   const dataDir = mkdtempSync(join(tmpdir(), "neil-daily-sync-"));
   const db: DatabaseSync = openDatabase(dataDir);
   const clock = { now: NOW };
@@ -172,6 +181,7 @@ function makeHarness(): Harness {
   const server = new FakeServerMembers();
   const applied = new AppliedStore(db);
   const links = new LinkStore(db);
+  const preferences = createPreferenceStore(db, () => undefined);
   const runs = new DailySyncStore(db);
   const gameApi = new FakeDailySyncGameApi(now);
   const unlink = new FakeUnlink();
@@ -184,13 +194,30 @@ function makeHarness(): Harness {
   const logError = (line: string): void => {
     errors.push(line);
   };
+  const officerRoleIds = [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID];
+  const preferenceRoles =
+    options.realPreferenceRoles === true
+      ? createPreferenceRoles({
+          members: server,
+          links,
+          preferences,
+          applied,
+          homeKingdom: HOME,
+          channels: { deleteThread: () => Promise.resolve() },
+          logError,
+          log: (line) => {
+            logs.push({ content: line });
+          },
+          officerRoleIds,
+        })
+      : new FakePreferenceRoles();
   const nameAndRoles = createNameAndRoles({
     members: server,
     applied,
     links,
     gameApi,
     unlink,
-    preferenceRoles: new FakePreferenceRoles(),
+    preferenceRoles,
     homeKingdom: HOME,
     troopBracketLevels: TROOP_BRACKET_LEVELS,
     officerRoleIds: [MODERATOR_ROLE_ID, OFFICER_KING_ROLE_ID],
@@ -217,6 +244,7 @@ function makeHarness(): Harness {
     server,
     applied,
     links,
+    preferences,
     runs,
     gameApi,
     unlink,
@@ -790,6 +818,45 @@ describe("runDailySync", () => {
     expect(h.gameApi.requests.filter((request) => request.kind === "roster")).toHaveLength(10);
     expect(h.gameApi.requests.length).toBeLessThanOrEqual(12);
   }, 20_000); // 100 Members: slow under full-suite load on Windows
+});
+
+describe("runDailySync: a Member who moves Kingdom with Preferences", () => {
+  let h: Harness;
+  const DAY_BACK_IN_HOME = new Date("2026-11-04T10:00:00Z");
+
+  beforeEach(() => {
+    h = makeHarness({ realPreferenceRoles: true });
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("a sync out of the Home Kingdom takes the Preference Roles off, and a sync back gives the same roles without any new Preference", async () => {
+    const member = syncedAnaInNml(h);
+    h.preferences.setLanguages(ANA, new Set<GameLanguageCode>(["en"]));
+    h.preferences.setRegion(ANA, "americas");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+    await runDailySync(h.deps);
+    const heldAtHome = heldNames(member);
+    expect(heldAtHome).toEqual(expect.arrayContaining(["Americas", "English"]));
+
+    h.clock.now = TOMORROW;
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
+    h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", KINGDOM_12, 21, { tag: "ABC", rank: "R5" })));
+    await runDailySync(h.deps);
+    expect(heldNames(member)).not.toContain("English");
+    expect(heldNames(member)).not.toContain("Americas");
+    expect(h.preferences.get(ANA).languages).toEqual(new Set<GameLanguageCode>(["en"]));
+
+    h.clock.now = DAY_BACK_IN_HOME;
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
+    h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", HOME, 21, { tag: "NML", rank: "R4" })));
+    await runDailySync(h.deps);
+
+    expect(heldNames(member)).toEqual(heldAtHome);
+    expect(h.errors).toEqual([]);
+  });
 });
 
 describe("startDailySync", () => {
