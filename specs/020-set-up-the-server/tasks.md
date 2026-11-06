@@ -20,9 +20,9 @@ TDD for all code: each code task is `test-first`, then `implementer`. `[P]` mean
 
 **Independent test**: a plan from a layout and a server state lists the expected steps and findings, with no write.
 
-- [ ] T005 [US1] Layout types and expansion in `src/domain/server-layout.ts`: the table in data-model.md (Expansion), `#<Home Kingdom>` replaced by the Kingdom role, channel overwrites = category's then own, own winning per permission
-- [ ] T006 [US1] `planSetup(layout, server)` in `src/domain/setup-plan.ts`: steps `create-role`, `create-category`, `create-channel`, `correct-overwrites`; matching per research R3; Community per R6; each `[TAG]` role gets an area, also `[TAG]` created in no layout
-- [ ] T007 [US1] Findings in `src/domain/setup-plan.ts`: `outside-layout`, `extra-overwrite`, `wrong-type`, `other-category`, `duplicate-name`, `external-role-missing`, `role-has-permissions` (not Moderator, King or a bot's role), `role-above-neil`, `fallback-to-text`, `hides-from-everyone`
+- [x] T005 [US1] Layout types and expansion in `src/domain/server-layout.ts`: the table in data-model.md (Expansion), `#<Home Kingdom>` replaced by the Kingdom role, channel overwrites = category's then own, own winning per permission
+- [x] T006 [US1] `planSetup(layout, server)` in `src/domain/setup-plan.ts`: steps `create-role`, `create-category`, `create-channel`, `correct-overwrites`; matching per research R3; Community per R6; each `[TAG]` role gets an area, also `[TAG]` created in no layout
+- [x] T007 [US1] Findings in `src/domain/setup-plan.ts`: `outside-layout`, `extra-overwrite`, `wrong-type`, `other-category`, `duplicate-name`, `external-role-missing`, `role-has-permissions` (not Moderator, King or a bot's role), `role-above-neil`, `fallback-to-text`, `hides-from-everyone`
 - [ ] T008 [US1] zod parsing of the layout file with all "Rules checked on load" in data-model.md, each failure naming the place, in `src/discord/server-setup.ts`
 - [ ] T009 [US1] Read the server into the state of data-model.md through a `SetupServer` port, and write the report text per contracts/cli.md, in `src/discord/server-setup.ts`
 - [ ] T010 [US1] `server-layout.json`: SERVER-SETUP section 3, all 17 languages, AD and KvK (text, voice, announcements only King posts, tactics forum, intel, seen by `PvP` and `Events`; KvK also five tactical voice channels); a test that loads it, holds every `GAME_LANGUAGES` role, and allows Doctor only in the Guest area
