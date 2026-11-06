@@ -645,6 +645,18 @@ describe("runSetup", () => {
 });
 
 describe("the shipped server-layout.json", () => {
+  test("holds #gift-codes for the Home Kingdom, where only R4, R5 and the King post", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const channel = groupNamed(expanded, "Home Kingdom").channels.find((candidate) => candidate.name === "gift-codes");
+    const overwriteOf = (target: string) => channel?.overwrites.find((overwrite) => overwrite.target === target);
+
+    expect(channel?.type).toBe("text");
+    expect(overwriteOf(`#${HOME_KINGDOM.toString()}`)?.allow).toContain("ViewChannel");
+    expect(overwriteOf(`#${HOME_KINGDOM.toString()}`)?.deny).toContain("SendMessages");
+    for (const poster of ["R4", "R5", "King"]) expect(overwriteOf(poster)?.allow).toContain("SendMessages");
+    expect(expanded.roles).toContain("R4");
+  });
+
   test("loads through parseLayout", () => {
     expect(() => shippedLayout()).not.toThrow();
   });

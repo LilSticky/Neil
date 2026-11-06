@@ -342,6 +342,8 @@ On the test server, with its token and ID in `.env`. Neil needs a role there fir
 | 6q.7 | **View Server As Role** | **Onboarding** sees `#onboarding` only; **Doctor** alone sees the Guest area only | |
 | 6q.8 | A Linked Member with a plain `NML` role, after the Daily Sync | The same role, named `[NML]`, still held | |
 | 6q.9 | With Community on, if you can | Forums and announcement channels are created as such | |
+| 6q.10 | Look at `#gift-codes` with an R3, an R4 and a Guest | The R3 reads only; the R4 can post; the Guest doesn't see it | |
+| 6q.11 | **Follow** the official server's announcement channel into `#gift-codes` | Its next post arrives in `#gift-codes` | |
 
 ## 6r. No Rank Approval for Guests (slice 023, collected 2026-11-06)
 
