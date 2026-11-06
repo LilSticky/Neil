@@ -48,6 +48,8 @@ Don't go on until they do.
 Create every role the Server Layout uses that doesn't exist yet, with **no permissions** and **below** Neil. Check that Home
 Kingdom Members hold `#<Home Kingdom>`: nearly every channel will depend on it.
 
+Delete the `Trading` role if your server has it: Recruitment replaced that Interest, and Neil no longer uses the role.
+
 ## 6. Move one category at a time
 
 For each category in the Server Layout:

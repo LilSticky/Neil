@@ -35,7 +35,7 @@ Neil creates its roles when it first needs them, which is too late for setting c
 permissions**, **below** Neil. Neil adopts them by name, so spell them exactly:
 
 - `Onboarding`, `Doctor`, `R5`, `#<Home Kingdom>`
-- `NaP discussions`, `PvP`, `Events`, `Off-topic`, `Trading`, `Veteran`
+- `NaP discussions`, `PvP`, `Events`, `Off-topic`, `Recruitment`, `Veteran`
 - one language role for each language channel you want, spelled as in the Preferences menu (e.g. `Italian`)
 
 ## 5. Create `#onboarding` and `#neil-log`
