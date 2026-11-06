@@ -149,6 +149,15 @@
           "type": "text",
           "description": "Welcome to the Kingdom! Start here to find your way around.",
           "mode": "read-only"
+        },
+        {
+          "name": "news",
+          "type": "text",
+          "mode": "read-only",
+          "description": "News for the whole game, followed from the official server. Read only.",
+          "seenBy": [
+            "@everyone"
+          ]
         }
       ]
     },
@@ -196,6 +205,11 @@
           "name": "alliance-hall",
           "type": "text",
           "description": "Ask Neil things here: /player, /alliance, /channels, /help and more."
+        },
+        {
+          "name": "suggestions",
+          "type": "text",
+          "description": "Ideas for the server, the Kingdom or Neil: post one per message."
         },
         {
           "name": "off-topic",

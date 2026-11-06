@@ -887,6 +887,22 @@ describe("the shipped server-layout.json", () => {
     expect(() => shippedLayout()).not.toThrow();
   });
 
+  test("holds the standard channels: logs, moderators, suggestions, news and the Kingdom's announcements", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const namesIn = (category: string) => groupNamed(expanded, category).channels.map((channel) => channel.name);
+
+    expect(namesIn("Officers")).toEqual(expect.arrayContaining(["neil-log", "moderators"]));
+    expect(namesIn("Home Kingdom")).toEqual(["home-kingdom-announcements", "news"]);
+    expect(namesIn("Hangout")).toContain("suggestions");
+  });
+
+  test("keeps news read-only for Members, so only what is followed appears there", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const news = groupNamed(expanded, "Home Kingdom").channels.find((channel) => channel.name === "news");
+
+    expect(news?.overwrites.some((overwrite) => overwrite.deny.includes("SendMessages"))).toBe(true);
+  });
+
   test("holds a general recruitment channel and one per Region, seen by Recruitment", () => {
     const recruitment = groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Recruitment");
 
