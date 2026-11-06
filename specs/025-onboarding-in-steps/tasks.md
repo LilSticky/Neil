@@ -4,10 +4,10 @@
 
 ## Phase A: Interview texts (can start now)
 
-- [ ] T001 [US4] Welcome and uid question in `src/discord/interview-texts.ts`: introduce Neil as the alliance hall's Liaison, say why the uid is needed and what comes next (FR-012, FR-013)
-- [ ] T002 [US4] Recommended Player, pick list and found card: say what confirming does; buttons and pings unchanged (FR-012)
-- [ ] T003 [US4] Linked message: say what Neil is setting up and that the steps follow right here (FR-012)
-- [ ] T004 [US4] Test that error messages, refusals and log lines are unchanged, and that no text calls Neil a doctor (FR-013, FR-014)
+- [x] T001 [US4] Welcome and uid question in `src/discord/interview-texts.ts`: introduce Neil as the alliance hall's Liaison, say why the uid is needed and what comes next (FR-012, FR-013)
+- [x] T002 [US4] Recommended Player, pick list and found card: say what confirming does; buttons and pings unchanged (FR-012)
+- [x] T003 [US4] Linked message: say what Neil is setting up; Preferences are left to the Languages step, as a Guest gets none (FR-012)
+- [x] T004 [US4] Test that error messages, refusals and log lines are unchanged, and that no text calls Neil a doctor (FR-013, FR-014)
 
 ## Phase B: Steps (after slice 024 is corrected and merged; rebase first)
 
