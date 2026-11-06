@@ -821,6 +821,7 @@ export async function connect(token, options) {
             }),
             sendPrivateMessage,
             isOnServer,
+            homeKingdom: options.homeKingdom,
             now,
             logError,
         });

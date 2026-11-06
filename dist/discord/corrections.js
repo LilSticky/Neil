@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { MessageFlags } from "discord.js";
 import { mayCorrect } from "../domain/correction.js";
-import { needsRankApproval, officerRank, rankOnLink } from "../domain/link.js";
+import { officerRank, rankOnLink } from "../domain/link.js";
 import { parseUid } from "../domain/lookup-input.js";
 import { isOfficer } from "../domain/officer.js";
 import { linkByOfficer } from "../domain/onboarding-interview.js";
@@ -191,8 +191,9 @@ async function pressLinkButton(button, press, deps) {
     return confirmLink(button, pending, deps);
 }
 /**
- * Stores the Officer Link: the Link, the Interview as linked, and a pending Rank Approval when the rank is unknown, in one
- * transaction. A Member who left, or a state that moved on, is refused privately, and the card ends with nothing stored.
+ * Stores the Officer Link: the Link, the Interview as linked, and a pending Rank Approval when the rank is unknown and the
+ * Player is in the Home Kingdom (a Guest gets none), in one transaction. A Member who left, or a state that moved on, is
+ * refused privately, and the card ends with nothing stored.
  */
 async function confirmLink(button, pending, deps) {
     const now = deps.now();
@@ -214,9 +215,7 @@ async function confirmLink(button, pending, deps) {
         madeBy: { kind: "officer-link", officerId: pending.officerId },
     };
     const leaderMemberId = await leaderPing(deps, player);
-    const draft = needsRankApproval(link.allianceRank)
-        ? pendingApprovalFor(link, { memberId, threadId: latest.threadId }, leaderMemberId, now)
-        : undefined;
+    const draft = pendingApprovalFor(link, player, deps.homeKingdom, { memberId, threadId: latest.threadId }, leaderMemberId, now);
     // The Interview is written only while it is still handed off; otherwise the whole transaction is rolled back.
     const linked = linkByOfficer(latest, pending.uid, pending.officerId, now);
     const outcome = storeLinkIfStep(deps, linked.interview, "handed-off", draft === undefined ? { link } : { link, rankApproval: draft });

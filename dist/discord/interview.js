@@ -540,7 +540,7 @@ async function linkConfirmed(deps, interview) {
     const leaderMemberId = await leaderPing(deps, interview.player);
     const linked = confirm(interview, { kind: "linked" }, now);
     const link = linkFor(interview, now);
-    const draft = pendingApprovalFor(link, interview, leaderMemberId, now);
+    const draft = pendingApprovalFor(link, interview.player, deps.homeKingdom, interview, leaderMemberId, now);
     const outcome = storeLink(deps, linked.interview, draft === undefined ? { link } : { link, rankApproval: draft });
     if (outcome === undefined)
         return "ended";
@@ -574,8 +574,14 @@ export function storeLinkIfStep(deps, linked, expectedStep, input) {
 function storeLink(deps, linked, input) {
     return storeLinkIfStep(deps, linked, "awaiting-confirmation", input);
 }
-/** A Link with an unknown rank waits for a Rank Approval, asked of the leader's Member when present, else the Officers. */
-export function pendingApprovalFor(link, interview, leaderMemberId, now) {
+/**
+ * A Link with an unknown rank waits for a Rank Approval, asked of the leader's Member when present, else the Officers.
+ * A Guest (a Player outside the Home Kingdom) opens no Rank Approval, whatever their rank: undefined, so the caller stores
+ * the Link alone.
+ */
+export function pendingApprovalFor(link, player, homeKingdom, interview, leaderMemberId, now) {
+    if (player.kingdom !== homeKingdom)
+        return undefined;
     if (!needsRankApproval(link.allianceRank))
         return undefined;
     return {
