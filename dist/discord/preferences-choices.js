@@ -1,6 +1,6 @@
 import { MessageFlags } from "discord.js";
-import { EXPERIENCES, GAME_LANGUAGES, REGIONS, allianceRankOf, interestOptions, } from "../domain/preferences.js";
-import { notLinkedReply, notYoursReply, parsePreferencesCustomId, preferencesFailedReply, preferencesLogLine, preferencesMessage, savedMessage, } from "./preferences-texts.js";
+import { EXPERIENCES, GAME_LANGUAGES, REGIONS, allianceRankOf, interestOptions, isKnownGuest, } from "../domain/preferences.js";
+import { guestChannelsReply, notLinkedReply, notYoursReply, parsePreferencesCustomId, preferencesFailedReply, preferencesLogLine, preferencesMessage, savedMessage, } from "./preferences-texts.js";
 /** Builds the handler of the Preferences message's presses and of /channels. */
 export function createPreferenceChoices(deps) {
     return {
@@ -43,6 +43,10 @@ async function handlePress(deps, press) {
         await finish(deps, press, memberId);
         return;
     }
+    if (isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom)) {
+        await press.reply(guestChannelsReply());
+        return;
+    }
     await change(deps, press, { memberId, rank: link.allianceRank, question });
 }
 /** /channels: a Linked Member gets their Preferences message, privately, and nothing changes. */
@@ -51,6 +55,10 @@ async function answerChannels(deps, command) {
     const link = deps.links.linkFor(memberId);
     if (link === undefined) {
         await command.reply(notLinkedReply());
+        return;
+    }
+    if (isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom)) {
+        await command.reply(guestChannelsReply());
         return;
     }
     const message = messageFor(deps, memberId, deps.preferences.get(memberId), allianceRankOf(link.allianceRank));

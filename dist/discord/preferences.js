@@ -1,4 +1,4 @@
-import { ALL_PREFERENCE_ROLE_NAMES, allianceRankOf, preferenceRolesFor } from "../domain/preferences.js";
+import { ALL_PREFERENCE_ROLE_NAMES, allianceRankOf, isKnownInHomeKingdom, preferenceRolesFor } from "../domain/preferences.js";
 import { giveNamedRole, takeOffNamedRole } from "./member-roles.js";
 /** Builds the Preference Roles service. */
 export function createPreferenceRoles(deps) {
@@ -29,13 +29,14 @@ function queueFor(deps, queues, memberId, work) {
 async function applyTo(deps, memberId) {
     try {
         const link = deps.links.linkFor(memberId);
-        const rank = link === undefined ? undefined : allianceRankOf(link.allianceRank);
+        const knownAtHome = isKnownInHomeKingdom(deps.applied.get(memberId)?.roles, deps.homeKingdom);
+        const rank = link === undefined || !knownAtHome ? undefined : allianceRankOf(link.allianceRank);
         if (rank === "R5")
             keepNapDiscussions(deps, memberId);
         const server = await deps.members.memberOf(memberId);
         if (server === undefined)
             return;
-        const wanted = link === undefined ? [] : preferenceRolesFor(deps.preferences.get(memberId), rank);
+        const wanted = link === undefined || !knownAtHome ? [] : preferenceRolesFor(deps.preferences.get(memberId), rank);
         const held = heldNames(server.member);
         const unwanted = ALL_PREFERENCE_ROLE_NAMES.filter((name) => held.has(name) && !wanted.includes(name));
         const missing = wanted.filter((name) => !held.has(name));

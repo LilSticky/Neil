@@ -62,6 +62,7 @@ export async function runDailySync(deps) {
         if (result.kind === "not-found") {
             counts.skipped += 1;
             pending.delete(member.link.memberId);
+            await deps.preferenceRoles.apply(member.link.memberId);
             await deps.log(nameAndRolesNotAppliedLogLine(member.link.memberId));
             return true;
         }

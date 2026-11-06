@@ -238,7 +238,10 @@ async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
         await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
     }
     await logLine(deps.logError, () => deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)));
-    await answer("the /channels message after an Officer Link", { logError: deps.logError }, () => deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()));
+    // A Guest is not offered Preferences, so the /channels note is not sent to them.
+    if (pending.player.kingdom === deps.homeKingdom) {
+        await answer("the /channels message after an Officer Link", { logError: deps.logError }, () => deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()));
+    }
     await answer("the Link note after an Officer Link", { logError: deps.logError }, () => deps.sendPrivateMessage(pending.memberId, { content: LINK_NOTE }));
     try {
         await deps.nameAndRoles.onLinked(pending.memberId, pending.player, link.allianceRank);

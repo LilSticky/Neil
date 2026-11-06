@@ -644,8 +644,7 @@ async function sendLinkNote(deps, memberId) {
 /** Posts the Preferences message after a Link; a failure is logged, never thrown. True when the message is posted. */
 async function postPreferencesAfterLink(deps, interview, link) {
     try {
-        await deps.preferences.postAfterLink(interview.memberId, interview.threadId, interview.player, link.allianceRank);
-        return true;
+        return await deps.preferences.postAfterLink(interview.memberId, interview.threadId, interview.player, link.allianceRank);
     }
     catch (error) {
         deps.logError(`Posting the Preferences message after a Link failed: ${errorText(error)}`);

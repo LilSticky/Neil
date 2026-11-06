@@ -3,6 +3,9 @@ import { hasNoPreferences, preferencesMessage } from "./preferences-texts.js";
 export function createPreferencesAfterLink(deps) {
     return {
         async postAfterLink(memberId, threadId, player, rank) {
+            // A Guest is not offered Preferences: nothing is posted, stored or opened.
+            if (player.kingdom !== deps.homeKingdom)
+                return false;
             const playerLanguage = player.details?.language;
             // A Member with no Preferences yet gets the Player's game Language stored first, so that it shows preselected.
             if (hasNoPreferences(deps.preferences.get(memberId))) {
@@ -18,6 +21,7 @@ export function createPreferencesAfterLink(deps) {
                 guidesForumId: deps.guidesForumId,
             }));
             deps.preferences.openPrompt(memberId, threadId, deps.now());
+            return true;
         },
     };
 }

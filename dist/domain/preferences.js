@@ -95,6 +95,17 @@ export function preselectedLanguage(playerLanguage) {
     const code = playerLanguage.toLowerCase().replace(/-.*$/, "");
     return GAME_LANGUAGES.find((language) => language.code === code);
 }
+/**
+ * Whether the roles last applied to a Member (their Applied State) hold the Home Kingdom's role `#<number>` exactly.
+ * No Applied State is neither a known Home Kingdom Member nor a known Guest (data-model.md).
+ */
+export function isKnownInHomeKingdom(appliedRoles, homeKingdom) {
+    return appliedRoles !== undefined && appliedRoles.includes(`#${homeKingdom.toString()}`);
+}
+/** Whether a Member is known to be a Guest: their Applied State is known and holds no Home Kingdom role. */
+export function isKnownGuest(appliedRoles, homeKingdom) {
+    return appliedRoles !== undefined && !isKnownInHomeKingdom(appliedRoles, homeKingdom);
+}
 /** Every Preference Role name, each exactly once. None of them is a Managed Role name (plan R3). */
 export const ALL_PREFERENCE_ROLE_NAMES = [
     ...GAME_LANGUAGES.map((language) => language.roleName),
