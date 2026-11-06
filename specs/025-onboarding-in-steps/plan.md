@@ -60,6 +60,9 @@ The existing Preferences prompt already keeps the thread until Done or the sweep
 Approval. The steps reuse it. Slice 024 was changed at the user's word so that this stays, and owns how the Member keeps sight of
 the thread once Linked (#66). Rebase on it before Phase B and re-read this decision.
 
+Done deletes the thread at once, so a finishing message there is never read. The Experience step therefore carries the guides line
+and the `/channels` note itself; the finishing message only stays on screen for `/channels` or a pending Rank Approval.
+
 ### D5. Explanations live in the adapter
 
 Interest explanations are Discord text, so they go in `preferences-texts.ts`, as option descriptions of at most 100 characters.
