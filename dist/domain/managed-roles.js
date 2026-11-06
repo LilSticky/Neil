@@ -2,6 +2,15 @@ import { bracketFor } from "./troop-bracket.js";
 const ALLIANCE_RANK_NAME = /^R[1-5]$/;
 const KINGDOM_NAME = /^#[1-9]\d{0,3}$/;
 const TROOP_BRACKET_NAME = /^T(?:[1-9]|10)$/;
+const ALLIANCE_ROLE_NAME = /^\[(.+)\]$/;
+/** The name of the Alliance role of a tag: the tag in square brackets. */
+export function allianceRoleName(tag) {
+    return `[${tag}]`;
+}
+/** The tag of an Alliance role's name, undefined when the name carries no brackets. */
+export function tagOfAllianceRole(name) {
+    return ALLIANCE_ROLE_NAME.exec(name)?.[1];
+}
 /**
  * The Managed Role names a Member should hold for a Player (FR-003 to FR-006): the Alliance tag for a Home Kingdom
  * Alliance, the Alliance Rank for a known rank in one, `#<kingdom>` always, and the Troop Bracket when the sanctuary
@@ -10,7 +19,7 @@ const TROOP_BRACKET_NAME = /^T(?:[1-9]|10)$/;
 export function rolesFor(player, rank, homeKingdom, troopBracketLevels) {
     const roles = [];
     if (player.alliance !== undefined && player.kingdom === homeKingdom) {
-        roles.push(player.alliance.tag);
+        roles.push(allianceRoleName(player.alliance.tag));
         if (rank.source === "game-api" || rank.source === "rank-approval")
             roles.push(rank.rank);
     }
@@ -20,12 +29,16 @@ export function rolesFor(player, rank, homeKingdom, troopBracketLevels) {
         roles.push(bracket);
     return roles;
 }
-/** Whether a role name is one Neil manages: an Alliance Rank, a Kingdom, a Troop Bracket, or a given Alliance tag. */
+/**
+ * Whether a role name is one Neil manages: an Alliance Rank, a Kingdom, a Troop Bracket, or the Alliance role of a given
+ * tag, bracketed or, for a plain role not yet renamed, bare.
+ */
 export function isManagedRoleName(name, allianceTags) {
     return (ALLIANCE_RANK_NAME.test(name) ||
         KINGDOM_NAME.test(name) ||
         TROOP_BRACKET_NAME.test(name) ||
-        allianceTags.includes(name));
+        allianceTags.includes(name) ||
+        allianceTags.some((tag) => allianceRoleName(tag) === name));
 }
 /** The Managed Roles to add and to remove so that a Member holding `held` ends with exactly `wanted`. */
 export function planApply(held, wanted) {

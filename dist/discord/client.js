@@ -288,6 +288,9 @@ function rolesGuildOf(guild, botTopRolePosition) {
             });
             return roleLikeOf(role);
         },
+        renameRole: async (role, name) => {
+            await guild.roles.edit(role.id, { name });
+        },
     };
 }
 /** A guild member as the name and roles apply reads and changes it. */
