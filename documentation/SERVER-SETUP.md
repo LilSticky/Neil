@@ -125,7 +125,7 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Events | event chat, event announcements, ask for help, guides forum | Events | 🟡 |
 | Alliance Duel | chat, voice, announcements (only King posts), tactics forum, intel | PvP, Events | 🟡 |
 | Kingdom vs Kingdom | the same, plus five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
-| Recruitment | one text channel | Recruitment | 🟡 |
+| Recruitment | general recruitment, and one text channel per Region (Americas, Europe/Africa, Asia/Oceania) | Recruitment | 🟡 |
 | Off-topic | off-topic, memes | Off-topic | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
 

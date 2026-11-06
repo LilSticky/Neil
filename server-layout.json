@@ -394,6 +394,18 @@
         {
           "name": "recruitment",
           "type": "text"
+        },
+        {
+          "name": "recruitment-americas",
+          "type": "text"
+        },
+        {
+          "name": "recruitment-europe-africa",
+          "type": "text"
+        },
+        {
+          "name": "recruitment-asia-oceania",
+          "type": "text"
         }
       ]
     },
