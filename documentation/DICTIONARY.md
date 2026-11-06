@@ -83,6 +83,9 @@ discovery.
 ## Home Kingdom
 * The one Kingdom this Discord server is for (330, in configuration)
 
+## Home Kingdom Member
+* A Member whose Linked Player is in the Home Kingdom
+
 ## Guest
 * A Member whose Linked Player is not in the Home Kingdom
 
@@ -195,12 +198,13 @@ discovery.
 * Not a Managed Role; Neil creates it without permissions on first use
 
 ## Preference
-* An optional answer a Linked Member gives about themselves after the Link, or later with `/channels`: their Languages, Region, Interests and Experience
+* An optional answer a Home Kingdom Member gives about themselves after the Link, or later with `/channels`: their Languages, Region, Interests and Experience
 * Decides which channels they see; skipped questions give no Preference
-* Forgotten at Unlink
+* Kept when the Member becomes a Guest; forgotten at Unlink
 
 ## Preference Role
 * The Discord role for one Preference (e.g. `Italian`, `Europe/Africa`, `PvP`, `Veteran`); it shows the matching channels
+* Held only by Home Kingdom Members; Neil takes them off a Guest and gives them back on return
 * Not a Managed Role; Neil creates it without permissions on first use and removes it at Unlink
 
 ## NaP discussions

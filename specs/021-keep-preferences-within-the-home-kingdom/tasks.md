@@ -11,7 +11,7 @@
 
 ## Phase 2: Foundational
 
-- [ ] T002 Add the pure Kingdom rules to `src/domain/preferences.ts` with tests in `src/domain/preferences.test.ts`: from the roles last applied (or none) and the Home Kingdom, whether the Member is known to be in the Home Kingdom, and whether they are a known Guest. No Applied State is neither (data-model.md)
+- [x] T002 Add the pure Kingdom rules to `src/domain/preferences.ts` with tests in `src/domain/preferences.test.ts`: from the roles last applied (or none) and the Home Kingdom, whether the Member is known to be in the Home Kingdom, and whether they are a known Guest. No Applied State is neither (data-model.md)
 
 ## Phase 3: User Story 1 - A Guest is not offered Preferences (P1)
 

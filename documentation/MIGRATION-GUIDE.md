@@ -69,8 +69,8 @@ overwrites they already have, and note them in a list for your Officers. If a ch
 
 ## 8. Gate the Preference channels last
 
-Language channels come after everything else, once Members have had time to use `/channels`, and not before
-[issue #64](https://github.com/LilSticky/Neil/issues/64) is live: until then a Guest who chooses a language sees that channel.
+Language channels come after everything else, once Members have had time to use `/channels`. Wait for one Daily Sync after
+deploying slice 021: it takes the Preference Roles off the Guests who still hold them.
 
 ## 9. Set the commands
 
