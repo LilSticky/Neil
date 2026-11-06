@@ -152,6 +152,15 @@ const migrations: readonly string[] = [
      day TEXT PRIMARY KEY,
      lookup_members INTEGER NOT NULL CHECK (lookup_members >= 0)
    )`,
+  // Migration 14: the Booty Alerts of a Member (slice 026). No row means Off. The mode and the minutes are checked when
+  // read, by the store, so a corrupt row is refused rather than reset.
+  `CREATE TABLE booty_alerts (
+     member_id TEXT PRIMARY KEY,
+     mode TEXT NOT NULL,
+     window_start INTEGER NOT NULL,
+     window_end INTEGER NOT NULL,
+     time_zone TEXT NOT NULL
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
