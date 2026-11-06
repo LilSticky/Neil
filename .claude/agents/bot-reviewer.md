@@ -2,7 +2,7 @@
 name: bot-reviewer
 description: Reviews changed code in src/ against Neil's constitution — framework-free domain, Discord adapter hygiene (intents, permissions, interaction handling), the rate-limited caching Game API client, boundary validation, secrets, and least privilege towards Members. Read-only; reports findings. Use after an implementer step or before merging a slice.
 tools: Read, Grep, Glob, Bash
-model: opus
+model: sonnet
 effort: medium
 ---
 

@@ -70,7 +70,7 @@ it, checks the diff and test result, and commits.
 | Domain discovery, slicing, dictionary review | `domain-modeler` | opus |
 | Failing test for one task (red) | `test-first` | haiku |
 | Make it green, refactor (green) | `implementer` | haiku |
-| Review Discord adapters, Game API client, security | `bot-reviewer` | opus |
+| Review Discord adapters, Game API client, security | `bot-reviewer` | sonnet |
 | Slice vs. `spec.md` before merging | `spec-auditor` | sonnet |
 | STATUS/ROADMAP, GitHub Issues, local Git cleanup | `housekeeper` | haiku |
 | Broad read-only code search | `Explore` | haiku |
