@@ -161,7 +161,7 @@ interface Harness {
   readonly errors: string[];
   /** The members of the server; a Member is on it only once joined. */
   readonly members: FakeServerMembers;
-  /** The guild the Members are in, with the Managed Roles NML and R4 defined. */
+  /** The guild the Members are in, with the Managed Roles [NML] and R4 defined. */
   readonly guild: FakeRolesGuild;
   /** The Onboarding Role service: records the Members Unlink gives the role back to. */
   readonly onboardingRole: FakeOnboardingRole;
@@ -204,7 +204,7 @@ function applyNickname(h: Harness, memberId: MemberId, nickname: string): void {
   h.applied.record({
     memberId,
     nickname,
-    roles: ["NML", "R4"],
+    roles: ["[NML]", "R4"],
     appliedAt: NOW,
     complete: true,
   });
@@ -275,7 +275,7 @@ describe("createUnlink", () => {
     const errors: string[] = [];
     const members = new FakeServerMembers();
     const guild = new FakeRolesGuild(OWNER_ID);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.defineRole("R4");
     const onboardingRole = new FakeOnboardingRole();
     const doctorRole = new FakeDoctorRole();
@@ -506,17 +506,27 @@ describe("createUnlink", () => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
       h.guild.defineRole("Friends");
-      const member = joinServer(h, LEAVER_ID, ["NML", "R4", "Friends"], "NML Rogue");
+      const member = joinServer(h, LEAVER_ID, ["[NML]", "R4", "Friends"], "NML Rogue");
 
       await h.service.unlink(LEAVER, reason);
 
       expect(member.roles.map((role) => role.name)).toEqual(["Friends"]);
     });
 
+    test("takes off [NML] from a Member whose applied state still holds the old NML, when an Officer Unlinks them", async () => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      h.applied.record({ memberId: LEAVER_ID, nickname: "NML Rogue", roles: ["NML", "R4"], appliedAt: NOW, complete: true });
+      const member = joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
+
+      await h.service.unlink(LEAVER, BY_OFFICER);
+
+      expect(member.roles.map((role) => role.name)).toEqual([]);
+    });
+
     test.each(CASES)("clears the nickname Neil set when %s Unlinks", async (_who, reason) => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
-      const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+      const member = joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
 
       await h.service.unlink(LEAVER, reason);
 
@@ -528,7 +538,7 @@ describe("createUnlink", () => {
       async (_who, reason) => {
         linkMember(h, LEAVER_ID, LEAVER_UID);
         applyNickname(h, LEAVER_ID, "NML Rogue");
-        const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "Changed by hand");
+        const member = joinServer(h, LEAVER_ID, ["[NML]", "R4"], "Changed by hand");
 
         await h.service.unlink(LEAVER, reason);
 
@@ -542,7 +552,7 @@ describe("createUnlink", () => {
       async (_who, reason) => {
         linkMember(h, LEAVER_ID, LEAVER_UID);
         applyNickname(h, LEAVER_ID, "NML Rogue");
-        const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+        const member = joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
         const linkedAtRemoval: boolean[] = [];
         const removeRole = member.removeRole.bind(member);
         vi.spyOn(member, "removeRole").mockImplementation(async (role) => {
@@ -561,7 +571,7 @@ describe("createUnlink", () => {
     test.each(CASES)("gives the Onboarding Role back to the Member when %s Unlinks", async (_who, reason) => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
-      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+      joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
 
       await h.service.unlink(LEAVER, reason);
 
@@ -573,7 +583,7 @@ describe("createUnlink", () => {
       async (_who, reason) => {
         linkMember(h, LEAVER_ID, LEAVER_UID);
         applyNickname(h, LEAVER_ID, "NML Rogue");
-        const member = joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+        const member = joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
         const rolesAtGive: string[][] = [];
         h.onboardingRole.onCall = () => {
           rolesAtGive.push(member.roles.map((role) => role.name));
@@ -587,7 +597,7 @@ describe("createUnlink", () => {
 
     test.each(CASES)("takes the Doctor Role off the Member when %s Unlinks", async (_who, reason) => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
-      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+      joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
 
       await h.service.unlink(LEAVER, reason);
 
@@ -627,7 +637,7 @@ describe("createUnlink", () => {
     test("logs one line naming the Officer who Unlinked the Member", async () => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
-      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+      joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
 
       await h.service.unlink(LEAVER, BY_OFFICER);
 
@@ -638,7 +648,7 @@ describe("createUnlink", () => {
     test("logs one line saying the Member Unlinked themselves", async () => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
-      joinServer(h, LEAVER_ID, ["NML", "R4"], "NML Rogue");
+      joinServer(h, LEAVER_ID, ["[NML]", "R4"], "NML Rogue");
 
       await h.service.unlink(LEAVER, "self");
 
@@ -651,7 +661,7 @@ describe("createUnlink", () => {
       applyNickname(h, LEAVER_ID, "NML Rogue");
       // An R4 above the bot's highest role: Neil cannot take it off.
       const outOfReach = h.guild.defineRole("R4", { position: 12 });
-      const member = joinServer(h, LEAVER_ID, ["NML", outOfReach], "NML Rogue");
+      const member = joinServer(h, LEAVER_ID, ["[NML]", outOfReach], "NML Rogue");
 
       await h.service.unlink(LEAVER, BY_OFFICER);
 
@@ -691,13 +701,13 @@ describe("createUnlink", () => {
       linkMember(h, LEAVER_ID, LEAVER_UID);
       applyNickname(h, LEAVER_ID, "NML Rogue");
       // Held by the guild but not joined to the server: Neil cannot reach it, so it must not change.
-      const member = h.guild.member(LEAVER_ID, ["NML", "R4"]);
+      const member = h.guild.member(LEAVER_ID, ["[NML]", "R4"]);
       member.nickname = "NML Rogue";
 
       await h.service.unlink(LEAVER, reason);
 
       expect(h.links.linkFor(LEAVER_ID)).toBeUndefined();
-      expect(member.roles.map((role) => role.name)).toEqual(["NML", "R4"]);
+      expect(member.roles.map((role) => role.name)).toEqual(["[NML]", "R4"]);
       expect(member.nickname).toBe("NML Rogue");
     });
 
@@ -740,7 +750,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
     const errors: string[] = [];
     const members = new FakeServerMembers();
     const guild = new FakeRolesGuild(OWNER_ID);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.defineRole("R4");
     const onboardingRole = new FakeOnboardingRole();
     const doctorRole = new FakeDoctorRole();
@@ -789,7 +799,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
 
   test("a failure to forget is logged, and the Unlink still ends the Link and logs it", async () => {
     linkMember(h, ALICE, ALICE_UID);
-    joinServer(h, ALICE, ["NML"], undefined);
+    joinServer(h, ALICE, ["[NML]"], undefined);
     h.preferenceRoles.failForgetWith(new Error("socket hang up"));
 
     await h.service.unlink({ id: ALICE }, BY_OFFICER);

@@ -27,7 +27,7 @@ export class FakeDiscordError extends Error {
 export class FakeRole implements RoleLike {
   constructor(
     readonly id: string,
-    readonly name: string,
+    public name: string,
     readonly permissions: { readonly bitfield: bigint },
     readonly position: number,
     readonly managed: boolean = false,
@@ -41,6 +41,7 @@ export class FakeRole implements RoleLike {
  */
 export class FakeRolesGuild implements RolesGuild {
   botTopRolePosition = 10;
+  private readonly renameFailures = new Map<string, Error>();
   /** The options of every role created so far, in creation order. */
   readonly createdOptions: NewRoleOptions[] = [];
 
@@ -106,6 +107,10 @@ export class FakeRolesGuild implements RolesGuild {
   }
 
   /** Makes creating the role with this name fail with the error. */
+  failRenaming(name: string, error: Error): void {
+    this.renameFailures.set(name, error);
+  }
+
   failCreating(name: string, error: Error): void {
     this.failures.set(`createRole:${name}`, error);
   }
@@ -133,6 +138,19 @@ export class FakeRolesGuild implements RolesGuild {
     const role = new FakeRole(this.newId(), options.name, { bitfield: options.permissions }, 1);
     this.all.push(role);
     return role;
+  }
+
+  /**
+   * Renames the role with its id, as Discord does: the role keeps its id, so the members holding it keep it. A role the
+   * fake does not hold is an error.
+   */
+  renameRole(role: RoleLike, name: string): Promise<void> {
+    const failure = this.renameFailures.get(role.name);
+    if (failure !== undefined) return Promise.reject(failure);
+    const existing = this.all.find((held) => held.id === role.id);
+    if (existing === undefined) throw new Error(`the fake guild has no role ${role.id}`);
+    existing.name = name;
+    return Promise.resolve();
   }
 
   /** The position and owner rules Discord applies to the bot's changes; used by the fake members. */

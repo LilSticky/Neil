@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isManagedRoleName, planApply } from "../domain/managed-roles.js";
+import { isManagedRoleName, planApply, tagOfAllianceRole } from "../domain/managed-roles.js";
 
 /** Discord's code for a missing permission: a role above the bot's, or a change to the owner's nickname. */
 const MISSING_PERMISSIONS = 50013;
@@ -33,6 +33,8 @@ export interface RolesGuild {
   readonly botTopRolePosition: number;
   readonly roles: readonly RoleLike[];
   createRole(options: NewRoleOptions): Promise<RoleLike>;
+  /** Changes the name of the role, keeping its id, so the Members holding it keep it. */
+  renameRole(role: RoleLike, name: string): Promise<void>;
 }
 
 /** The part of a guild member the apply uses. */
@@ -109,6 +111,8 @@ export async function applyNameAndRoles(
     if (nicknameSkip !== undefined) skipped.push(nicknameSkip);
   }
 
+  await renamePlainAllianceRoles(guild, wanted, skipped);
+
   // Only roles Neil may hand out count as held: a role with permissions, an Officer role or an integration's is not one.
   const held = [
     ...new Set(
@@ -163,6 +167,32 @@ export async function takeOffNamedRole(
     (role) => role.name === name && isGivable(guild, role, officerRoleIds) && role.permissions.bitfield !== 0n,
   );
   return keepsPermissions ? { what: name, reason: "has-permissions" } : undefined;
+}
+
+/**
+ * Renames a plain Alliance role to its bracket name, for each wanted `[TAG]` the guild has no role of (research R5): the
+ * role keeps its id, so the Members holding it keep it. Only a permission-free role Neil may give, below the bot's
+ * highest role, is renamed. A failed rename is recorded as a skip and never thrown; the apply then creates the role.
+ */
+async function renamePlainAllianceRoles(guild: RolesGuild, wanted: NameAndRolesWanted, skipped: Skipped[]): Promise<void> {
+  for (const bracketed of wanted.roles) {
+    const tag = tagOfAllianceRole(bracketed);
+    if (tag === undefined) continue;
+    if (guild.roles.some((role) => role.name === bracketed)) continue;
+    const plain = guild.roles.find(
+      (role) =>
+        role.name === tag &&
+        isGivable(guild, role, wanted.officerRoleIds) &&
+        role.permissions.bitfield === 0n &&
+        role.position < guild.botTopRolePosition,
+    );
+    if (plain === undefined) continue;
+    try {
+      await guild.renameRole(plain, bracketed);
+    } catch (error) {
+      skipped.push({ what: tag, reason: reasonOf(error) });
+    }
+  }
 }
 
 /** Whether Neil may give or take the role: not @everyone, not an integration's, and not an Officer role. */

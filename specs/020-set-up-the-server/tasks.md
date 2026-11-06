@@ -12,9 +12,9 @@ TDD for all code: each code task is `test-first`, then `implementer`. `[P]` mean
 
 **Independent test**: role names hold `[NML]`; a plain `NML` role ends as the same role named `[NML]`.
 
-- [ ] T002 [US4] `allianceRoleName(tag)` gives `[TAG]`; `rolesFor` uses it; `isManagedRoleName` also takes `[NML]` when the tags hold `NML`, in `src/domain/managed-roles.ts`
-- [ ] T003 [US4] Before working out what a Member holds, rename a permission-free plain `NML` to `[NML]` for each wanted `[NML]` when no `[NML]` exists, not touching Officer roles, integration roles or roles at or above Neil, in `src/discord/member-roles.ts` and its `RolesGuild` port and fake (research R5)
-- [ ] T004 [US4] Check every other reader of role names against `[NML]`: `src/discord/name-and-roles.ts`, `src/discord/unlink.ts`, `src/discord/daily-sync.ts`; a Member Unlinked or leaving the Alliance with old Applied State `NML` loses `[NML]`
+- [x] T002 [US4] `allianceRoleName(tag)` gives `[TAG]`; `rolesFor` uses it; `isManagedRoleName` also takes `[NML]` when the tags hold `NML`, in `src/domain/managed-roles.ts`
+- [x] T003 [US4] Before working out what a Member holds, rename a permission-free plain `NML` to `[NML]` for each wanted `[NML]` when no `[NML]` exists, not touching Officer roles, integration roles or roles at or above Neil, in `src/discord/member-roles.ts` and its `RolesGuild` port and fake (research R5)
+- [x] T004 [US4] Check every other reader of role names against `[NML]`: `src/discord/name-and-roles.ts`, `src/discord/unlink.ts`, `src/discord/daily-sync.ts`; a Member Unlinked or leaving the Alliance with old Applied State `NML` loses `[NML]`
 
 ## Phase 3: User Story 1 - The owner sees what would change (P1)
 
