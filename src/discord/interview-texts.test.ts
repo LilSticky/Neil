@@ -234,10 +234,27 @@ describe("/interview replies", () => {
 describe("thread messages for asking and entering a uid", () => {
   test("asking for a uid welcomes the Member, mentions them, and explains the help text", () => {
     expect(askUidMessage(7, MEMBER)).toMatchObject({
-      content: `Welcome, <@${MEMBER}>! Tell me who you are in the game: press the button and enter your uid.\n${UID_HELP}`,
+      content:
+        `👋 Welcome to the alliance hall, <@${MEMBER}>! I'm Neil, the hall's Liaison.\n` +
+        "Before I show you around, I need to know which Player you are. Your uid proves it. " +
+        "Once that's done, I'll set up your name and roles, and Home Kingdom Members choose their channels.\n\n" +
+        `Tell me who you are in the game: press the button and enter your uid.\n${UID_HELP}`,
       components: [GIVE_UID_BUTTON],
       allowedMentions: { users: [MEMBER] },
     });
+  });
+
+  test("the Interview's main texts speak as the Liaison, never as a doctor", () => {
+    const texts = [
+      askUidMessage(7, MEMBER),
+      recommendationMessage(7, MEMBER, inAlliance),
+      foundCardMessage(7, inAlliance),
+      linkedMessage(MEMBER, inAlliance),
+    ].map((message) => message.content.toLowerCase());
+
+    for (const text of texts) expect(text).not.toContain("doctor");
+    expect(texts[0]).toContain("liaison");
+    expect(texts[1]).toContain("liaison");
   });
 
   test("the uid help is its own message with the contract's text and no buttons", () => {
@@ -296,7 +313,7 @@ describe("thread messages for a uid that was looked up", () => {
     expect(message.content).toContain("#330");
     expect(message.content).toContain("[NML] Neil's Men");
     expect(message.content).toContain("R5");
-    expect(message.content).toContain("Is this you?");
+    expect(message.content).toContain("Is this you? Press That's me to link this Player to your Discord account.");
     expect(message).toMatchObject({
       components: [
         {
@@ -394,8 +411,12 @@ describe("thread messages for ending an Interview", () => {
   test("a link greets the Member by mention, names the Player with the uid, and pings only the Member", () => {
     const message = linkedMessage(MEMBER, inAlliance);
 
-    expect(message.content).toContain(`Done, <@${MEMBER}>: you're linked to Vex (uid 145563254785).`);
+    expect(message.content).toContain(`🎉 Done, <@${MEMBER}>: you're linked to Vex (uid 145563254785).`);
     expect(message.allowedMentions).toEqual({ users: [MEMBER] });
+  });
+
+  test("a link says Neil is setting up the name and roles", () => {
+    expect(linkedMessage(MEMBER, inAlliance).content).toContain("I'm setting up your name and roles now.");
   });
 
   test("a link holds the Link note exactly", () => {
@@ -523,7 +544,8 @@ describe("Recommended Player messages", () => {
   test("the recommendation greets the Member by mention and names the Player Name, Kingdom, Alliance and rank", () => {
     const message = recommendationMessage(7, MEMBER, inAlliance);
 
-    expect(message.content).toContain(`Welcome, <@${MEMBER}>!`);
+    expect(message.content).toContain(`👋 Welcome to the alliance hall, <@${MEMBER}>! I'm Neil, the hall's Liaison.`);
+    expect(message.content).toContain("If it is, press That's me and I'll ask for your uid to prove it.");
     expect(message.content).toContain("Vex");
     expect(message.content).toContain("Kingdom #330");
     expect(message.content).toContain("[NML] Neil's Men, R5");
@@ -567,6 +589,12 @@ describe("Recommended Player messages", () => {
 });
 
 describe("pick list messages", () => {
+  test("the pick list asks which Player is the Member's and says the uid comes next", () => {
+    expect(pickListMessage(7, MEMBER, PICK_MATCHES).content).toBe(
+      `<@${MEMBER}>, which of these Players is you?\nPick yours from the list, and I'll ask for its uid to prove it.`,
+    );
+  });
+
   test("the pick list is one select menu under interview:pick:{id}, then a None of these button", () => {
     expect(pickListMessage(7, MEMBER, PICK_MATCHES)).toMatchObject({
       components: [

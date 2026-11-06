@@ -107,8 +107,8 @@ the buttons and the pings are unchanged.
 1. **Given** a Member starting an Interview, **When** the welcome is posted, **Then** it introduces Neil as the alliance hall's
    Liaison, says why the uid is needed, and says what comes after it.
 2. **Given** a Recommended Player or a found Player, **When** Neil asks "Is this you?", **Then** it says what confirming does.
-3. **Given** a new Link, **When** the Linked message is posted, **Then** it says what Neil is setting up and where the Preferences
-   follow, including `/channels`.
+3. **Given** a new Link, **When** the Linked message is posted, **Then** it says what Neil is setting up. It says nothing of
+   Preferences, because a Guest gets none; the Languages step explains them.
 4. **Given** a wrong uid, a refused Link or an outage, **When** Neil answers, **Then** the message stays as short as today.
 
 ### Edge Cases
