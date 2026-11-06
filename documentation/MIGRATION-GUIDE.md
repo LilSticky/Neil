@@ -93,6 +93,6 @@ sitting as turning off **All Channels**, or newcomers lose it.
 
 ## 10. Test, and keep the way back
 
-- With an account that isn't an Administrator, run [the startup guide's test](STARTUP-GUIDE.md#8-test-it).
+- With an account that isn't an Administrator, run [the startup guide's test](STARTUP-GUIDE.md#9-test-it).
 - **View Server As Role**: `Onboarding` alone, **Doctor** alone, then **Doctor** plus `#<Home Kingdom>`.
 - If a category went wrong, removing its @everyone ❌ brings it back at once.
