@@ -1187,6 +1187,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
             members: serverMembersOf(guild),
             gameApi: options.gameApi,
             nameAndRoles,
+            preferenceRoles,
             unlink,
             share: options.syncShare,
             quotaReserve: options.quotaReserve,

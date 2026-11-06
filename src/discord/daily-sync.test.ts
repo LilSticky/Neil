@@ -233,6 +233,7 @@ function makeHarness(options: HarnessOptions = {}): Harness {
     gameApi,
     nameAndRoles,
     unlink,
+    preferenceRoles,
     share: 500,
     quotaReserve: QUOTA_RESERVE,
     log,
@@ -855,6 +856,54 @@ describe("runDailySync: a Member who moves Kingdom with Preferences", () => {
     await runDailySync(h.deps);
 
     expect(heldNames(member)).toEqual(heldAtHome);
+    expect(h.errors).toEqual([]);
+  });
+});
+
+describe("runDailySync: a Member whose Player is not found", () => {
+  let h: Harness;
+  const ABC_IN_12: AllianceRef = { kingdom: KINGDOM_12, tag: "ABC" };
+
+  beforeEach(() => {
+    h = makeHarness({ realPreferenceRoles: true });
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("a known Guest whose Player is not found loses the Preference Roles held, and keeps the Preferences stored", async () => {
+    linkMember(h, ANA, ANA_UID, {
+      rank: GAME_R4,
+      alliance: ABC_IN_12,
+      nickname: "[ABC|R4] Rogue | #12",
+      roles: ["#12", "ABC", "R4", "T7"],
+    });
+    const member = joinMember(h, ANA, ["#12", "ABC", "R4", "T7", "English", "Americas"], "[ABC|R4] Rogue | #12");
+    h.preferences.setLanguages(ANA, new Set<GameLanguageCode>(["en"]));
+    h.preferences.setRegion(ANA, "americas");
+    h.gameApi.answerRoster(KINGDOM_12, "ABC", found(allianceOf("ABC", KINGDOM_12, [])));
+    h.gameApi.answerPlayer(ANA_UID, { kind: "not-found" });
+
+    await runDailySync(h.deps);
+
+    expect(heldNames(member)).not.toContain("English");
+    expect(heldNames(member)).not.toContain("Americas");
+    expect(h.preferences.get(ANA).languages).toEqual(new Set<GameLanguageCode>(["en"]));
+    expect(h.errors).toEqual([]);
+  });
+
+  test("a Home Kingdom Member whose Player is not found keeps the Preference Roles held", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "[NML|R4] Rogue", roles: ["NML", "R4", "#330", "T7"] });
+    const member = joinMember(h, ANA, ["NML", "R4", "#330", "T7", "English", "Americas"], "[NML|R4] Rogue");
+    h.preferences.setLanguages(ANA, new Set<GameLanguageCode>(["en"]));
+    h.preferences.setRegion(ANA, "americas");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [])));
+    h.gameApi.answerPlayer(ANA_UID, { kind: "not-found" });
+
+    await runDailySync(h.deps);
+
+    expect(heldNames(member)).toEqual(expect.arrayContaining(["Americas", "English"]));
     expect(h.errors).toEqual([]);
   });
 });

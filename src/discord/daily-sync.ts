@@ -18,6 +18,7 @@ import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { ServerMember, ServerMembers, SyncNameAndRoles } from "./name-and-roles.js";
 import { nameAndRolesNotAppliedLogLine } from "./name-and-roles-texts.js";
+import type { PreferenceRoles } from "./preferences.js";
 import type { Schedule } from "./interview-sweeper.js";
 import type { Unlink } from "./unlink.js";
 
@@ -39,6 +40,8 @@ export interface DailySyncDeps {
   readonly members: ServerMembers;
   readonly gameApi: DailySyncGameApi;
   readonly nameAndRoles: SyncNameAndRoles;
+  /** Takes the Preference Roles off a Member who is no longer found: their Preferences stay stored. */
+  readonly preferenceRoles: Pick<PreferenceRoles, "apply">;
   /** Ends the Link of a Linked Member who is not on the server any more, as missing. */
   readonly unlink: Unlink;
   /** The most Game API requests one run may send, retries included; from SYNC_SHARE. */
@@ -124,6 +127,7 @@ export async function runDailySync(deps: DailySyncDeps): Promise<void> {
     if (result.kind === "not-found") {
       counts.skipped += 1;
       pending.delete(member.link.memberId);
+      await deps.preferenceRoles.apply(member.link.memberId);
       await deps.log(nameAndRolesNotAppliedLogLine(member.link.memberId));
       return true;
     }
