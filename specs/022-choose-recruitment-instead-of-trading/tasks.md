@@ -16,9 +16,9 @@
 - [x] T003 Dictionary: add Recruitment to `documentation/DICTIONARY.md`, after the user's approval
 - [x] T004 [P] Guides: `Recruitment` for `Trading` in `documentation/SERVER-SETUP.md` and `documentation/STARTUP-GUIDE.md`, the step to delete `Trading` in `documentation/MIGRATION-GUIDE.md`, the #65 note removed (FR-004)
 - [x] T005 [P] Add §6p to `documentation/TEST-RUN.md`
-- [ ] T006 `bot-reviewer` pass, findings in `review.md`
-- [ ] T007 `spec-auditor` pass, findings in `audit.md`
-- [ ] T008 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
+- [x] T006 `bot-reviewer` pass, findings in `review.md`
+- [x] T007 `spec-auditor` pass, findings in `audit.md`
+- [x] T008 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
 - [ ] T009 Manual check on the test server (TEST-RUN.md §6p), which needs the deploy
 
 ## Dependencies
