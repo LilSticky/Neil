@@ -7,8 +7,9 @@
 **Status**: Draft
 
 **Input**: The user: "make the onboarding a little more verbose with explanations and flair. do it in steps instead of all at
-once. Most important after linking is language and interests". Depends on slice 024, which moves Preferences out of the Interview
-thread: no Preferences code changes before it merges.
+once. Most important after linking is language and interests", and "make sure the interview is complete or timed out before closing
+it, even after the link is done". Depends on slice 024 settling how a Member keeps sight of the thread after the Link (#66): no
+Preferences code changes before it merges.
 
 ## Clarifications
 
@@ -16,8 +17,8 @@ thread: no Preferences code changes before it merges.
 
 - Q: In what order are the Preferences asked? → A: Languages, Interests, Region, Experience, one step at a time. Every step
   explains itself and can be skipped; the last two say they are optional.
-- Q: How does a Member reach the steps right after the Link? → A: Neil's private message after the Link has a button that starts
-  them. `/channels` starts the same steps. A Member with closed private messages uses `/channels`.
+- Q: How does a Member reach the steps right after the Link? → A: in the Interview thread, which stays open after the Link until the
+  Member finishes or the Interview times out. No private message button is needed. `/channels` starts the same steps later.
 - Q: What voice do the texts have? → A: Neil is a Liaison in the alliance hall, not a doctor. Warm and clear, a light theme and
   some emoji; instructions stay plain.
 - Q: Do the texts before the Link change too? → A: yes, the whole onboarding, keeping the Interview's steps. Error messages stay
@@ -27,26 +28,28 @@ thread: no Preferences code changes before it merges.
 
 ### User Story 1 - A Member chooses Languages and Interests first (Priority: P1)
 
-A Home Kingdom Member has just been Linked. Neil's private message welcomes them to the alliance hall and offers a button. Pressing
-it shows one question at a time, Languages first and Interests second, each saying what the choice does.
+A Home Kingdom Member has just been Linked. The Interview thread stays open, and Neil asks one question at a time, Languages first
+and Interests second, each saying what the choice does.
 
 **Why this priority**: Languages and Interests decide most of what a Member sees, and four menus at once hide that.
 
-**Independent Test**: automated: a press on the start button shows the Languages step; moving on shows Interests, Region and
-Experience in that order, and only one menu is ever shown.
+**Independent Test**: automated: the Link posts the Languages step in the thread; moving on shows Interests, Region and Experience
+in that order, only one menu is ever shown, and the thread is not closed before Done or the timeout.
 
 **Acceptance Scenarios**:
 
-1. **Given** a Home Kingdom Member at their Link, **When** Neil sends the private message, **Then** it welcomes them, says what the
-   steps are for, and has a button that starts them.
-2. **Given** the private message, **When** the Member presses the button, **Then** they see the Languages step with their game
-   Language already chosen, when Neil knows it.
-3. **Given** any step, **When** it is shown, **Then** it shows one menu, says what the choice does and which step of four it is.
-4. **Given** the Languages step, **When** the Member moves on, **Then** the Interests step follows, explaining each Interest they
+1. **Given** a Home Kingdom Member at their Link, **When** the Link is made, **Then** the Interview thread stays open and Neil posts
+   the Languages step there, with their game Language already chosen when Neil knows it.
+2. **Given** an open thread after the Link, **When** the Member finishes the last step, **Then** the thread closes, unless a Rank
+   Approval waits.
+3. **Given** an open thread after the Link, **When** the Interview timeout passes, **Then** the thread closes, and the answers
+   already given stand.
+4. **Given** any step, **When** it is shown, **Then** it shows one menu, says what the choice does and which step of four it is.
+5. **Given** the Languages step, **When** the Member moves on, **Then** the Interests step follows, explaining each Interest they
    are offered.
-5. **Given** a step, **When** the Member changes the menu, **Then** the answer is saved and its Preference Roles change at once,
+6. **Given** a step, **When** the Member changes the menu, **Then** the answer is saved and its Preference Roles change at once,
    and the same step stays on screen.
-6. **Given** a Member Linked to an R5, **When** the Interests step is shown, **Then** it does not offer NaP discussions; an R4 is
+7. **Given** a Member Linked to an R5, **When** the Interests step is shown, **Then** it does not offer NaP discussions; an R4 is
    offered them, as today.
 
 ---
@@ -73,10 +76,9 @@ shows the finishing message with no menus left.
 
 ### User Story 3 - A Member changes their choices with /channels (Priority: P2)
 
-A Linked Home Kingdom Member runs `/channels`, and also a Member whose private message could not be delivered. They get the same
-steps, privately, with their stored answers already chosen.
+A Linked Home Kingdom Member runs `/channels`. They get the same steps, privately, with their stored answers already chosen.
 
-**Why this priority**: it is the only way in for closed private messages, and the only way to change answers later.
+**Why this priority**: it is the only way to change answers after the thread closes, and the only way in after an Officer Link.
 
 **Independent Test**: automated: `/channels` answers with the Languages step, privately, showing stored answers.
 
@@ -111,12 +113,13 @@ the buttons and the pings are unchanged.
 
 ### Edge Cases
 
-- Closed private messages: the Link stands and nothing is retried; the Linked message in the thread names `/channels`.
-- An Officer Link: the same private message and button, with no Language preselected (slice 024).
-- The button pressed in a private message: Neil is not on a server there, and must still find the Member's server to change roles.
+- A Guest at their Link: no steps, and the thread closes at the Link as today.
+- An Officer Link: no thread, so the Member is told privately to run `/channels`, with no Language preselected.
+- The Member leaves or is Unlinked while the thread is open: the thread closes as today.
+- A Rank Approval pending when the Member finishes or times out: the thread stays for it, as today.
 - A step pressed after becoming a Guest or being Unlinked: refused as in User Story 3, nothing is changed.
-- The button pressed twice, or an old step pressed: it acts on the stored answers and shows that step; no state goes stale.
-- Someone else's press: not possible in a private message or a private reply, and still refused as today.
+- An old step pressed: it acts on the stored answers and shows that step; no state goes stale.
+- Someone else's press in the thread: refused as today.
 - A Member Linked to an R5 keeps NaP discussions by rank, whatever they answer in the steps.
 
 ## Requirements *(mandatory)*
@@ -130,10 +133,10 @@ the buttons and the pings are unchanged.
 - **FR-005**: Every step but the first MUST allow going back.
 - **FR-006**: A menu change MUST save and apply at once and log as today, and the same step stays shown.
 - **FR-007**: The last step MUST end in a finishing message that names `/channels` and gives the guides line, with no menus left.
-- **FR-008**: Neil's private message after the Link, in an Interview or by an Officer, MUST welcome the Member, explain the steps
-  and offer a button that starts them.
+- **FR-008**: After an Interview's Link of a Home Kingdom Member, the thread MUST stay open and show the Languages step.
 - **FR-009**: `/channels` MUST start the same steps, privately, showing stored answers.
-- **FR-010**: Steps MUST work from a private message, where Neil has no server to read from the press.
+- **FR-010**: The thread MUST close only when the Member finishes the steps or the Interview times out, unless the Member is a Guest,
+  leaves or is Unlinked, and a pending Rank Approval still keeps it open.
 - **FR-011**: Guests and Members who are not Linked MUST be refused as today, on `/channels` and on every press.
 - **FR-012**: The Interview's welcome, uid help, Recommended Player, pick list, found card and Linked messages MUST explain what
   happens and why, in Neil's voice, keeping their buttons and pings.
@@ -151,7 +154,7 @@ the buttons and the pings are unchanged.
 
 ### Measurable Outcomes
 
-- **SC-001**: A Member reaches the Languages step with one press from the private message, and the Interests step with one more.
+- **SC-001**: A Member sees the Languages step at the Link with no press, and the Interests step with one press.
 - **SC-002**: No step shows more than one menu.
 - **SC-003**: A Member can leave all four steps without answering in four presses, and nothing is stored or changed by them.
 - **SC-004**: Every step, and every Interview text in FR-012, says what happens next or what the choice does, checked by test.
@@ -159,7 +162,7 @@ the buttons and the pings are unchanged.
 
 ## Assumptions
 
-- Slice 024 is merged first: Preferences no longer run in the Interview thread, and the private message is `channelsNoteMessage`.
-- A Member leaving steps unfinished needs no timeout: every answer is saved at once, and there is no open state to sweep.
+- Slice 024 is corrected and merged first: a Member keeps sight of the Interview thread until it closes.
+- A Member leaving steps unfinished times out as the Preferences message does today: every answer is already saved.
 - "Liaison" is a voice, not a domain term, so the dictionary does not change. A new term needs the user's approval.
 - No migration, no new command, and no change to who gets which role.
