@@ -2,10 +2,13 @@
 
 Where work stands right now. Updated in every change (constitution, principle VI).
 Plan: [ROADMAP.md](ROADMAP.md) · Decisions: [adr/](adr/README.md) · Language: [DICTIONARY.md](DICTIONARY.md) ·
-Game API: [GAME-API.md](GAME-API.md) · Hosting: [HOSTING.md](HOSTING.md) · Server setup: [SERVER-SETUP.md](SERVER-SETUP.md) · Discovery: [discovery/initial.md](discovery/initial.md) ·
+Game API: [GAME-API.md](GAME-API.md) · Hosting: [HOSTING.md](HOSTING.md) · Server setup: [SERVER-SETUP.md](SERVER-SETUP.md), [STARTUP-GUIDE.md](STARTUP-GUIDE.md), [MIGRATION-GUIDE.md](MIGRATION-GUIDE.md) · Discovery: [discovery/initial.md](discovery/initial.md) ·
 Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
+
+Slice 019, Know what a server needs ([specs](../specs/019-know-what-a-server-needs/), [discovery](discovery/019-know-what-a-server-needs.md), issue
+[#61](https://github.com/LilSticky/Neil/issues/61)): SERVER-SETUP.md is now the reference (lists and Server Layout), with STARTUP-GUIDE.md and MIGRATION-GUIDE.md. Documentation only. **Merged red:** the guides were not followed on the test server (T007), so Definition of Done 2 is open, and AD and KvK are still to be explained by the user (T008). The user's main decision: Guests see only the Guest area, which overrides slice 017's layout.
 
 Slice 018, Start Interviews for unlinked Members ([specs](../specs/018-start-interviews-for-unlinked-members/), issue
 [#58](https://github.com/LilSticky/Neil/issues/58)): an unlinked Member gets an Interview on coming online, and at a start of Neil, up to 10 per start
@@ -19,7 +22,7 @@ Merged to `main` with T001–T018 done (review and audit in the spec folder). **
 
 Slice 017, Give Members the Doctor Role ([specs](../specs/017-give-members-the-doctor-role/), issue
 [#47](https://github.com/LilSticky/Neil/issues/47)): every Linked Member, Guests included, holds the Doctor Role, and
-SERVER-SETUP.md step 8c sets out Home Kingdom and Shared information. Merged to `main` with T001–T010 done. **Merged red:**
+its layout is replaced by slice 019's Server Layout. Merged to `main` with T001–T010 done. **Merged red:**
 the manual check ([TEST-RUN.md](TEST-RUN.md) §6l, T011) has not been run, so Definition of Done 2 is open.
 
 Slice 016, Choose your channels ([specs](../specs/016-choose-your-channels/), issue
@@ -39,16 +42,16 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** in a new session: slice 019, Know what a server needs ([brief](discovery/019-know-what-a-server-needs.md), issue [#61](https://github.com/LilSticky/Neil/issues/61)), the discovery the user asked for before any setup
-script. It makes lists of requirements, recommendations and suggestions for channels, roles and permissions, and writes a startup guide for new servers and a
-migration guide for existing ones. Slice 020, the setup script (issue [#62](https://github.com/LilSticky/Neil/issues/62)), waits for it; no code or spec exists yet.
+**Next step:** in a new session: slice 021, Keep Preferences within the Home Kingdom (issue [#64](https://github.com/LilSticky/Neil/issues/64)): it must be live before channels are gated on Preference Roles. Then slice 022 (Recruitment, [#65](https://github.com/LilSticky/Neil/issues/65)) and slice 020, the setup script ([#62](https://github.com/LilSticky/Neil/issues/62)), whose rights are still to be decided (discovery Q6).
 
-For the user, still open: the channel setup ([SERVER-SETUP.md](SERVER-SETUP.md) steps 8, 8b, 8c and 9), which slice 019's guides may change, then TEST-RUN.md §6i, §6j, §6k, §6l, §6m and §6n.
+For the user, still open: the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), explaining AD and KvK, then TEST-RUN.md §6i, §6j, §6k, §6l, §6m and §6n.
 Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Presence Intent, Linked the Members there, restarted and registered the commands.
 Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 
 ## Known broken / WIP
 
+- Preferences may be invisible once `#onboarding` is hidden: untested, issue [#66](https://github.com/LilSticky/Neil/issues/66). A Guest leader can't open a Rank Approval thread: issue [#67](https://github.com/LilSticky/Neil/issues/67).
+- Until slice 021, Guests can hold Preference Roles, so don't gate channels on them.
 - Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
