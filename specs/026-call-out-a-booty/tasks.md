@@ -7,7 +7,7 @@
 ## Phase 1: Foundational
 
 - [ ] T001 Dictionary: add Booty, Booty Call and Booty Alerts as approved, in `documentation/DICTIONARY.md` (after slice 024 merges; rebase first)
-- [ ] T002 [P] ADR 13, personal data of Booty Alerts, in `documentation/adr/` with its index
+- [x] T002 [P] ADR 13, personal data of Booty Alerts, in `documentation/adr/` with its index
 - [ ] T003 Rules in `src/domain/booty.ts`: mode `off`, `always`, `online`, `offline`; window in minutes 0 to 1439, equal start and end meaning the whole day, over midnight when start is after end, end minute outside; the match rule; `HH:MM` parsing; one-minute expiry and cooldown
 - [ ] T004 Migration and store in `src/storage/database.ts`, `src/storage/booty-alerts-store.ts`: table `booty_alerts` per data-model.md; get, save, forget; no row means Off (FR-010, FR-011)
 
