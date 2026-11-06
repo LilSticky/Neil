@@ -16,6 +16,8 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { officerLinkPreferencesMessage } from "./preferences-texts.js";
+import { LINK_NOTE } from "./usage-texts.js";
 import { FakeDoctorRole, type DoctorRoleCall } from "./__fakes__/doctor-role.js";
 import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 import { FakePreferenceRoles } from "./__fakes__/preference-roles.js";
@@ -726,6 +728,40 @@ describe("handleLinkButton: an Officer Link tells the Member about /channels", (
   });
 });
 
+describe("handleLinkButton: an Officer Link's /channels note depends on the Player's Kingdom", () => {
+  let h: LinkHarness;
+
+  beforeEach(() => {
+    h = makeLinkHarness();
+    storeHandedOff(h, HANDED_OFF);
+  });
+
+  afterEach(() => {
+    h.close();
+  });
+
+  test("to a Player outside the Home Kingdom, sends no /channels note but still sends the Link note", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_OUTSIDE_HOME, fetchedAt: NOW };
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.links.linkFor(HANDED_OFF)).toMatchObject({ memberId: HANDED_OFF, uid: FOUND_UID });
+    expect(h.privateMessages.attempts.map((attempt) => contentOf(attempt.message))).toEqual([LINK_NOTE]);
+  });
+
+  test("to a Home Kingdom Player, sends both the /channels note and the Link note", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+
+    await press(h, confirm, OFFICER);
+
+    expect(h.privateMessages.attempts.map((attempt) => contentOf(attempt.message))).toEqual([
+      contentOf(officerLinkPreferencesMessage()),
+      LINK_NOTE,
+    ]);
+  });
+});
+
 /* /link: an Officer Links a handed-off Member by hand, after confirming the Player shown. */
 
 const HANDED_OFF: MemberId = "555555555555555555";
@@ -752,6 +788,8 @@ const PLAYER_RANKED: Player = {
 };
 /** A Player in an Alliance whose rank the Game API does not list: the Link needs a Rank Approval. */
 const PLAYER_UNRANKED: Player = { ...PLAYER_RANKED, allianceRank: "unknown" };
+/** A Player in Kingdom 12, outside the Home Kingdom (245): the Member Linked to them is a Guest. */
+const PLAYER_OUTSIDE_HOME: Player = { ...PLAYER_RANKED, kingdom: kingdomOf(12) };
 
 /** The Game API for a uid: records every lookup and answers with the result set. */
 class FakeLinkGameApi {
@@ -929,6 +967,7 @@ function confirmDeps(h: LinkHarness) {
     confirmations: h.confirmations,
     onboardingRole: h.onboardingRole,
     doctorRole: h.doctorRole,
+    homeKingdom: KINGDOM,
     sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => h.privateMessages.send(memberId, message),
     now: () => h.now,
     logError: (line: string) => h.errors.push(line),

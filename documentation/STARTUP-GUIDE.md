@@ -81,9 +81,6 @@ Create the categories and channels in [SERVER-SETUP.md §3](SERVER-SETUP.md#3-th
 
 Then set the special cases on the channels themselves: only King posts, Interaction Bot, read only, the guides forum.
 
-Leave the language channels hidden, or don't create them, until [issue #64](https://github.com/LilSticky/Neil/issues/64) is
-live: until then a Guest who chooses a language sees that channel.
-
 Alliance areas come later: a tag role appears with an Alliance's first Linked Member. Create the area then.
 
 ## 8. Set the commands

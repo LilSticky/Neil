@@ -28,6 +28,7 @@ function kingdomOf(number: number): KingdomNumber {
 }
 
 const NOW = new Date("2026-10-31T10:00:00Z");
+const HOME_KINGDOM = kingdomOf(330);
 const MEMBER: MemberId = "111111111111111111";
 const THREAD = "666666666666666666";
 const RANK: RankOnLink = { source: "game-api", rank: "R4" };
@@ -54,6 +55,11 @@ function playerIn(language: string | undefined): Player {
       kingdomBadgePath: undefined,
     },
   };
+}
+
+/** A Player in Kingdom 12, outside the Home Kingdom: the Member is a Guest. */
+function playerOutsideHome(language: string | undefined): Player {
+  return { ...playerIn(language), kingdom: kingdomOf(12) };
 }
 
 /** The channels as the Preferences message uses them: records each post with the Languages stored at that moment. */
@@ -93,7 +99,13 @@ describe("createPreferencesAfterLink", () => {
   });
 
   function serviceWith(): ReturnType<typeof createPreferencesAfterLink> {
-    return createPreferencesAfterLink({ preferences: store, channels, guidesForumId: undefined, now: () => NOW });
+    return createPreferencesAfterLink({
+      preferences: store,
+      channels,
+      guidesForumId: undefined,
+      homeKingdom: HOME_KINGDOM,
+      now: () => NOW,
+    });
   }
 
   test("stores the Player's game Language for a Member with no Preferences, before the message is posted, so it shows preselected", async () => {
@@ -155,5 +167,32 @@ describe("createPreferencesAfterLink", () => {
         languagesAtPost: [],
       },
     ]);
+  });
+
+  test("posts no Preferences message and opens no prompt for a Player outside the Home Kingdom", async () => {
+    await serviceWith().postAfterLink(MEMBER, THREAD, playerOutsideHome("fr-FR"), RANK);
+
+    expect(channels.posts).toEqual([]);
+    expect(store.prompt(MEMBER)).toBeUndefined();
+  });
+
+  test("stores no preselected Language for a Player outside the Home Kingdom", async () => {
+    await serviceWith().postAfterLink(MEMBER, THREAD, playerOutsideHome("fr-FR"), RANK);
+
+    expect(store.get(MEMBER).languages).toEqual(new Set<GameLanguageCode>());
+  });
+
+  test("resolves false for a Player outside the Home Kingdom, so that nothing is posted", async () => {
+    const posted = await serviceWith().postAfterLink(MEMBER, THREAD, playerOutsideHome("fr-FR"), RANK);
+
+    expect(posted).toBe(false);
+  });
+
+  test("for a Home Kingdom Player, posts the message as before and resolves true", async () => {
+    const posted = await serviceWith().postAfterLink(MEMBER, THREAD, playerIn("fr-FR"), RANK);
+
+    expect(posted).toBe(true);
+    expect(channels.posts).toHaveLength(1);
+    expect(store.prompt(MEMBER)).toEqual({ threadId: THREAD, postedAt: NOW });
   });
 });

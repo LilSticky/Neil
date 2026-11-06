@@ -10,6 +10,7 @@ import {
   type RegionKey,
 } from "../domain/preferences.js";
 import {
+  guestChannelsReply,
   guidesLine,
   notLinkedReply,
   notYoursReply,
@@ -348,5 +349,20 @@ describe("the private message after an Officer Link", () => {
 
     expect(message.content).toContain("/channels");
     expect(message.allowedMentions).toEqual({ parse: [] });
+  });
+});
+
+describe("the private refusal to a Guest on /channels", () => {
+  test("is shown privately, with no mentions", () => {
+    const reply = guestChannelsReply();
+
+    expect(reply.flags).toBe(MessageFlags.Ephemeral);
+    expect(reply.allowedMentions).toEqual({ parse: [] });
+  });
+
+  test("reads exactly as the contract says", () => {
+    expect(guestChannelsReply().content).toBe(
+      "Channel choices are for Home Kingdom Members. As a Guest, you see the Guest area.",
+    );
   });
 });

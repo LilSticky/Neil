@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { mayCorrect, type Corrector } from "../domain/correction.js";
 import { needsRankApproval, officerRank, rankOnLink, type Link } from "../domain/link.js";
-import { parseUid, type Uid } from "../domain/lookup-input.js";
+import { parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import { isOfficer } from "../domain/officer.js";
 import { linkByOfficer } from "../domain/onboarding-interview.js";
 import type { Player } from "../domain/player.js";
@@ -140,6 +140,8 @@ export interface LinkButtonDeps {
   readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   /** Gives the Doctor Role to the Member an Officer Links, before the Onboarding Role is taken off. */
   readonly doctorRole: Pick<DoctorRole, "give">;
+  /** The Home Kingdom from config: only a Player in it is offered /channels after an Officer Link. */
+  readonly homeKingdom: KingdomNumber;
   readonly isOnServer: (memberId: MemberId) => Promise<boolean>;
   /** Privately tells the Member an Officer Linked about /channels; Discord may refuse it. */
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
@@ -411,9 +413,12 @@ async function finishOfficerLink(
   await logLine(deps.logError, () =>
     deps.channels.log(officerLinkLogLine(pending.memberId, pending.player, pending.officerId)),
   );
-  await answer("the /channels message after an Officer Link", { logError: deps.logError }, () =>
-    deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()),
-  );
+  // A Guest is not offered Preferences, so the /channels note is not sent to them.
+  if (pending.player.kingdom === deps.homeKingdom) {
+    await answer("the /channels message after an Officer Link", { logError: deps.logError }, () =>
+      deps.sendPrivateMessage(pending.memberId, officerLinkPreferencesMessage()),
+    );
+  }
   await answer("the Link note after an Officer Link", { logError: deps.logError }, () =>
     deps.sendPrivateMessage(pending.memberId, { content: LINK_NOTE }),
   );

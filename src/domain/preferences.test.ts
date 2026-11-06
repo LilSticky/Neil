@@ -8,6 +8,8 @@ import {
   INTERESTS,
   REGIONS,
   interestOptions,
+  isKnownGuest,
+  isKnownInHomeKingdom,
   preferenceRolesFor,
   preselectedLanguage,
   type ExperienceKey,
@@ -17,6 +19,7 @@ import {
   type RegionKey,
 } from "./preferences.js";
 import type { AllianceRank } from "./player.js";
+import { kingdomOf } from "./__fixtures__/players.js";
 
 const NAP_ROLE = "NaP discussions";
 
@@ -203,5 +206,53 @@ describe("ALL_PREFERENCE_ROLE_NAMES", () => {
     for (const name of ALL_PREFERENCE_ROLE_NAMES) {
       expect(isManagedRoleName(name, allianceTags)).toBe(false);
     }
+  });
+});
+
+describe("isKnownInHomeKingdom", () => {
+  test("is true when the Applied State roles include the Home Kingdom's role", () => {
+    expect(isKnownInHomeKingdom(["NML", "#330", "R4"], kingdomOf(330))).toBe(true);
+  });
+
+  test("is false when the roles hold only a role of another Kingdom", () => {
+    expect(isKnownInHomeKingdom(["#12", "NML"], kingdomOf(330))).toBe(false);
+  });
+
+  test("is false for an empty list of roles", () => {
+    expect(isKnownInHomeKingdom([], kingdomOf(330))).toBe(false);
+  });
+
+  test("is false for a Kingdom number that is a prefix of the role's Kingdom (#33 is not #330)", () => {
+    expect(isKnownInHomeKingdom(["#330"], kingdomOf(33))).toBe(false);
+  });
+
+  test("is false for a role whose Kingdom number is a prefix of the Home Kingdom (#330 is not #33)", () => {
+    expect(isKnownInHomeKingdom(["#33"], kingdomOf(330))).toBe(false);
+  });
+
+  test("is false when there is no Applied State", () => {
+    expect(isKnownInHomeKingdom(undefined, kingdomOf(330))).toBe(false);
+  });
+});
+
+describe("isKnownGuest", () => {
+  test("is true when the Applied State roles do not include the Home Kingdom's role", () => {
+    expect(isKnownGuest(["NML", "#12", "R4"], kingdomOf(330))).toBe(true);
+  });
+
+  test("is false when the roles include the Home Kingdom's role", () => {
+    expect(isKnownGuest(["NML", "#330", "R4"], kingdomOf(330))).toBe(false);
+  });
+
+  test("is true for a role of another Kingdom whose number has the Home Kingdom as a prefix (#330 is not #33)", () => {
+    expect(isKnownGuest(["#330"], kingdomOf(33))).toBe(true);
+  });
+
+  test("is true for an empty list of roles, since the list is given and holds no Home Kingdom role", () => {
+    expect(isKnownGuest([], kingdomOf(330))).toBe(true);
+  });
+
+  test("is false when there is no Applied State", () => {
+    expect(isKnownGuest(undefined, kingdomOf(330))).toBe(false);
   });
 });

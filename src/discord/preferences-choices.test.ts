@@ -1,7 +1,7 @@
 import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import type { Link, RankOnLink } from "../domain/link.js";
-import { parseUid, type Uid } from "../domain/lookup-input.js";
+import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import {
   EMPTY_PREFERENCES,
   type ExperienceKey,
@@ -11,6 +11,7 @@ import {
   type RegionKey,
 } from "../domain/preferences.js";
 import type { MemberId, RankApproval } from "../domain/rank-approval.js";
+import type { AppliedState, AppliedStore } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { PreferencePrompt, PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
@@ -18,6 +19,7 @@ import type { PrivateReply } from "./interview-texts.js";
 import type { PreferenceRoles } from "./preferences.js";
 import { createPreferenceChoices } from "./preferences-choices.js";
 import {
+  guestChannelsReply,
   guidesLine,
   notLinkedReply,
   notYoursReply,
@@ -46,6 +48,14 @@ function uidOf(digits: string): Uid {
 }
 
 const ALICE_UID = uidOf("145563254785");
+
+function kingdomOf(digits: number): KingdomNumber {
+  const parsed = parseKingdom(digits);
+  if (!parsed.ok) throw new Error(`the test Kingdom ${digits.toString()} is not a valid Kingdom`);
+  return parsed.value;
+}
+
+const HOME_KINGDOM = kingdomOf(330);
 
 function linkOf(memberId: MemberId, allianceRank: RankOnLink): Link {
   return { memberId, uid: ALICE_UID, linkedAt: NOW, allianceRank, madeBy: { kind: "in-game-proof" } };
@@ -211,11 +221,25 @@ class FakePress {
   }
 }
 
+/** The Applied States the choices read: records the roles last applied to a Member, as their Applied State holds them. */
+class FakeApplied implements Pick<AppliedStore, "get"> {
+  private readonly states = new Map<MemberId, AppliedState>();
+
+  record(memberId: MemberId, roles: readonly string[]): void {
+    this.states.set(memberId, { memberId, nickname: "Vex", roles, appliedAt: NOW, complete: true });
+  }
+
+  get(memberId: MemberId): AppliedState | undefined {
+    return this.states.get(memberId);
+  }
+}
+
 function setUp() {
   const trace: string[] = [];
   const store = new FakeChoicesStore(trace);
   const roles = new FakeRoles(trace);
   const links = new FakeLinks();
+  const applied = new FakeApplied();
   const channels = new FakeChannels(trace);
   const logError = vi.fn<(line: string) => void>();
   const choices = createPreferenceChoices({
@@ -223,6 +247,8 @@ function setUp() {
     preferences: store,
     links,
     rankApprovals: links,
+    applied,
+    homeKingdom: HOME_KINGDOM,
     channels,
     guidesForumId: GUIDES_FORUM,
     logError,
@@ -235,7 +261,7 @@ function setUp() {
     new FakePress(trace, preferencesCustomId(question, ALICE), { id: userId }, values);
   const doneOf = (userId: MemberId = ALICE): FakePress =>
     new FakePress(trace, preferencesCustomId("done", ALICE), { id: userId });
-  return { trace, store, roles, links, channels, logError, choices, linkAlice, selectOf, doneOf };
+  return { trace, store, roles, links, applied, channels, logError, choices, linkAlice, selectOf, doneOf };
 }
 
 describe("a select change", () => {
@@ -343,6 +369,50 @@ describe("a select change", () => {
     await choices.press(press);
 
     expect(press.updates[0]?.content).toContain(guidesLine("new", GUIDES_FORUM));
+  });
+});
+
+describe("a select change by a Guest, or by a Member the Applied State does not place", () => {
+  test("a known Guest's select menu press gets the Guest refusal, and stores, gives and logs nothing", async () => {
+    const { store, roles, channels, applied, linkAlice, selectOf, choices, trace } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    const press = selectOf("languages", ["de"]);
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([guestChannelsReply()]);
+    expect(press.updates).toEqual([]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual([]);
+  });
+
+  test("a known Guest pressing Done still closes the open prompt and deletes its thread", async () => {
+    const { store, channels, applied, linkAlice, doneOf, choices } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    store.openPrompt(ALICE, ALICE_THREAD);
+
+    await choices.press(doneOf());
+
+    expect(store.prompt(ALICE)).toBeUndefined();
+    expect(channels.deleted).toEqual([ALICE_THREAD]);
+  });
+
+  test("a Linked Member with no Applied State pressing a select menu is saved and not refused", async () => {
+    const { store, roles, linkAlice, selectOf, choices } = setUp();
+    linkAlice(R3);
+    const press = selectOf("languages", ["de"]);
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([]);
+    expect(press.updates).toHaveLength(1);
+    expect(store.writes).toEqual(["setLanguages"]);
+    expect(store.get(ALICE).languages).toEqual(languages("de"));
+    expect(roles.applied).toEqual([ALICE]);
   });
 });
 
@@ -529,6 +599,62 @@ describe("/channels", () => {
     expect(store.writes).toEqual([]);
     expect(roles.applied).toEqual([]);
     expect(channels.logs).toEqual([]);
+  });
+});
+
+describe("/channels for a Guest, or for a Member the Applied State does not place", () => {
+  test("a known Guest, whose Applied State holds no Home Kingdom role, is refused privately and sees no Preferences", async () => {
+    const { applied, linkAlice, choices } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    const command = new FakeChannelsCommand({ id: ALICE });
+
+    await choices.showChannels(command);
+
+    expect(command.replies).toEqual([guestChannelsReply()]);
+  });
+
+  test("a Linked Member with no Applied State is not refused and gets their Preferences message", async () => {
+    const { linkAlice, choices } = setUp();
+    linkAlice(R3);
+    const command = new FakeChannelsCommand({ id: ALICE });
+
+    await choices.showChannels(command);
+
+    expect(command.replies).toEqual([
+      {
+        ...preferencesMessage({
+          memberId: ALICE,
+          preferences: EMPTY_PREFERENCES,
+          rank: "R3",
+          playerLanguage: undefined,
+          guidesForumId: GUIDES_FORUM,
+        }),
+        flags: MessageFlags.Ephemeral,
+      },
+    ]);
+  });
+
+  test("a Linked Member whose Applied State holds the Home Kingdom role is not refused and gets their Preferences message", async () => {
+    const { applied, linkAlice, choices } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#330", "NML"]);
+    const command = new FakeChannelsCommand({ id: ALICE });
+
+    await choices.showChannels(command);
+
+    expect(command.replies).toEqual([
+      {
+        ...preferencesMessage({
+          memberId: ALICE,
+          preferences: EMPTY_PREFERENCES,
+          rank: "R3",
+          playerLanguage: undefined,
+          guidesForumId: GUIDES_FORUM,
+        }),
+        flags: MessageFlags.Ephemeral,
+      },
+    ]);
   });
 });
 

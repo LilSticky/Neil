@@ -6,20 +6,24 @@ import {
   REGIONS,
   allianceRankOf,
   interestOptions,
+  isKnownGuest,
   type ExperienceKey,
   type GameLanguageCode,
   type InterestKey,
   type Preferences,
   type RegionKey,
 } from "../domain/preferences.js";
+import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { AllianceRank } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import type { AppliedStore } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { PreferenceRoles } from "./preferences.js";
 import type { PrivateReply } from "./interview-texts.js";
 import {
+  guestChannelsReply,
   notLinkedReply,
   notYoursReply,
   parsePreferencesCustomId,
@@ -31,7 +35,7 @@ import {
   type PreferencesMessage,
 } from "./preferences-texts.js";
 
-/** What the Preferences message's presses need: the stores, the Preference Roles, the log, and the guides forum. */
+/** What the Preferences message's presses need: the stores, the Preference Roles, the log, the guides forum and the Home Kingdom. */
 export interface PreferenceChoicesDeps {
   readonly roles: Pick<PreferenceRoles, "apply">;
   readonly preferences: Pick<
@@ -40,6 +44,8 @@ export interface PreferenceChoicesDeps {
   >;
   readonly links: Pick<LinkStore, "linkFor">;
   readonly rankApprovals: Pick<LinkStore, "pendingFor">;
+  readonly applied: Pick<AppliedStore, "get">;
+  readonly homeKingdom: KingdomNumber;
   readonly channels: Pick<OnboardingChannels, "log" | "deleteThread">;
   readonly guidesForumId: string | undefined;
   readonly logError: (line: string) => void;
@@ -108,6 +114,10 @@ async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress):
     await finish(deps, press, memberId);
     return;
   }
+  if (isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom)) {
+    await press.reply(guestChannelsReply());
+    return;
+  }
   await change(deps, press, { memberId, rank: link.allianceRank, question });
 }
 
@@ -117,6 +127,10 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
   const link = deps.links.linkFor(memberId);
   if (link === undefined) {
     await command.reply(notLinkedReply());
+    return;
+  }
+  if (isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom)) {
+    await command.reply(guestChannelsReply());
     return;
   }
   const message = messageFor(deps, memberId, deps.preferences.get(memberId), allianceRankOf(link.allianceRank));

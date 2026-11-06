@@ -1,7 +1,9 @@
 import { describe, expect, test, vi } from "vitest";
 import type { RankOnLink } from "../domain/link.js";
+import { parseKingdom, type KingdomNumber } from "../domain/lookup-input.js";
 import { EMPTY_PREFERENCES, type GameLanguageCode, type Preferences } from "../domain/preferences.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import { FakeAppliedStore } from "./__fakes__/applied-store.js";
 import { FakeLinkStore } from "./__fakes__/link-store.js";
 import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
@@ -23,6 +25,18 @@ const NOW = new Date("2026-11-04T10:00:00Z");
 const R3: RankOnLink = { source: "game-api", rank: "R3" };
 const R4: RankOnLink = { source: "game-api", rank: "R4" };
 const R5: RankOnLink = { source: "game-api", rank: "R5" };
+
+function kingdomOf(number: number): KingdomNumber {
+  const parsed = parseKingdom(number);
+  if (!parsed.ok) throw new Error(`the test Kingdom ${number.toString()} is not a valid Kingdom`);
+  return parsed.value;
+}
+
+/** The Home Kingdom of the server, as the configuration gives it. */
+const HOME_KINGDOM = kingdomOf(330);
+/** The roles a Home Kingdom Member's Applied State holds, and the roles of a Guest's (Kingdom 12) Applied State. */
+const HOME_ROLES: readonly string[] = ["#330", "NML"];
+const GUEST_ROLES: readonly string[] = ["#12", "NML"];
 
 /** Preferences with the given changes on top of nothing chosen. */
 function preferencesWith(changes: Partial<Preferences>): Preferences {
@@ -69,21 +83,34 @@ function setUp(officerRoleIds: readonly string[] = []) {
   const members = new FakeServerMembers();
   const preferences = new FakePreferenceStore();
   const links = new FakeLinkStore();
+  const applied = new FakeAppliedStore();
   const channels = new FakeThreads();
   const logError = vi.fn<(line: string) => void>();
   const log = vi.fn<(line: string) => void>();
-  const service = createPreferenceRoles({ members, preferences, links, channels, logError, log, officerRoleIds });
+  const service = createPreferenceRoles({
+    members,
+    preferences,
+    links,
+    applied,
+    homeKingdom: HOME_KINGDOM,
+    channels,
+    logError,
+    log,
+    officerRoleIds,
+  });
   /**
    * Puts a Member on the server, holding the given roles, as the discord.js adapter would find them, and Links them at
-   * the given rank. A Member put on the server is Linked too, unless the test unlinks them.
+   * the given rank. A Member put on the server is Linked too, unless the test unlinks them. Their Applied State holds the
+   * Home Kingdom role, unless the test changes it.
    */
   const join = (memberId: MemberId, roles: readonly string[] = [], rank: RankOnLink = R3): FakeRolesMember => {
     const member = guild.member(memberId, roles);
     members.join(memberId, guild, member);
     links.link(memberId, rank);
+    applied.record(memberId, HOME_ROLES);
     return member;
   };
-  return { guild, members, preferences, links, channels, logError, log, service, join };
+  return { guild, members, preferences, links, applied, channels, logError, log, service, join };
 }
 
 describe("apply", () => {
@@ -286,6 +313,64 @@ describe("apply", () => {
 
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError).toHaveBeenCalledWith(expect.stringContaining(ALICE));
+  });
+});
+
+describe("apply: the Kingdom the Applied State places the Member in", () => {
+  test("takes every Preference Role off a Guest, logs one line, and keeps the stored Preferences", async () => {
+    const { guild, preferences, applied, log, service, join } = setUp();
+    guild.defineRole("English");
+    guild.defineRole("Americas");
+    guild.defineRole("Onboarding");
+    const alice = join(ALICE, ["English", "Americas", "Onboarding"]);
+    applied.record(ALICE, GUEST_ROLES);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en"), region: "americas" }));
+
+    await service.apply(ALICE);
+
+    expect(heldNames(alice)).toEqual(["Onboarding"]);
+    expect(log).toHaveBeenCalledTimes(1);
+    const [line] = log.mock.calls[0] ?? [];
+    expect(line).toEqual(expect.stringContaining(ALICE));
+    expect(line).toEqual(expect.stringContaining("English"));
+    expect(line).toEqual(expect.stringContaining("Americas"));
+    expect(preferences.get(ALICE)).toEqual(preferencesWith({ languages: languages("en"), region: "americas" }));
+  });
+
+  test("gives no Preference Role to a Guest, even one the Guest's Preferences want", async () => {
+    const { guild, preferences, applied, service, join } = setUp();
+    guild.defineRole("English");
+    const alice = join(ALICE);
+    applied.record(ALICE, GUEST_ROLES);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
+
+    await service.apply(ALICE);
+
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("gives no Preference Role to a Member with no Applied State, and takes off any held", async () => {
+    const { guild, preferences, applied, service, join } = setUp();
+    guild.defineRole("English");
+    const alice = join(ALICE, ["English"]);
+    applied.clear(ALICE);
+    preferences.set(ALICE, preferencesWith({ languages: languages("en") }));
+
+    await service.apply(ALICE);
+
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("stores no NaP discussions for a Guest Linked to an R5", async () => {
+    const { guild, preferences, applied, service, join } = setUp();
+    guild.defineRole("NaP discussions");
+    const alice = join(ALICE, [], R5);
+    applied.record(ALICE, GUEST_ROLES);
+
+    await service.apply(ALICE);
+
+    expect(preferences.get(ALICE).interests.has("nap")).toBe(false);
+    expect(heldNames(alice)).toEqual([]);
   });
 });
 

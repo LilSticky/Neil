@@ -138,9 +138,8 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
   permissions above stay the same.
 - **Guest area, no commands:** nothing to set here. Section 5 limits every command to other channels, and Guests see none of them.
 
-Today's limits, each with its own slice:
+Today's limit, with its own slice:
 
-- Neil still gives Guests Preference Roles, so a Guest who chooses a language sees that channel. Don't gate channels on Preference Roles before [issue #64](https://github.com/LilSticky/Neil/issues/64) is live.
 - `Trading` still exists as an Interest; [issue #65](https://github.com/LilSticky/Neil/issues/65) replaces it with Recruitment.
 
 ---

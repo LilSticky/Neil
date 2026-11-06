@@ -2289,6 +2289,26 @@ describe("createInterviews", () => {
       expect(h.rankApprovals.announced).toHaveLength(1);
       expect(h.channels.deleted).toEqual([]);
     });
+
+    test("when nothing is posted for a Guest and no Rank Approval is pending, the Interview thread is deleted", async () => {
+      h.preferences.declineAll();
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.preferences.declined).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
+    test("when nothing is posted for a Guest with a pending Rank Approval, the thread is kept for the approval", async () => {
+      h.preferences.declineAll();
+
+      await pendingRankApprovalOfMember(h);
+
+      expect(h.preferences.declined).toHaveLength(1);
+      expect(h.rankApprovals.announced).toHaveLength(1);
+      expect(h.channels.deleted).toEqual([]);
+    });
   });
 
   describe("the Link note after a Link", () => {

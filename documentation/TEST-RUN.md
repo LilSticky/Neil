@@ -306,6 +306,17 @@ Branch `018-start-interviews-for-unlinked-members`. First switch on **Presence I
 | 6n.7 | Get handed off, then go offline and come online | No Interview | | |
 | 6n.8 | Run `/interview` as an unlinked Member with none open | Works as before | | |
 
+## 6o. Keep Preferences within the Home Kingdom (slice 021, collected 2026-11-06)
+
+Branch `021-keep-preferences-within-the-home-kingdom`. Deploy and Restart first. No commands to register. Run only the Wispbyte Neil.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6o.1 | Link a test account to a Player outside the Home Kingdom | No Preferences message; the thread is deleted | | |
+| 6o.2 | Run `/channels` as that Guest | The private refusal; no Preferences message | | |
+| 6o.3 | Give that Guest a Preference Role by hand, then wait for the Daily Sync | The role is gone; `#neil-log` has one line | | |
+| 6o.4 | Link a test account to a Player in the Home Kingdom | The Preferences message and the roles, as before | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

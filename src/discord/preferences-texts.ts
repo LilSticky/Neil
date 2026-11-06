@@ -115,6 +115,15 @@ export function officerLinkPreferencesMessage(): Message {
   };
 }
 
+/** The private refusal to a known Guest on /channels, or on a select menu press: no mentions, and nothing is changed. */
+export function guestChannelsReply(): PrivateReply {
+  return {
+    content: "Channel choices are for Home Kingdom Members. As a Guest, you see the Guest area.",
+    flags: MessageFlags.Ephemeral,
+    allowedMentions: noMentions(),
+  };
+}
+
 /** The guides line for a Member's Experience: Veteran is invited to write guides, New to read them; none otherwise. */
 export function guidesLine(experience: ExperienceKey | undefined, guidesForumId: string | undefined): string | undefined {
   const forum = guidesForumId === undefined ? GUIDES_FORUM_NAME : `<#${guidesForumId}>`;
