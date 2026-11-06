@@ -124,6 +124,14 @@
           "name": "welcome",
           "type": "text",
           "mode": "read-only"
+        },
+        {
+          "name": "news",
+          "type": "text",
+          "mode": "read-only",
+          "seenBy": [
+            "@everyone"
+          ]
         }
       ]
     },
@@ -154,11 +162,6 @@
               ]
             }
           }
-        },
-        {
-          "name": "news",
-          "type": "text",
-          "mode": "read-only"
         }
       ]
     },

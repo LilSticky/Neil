@@ -25,9 +25,9 @@ losing channels. For a new server, use [STARTUP-GUIDE.md](STARTUP-GUIDE.md).
 
 Tell the server when the channels change, and:
 
-- Members who aren't Linked will see only `#onboarding` from then on, so they should finish their Interview before that.
+- Members who aren't Linked will see only `#onboarding` and `#news` from then on, so they should finish their Interview before that.
 - Linked Members use `/channels` to choose languages and Interests. Anyone Linked before Preferences existed holds no Preference Roles.
-- Guests will see only the Guest area.
+- Guests will see only the Guest area and `#news`.
 
 Interviews run on their own until the date: up to 10 at a start of Neil, and one for each unlinked Member who comes online.
 Each is a private thread, so expect a wave of them.

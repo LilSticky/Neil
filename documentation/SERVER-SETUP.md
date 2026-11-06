@@ -106,14 +106,15 @@ Neil can't change the nickname of a Member whose highest role is above Neil's. T
 Every category denies **@everyone** View Channel. The table says which role is allowed to see it. Set permissions on the
 category and keep channels synced, unless the row says otherwise. `Kingdom` means `#<Home Kingdom>`.
 
-**Guests see only the Guest area.** The server holds tactical plans, so everything else is for the Home Kingdom.
+**Guests see only the Guest area and `#news`.** The server holds tactical plans, so everything else is for the Home Kingdom.
 
 | Category | Channels | Seen by | Status |
 |----------|----------|---------|--------|
 | Onboarding | `#onboarding` | Onboarding, Moderator, King, `R5` | 🔴 |
 | Officers | `#neil-log`, Moderator channel | Moderator, King | 🔴 for the log; 🟡 for the Moderator channel |
 | Basic information | `#rules`, `#welcome` (read only) | Kingdom | 🟡 |
-| Home Kingdom | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#news` (read only, follows the official server), and your other Home Kingdom channels | Kingdom | 🟡 |
+| | `#news` (read only; game-wide news, follows the official server) | everyone | 🟡 |
+| Home Kingdom | Home Kingdom announcements (only King posts; news of this server only), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server) and your other Home Kingdom channels | Kingdom | 🟡 |
 | Hangout | `#general`, voice, `#alliance-hall` (commands), `#suggestions` | Kingdom | 🟡 |
 | Guest area | guest rules (read only), text, voice, announcements for everyone (only King posts) | Doctor | 🟡 |
 | NaP | closed discussion | NaP discussions, King | 🟡 |
