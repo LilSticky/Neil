@@ -3,7 +3,7 @@
 How Neil runs: one bot application, Neil, on Wispbyte (ADR 6), and locally for development with the same
 token while the Wispbyte server is stopped.
 Why it is set up this way: [specs/001-greet-the-test-server/research.md](../specs/001-greet-the-test-server/research.md)
-(R1, R2, R8). Setting up the Discord server itself (roles, channels, permissions): [SERVER-SETUP.md](SERVER-SETUP.md).. Never paste tokens into chats, issues or commits.
+(R1, R2, R8). Setting up the Discord server itself (roles, channels, permissions): [SERVER-SETUP.md](SERVER-SETUP.md). Never paste tokens into chats, issues or commits.
 
 ## 1. Discord application (once)
 
@@ -82,7 +82,7 @@ has created the role (at its first start with slice 013):
 Finished Interview threads are deleted, so Neil needs Manage Threads in `#onboarding` (already required).
 
 **Doctor Role for slice 017**: Neil gives the `Doctor` role (created by Neil, without permissions) to every Linked Member.
-Restart Neil before moving channels to it: [SERVER-SETUP.md](SERVER-SETUP.md) step 8c.
+Restart Neil before moving channels to it: [MIGRATION-GUIDE.md](MIGRATION-GUIDE.md) step 4.
 
 Wispbyte writes these to `.env` in the server folder rather than exporting them; Neil loads that file at
 startup. Don't delete `.env` in the file manager.

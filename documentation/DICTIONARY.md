@@ -25,9 +25,20 @@ discovery.
 * King announcements go here by default
 * Set up by hand; Neil does not change channel permissions
 
-## Shared information
-* Channels every Doctor sees, Guests included, with the text and voice channels where everyone can get in touch
-* Set up by hand; Neil does not change channel permissions
+## Guest area
+* The channels every Doctor sees, Guests included: the only part of the server a Guest sees
+* Holds its own read-only rules, text and voice channels and the announcements meant for everyone
+* Replaces Shared information (slice 019); no command can be used there
+
+## Basic information
+* The read-only channels every Member of the Home Kingdom sees, such as `#rules` and `#welcome`
+
+## Moderator channel
+* The channel where Officers use the Officer commands
+
+## Server Layout
+* The categories, channels and permission overwrites a server should have
+* Described in the server guides; Neil itself does not change channel permissions
 
 # Game
 
@@ -178,7 +189,7 @@ discovery.
 * Not a Managed Role; Neil creates it without permissions on first use
 
 ## Doctor Role
-* The Discord role a Member holds while they are Linked, Guests included; it shows the basic information and `#alliance-hall`
+* The Discord role a Member holds while they are Linked, Guests included; it shows the Guest area
 * A Member holding it is a Doctor
 * Neil gives it at Link, removes it at Unlink, and puts every Member right at startup
 * Not a Managed Role; Neil creates it without permissions on first use
