@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { isManagedRoleName, planApply, tagOfAllianceRole } from "../domain/managed-roles.js";
+import { ALL_PREFERENCE_ROLE_NAMES } from "../domain/preferences.js";
+import { DOCTOR_ROLE_NAME } from "../domain/doctor-role.js";
+import { ONBOARDING_ROLE_NAME } from "../domain/onboarding-role.js";
 
 /** Discord's code for a missing permission: a role above the bot's, or a change to the owner's nickname. */
 const MISSING_PERMISSIONS = 50013;
@@ -179,9 +182,11 @@ async function renamePlainAllianceRoles(guild: RolesGuild, wanted: NameAndRolesW
     const tag = tagOfAllianceRole(bracketed);
     if (tag === undefined) continue;
     if (guild.roles.some((role) => role.name === bracketed)) continue;
-    const plain = guild.roles.find(
+    if (isNeilsFixedName(tag)) continue;
+    const sameName = guild.roles.filter((role) => role.name === tag);
+    if (sameName.length > 1) continue;
+    const plain = sameName.find(
       (role) =>
-        role.name === tag &&
         isGivable(guild, role, wanted.officerRoleIds) &&
         role.permissions.bitfield === 0n &&
         role.position < guild.botTopRolePosition,
@@ -193,6 +198,19 @@ async function renamePlainAllianceRoles(guild: RolesGuild, wanted: NameAndRolesW
       skipped.push({ what: tag, reason: reasonOf(error) });
     }
   }
+}
+
+/**
+ * Whether a plain name is one Neil keeps for itself, so a role of that name is never renamed: a Managed Role name such as
+ * R5, T10 or #330, a Preference Role name, or the Onboarding or Doctor Role.
+ */
+function isNeilsFixedName(name: string): boolean {
+  return (
+    isManagedRoleName(name, []) ||
+    ALL_PREFERENCE_ROLE_NAMES.includes(name) ||
+    name === ONBOARDING_ROLE_NAME ||
+    name === DOCTOR_ROLE_NAME
+  );
 }
 
 /** Whether Neil may give or take the role: not @everyone, not an integration's, and not an Officer role. */

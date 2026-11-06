@@ -44,9 +44,18 @@ export interface SetupRoleInfo {
   position: number;
 }
 
-/** One permission overwrite as Discord holds it: the bits, including bits the domain does not name. */
+/** Discord's code for an overwrite of a role (0) or of a Member (1). */
+export type OverwriteType = 0 | 1;
+const ROLE_OVERWRITE: OverwriteType = 0;
+const MEMBER_OVERWRITE: OverwriteType = 1;
+
+/**
+ * One permission overwrite as Discord holds it: the bits, including bits the domain does not name, and the type of its
+ * target. A kept overwrite keeps its type; a new one is a Member overwrite for Neil and a role overwrite for the rest.
+ */
 export interface OverwriteEdit {
   targetId: string;
+  type: OverwriteType;
   allow: bigint;
   deny: bigint;
 }
@@ -393,7 +402,9 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
 }
 
 function editFor(book: Book, wanted: WantedOverwrite): OverwriteEdit {
-  return { targetId: idOfTarget(book, wanted.target), allow: bitsOf(wanted.allow), deny: bitsOf(wanted.deny) };
+  const targetId = idOfTarget(book, wanted.target);
+  const type = targetId === book.botUserId ? MEMBER_OVERWRITE : ROLE_OVERWRITE;
+  return { targetId, type, allow: bitsOf(wanted.allow), deny: bitsOf(wanted.deny) };
 }
 
 function idOfTarget(book: Book, target: string): string {
@@ -407,9 +418,10 @@ function mergeOverwrites(current: readonly OverwriteEdit[], wanted: readonly Ove
   const merged = [...current];
   for (const want of wanted) {
     const index = merged.findIndex((overwrite) => overwrite.targetId === want.targetId);
-    const base = merged[index] ?? { targetId: want.targetId, allow: 0n, deny: 0n };
+    const base = merged[index] ?? { targetId: want.targetId, type: want.type, allow: 0n, deny: 0n };
     const next: OverwriteEdit = {
       targetId: want.targetId,
+      type: base.type,
       allow: (base.allow | want.allow) & ~want.deny,
       deny: (base.deny | want.deny) & ~want.allow,
     };
@@ -451,20 +463,22 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
   const real = apply && !blocked;
 
   const outcomes = real ? await applySetup(plan, port) : [];
-  const after = real ? await readServer(port) : before;
   const failures = outcomes.filter((outcome): outcome is FailedOutcome => outcome.status === "failed");
+  // The read after the writes may fail too; the outcomes are still reported, and the ID lines are left out.
+  const after = real ? await readAfterWrites(port) : before;
   const changed = plan.steps.filter((step) => !failures.some((failure) => failure.step === step));
   const outside = plan.findings.filter((finding) => finding.kind === "outside-layout");
   const warnings = plan.findings.filter((finding) => finding.kind !== "outside-layout");
+  const tense = (step: SetupStep): string => (real ? describeStep(step) : `would ${describeStep(step)}`);
 
   const lines = [
     ...administratorNote(before.botIsAdministrator, apply),
-    ...changed.map(describeStep),
-    ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map(describeFinding),
-    ...outside.map(describeFinding),
+    ...changed.map(tense),
+    ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map((finding) => describeFinding(finding, real)),
+    ...outside.map((finding) => describeFinding(finding, real)),
     ...failures.map((failure) => `failed: ${describeStep(failure.step)}: ${failure.reason}`),
     ...(plan.steps.length === 0 ? ["Nothing to do."] : []),
-    ...idLines(after),
+    ...(after === undefined ? ["Could not read the IDs after the writes; run this again to see them."] : idLines(after)),
     ...BY_HAND,
     ...(real ? [LAST_LINE] : []),
   ];
@@ -473,6 +487,15 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
     report: redact(lines.join("\n"), secrets),
     exitCode: blocked || failures.length > 0 ? 1 : 0,
   };
+}
+
+/** The server as it is after a real run's writes; undefined when the read fails. */
+async function readAfterWrites(port: SetupServer): Promise<ServerState | undefined> {
+  try {
+    return await readServer(port);
+  } catch {
+    return undefined;
+  }
 }
 
 function administratorNote(isAdministrator: boolean, apply: boolean): string[] {
@@ -500,10 +523,11 @@ function warningRank(finding: SetupFinding): number {
   return finding.kind === "hides-from-everyone" ? 0 : 1;
 }
 
-function describeFinding(finding: SetupFinding): string {
+/** A finding as a line; `real` is whether the run writes, which decides the tense of what it will do. */
+function describeFinding(finding: SetupFinding, real: boolean): string {
   switch (finding.kind) {
     case "hides-from-everyone":
-      return `${finding.name} would be hidden from @everyone`;
+      return real ? `${finding.name} is hidden from @everyone` : `${finding.name} would be hidden from @everyone`;
     case "outside-layout":
       return `${finding.name} is outside the layout`;
     case "extra-overwrite":

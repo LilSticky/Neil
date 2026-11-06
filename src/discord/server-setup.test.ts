@@ -6,7 +6,7 @@
  *   interface GuildInfo { id: string; features: readonly string[] }                // "COMMUNITY" among features; id = @everyone's id
  *   interface BotMemberInfo { userId: string; roleIds: readonly string[] }        // Neil's user id and the roles its member holds
  *   interface SetupRoleInfo { id: string; name: string; permissions: bigint; managed: boolean; position: number }
- *   interface OverwriteEdit { targetId: string; allow: bigint; deny: bigint }    // targetId: role id, guild id (@everyone), bot user id
+ *   interface OverwriteEdit { type: 0 | 1; targetId: string; allow: bigint; deny: bigint }    // targetId: role id, guild id (@everyone), bot user id
  *   interface SetupChannelInfo {
  *     id: string; name: string; kind: "category" | ChannelType; parentId: string | undefined; overwrites: OverwriteEdit[];
  *   }
@@ -38,7 +38,7 @@ import { GAME_LANGUAGES } from "../domain/preferences.js";
 import { expandLayout, type ExpandedCategory, type ServerLayout } from "../domain/server-layout.js";
 import { planSetup, type ServerState, type SetupPlan } from "../domain/setup-plan.js";
 import { FakeSetupServer, type SetupWrite, type SetupWriteOp } from "./__fakes__/setup-server.js";
-import { applySetup, parseLayout, readServer, runSetup } from "./server-setup.js";
+import { applySetup, parseLayout, readServer, runSetup, type SetupChannelInfo } from "./server-setup.js";
 
 const HOME_KINGDOM = 330;
 const KINGDOM_ROLE = "#330";
@@ -285,7 +285,7 @@ describe("readServer", () => {
     const r5 = server.defineRole("R5");
     server.defineChannel("general", {
       kind: "text",
-      overwrites: [{ targetId: r5, allow: VIEW | SEND | MANAGE_MESSAGES, deny: CREATE_PUBLIC_THREADS }],
+      overwrites: [{ type: 0, targetId: r5, allow: VIEW | SEND | MANAGE_MESSAGES, deny: CREATE_PUBLIC_THREADS }],
     });
 
     const state = await readServer(server);
@@ -422,8 +422,8 @@ describe("applySetup", () => {
       kind: "text",
       parentId: hangoutId,
       overwrites: [
-        { targetId: r5, allow: MANAGE_MESSAGES, deny: 0n },
-        { targetId: veteran, allow: SEND, deny: 0n },
+        { type: 0, targetId: r5, allow: MANAGE_MESSAGES, deny: 0n },
+        { type: 0, targetId: veteran, allow: SEND, deny: 0n },
       ],
     });
     const plan = await planFor(APPLY_LAYOUT, server);
@@ -432,7 +432,7 @@ describe("applySetup", () => {
 
     const general = server.findChannel("general");
     expect(general?.overwrites.find((o) => o.targetId === r5)?.allow).toBe(MANAGE_MESSAGES | VIEW);
-    expect(general?.overwrites.find((o) => o.targetId === veteran)).toEqual({ targetId: veteran, allow: SEND, deny: 0n });
+    expect(general?.overwrites.find((o) => o.targetId === veteran)).toEqual({ type: 0, targetId: veteran, allow: SEND, deny: 0n });
   });
 
   test("records a failed write and goes on with the other writes", async () => {
@@ -837,9 +837,9 @@ describe("running the setup again", () => {
       kind: "text",
       parentId: hangout,
       overwrites: [
-        { targetId: server.guildId, allow: 0n, deny: VIEW },
-        { targetId: r5, allow: MANAGE_MESSAGES, deny: 0n },
-        { targetId: veteran, allow: SEND, deny: 0n },
+        { type: 0, targetId: server.guildId, allow: 0n, deny: VIEW },
+        { type: 0, targetId: r5, allow: MANAGE_MESSAGES, deny: 0n },
+        { type: 0, targetId: veteran, allow: SEND, deny: 0n },
       ],
     });
     const first = await planFor(SMALL_LAYOUT, server);
@@ -848,8 +848,8 @@ describe("running the setup again", () => {
     await applySetup(first, server);
 
     const general = server.findChannel("general");
-    expect(general?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual({ targetId: r5, allow: MANAGE_MESSAGES | VIEW, deny: 0n });
-    expect(general?.overwrites.find((overwrite) => overwrite.targetId === veteran)).toEqual({ targetId: veteran, allow: SEND, deny: 0n });
+    expect(general?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual({ type: 0, targetId: r5, allow: MANAGE_MESSAGES | VIEW, deny: 0n });
+    expect(general?.overwrites.find((overwrite) => overwrite.targetId === veteran)).toEqual({ type: 0, targetId: veteran, allow: SEND, deny: 0n });
     const second = await planFor(SMALL_LAYOUT, server);
     expect(second.steps).toEqual([]);
     expect(second.findings).toContainEqual({ kind: "extra-overwrite", name: "general", target: "Veteran" });
@@ -861,7 +861,7 @@ describe("running the setup again", () => {
     const oldChat = server.defineChannel("old-chat", {
       kind: "text",
       parentId: hangout,
-      overwrites: [{ targetId: server.guildId, allow: SEND, deny: 0n }],
+      overwrites: [{ type: 0, targetId: server.guildId, allow: SEND, deny: 0n }],
     });
     const first = await planFor(SMALL_LAYOUT, server);
     expect(first.findings).toContainEqual({ kind: "outside-layout", name: "old-chat" });
@@ -871,7 +871,7 @@ describe("running the setup again", () => {
     const second = await planFor(SMALL_LAYOUT, server);
     expect(second.findings).toContainEqual({ kind: "outside-layout", name: "old-chat" });
     expect(server.writes.filter((write) => write.op === "edit-overwrites" && write.channelId === oldChat)).toEqual([]);
-    expect(server.findChannel("old-chat")?.overwrites).toEqual([{ targetId: server.guildId, allow: SEND, deny: 0n }]);
+    expect(server.findChannel("old-chat")?.overwrites).toEqual([{ type: 0, targetId: server.guildId, allow: SEND, deny: 0n }]);
   });
 
   test("after one failed write, a second run finishes the work and plans nothing", async () => {
@@ -891,5 +891,162 @@ describe("running the setup again", () => {
     expect(secondOutcomes.filter((outcome) => outcome.status === "failed")).toEqual([]);
     expect(server.findChannel("general")).toBeDefined();
     expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
+  });
+});
+
+describe("the type of an overwrite survives the merge of a corrected channel", () => {
+  test("writes a role's corrected overwrite as type 0 and Neil's as type 1", async () => {
+    const layout: ServerLayout = {
+      roles: ["R5"],
+      externalRoles: [],
+      languages: [],
+      categories: [
+        { name: "Hangout", seenBy: ["R5"], channels: [{ name: "general", type: "text" }] },
+        {
+          name: "Officers",
+          seenBy: ["R5"],
+          channels: [{ name: "neil-log", type: "text", overwrites: { Neil: { allow: ["ViewChannel"], deny: [] } } }],
+        },
+      ],
+      allianceArea: { channels: [] },
+    };
+    const server = new FakeSetupServer();
+    const r5 = server.defineRole("R5");
+    const hangout = server.defineChannel("Hangout", { kind: "category" });
+    const general = server.defineChannel("general", {
+      kind: "text",
+      parentId: hangout,
+      overwrites: [{ targetId: r5, type: 0, allow: MANAGE_MESSAGES, deny: 0n }],
+    });
+    const officers = server.defineChannel("Officers", { kind: "category" });
+    const log = server.defineChannel("neil-log", {
+      kind: "text",
+      parentId: officers,
+      overwrites: [{ targetId: server.botUserId, type: 1, allow: SEND, deny: 0n }],
+    });
+
+    await applySetup(await planFor(layout, server), server);
+
+    const roleEdit = writesOf(server, "edit-overwrites").find((write) => write.channelId === general);
+    expect(roleEdit?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual(
+      expect.objectContaining({ type: 0, allow: MANAGE_MESSAGES | VIEW }),
+    );
+    const neilEdit = writesOf(server, "edit-overwrites").find((write) => write.channelId === log);
+    expect(neilEdit?.overwrites.find((overwrite) => overwrite.targetId === server.botUserId)).toEqual(
+      expect.objectContaining({ type: 1, allow: SEND | VIEW }),
+    );
+  });
+});
+
+/** A fake whose reads fail once a write has reached it: the read after a real run's writes is the one that fails. */
+class ReadsFailAfterWrites extends FakeSetupServer {
+  override readChannels(): Promise<readonly SetupChannelInfo[]> {
+    if (this.writes.length > 0) return Promise.reject(new Error("Discord refused the read"));
+    return super.readChannels();
+  }
+}
+
+describe("runSetup when the read after a real run's writes fails", () => {
+  test("still reports the outcomes, leaves out the ID lines and exits 0 when every write succeeded", async () => {
+    const server = new ReadsFailAfterWrites({ botPermissions: ADMINISTRATOR });
+
+    const { report, exitCode } = await runSetup({ layout: APPLY_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("create role R5");
+    expect(lines(report).some((line) => line.startsWith("DISCORD_GUILD_ID="))).toBe(false);
+    expect(report).toMatch(/could not read the IDs/i);
+    expect(exitCode).toBe(0);
+  });
+
+  test("still reports the failed write and exits 1 when a write failed", async () => {
+    const server = new ReadsFailAfterWrites({ botPermissions: ADMINISTRATOR });
+    server.failWrite("create-role", "Doctor", new Error("Discord refused"));
+
+    const { report, exitCode } = await runSetup({ layout: APPLY_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("failed: create role Doctor: Discord refused");
+    expect(lines(report).some((line) => line.startsWith("DISCORD_GUILD_ID="))).toBe(false);
+    expect(exitCode).toBe(1);
+  });
+});
+
+describe("runSetup says would create or would correct for each planned step it does not make", () => {
+  /** A server with Hangout and its general channel, which has no overwrites, so the plan corrects it. */
+  function serverWithGeneral(options: { botPermissions?: bigint } = {}): FakeSetupServer {
+    const server = new FakeSetupServer(options);
+    const hangout = server.defineChannel("Hangout", { kind: "category" });
+    server.defineChannel("general", { kind: "text", parentId: hangout });
+    return server;
+  }
+
+  test("says would create and would correct on a dry run, and create and correct on a real run", async () => {
+    const dry = await runSetup({ layout: APPLY_LAYOUT, homeKingdom: HOME_KINGDOM, apply: false, port: serverWithGeneral(), secrets: [] });
+    const real = await runSetup({
+      layout: APPLY_LAYOUT,
+      homeKingdom: HOME_KINGDOM,
+      apply: true,
+      port: serverWithGeneral({ botPermissions: ADMINISTRATOR }),
+      secrets: [],
+    });
+
+    expect(lines(dry.report)).toContain("would create role R5");
+    expect(indexWhere(dry.report, (line) => /^would correct .*\bgeneral\b/.test(line))).toBeGreaterThan(-1);
+    expect(lines(real.report)).toContain("create role R5");
+    expect(indexWhere(real.report, (line) => /^correct .*\bgeneral\b/.test(line))).toBeGreaterThan(-1);
+    expect(real.report).not.toMatch(/would /);
+  });
+
+  test("says would create and would correct on a blocked real run, which writes nothing", async () => {
+    const { report, exitCode } = await runSetup({
+      layout: APPLY_LAYOUT,
+      homeKingdom: HOME_KINGDOM,
+      apply: true,
+      port: serverWithGeneral(),
+      secrets: [],
+    });
+
+    expect(lines(report)).toContain("would create role R5");
+    expect(indexWhere(report, (line) => /^would correct .*\bgeneral\b/.test(line))).toBeGreaterThan(-1);
+    expect(lines(report)).not.toContain("create role R5");
+    expect(exitCode).toBe(1);
+  });
+});
+
+describe("a missing Interaction Bot", () => {
+  test("a translated channel is created without the Interaction Bot's overwrite, and the report says its overwrites are left out", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    const r5 = server.defineRole("R5");
+    const layout: ServerLayout = {
+      roles: ["R5"],
+      externalRoles: ["Interaction Bot"],
+      languages: [],
+      categories: [{ name: "Hangout", seenBy: ["R5"], channels: [{ name: "news", type: "text", translated: true }] }],
+      allianceArea: { channels: [] },
+    };
+
+    const { report, exitCode } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    const news = writesOf(server, "create-channel").find((write) => write.name === "news");
+    expect(news?.overwrites.map((overwrite) => overwrite.targetId).sort()).toEqual([server.guildId, r5].sort());
+    expect(report).toContain("Interaction Bot (external role) is missing; its overwrites are left out");
+    expect(exitCode).toBe(0);
+  });
+});
+
+describe("a created Moderator in the hand steps", () => {
+  test("the Neil-position hand step names Moderator after a real run that creates Moderator", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    const layout: ServerLayout = {
+      roles: ["Moderator", "King"],
+      externalRoles: [],
+      languages: [],
+      categories: [],
+      allianceArea: { channels: [] },
+    };
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("create role Moderator");
+    expect(indexWhere(report, (line) => /Neil's role above every role it gives/.test(line) && /Moderator/.test(line))).toBeGreaterThan(-1);
   });
 });

@@ -45,8 +45,8 @@ TDD for all code: each code task is `test-first`, then `implementer`. `[P]` mean
 
 - [x] T015 [P] SERVER-SETUP.md: `[NML]` roles, AD and KvK in section 3, the script in section 4 and section 7, "What Neil never does" stays true; STARTUP-GUIDE.md and MIGRATION-GUIDE.md: steps shrink to the script, with the Administrator grant, the warnings and the announced date
 - [x] T016 [P] DICTIONARY: Alliance Duel, Kingdom vs Kingdom, `[TAG]` in Managed Role. Discovery section 6: this slice's answers. `specs/019` T008 ticked
-- [ ] T017 TEST-RUN.md §6q from quickstart.md; STATUS and ROADMAP
-- [ ] T018 `bot-reviewer` and `spec-auditor`, findings fixed, review in `specs/020-set-up-the-server/review.md`
+- [x] T017 TEST-RUN.md §6q from quickstart.md; STATUS and ROADMAP
+- [x] T018 `bot-reviewer` and `spec-auditor`, findings fixed, review in `specs/020-set-up-the-server/review.md`
 - [ ] T019 Manual check on the test server (quickstart.md): needs the user
 
 ## Dependencies

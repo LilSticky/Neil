@@ -501,6 +501,51 @@ describe("applyNameAndRoles renames a plain Alliance role to its bracket name", 
   });
 });
 
+describe("applyNameAndRoles does not rename a plain role that is not an Alliance role's", () => {
+  test.each([
+    { name: "R5" },
+    { name: "T10" },
+    { name: "#330" },
+    { name: "PvP" },
+    { name: "Events" },
+    { name: "Onboarding" },
+    { name: "Doctor" },
+  ])("leaves the plain $name role alone and creates [$name] for the Member", async ({ name }) => {
+    const guild = new FakeRolesGuild(OWNER);
+    const plain = guild.defineRole(name);
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, {
+      nickname: "Rogue",
+      roles: [`[${name}]`],
+      managedTags: [name],
+      officerRoleIds: [],
+    });
+
+    expect(guild.rolesNamed(name).map((role) => role.id)).toEqual([plain.id]);
+    expect(guild.createdRoleNames()).toEqual([`[${name}]`]);
+    expect(heldNames(alice)).toEqual([`[${name}]`]);
+  });
+
+  test("leaves two plain NML roles alone, and creates [NML] for the Member", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const first = guild.defineRole("NML");
+    const second = guild.defineRole("NML");
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, {
+      nickname: "[NML] Rogue",
+      roles: ["[NML]"],
+      managedTags: ["NML"],
+      officerRoleIds: [],
+    });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([first.id, second.id]);
+    expect(guild.createdRoleNames()).toEqual(["[NML]"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
+  });
+});
+
 /** The name of the Onboarding Role, which is given and taken off by name, not as a Managed Role. */
 const ONBOARDING = "Onboarding";
 /** The id of an Officer role of the server, as the configuration gives it: Neil never gives or takes it. */
