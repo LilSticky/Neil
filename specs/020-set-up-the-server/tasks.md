@@ -6,7 +6,7 @@ TDD for all code: each code task is `test-first`, then `implementer`. `[P]` mean
 
 ## Phase 1: Decision
 
-- [ ] T001 ADR 12 in `documentation/adr/`, its index, and the exception in principle V of `.specify/memory/constitution.md` (version 1.1.0)
+- [x] T001 ADR 12 in `documentation/adr/`, its index, and the exception in principle V of `.specify/memory/constitution.md` (version 1.1.0)
 
 ## Phase 2: User Story 4 - Alliance roles carry brackets (P1)
 
