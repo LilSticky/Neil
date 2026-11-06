@@ -279,10 +279,19 @@ describe("a select change", () => {
     const { store, linkAlice, selectOf, choices } = setUp();
     linkAlice();
 
+    await choices.press(selectOf("interests", ["pvp", "recruitment"]));
+
+    expect(store.get(ALICE).interests).toEqual(interests("pvp", "recruitment"));
+    expect(store.writes).toEqual(["setInterests"]);
+  });
+
+  test("ignores the old Trading value: an Interest no longer offered is not saved", async () => {
+    const { store, linkAlice, selectOf, choices } = setUp();
+    linkAlice();
+
     await choices.press(selectOf("interests", ["pvp", "trading"]));
 
-    expect(store.get(ALICE).interests).toEqual(interests("pvp", "trading"));
-    expect(store.writes).toEqual(["setInterests"]);
+    expect(store.get(ALICE).interests).toEqual(interests("pvp"));
   });
 
   test("saves an emptied region as no region", async () => {

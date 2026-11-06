@@ -8,8 +8,8 @@
 
 **Independent Test**: the Interests offered hold Recruitment and not Trading; choosing it stores it and gives the role.
 
-- [ ] T001 [US1] Change the tests to expect Recruitment in Trading's place, and add one that Trading is no Preference Role and that an old menu press of `trading` stores nothing: `src/domain/preferences.test.ts`, `src/discord/preferences-texts.test.ts`, `src/discord/preferences-choices.test.ts`, `src/storage/preference-store.test.ts` (FR-001, FR-002, FR-003)
-- [ ] T002 [US1] Replace `trading` with `recruitment` in `InterestKey` and `INTERESTS` in `src/domain/preferences.ts` (FR-001, FR-002, FR-003)
+- [x] T001 [US1] Change the tests to expect Recruitment in Trading's place, and add one that Trading is no Preference Role and that an old menu press of `trading` stores nothing: `src/domain/preferences.test.ts`, `src/discord/preferences-texts.test.ts`, `src/discord/preferences-choices.test.ts`, `src/storage/preference-store.test.ts` (FR-001, FR-002, FR-003)
+- [x] T002 [US1] Replace `trading` with `recruitment` in `InterestKey` and `INTERESTS` in `src/domain/preferences.ts` (FR-001, FR-002, FR-003)
 
 ## Phase 2: Polish
 

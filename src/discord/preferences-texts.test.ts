@@ -158,7 +158,7 @@ describe("preferencesMessage components", () => {
 
       expect(interests.min_values).toBe(0);
       expect(interests.max_values).toBe(4);
-      expect(optionValues(interests)).toEqual(["pvp", "events", "trading", "off-topic"]);
+      expect(optionValues(interests)).toEqual(["pvp", "events", "recruitment", "off-topic"]);
     }
   });
 
@@ -176,7 +176,7 @@ describe("preferencesMessage components", () => {
     expect(interests.options.map((option) => ({ value: option.value, label: option.label }))).toEqual([
       { value: "pvp", label: "PvP" },
       { value: "events", label: "Events" },
-      { value: "trading", label: "Trading" },
+      { value: "recruitment", label: "Recruitment" },
       { value: "off-topic", label: "Off-topic" },
       { value: "nap", label: "NaP discussions" },
     ]);
