@@ -1,6 +1,13 @@
 import { tagOfAllianceRole } from "./managed-roles.js";
 
-export type Permission = "ViewChannel" | "SendMessages" | "SendMessagesInThreads" | "CreatePublicThreads" | "CreatePrivateThreads";
+export type Permission =
+  | "ViewChannel"
+  | "SendMessages"
+  | "SendMessagesInThreads"
+  | "CreatePublicThreads"
+  | "CreatePrivateThreads"
+  | "ManageThreads"
+  | "ReadMessageHistory";
 export type ChannelType = "text" | "voice" | "forum" | "announcement";
 
 export interface OverwriteSpec {
