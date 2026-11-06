@@ -132,6 +132,9 @@ const PLAYER_WITHOUT_ALLIANCE: Player = {
   allianceRank: undefined,
 };
 
+/** A Guest's Player: outside the Home Kingdom (330), in an Alliance whose rank the game does not list. */
+const GUEST_PLAYER_UNKNOWN_RANK: Player = { ...PLAYER_WITH_LEADER_UNKNOWN_RANK, kingdom: kingdomOf(12) };
+
 /** The Player that OTHER_UID belongs to: a different uid, the same Player Name. */
 const PLAYER_OTHER_UID: Player = {
   uid: OTHER_UID,
@@ -556,6 +559,7 @@ describe("createInterviews", () => {
       preferences,
       sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
+      homeKingdom: kingdomOf(330),
       isOnServer: (memberId: MemberId) => Promise.resolve(onServer.has(memberId)),
       now: () => NOW,
       logError: (line: string) => {
@@ -1268,6 +1272,22 @@ describe("createInterviews", () => {
       expect(h.interviews.get(secondId)).toMatchObject({ step: "awaiting-uid", failedAttempts: 1 });
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: alreadyLinkedMessage(secondId, 4) });
       expect(h.channels.logs.at(-1)).toEqual(refusedLogLine(OTHER, UID));
+    });
+  });
+
+  describe("a Guest's Link: no Rank Approval", () => {
+    test("an Interview Link of a Guest with no rank in the game stores no Rank Approval, asks nobody, and deletes the thread", async () => {
+      h.links.confirm({ link: LEADER_LINK }, () => undefined);
+      h.onServer.add(LEADER);
+      h.preferences.declineAll();
+      const interviewId = await confirmationShown(h, GUEST_PLAYER_UNKNOWN_RANK);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(linkOfMember(h)).toMatchObject({ memberId: MEMBER, uid: UID });
+      expect(h.links.pendingFor(MEMBER)).toBeUndefined();
+      expect(h.rankApprovals.announced).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
   });
 

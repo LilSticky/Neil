@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { mayCorrect, type Corrector } from "../domain/correction.js";
-import { needsRankApproval, officerRank, rankOnLink, type Link } from "../domain/link.js";
+import { officerRank, rankOnLink, type Link } from "../domain/link.js";
 import { parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import { isOfficer } from "../domain/officer.js";
 import { linkByOfficer } from "../domain/onboarding-interview.js";
@@ -355,7 +355,8 @@ async function pressLinkButton(
 }
 
 /**
- * Stores the Officer Link: the Link, the Interview as linked, and a pending Rank Approval when the rank is unknown, in one
+ * Stores the Officer Link: the Link, the Interview as linked, and a pending Rank Approval when the rank is unknown and the
+ * Player is in the Home Kingdom (a Guest gets none), in one
  * transaction. A Member who left, or a state that moved on, is refused privately, and the card ends with nothing stored.
  */
 async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, deps: LinkButtonDeps): Promise<void> {
@@ -376,9 +377,14 @@ async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, 
     madeBy: { kind: "officer-link", officerId: pending.officerId },
   };
   const leaderMemberId = await leaderPing(deps, player);
-  const draft = needsRankApproval(link.allianceRank)
-    ? pendingApprovalFor(link, { memberId, threadId: latest.threadId }, leaderMemberId, now)
-    : undefined;
+  const draft = pendingApprovalFor(
+    link,
+    player,
+    deps.homeKingdom,
+    { memberId, threadId: latest.threadId },
+    leaderMemberId,
+    now,
+  );
   // The Interview is written only while it is still handed off; otherwise the whole transaction is rolled back.
   const linked = linkByOfficer(latest, pending.uid, pending.officerId, now);
   const outcome = storeLinkIfStep(
