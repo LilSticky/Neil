@@ -475,14 +475,24 @@
       ],
       "channels": [
         {
-          "name": "looking-for-alliance",
+          "name": "recruitment",
           "type": "text",
-          "description": "Players looking for an Alliance: say who you are, your Might and your Language."
+          "description": "Recruitment for the whole Kingdom: Players looking for an Alliance, and Alliances looking for Players."
         },
         {
-          "name": "looking-for-players",
+          "name": "recruitment-americas",
           "type": "text",
-          "description": "Alliances looking for Players: post your tag, your Join Requirements and what you offer."
+          "description": "Recruitment for Players and Alliances in the Americas time zones."
+        },
+        {
+          "name": "recruitment-europe-africa",
+          "type": "text",
+          "description": "Recruitment for Players and Alliances in the Europe and Africa time zones."
+        },
+        {
+          "name": "recruitment-asia-oceania",
+          "type": "text",
+          "description": "Recruitment for Players and Alliances in the Asia and Oceania time zones."
         }
       ]
     }

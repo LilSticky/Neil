@@ -269,7 +269,7 @@ export function parsePreferenceGoCustomId(
 const INTEREST_EXPLANATIONS: Readonly<Record<InterestKey, string>> = {
   pvp: "Fights: chat, voice, intel and tactics.",
   events: "Event chat, announcements, help and the guides forum.",
-  recruitment: "Recruiting Players to the Kingdom's Alliances.",
+  recruitment: "Recruiting Players to our Alliances: a general channel and one for each Region.",
   "off-topic": "Off-topic chat and memes.",
   nap: "Closed talks on non-aggression pacts between Alliances.",
 };
@@ -286,7 +286,7 @@ const STEP_TEXTS: Readonly<Record<PreferenceStep, { readonly heading: string; re
     heading: "🎯 **Step 2 of 4: Interests**",
     body:
       "What brings you to the hall? Each Interest opens its channels.\n" +
-      "Choose both PvP and Events to see Alliance Duel and Kingdom vs Kingdom.",
+      "PvP or Events also shows Alliance Duel and Kingdom vs Kingdom.",
   },
   region: {
     heading: "🌍 **Step 3 of 4: Region (optional)**",

@@ -144,6 +144,8 @@ the buttons and the pings are unchanged.
   MUST NOT call itself a doctor.
 - **FR-014**: Error messages, refusals and log lines MUST stay as they are.
 - **FR-015**: Every text MUST fit Discord's limits, and use dictionary terms.
+- **FR-016**: The Recruitment category MUST hold one channel per Region beside the general one, all seen by the `Recruitment` role
+  (the user's decision; Discord cannot require a Region as well).
 
 ### Key Entities
 

@@ -129,7 +129,7 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Kingdom vs Kingdom | chat, voice, tactics forum, intel, and five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
 | | KvK announcements (only King posts; Interaction Bot translates) | Kingdom | 🟡 |
 | | a translated copy of the KvK announcements per translation language | that language's Preference Role | 🟡 |
-| Recruitment | Players looking for an Alliance, Alliances looking for Players | Recruitment | 🟡 |
+| Recruitment | general recruitment, and one text channel per Region (Americas, Europe/Africa, Asia/Oceania) | Recruitment | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
 
 The translation languages are Russian, French, Italian and German; change them under `translations` in `server-layout.json`.

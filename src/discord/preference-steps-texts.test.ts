@@ -70,6 +70,16 @@ describe("a Preference step", () => {
     for (const option of menusOf("interests")[0]?.options ?? []) expect(option.description).toBeTruthy();
   });
 
+  test("Interests says either PvP or Events shows Alliance Duel and Kingdom vs Kingdom", () => {
+    expect(stepOf("interests").content).toContain("PvP or Events also shows Alliance Duel and Kingdom vs Kingdom.");
+  });
+
+  test("Recruitment says it holds a channel per Region", () => {
+    const recruitment = menusOf("interests")[0]?.options.find((option) => option.value === "recruitment");
+
+    expect(recruitment?.description).toContain("each Region");
+  });
+
   test("Interests offers NaP discussions to an R4 only", () => {
     const values = (rank?: "R4" | "R5") => menusOf("interests", undefined, rank)[0]?.options.map((option) => option.value);
 

@@ -237,7 +237,7 @@ discovery.
 
 ## Recruitment
 * The Interest for talking about recruiting Players to the Kingdom's Alliances
-* Shows the Recruitment channels: Players looking for an Alliance, and Alliances looking for Players
+* Shows the Recruitment channels: a general one and one per Region
 * Offered to every Home Kingdom Member
 
 ## Link

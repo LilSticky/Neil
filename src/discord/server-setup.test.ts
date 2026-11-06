@@ -887,6 +887,18 @@ describe("the shipped server-layout.json", () => {
     expect(() => shippedLayout()).not.toThrow();
   });
 
+  test("holds a general recruitment channel and one per Region, seen by Recruitment", () => {
+    const recruitment = groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Recruitment");
+
+    expect(recruitment.channels.map((channel) => channel.name)).toEqual([
+      "recruitment",
+      "recruitment-americas",
+      "recruitment-europe-africa",
+      "recruitment-asia-oceania",
+    ]);
+    expect(viewersOf(recruitment)).toEqual(["Recruitment"]);
+  });
+
   test("holds a language channel for every Game Language, seen by its role", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
     const languages = groupNamed(expanded, "Languages");
