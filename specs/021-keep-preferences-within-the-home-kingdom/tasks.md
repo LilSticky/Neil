@@ -47,10 +47,11 @@
 - [x] T011 Dictionary: Preference, Preference Role and Guest wording in `documentation/DICTIONARY.md`, after the user's approval
 - [x] T012 [P] Remove the #64 limit notes from `documentation/SERVER-SETUP.md`, `documentation/STARTUP-GUIDE.md` and `documentation/MIGRATION-GUIDE.md` (FR-012)
 - [x] T013 [P] Add §6o to `documentation/TEST-RUN.md` from [quickstart.md](quickstart.md)
-- [ ] T014 `bot-reviewer` pass, findings in `review.md`
-- [ ] T015 `spec-auditor` pass, findings in `audit.md`
-- [ ] T016 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
+- [x] T014 `bot-reviewer` pass, findings in `review.md`
+- [x] T015 `spec-auditor` pass, findings in `audit.md`
+- [x] T016 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
 - [ ] T017 Manual check on the test server (TEST-RUN.md §6o), which needs the deploy
+- [x] T018 [US2] From the review: the Daily Sync applies the Preference Roles of a Member whose Player is not found, in `src/discord/daily-sync.ts` (FR-004, SC-001)
 
 ## Dependencies
 
