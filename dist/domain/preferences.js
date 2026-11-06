@@ -28,7 +28,7 @@ export const REGIONS = [
 export const INTERESTS = [
     { key: "pvp", roleName: "PvP" },
     { key: "events", roleName: "Events" },
-    { key: "trading", roleName: "Trading" },
+    { key: "recruitment", roleName: "Recruitment" },
     { key: "off-topic", roleName: "Off-topic" },
     { key: "nap", roleName: "NaP discussions" },
 ];
