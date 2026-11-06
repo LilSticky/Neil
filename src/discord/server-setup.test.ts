@@ -892,15 +892,25 @@ describe("the shipped server-layout.json", () => {
     const namesIn = (category: string) => groupNamed(expanded, category).channels.map((channel) => channel.name);
 
     expect(namesIn("Officers")).toEqual(expect.arrayContaining(["neil-log", "moderators"]));
-    expect(namesIn("Home Kingdom")).toEqual(["home-kingdom-announcements", "news"]);
+    expect(namesIn("Home Kingdom")).toEqual(["home-kingdom-announcements"]);
+    expect(namesIn("Basic information")).toContain("news");
     expect(namesIn("Hangout")).toContain("suggestions");
   });
 
-  test("keeps news read-only for Members, so only what is followed appears there", () => {
+  test("opens news to everyone on the server, read-only, so only what is followed appears there", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
-    const news = groupNamed(expanded, "Home Kingdom").channels.find((channel) => channel.name === "news");
+    const news = groupNamed(expanded, "Basic information").channels.find((channel) => channel.name === "news");
+    const everyone = news?.overwrites.find((overwrite) => overwrite.target === "@everyone");
 
-    expect(news?.overwrites.some((overwrite) => overwrite.deny.includes("SendMessages"))).toBe(true);
+    expect(everyone?.allow).toContain("ViewChannel");
+    expect(everyone?.deny).toContain("SendMessages");
+  });
+
+  test("keeps rules for the Home Kingdom", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const rules = groupNamed(expanded, "Basic information").channels.find((channel) => channel.name === "rules");
+
+    expect(rules?.overwrites.find((overwrite) => overwrite.target === "@everyone")?.deny).toContain("ViewChannel");
   });
 
   test("holds a general recruitment channel and one per Region, seen by Recruitment", () => {

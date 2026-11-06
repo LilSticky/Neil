@@ -114,7 +114,7 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Officers | `#neil-log`, Moderator channel | Moderator, King | 🔴 for the log; 🟡 for the Moderator channel |
 | Basic information | `#rules` (with the code of conduct), `#welcome` (read only) | Kingdom | 🟡 |
 | | `#news` (read only; game-wide news, follows the official server) | everyone | 🟡 |
-| Hangout | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#general`, voice, `#alliance-hall` (commands), `#suggestions` | Kingdom | 🟡 |
+| Hangout | Home Kingdom announcements (only King posts; news of this server only), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#general`, voice, `#alliance-hall` (commands), `#suggestions` | Kingdom | 🟡 |
 | | off-topic, memes | Off-topic | 🟡 |
 | Guest area | guest rules (read only, with the Guest code of conduct), text, voice | Doctor | 🟡 |
 | NaP | closed discussion | NaP discussions, King | 🟡 |
