@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { isManagedRoleName, planApply, rolesFor } from "./managed-roles.js";
+import { allianceRoleName, tagOfAllianceRole, isManagedRoleName, planApply, rolesFor } from "./managed-roles.js";
 import {
   allied,
   approvedRank,
@@ -18,19 +18,19 @@ describe("rolesFor", () => {
   test("gives the Alliance, Alliance Rank, Kingdom and Troop Bracket roles to a Home Kingdom Player", () => {
     const player = allied({ name: "Rogue", kingdom: 330, sanctuaryLevel: 21, tag: "NML", rank: "R4" });
 
-    expect(rolesFor(player, gameApiRank("R4"), HOME_KINGDOM, LEVELS)).toEqual(["NML", "R4", "#330", "T7"]);
+    expect(rolesFor(player, gameApiRank("R4"), HOME_KINGDOM, LEVELS)).toEqual(["[NML]", "R4", "#330", "T7"]);
   });
 
   test("gives the Alliance Rank from a Rank Approval", () => {
     const player = allied({ name: "Rogue", kingdom: 330, sanctuaryLevel: 6, tag: "NML", rank: "unknown" });
 
-    expect(rolesFor(player, approvedRank("R3"), HOME_KINGDOM, LEVELS)).toEqual(["NML", "R3", "#330", "T3"]);
+    expect(rolesFor(player, approvedRank("R3"), HOME_KINGDOM, LEVELS)).toEqual(["[NML]", "R3", "#330", "T3"]);
   });
 
   test("gives no Alliance Rank role while the rank is unknown", () => {
     const player = allied({ name: "Rogue", kingdom: 330, sanctuaryLevel: 21, tag: "NML", rank: "unknown" });
 
-    expect(rolesFor(player, UNKNOWN_RANK, HOME_KINGDOM, LEVELS)).toEqual(["NML", "#330", "T7"]);
+    expect(rolesFor(player, UNKNOWN_RANK, HOME_KINGDOM, LEVELS)).toEqual(["[NML]", "#330", "T7"]);
   });
 
   test("gives the Kingdom and Troop Bracket roles only to a Player in no Alliance", () => {
@@ -85,20 +85,36 @@ describe("isManagedRoleName", () => {
     expect(isManagedRoleName("NML", ["ABC"])).toBe(false);
   });
 
+  test("recognises the bracketed Alliance role [NML] when the given tags hold NML", () => {
+    expect(isManagedRoleName("[NML]", ["NML", "ABC"])).toBe(true);
+  });
+
+  test("does not recognise the bracketed Alliance role [NML] when the given tags do not hold NML", () => {
+    expect(isManagedRoleName("[NML]", ["ABC"])).toBe(false);
+  });
+
   test("does not recognise a role that is not a convention name", () => {
     expect(isManagedRoleName("Moderator", ["NML"])).toBe(false);
   });
 });
 
+describe("allianceRoleName", () => {
+  test("gives the Alliance tag in square brackets, the name of the Alliance role", () => {
+    expect(allianceRoleName("NML")).toBe("[NML]");
+    expect(tagOfAllianceRole("[NML]")).toBe("NML");
+    expect(tagOfAllianceRole("R4")).toBeUndefined();
+  });
+});
+
 describe("planApply", () => {
   test("adds the wanted roles the Member lacks and removes the held Managed Roles that no longer fit", () => {
-    const plan = planApply(["R3", "T2", "#330"], ["NML", "R4", "#330", "T7"]);
+    const plan = planApply(["R3", "T2", "#330"], ["[NML]", "R4", "#330", "T7"]);
 
-    expect(plan).toEqual({ add: ["NML", "R4", "T7"], remove: ["R3", "T2"] });
+    expect(plan).toEqual({ add: ["[NML]", "R4", "T7"], remove: ["R3", "T2"] });
   });
 
   test("changes nothing when the Member already holds exactly the wanted roles", () => {
-    const plan = planApply(["NML", "R4", "#330", "T7"], ["NML", "R4", "#330", "T7"]);
+    const plan = planApply(["[NML]", "R4", "#330", "T7"], ["[NML]", "R4", "#330", "T7"]);
 
     expect(plan).toEqual({ add: [], remove: [] });
   });

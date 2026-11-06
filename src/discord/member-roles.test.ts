@@ -29,6 +29,7 @@ function viewOf(guild: FakeRolesGuild): RolesGuild {
       return guild.roles;
     },
     createRole: (options) => guild.createRole(options),
+    renameRole: (role, name) => guild.renameRole(role, name),
   };
 }
 
@@ -65,19 +66,19 @@ describe("applyNameAndRoles", () => {
 
   test("adds a wanted role the Member does not hold and reports it as added", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     const alice = guild.member(ALICE);
 
     const report = await applyNameAndRoles(guild, alice, {
       nickname: "[NML] Rogue",
-      roles: ["NML"],
+      roles: ["[NML]"],
       managedTags: ["NML"], officerRoleIds: [],
     });
 
-    expect(report.added).toEqual(["NML"]);
+    expect(report.added).toEqual(["[NML]"]);
     expect(report.created).toEqual([]);
     expect(report.removed).toEqual([]);
-    expect(heldNames(alice)).toEqual(["NML"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
   });
 
   test("finds an existing role by its exact name and creates nothing", async () => {
@@ -135,13 +136,13 @@ describe("applyNameAndRoles", () => {
 
   test("refuses an existing role that grants permissions and does not give it to the Member", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML", { permissions: ADMINISTRATOR });
+    guild.defineRole("[NML]", { permissions: ADMINISTRATOR });
     const alice = guild.member(ALICE);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["NML"], managedTags: ["NML"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["[NML]"], managedTags: ["NML"], officerRoleIds: [] });
 
     expect(report.added).toEqual([]);
-    expect(report.skipped).toEqual([{ what: "NML", reason: "has-permissions" }]);
+    expect(report.skipped).toEqual([{ what: "[NML]", reason: "has-permissions" }]);
     expect(heldNames(alice)).toEqual([]);
   });
 
@@ -173,39 +174,39 @@ describe("applyNameAndRoles", () => {
 
   test("keeps an Alliance tag it does not manage, even when the Member holds it", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.defineRole("OTHER");
-    const alice = guild.member(ALICE, ["NML", "OTHER"]);
+    const alice = guild.member(ALICE, ["[NML]", "OTHER"]);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["NML"], managedTags: ["NML"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["[NML]"], managedTags: ["NML"], officerRoleIds: [] });
 
     expect(report.removed).toEqual([]);
-    expect(heldNames(alice)).toEqual(["NML", "OTHER"]);
+    expect(heldNames(alice)).toEqual(["OTHER", "[NML]"]);
   });
 
   test("removes a held Alliance tag that is a managed tag and no longer wanted", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.defineRole("OLD");
-    const alice = guild.member(ALICE, ["NML", "OLD"]);
+    const alice = guild.member(ALICE, ["[NML]", "OLD"]);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["NML"], managedTags: ["NML", "OLD"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["[NML]"], managedTags: ["NML", "OLD"], officerRoleIds: [] });
 
     expect(report.removed).toEqual(["OLD"]);
-    expect(heldNames(alice)).toEqual(["NML"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
   });
 
   test("skips the nickname of the guild owner and still applies the roles", async () => {
     const guild = new FakeRolesGuild(ALICE);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     const alice = guild.member(ALICE);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["NML"], managedTags: ["NML"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["[NML]"], managedTags: ["NML"], officerRoleIds: [] });
 
     expect(report.nickname).toBe("skipped");
     expect(alice.nickname).toBeUndefined();
     expect(report.skipped).toEqual([{ what: "nickname", reason: "owner" }]);
-    expect(heldNames(alice)).toEqual(["NML"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
   });
 
   test("skips a role above the bot's highest role with reason hierarchy", async () => {
@@ -222,29 +223,29 @@ describe("applyNameAndRoles", () => {
 
   test("skips a role Discord refuses with 50013 and still applies the other roles", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.defineRole("R4");
-    guild.failAdding("NML", new FakeDiscordError(MISSING_PERMISSIONS, "Missing Permissions"));
+    guild.failAdding("[NML]", new FakeDiscordError(MISSING_PERMISSIONS, "Missing Permissions"));
     const alice = guild.member(ALICE);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["NML", "R4"], managedTags: ["NML"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["[NML]", "R4"], managedTags: ["NML"], officerRoleIds: [] });
 
-    expect(report.skipped).toEqual([{ what: "NML", reason: "missing-permissions" }]);
+    expect(report.skipped).toEqual([{ what: "[NML]", reason: "missing-permissions" }]);
     expect(report.added).toEqual(["R4"]);
     expect(heldNames(alice)).toEqual(["R4"]);
   });
 
   test("skips the nickname Discord refuses with 50013 and still applies the roles", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.failNickname(new FakeDiscordError(MISSING_PERMISSIONS, "Missing Permissions"));
     const alice = guild.member(ALICE);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["NML"], managedTags: ["NML"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: ["[NML]"], managedTags: ["NML"], officerRoleIds: [] });
 
     expect(report.nickname).toBe("skipped");
     expect(report.skipped).toEqual([{ what: "nickname", reason: "missing-permissions" }]);
-    expect(heldNames(alice)).toEqual(["NML"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
   });
 
   test("skips a role whose creation Discord refuses at the role limit, and reports it as an error", async () => {
@@ -261,14 +262,14 @@ describe("applyNameAndRoles", () => {
 
   test("never throws: an unexpected failure becomes a skipped entry", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML");
+    guild.defineRole("[NML]");
     guild.defineRole("R4");
-    guild.failAdding("NML", new Error("socket hang up"));
+    guild.failAdding("[NML]", new Error("socket hang up"));
     const alice = guild.member(ALICE);
 
-    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["NML", "R4"], managedTags: ["NML"], officerRoleIds: [] });
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["[NML]", "R4"], managedTags: ["NML"], officerRoleIds: [] });
 
-    expect(report.skipped).toEqual([{ what: "NML", reason: "error" }]);
+    expect(report.skipped).toEqual([{ what: "[NML]", reason: "error" }]);
     expect(heldNames(alice)).toEqual(["R4"]);
   });
 
@@ -333,53 +334,53 @@ describe("applyNameAndRoles", () => {
 
   test("never gives an Alliance tag that resolves to the @everyone role, and skips it as not a Managed Role", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML", { id: guild.id });
+    guild.defineRole("[NML]", { id: guild.id });
     const alice = guild.member(ALICE);
 
     const report = await applyNameAndRoles(guild, alice, {
       nickname: "[NML] Rogue",
-      roles: ["NML"],
+      roles: ["[NML]"],
       managedTags: ["NML"],
       officerRoleIds: [],
     });
 
     expect(report.added).toEqual([]);
-    expect(report.skipped).toEqual([{ what: "NML", reason: "not-managed" }]);
+    expect(report.skipped).toEqual([{ what: "[NML]", reason: "not-managed" }]);
     expect(heldNames(alice)).toEqual([]);
   });
 
   test("never gives an Alliance tag that resolves to an integration role, and skips it as not a Managed Role", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML", { managed: true });
+    guild.defineRole("[NML]", { managed: true });
     const alice = guild.member(ALICE);
 
     const report = await applyNameAndRoles(guild, alice, {
       nickname: "[NML] Rogue",
-      roles: ["NML"],
+      roles: ["[NML]"],
       managedTags: ["NML"],
       officerRoleIds: [],
     });
 
     expect(report.added).toEqual([]);
-    expect(report.skipped).toEqual([{ what: "NML", reason: "not-managed" }]);
+    expect(report.skipped).toEqual([{ what: "[NML]", reason: "not-managed" }]);
     expect(heldNames(alice)).toEqual([]);
   });
 
   test("gives the permission-free role when two roles share a wanted name, even if one with permissions comes first", async () => {
     const guild = new FakeRolesGuild(OWNER);
-    guild.defineRole("NML", { permissions: ADMINISTRATOR });
-    const free = guild.defineRole("NML");
+    guild.defineRole("[NML]", { permissions: ADMINISTRATOR });
+    const free = guild.defineRole("[NML]");
     const alice = guild.member(ALICE);
 
     const report = await applyNameAndRoles(guild, alice, {
       nickname: "[NML] Rogue",
-      roles: ["NML"],
+      roles: ["[NML]"],
       managedTags: ["NML"],
       officerRoleIds: [],
     });
 
     expect(report.skipped).toEqual([]);
-    expect(report.added).toEqual(["NML"]);
+    expect(report.added).toEqual(["[NML]"]);
     expect(alice.roles.map((role) => role.id)).toEqual([free.id]);
   });
 
@@ -393,6 +394,155 @@ describe("applyNameAndRoles", () => {
 
     expect(alice.roles.map((role) => role.id)).toEqual([high.id]);
     expect(report.skipped).toEqual([{ what: "R3", reason: "hierarchy" }]);
+  });
+});
+
+/** Renaming a plain Alliance role to its bracket name (research R5): the role is kept, so the holders keep it. */
+describe("applyNameAndRoles renames a plain Alliance role to its bracket name", () => {
+  const RENAME_TO_BRACKETS = { nickname: "[NML] Rogue", roles: ["[NML]"], managedTags: ["NML"] } as const;
+  const OFFICER_ID = "700000000000000003";
+
+  test("renames a permission-free plain NML to [NML] under the same id, and its holder keeps it", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const plain = guild.defineRole("NML");
+    const alice = guild.member(ALICE, ["NML"]);
+
+    const report = await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [] });
+
+    expect(guild.rolesNamed("NML")).toEqual([]);
+    expect(guild.rolesNamed("[NML]").map((role) => role.id)).toEqual([plain.id]);
+    expect(alice.roles.map((role) => role.id)).toEqual([plain.id]);
+    expect(report).toMatchObject({ added: [], removed: [], created: [] });
+  });
+
+  test("renames the plain NML for a Member with no Applied State, whose tags hold only [NML]", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const plain = guild.defineRole("NML");
+    const alice = guild.member(ALICE, []);
+
+    await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, managedTags: ["[NML]"], officerRoleIds: [] });
+
+    expect(guild.rolesNamed("[NML]").map((role) => role.id)).toEqual([plain.id]);
+    expect(alice.roles.map((role) => role.id)).toEqual([plain.id]);
+  });
+
+  test("reports a failed rename as a skip, and still gives the Member a [NML] role", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole("NML");
+    guild.failRenaming("NML", new Error("refused"));
+    const alice = guild.member(ALICE, []);
+
+    const report = await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [] });
+
+    expect(report.skipped.map((skip) => skip.what)).toEqual(["NML"]);
+    expect(alice.roles.map((role) => role.name)).toEqual(["[NML]"]);
+  });
+
+  test("leaves the plain NML alone when a [NML] role already exists, and gives the Member the bracketed one", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const bracketed = guild.defineRole("[NML]");
+    const plain = guild.defineRole("NML");
+    const alice = guild.member(ALICE, [plain]);
+
+    const report = await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [] });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([plain.id]);
+    expect(guild.createdRoleNames()).toEqual([]);
+    expect(report.removed).toEqual(["NML"]);
+    expect(alice.roles.map((role) => role.id)).toEqual([bracketed.id]);
+  });
+
+  test("leaves a plain NML that grants permissions alone, and creates [NML] instead", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const plain = guild.defineRole("NML", { permissions: ADMINISTRATOR });
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [] });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([plain.id]);
+    expect(guild.createdRoleNames()).toEqual(["[NML]"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
+  });
+
+  test("leaves an Officer role named NML alone, and creates [NML] instead", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const officer = guild.defineRole("NML", { id: OFFICER_ID });
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [OFFICER_ID] });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([officer.id]);
+    expect(guild.createdRoleNames()).toEqual(["[NML]"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
+  });
+
+  test("leaves an integration's role named NML alone, and creates [NML] instead", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const integration = guild.defineRole("NML", { managed: true });
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [] });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([integration.id]);
+    expect(guild.createdRoleNames()).toEqual(["[NML]"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
+  });
+
+  test("leaves a plain NML at or above the bot's highest role alone, and creates [NML] instead", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const high = guild.defineRole("NML", { position: guild.botTopRolePosition + 2 });
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, { ...RENAME_TO_BRACKETS, officerRoleIds: [] });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([high.id]);
+    expect(guild.createdRoleNames()).toEqual(["[NML]"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
+  });
+});
+
+describe("applyNameAndRoles does not rename a plain role that is not an Alliance role's", () => {
+  test.each([
+    { name: "R5" },
+    { name: "T10" },
+    { name: "#330" },
+    { name: "PvP" },
+    { name: "Events" },
+    { name: "Onboarding" },
+    { name: "Doctor" },
+  ])("leaves the plain $name role alone and creates [$name] for the Member", async ({ name }) => {
+    const guild = new FakeRolesGuild(OWNER);
+    const plain = guild.defineRole(name);
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, {
+      nickname: "Rogue",
+      roles: [`[${name}]`],
+      managedTags: [name],
+      officerRoleIds: [],
+    });
+
+    expect(guild.rolesNamed(name).map((role) => role.id)).toEqual([plain.id]);
+    expect(guild.createdRoleNames()).toEqual([`[${name}]`]);
+    expect(heldNames(alice)).toEqual([`[${name}]`]);
+  });
+
+  test("leaves two plain NML roles alone, and creates [NML] for the Member", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const first = guild.defineRole("NML");
+    const second = guild.defineRole("NML");
+    const alice = guild.member(ALICE);
+
+    await applyNameAndRoles(guild, alice, {
+      nickname: "[NML] Rogue",
+      roles: ["[NML]"],
+      managedTags: ["NML"],
+      officerRoleIds: [],
+    });
+
+    expect(guild.rolesNamed("NML").map((role) => role.id)).toEqual([first.id, second.id]);
+    expect(guild.createdRoleNames()).toEqual(["[NML]"]);
+    expect(heldNames(alice)).toEqual(["[NML]"]);
   });
 });
 

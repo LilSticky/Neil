@@ -303,9 +303,9 @@ function syncedAnaInNml(h: Harness): FakeRolesMember {
     rank: GAME_R4,
     alliance: NML,
     nickname: "[NML|R4] Rogue",
-    roles: ["NML", "R4", "#330", "T7"],
+    roles: ["[NML]", "R4", "#330", "T7"],
   });
-  return joinMember(h, ANA, ["NML", "R4", "#330", "T7"], "[NML|R4] Rogue");
+  return joinMember(h, ANA, ["[NML]", "R4", "#330", "T7"], "[NML|R4] Rogue");
 }
 
 describe("runDailySync", () => {
@@ -322,8 +322,8 @@ describe("runDailySync", () => {
   test("reads one roster per Alliance for all its Linked Members, with the sync purpose", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
     linkMember(h, BEN, BEN_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Lupa", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
-    joinMember(h, BEN, ["NML", "R3", "#330", "T7"], "[NML] Lupa");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, BEN, ["[NML]", "R3", "#330", "T7"], "[NML] Lupa");
     h.gameApi.answerRoster(
       HOME,
       "NML",
@@ -339,7 +339,7 @@ describe("runDailySync", () => {
 
   test("looks up by uid a Linked Player who is no longer in the roster of their last Alliance", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
     h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", HOME, 21)));
 
@@ -362,13 +362,13 @@ describe("runDailySync", () => {
 
   test("applies a promoted Player's new rank to the nickname and roles, and logs the change", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    const member = joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    const member = joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
 
     await runDailySync(h.deps);
 
     expect(member.nickname).toBe("[NML|R4] Rogue");
-    expect(heldNames(member)).toEqual(["#330", "NML", "R4", "T7"]);
+    expect(heldNames(member)).toEqual(["#330", "R4", "T7", "[NML]"]);
     expect(h.links.linkFor(ANA)?.allianceRank).toEqual(GAME_R4);
     expect(linesAbout(h, ANA)).toHaveLength(1);
     expect(linesAbout(h, ANA)[0]).toContain("R4");
@@ -389,7 +389,7 @@ describe("runDailySync", () => {
 
     await runDailySync(h.deps);
 
-    expect(heldNames(member)).toEqual(["#330", "NML", "R4", "T9"]);
+    expect(heldNames(member)).toEqual(["#330", "R4", "T9", "[NML]"]);
   });
 
   test("gives a Player who moved Kingdom the Guest nickname and roles, and drops the old Alliance roles", async () => {
@@ -400,6 +400,17 @@ describe("runDailySync", () => {
     await runDailySync(h.deps);
 
     expect(member.nickname).toBe("[ABC|R5] Rogue | #12");
+    expect(heldNames(member)).toEqual(["#12", "T7"]);
+  });
+
+  test("takes [NML] off a Member who leaves the Alliance by moving Kingdom, when the applied state still holds the old NML", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "[NML|R4] Rogue", roles: ["NML", "R4", "#330", "T7"] });
+    const member = joinMember(h, ANA, ["[NML]", "R4", "#330", "T7"], "[NML|R4] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
+    h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", KINGDOM_12, 21, { tag: "ABC", rank: "R5" })));
+
+    await runDailySync(h.deps);
+
     expect(heldNames(member)).toEqual(["#12", "T7"]);
   });
 
@@ -432,7 +443,7 @@ describe("runDailySync", () => {
 
   test("keeps an approved rank while the Player stays in that Alliance and the Game API still gives no rank", async () => {
     linkMember(h, ANA, ANA_UID, { rank: APPROVED_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    const member = joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    const member = joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
 
     await runDailySync(h.deps);
@@ -443,7 +454,7 @@ describe("runDailySync", () => {
 
   test("uses the rank the Game API now gives in place of an approved rank", async () => {
     linkMember(h, ANA, ANA_UID, { rank: APPROVED_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
 
     await runDailySync(h.deps);
@@ -454,7 +465,7 @@ describe("runDailySync", () => {
   test("keeps a rank an Officer gave while the Player stays in that Alliance and the Game API still gives no rank (SC-004)", async () => {
     const byOfficer: RankOnLink = { source: "rank-approval", rank: "R2", approvedBy: OFFICER, approvedAt: NOW };
     linkMember(h, ANA, ANA_UID, { rank: byOfficer, alliance: NML, nickname: "[NML|R2] Rogue", roles: ["NML", "R2", "#330", "T7"] });
-    const member = joinMember(h, ANA, ["NML", "R2", "#330", "T7"], "[NML|R2] Rogue");
+    const member = joinMember(h, ANA, ["[NML]", "R2", "#330", "T7"], "[NML|R2] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
 
     await runDailySync(h.deps);
@@ -466,7 +477,7 @@ describe("runDailySync", () => {
   test("replaces a rank an Officer gave with the rank the Game API now lists (SC-004)", async () => {
     const byOfficer: RankOnLink = { source: "rank-approval", rank: "R2", approvedBy: OFFICER, approvedAt: NOW };
     linkMember(h, ANA, ANA_UID, { rank: byOfficer, alliance: NML, nickname: "[NML|R2] Rogue", roles: ["NML", "R2", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R2", "#330", "T7"], "[NML|R2] Rogue");
+    joinMember(h, ANA, ["[NML]", "R2", "#330", "T7"], "[NML|R2] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")])));
 
     await runDailySync(h.deps);
@@ -476,14 +487,14 @@ describe("runDailySync", () => {
 
   test("drops an approved rank when a moved Player's new Alliance gives none, and logs that Officers should check", async () => {
     linkMember(h, ANA, ANA_UID, { rank: APPROVED_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    const member = joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    const member = joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
     h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", HOME, 21, { tag: "ABC", rank: "unknown" })));
 
     await runDailySync(h.deps);
 
     expect(h.links.linkFor(ANA)?.allianceRank).toEqual(UNKNOWN_RANK);
-    expect(heldNames(member)).toEqual(["#330", "ABC", "T7"]);
+    expect(heldNames(member)).toEqual(["#330", "T7", "[ABC]"]);
     expect(linesAbout(h, ANA)).toHaveLength(1);
     expect(linesAbout(h, ANA)[0]).toMatch(/check/i);
   });
@@ -558,7 +569,7 @@ describe("runDailySync", () => {
 
   test("charges no Member for its requests: a run that reads a roster and a Player leaves every charge with nobody (US1 scenario 9)", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
     h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", HOME, 21)));
 
@@ -571,7 +582,7 @@ describe("runDailySync", () => {
 
   test("logs a Player the Game API does not find by uid once, and keeps the Link", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [])));
 
     await runDailySync(h.deps);
@@ -617,9 +628,9 @@ describe("runDailySync", () => {
 
   test("ends with a summary of the changed, skipped and requests used", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: NML, nickname: "[NML|R4] Lupa", roles: ["NML", "R4", "#330", "T7"] });
-    joinMember(h, BEN, ["NML", "R4", "#330", "T7"], "[NML|R4] Lupa");
+    joinMember(h, BEN, ["[NML]", "R4", "#330", "T7"], "[NML|R4] Lupa");
     linkMember(h, CAL, CAL_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
     h.gameApi.answerRoster(
       HOME,
@@ -741,7 +752,7 @@ describe("runDailySync", () => {
 
   test("applies the Link as it is when the Member is reached, so a Rank Approval given during the run is kept", async () => {
     linkMember(h, ANA, ANA_UID, { rank: UNKNOWN_RANK, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "#330", "T7"] });
-    const member = joinMember(h, ANA, ["NML", "#330", "T7"], "[NML] Rogue");
+    const member = joinMember(h, ANA, ["[NML]", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
     h.gameApi.onRequest(() => {
       h.links.updateRank(ANA, APPROVED_R3);
@@ -764,7 +775,7 @@ describe("runDailySync", () => {
 
   test("starts no Rank Approval and removes no Link when the Game API gives no rank for a Linked Member", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
-    joinMember(h, ANA, ["NML", "R3", "#330", "T7"], "[NML] Rogue");
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "unknown")])));
 
     await runDailySync(h.deps);
@@ -895,7 +906,7 @@ describe("runDailySync: a Member whose Player is not found", () => {
 
   test("a Home Kingdom Member whose Player is not found keeps the Preference Roles held", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R4, alliance: NML, nickname: "[NML|R4] Rogue", roles: ["NML", "R4", "#330", "T7"] });
-    const member = joinMember(h, ANA, ["NML", "R4", "#330", "T7", "English", "Americas"], "[NML|R4] Rogue");
+    const member = joinMember(h, ANA, ["[NML]", "R4", "#330", "T7", "English", "Americas"], "[NML|R4] Rogue");
     h.preferences.setLanguages(ANA, new Set<GameLanguageCode>(["en"]));
     h.preferences.setRegion(ANA, "americas");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [])));

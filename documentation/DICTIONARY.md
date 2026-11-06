@@ -18,6 +18,7 @@ discovery.
 
 ## Managed Role
 * A Discord role Neil may give and remove: the Alliance, Alliance Rank, Kingdom and Troop Bracket roles
+* An Alliance role carries the tag in brackets, `[NML]`; the brackets set it apart from every other role
 * Neil creates a missing Managed Role on first use; apart from the Onboarding Role, the Doctor Role and the Preference Roles, it never touches any other role
 
 ## Home Kingdom information
@@ -38,9 +39,17 @@ discovery.
 
 ## Server Layout
 * The categories, channels and permission overwrites a server should have
-* Described in the server guides; Neil itself does not change channel permissions
+* Described in the server guides and held in `server-layout.json`; the owner's setup script builds it, Neil itself does not change channel permissions
 
 # Game
+
+## Alliance Duel (AD)
+* An event in which Alliances fight each other
+* Has its own group of channels, seen by the PvP and Events roles
+
+## Kingdom vs Kingdom (KvK)
+* An event in which the Kingdom fights another Kingdom
+* Has its own group of channels, seen by the PvP and Events roles
 
 ## Player
 * A character in Last Asylum: Plague, as the Game API describes it

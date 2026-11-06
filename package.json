@@ -16,7 +16,8 @@
     "test:watch": "vitest",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "commands:register": "tsx scripts/register-commands.ts"
+    "commands:register": "tsx scripts/register-commands.ts",
+    "server:setup": "tsx scripts/setup-server.ts"
   },
   "dependencies": {
     "discord.js": "^14.27.0",

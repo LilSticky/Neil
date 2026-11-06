@@ -59,6 +59,8 @@ Rationale: losing API access would break the bot's core purpose.
 - The bot MUST request only the Discord intents and permissions it needs, and MUST change only the
   roles it manages (an explicit, configured allow-list) and nicknames. It never grants administrative
   permissions.
+- One exception (ADR 12): the owner's setup script may run with Neil's token while the server owner
+  gives Neil's role Administrator for that run. Running Neil gains nothing from this.
 - Secrets (bot token, API keys) live only in environment variables, never in the repository or logs.
 - Personal data is kept to what a feature needs; what is stored and for how long is documented in an ADR.
 - Actions that affect a Member (roles, nickname, kick) are logged to a configured channel so Officers
@@ -116,4 +118,4 @@ Rationale: frequent, visible progress keeps momentum.
 - Every spec, plan and implementation MUST be checked against these principles (the Constitution Check
   in `/speckit-plan`); any deviation MUST be justified in the plan or rejected.
 
-**Version**: 1.0.2 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-10-29 (hosting: Wispbyte, ADR 6)
+**Version**: 1.1.0 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-11-06 (setup script exception, ADR 12)

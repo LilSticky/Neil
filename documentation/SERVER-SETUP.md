@@ -31,7 +31,7 @@ nickname and roles matching the game.
 | **Onboarding Interview** | every newcomer | When someone joins, Neil opens a private thread in `#onboarding` and asks which Player they are. The Member proves it with their uid (the number under their in-game profile picture). A Member who isn't Linked also gets an Interview on coming online, and at a start of Neil, up to 10 per start. If the thread got lost, `/interview` starts a new one. |
 | **Link** | Neil | Once the Member confirms ("that's me"), Neil Links them to the Player, then gives them their nickname and roles. |
 | **Preferences** | Neil | After the Link, one message in the Interview thread with four menus (Languages, Region, Interests, Experience) and a **Done** button. Each choice gives a Preference Role, which shows the matching channels. `/channels` shows the same menus later, privately. |
-| **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance tag, Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |
+| **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance role (`[NML]`), Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |
 | **Daily Sync** | Neil | Once a day (03:00 UTC by default) Neil re-reads the game and updates nicknames and roles. |
 | **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the Server Layout) lets them see only `#onboarding`. |
 | **Doctor Role** | Neil | Every Linked Member, Guests included, holds the `Doctor` role. It shows the Guest area. |
@@ -45,8 +45,9 @@ nickname and roles matching the game.
 
 ### What Neil never does
 
-- It never changes **channel permissions**. You set those yourself.
-- It never touches roles other than its Managed Roles (Alliance tags, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`), `Onboarding`,
+- It never changes **channel permissions**. The setup script does, as the owner's tool, while the owner gives it
+  Administrator for that one run (ADR 12).
+- It never touches roles other than its Managed Roles (Alliance roles, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`), `Onboarding`,
   `Doctor` and the Preference Roles.
 - It never checks **where** a command is used. Discord does that (section 5).
 - It can't rename the **server owner**. Discord doesn't allow that.
@@ -62,7 +63,7 @@ nickname and roles matching the game.
 | **King** | you | 🔴 Requirement | Officers too, treated the same as Moderator. |
 | **Onboarding** | Neil, at a start with an unlinked Member, or you | automatic | Held by every Member who isn't Linked yet. |
 | **Doctor** | Neil, at a start or at the first Link, or you | automatic | Held by every Linked Member, Guests included. |
-| Alliance tags (e.g. `NML`) | Neil, when first needed | automatic | One per Home Kingdom Alliance. Shows that Alliance's area. |
+| Alliance roles (e.g. `[NML]`) | Neil, when first needed | automatic | One per Home Kingdom Alliance, its tag in brackets. Shows that Alliance's area. The brackets are how the setup script finds it, so don't give another role such a name. |
 | `R1`–`R5` | Neil, when first needed, or you | automatic | Alliance Rank, for Home Kingdom Alliances only. |
 | `#330`, `#331`, … | Neil, when first needed, or you | automatic | The Kingdom a Member's Player is in. `#<Home Kingdom>` shows nearly everything. |
 | `T1`–`T10` | Neil, when first needed | automatic | Troop Bracket. |
@@ -85,7 +86,7 @@ Discord lets a bot manage only the roles and Members **below** its own role.
   Onboarding        ← everything Neil manages sits below Neil
   Doctor
   Preference Roles
-  NML, R5 … R1, #330, T10 … T1
+  [NML], R5 … R1, #330, T10 … T1
   @everyone
 ```
 
@@ -99,6 +100,7 @@ Neil can't change the nickname of a Member whose highest role is above Neil's. T
 
 ## 3. The Server Layout
 
+`npm run server:setup` builds this layout from `server-layout.json` ([STARTUP-GUIDE.md](STARTUP-GUIDE.md#3-run-the-setup-script)).
 Every category denies **@everyone** View Channel. The table says which role is allowed to see it. Set permissions on the
 category and keep channels synced, unless the row says otherwise. `Kingdom` means `#<Home Kingdom>`.
 
@@ -119,7 +121,8 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Languages | one general chat per language you name | that language's Preference Role | 🟡 |
 | PvP | chat, voice, intel (Members use `/player`, `/alliance`, `/reaper` here), tactics forum | PvP | 🟡 |
 | Events | event chat, event announcements, ask for help, guides forum | Events | 🟡 |
-| AD, KvK | a group each; channels still to be decided | Kingdom | 🟡 |
+| Alliance Duel | chat, voice, announcements (only King posts), tactics forum, intel | PvP, Events | 🟡 |
+| Kingdom vs Kingdom | the same, plus five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
 | Recruitment | one text channel | Recruitment | 🟡 |
 | Off-topic | off-topic, memes | Off-topic | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
@@ -142,8 +145,8 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 
 ## 4. Requirements, Recommendations, Suggestions
 
-**Bot token?** says whether a script with a bot token can set it (slice 020): Yes, Yes* (also needs Manage Channels, which
-Neil doesn't hold), or No (a person must do it).
+**Bot token?** says whether the setup script can set it: Yes, Yes* (only during the run, under temporary Administrator, ADR 12),
+or No (a person must do it).
 
 ### 🔴 Requirements
 
@@ -155,7 +158,7 @@ Neil doesn't hold), or No (a person must do it).
 | Moderator and King, with IDs in configuration | Neil won't start without valid IDs; a wrong ID means that role has no Officers | Yes to create; No to place above Neil |
 | Neil's role above every role it gives | Roles and nicknames skipped, Member by Member | No |
 | Neil's role below Moderator and King | A safety rule, ADR 8; nothing breaks | No |
-| Each role exists before a channel refers to it | Setup can't be done in order | Yes, except Alliance tags, which appear with their first Member |
+| Each role exists before a channel refers to it | Setup can't be done in order | Yes, except Alliance roles, which appear with their first Member; run the script again then |
 | No permissions on Neil's roles | That role is never given | Yes, as a check |
 | **Permissions** | | |
 | Server Members Intent and Presence Intent (Developer Portal) | Neil can't log in | No |
@@ -201,7 +204,7 @@ can use every command everywhere, so test with an account that isn't one.
 | Command | **Roles & Members** | **Channels** |
 |---------|---------------------|--------------|
 | `/quota`, `/rank`, `/link` | 🔴 add **Moderator** and **King** | 🟡 Moderator channel |
-| `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the PvP intel channel |
+| `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the intel channels (PvP, Alliance Duel, Kingdom vs Kingdom) |
 | `/channels`, `/usage`, `/ping` | leave as is | 🟡 `#alliance-hall` |
 | `/unlink` | leave as is | 🟡 `#alliance-hall` and the Moderator channel |
 | `/interview` | leave as is | 🟡 `#onboarding`, or newcomers can't start a new Interview |
@@ -248,7 +251,8 @@ check section 5 for any new command.
 | let newcomers see one more channel (e.g. `#rules`) | that channel → **Edit Channel** → **Permissions** → **Onboarding**: View Channel ✅ |
 | give the Home Kingdom a new channel | the channel or its category → **Permissions** → `#<Home Kingdom>`: View Channel ✅ |
 | give Guests a new channel | put it in the Guest area, or give **Doctor** View Channel ✅ |
-| give a new Alliance its area | run the setup script again once slice 020 exists; until then create it as in section 3 |
+| give a new Alliance its area | run the setup script again ([STARTUP-GUIDE.md](STARTUP-GUIDE.md#6-add-alliance-areas)) |
+| change the Server Layout | edit `server-layout.json`, then run the setup script again; what you remove from it stays on the server and is reported |
 | change a role's color | Server Settings → **Roles** → the role → **Display** |
 | move the log or onboarding channel | create the new channel with the permissions in section 4, send its ID, and Neil restarts |
 | see what a newcomer sees | Server Settings → **Roles** → **Onboarding** → **View Server As Role** |
@@ -272,4 +276,6 @@ check section 5 for any new command.
 | An R5 can't open a Rank Approval thread | `R5` lacks a permission in `#onboarding`, or the leader is a Guest and holds no `R5` | section 4; for a Guest, an Officer uses `/rank` |
 | Translations stop in an announcement channel | Interaction Bot lost its allow | section 3, special cases |
 | Officers don't see `/quota`, `/rank`, `/link` | Integrations isn't set | section 5 |
+| The setup script refuses a real run | Neil's role lacks Administrator, or Neil has no role | give it for the run, then take it off |
+| The setup script makes a second channel | the name in `server-layout.json` differs from yours | use the exact name in the file |
 | The server owner has no nickname | Discord doesn't let bots rename the owner | set it by hand |

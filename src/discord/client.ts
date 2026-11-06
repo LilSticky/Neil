@@ -490,6 +490,9 @@ function rolesGuildOf(guild: Guild, botTopRolePosition: number): RolesGuild {
       });
       return roleLikeOf(role);
     },
+    renameRole: async (role, name) => {
+      await guild.roles.edit(role.id, { name });
+    },
   };
 }
 

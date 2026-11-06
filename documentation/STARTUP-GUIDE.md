@@ -19,76 +19,51 @@ and **Presence Intent**. Neil can't log in without both.
 
 ## 2. Invite Neil
 
-Open the invite link, pick your server, confirm. Check that a **Neil** role appears; if it doesn't, tell whoever runs Neil,
-because the link has to carry a permission.
+Open the invite link, pick your server, confirm. Check that a **Neil** role appears. If it doesn't, tell whoever runs Neil:
+the link has to carry a permission, because a bot invited with none gets no role, and the next step needs that role.
 
-Give Neil's role **Manage Roles** and **Manage Nicknames**, and nothing else: Server Settings → **Roles** → **Neil** → **Permissions**.
+Give Neil's role **Manage Roles** and **Manage Nicknames**: Server Settings → **Roles** → **Neil** → **Permissions**.
 
-## 3. Create the Officer roles
+## 3. Run the setup script
 
-Create **Moderator** and **King** and give them to your Officers: Server Settings → **Roles** → **Create Role**. Drag them
-**above** Neil.
+*Whoever runs Neil*, with `DISCORD_TOKEN`, `DISCORD_GUILD_ID` and `HOME_KINGDOM` in `.env`. It creates the roles, categories,
+channels and permissions of the [Server Layout](SERVER-SETUP.md#3-the-server-layout) from `server-layout.json`. Edit that
+file first if you want other names or fewer languages.
 
-## 4. Create the roles channels will use
+1. `npm run server:setup` shows what would change, and changes nothing.
+2. The server owner gives Neil's role **Administrator** for the run (ADR 12).
+3. `npm run server:setup -- --apply` does the work. It prints the IDs for step 5 and what is left by hand.
+4. 🔴 **Take Administrator off Neil's role straight away.** While Neil holds it, a leaked token controls your whole server.
 
-Neil creates its roles when it first needs them, which is too late for setting channels. Create these yourself, with **no
-permissions**, **below** Neil. Neil adopts them by name, so spell them exactly:
+Running it twice is safe. Without Community, forums and announcement channels become plain text channels, with the same permissions.
 
-- `Onboarding`, `Doctor`, `R5`, `#<Home Kingdom>`
-- `NaP discussions`, `PvP`, `Events`, `Off-topic`, `Recruitment`, `Veteran`
-- one language role for each language channel you want, spelled as in the Preferences menu (e.g. `Italian`)
+If Interaction Bot isn't on your server yet, invite it and run the script again, so it gets its allow.
 
-## 5. Create `#onboarding` and `#neil-log`
+## 4. Place the roles
 
-Create two ordinary text channels. Neil won't start without them and their permissions.
+Server Settings → **Roles**: drag **Moderator** and **King** above Neil, and Neil above every other role the script made.
+A bot can't do this itself. Give Moderator and King to your Officers, with the permissions you want them to have.
 
-**Where:** hover over the channel → gear → **Permissions** → **Advanced permissions** → **+** → pick the role.
+## 5. Start Neil
 
-| Channel | Role | Permission | Setting |
-|---------|------|------------|---------|
-| `#onboarding` | **Neil** | View Channel, Send Messages in Threads, Create Private Threads, Manage Threads | ✅ |
-| | **Moderator**, **King** | View Channel, Manage Threads | ✅ |
-| | **Onboarding** | View Channel, Send Messages, Send Messages in Threads | ✅ |
-| | `R5` | View Channel, Send Messages in Threads | ✅ |
-| | **@everyone** | View Channel | ❌ |
-| `#neil-log` | **Neil** | View Channel, Send Messages | ✅ |
-| | **Moderator**, **King** | View Channel | ✅ |
-| | **@everyone** | View Channel | ❌ |
-
-## 6. Start Neil
-
-Right-click each item → **Copy … ID**, and send them to whoever runs Neil:
-
-| What | Setting |
-|------|---------|
-| The server | `DISCORD_GUILD_ID` |
-| Moderator, King | `DISCORD_MODERATOR_ROLE_ID`, `DISCORD_KING_ROLE_ID` |
-| `#onboarding`, `#neil-log` | `DISCORD_ONBOARDING_CHANNEL_ID`, `DISCORD_LOG_CHANNEL_ID` |
-| Your Kingdom's number | `HOME_KINGDOM` |
+Send the IDs the script printed to whoever runs Neil, with your Kingdom's number as `HOME_KINGDOM`.
 
 *Whoever runs Neil* adds them with the other settings ([SERVER-SETUP.md §6](SERVER-SETUP.md#6-settings-for-whoever-runs-neil)),
 registers the commands (`npm run commands:register`) and starts Neil. If Neil stays offline, its console names the problem.
 
 Check: `/ping` answers.
 
-## 7. Build the Server Layout
+## 6. Add Alliance areas
 
-Create the categories and channels in [SERVER-SETUP.md §3](SERVER-SETUP.md#3-the-server-layout). For each category:
+An Alliance's role, for example `[NML]`, appears with its first Linked Member. Then run step 3 again: the script builds an area
+for every `[TAG]` role, seen by that role only. The same goes for each new Alliance.
 
-1. Allow the role that should see it: View Channel ✅.
-2. Deny **@everyone**: View Channel ❌.
-3. In each channel, click **Sync Now** if Discord shows it isn't synced.
-
-Then set the special cases on the channels themselves: only King posts, Interaction Bot, read only, the guides forum.
-
-Alliance areas come later: a tag role appears with an Alliance's first Linked Member. Create the area then.
-
-## 8. Set the commands
+## 7. Set the commands
 
 Set **Integrations** as in [SERVER-SETUP.md §5](SERVER-SETUP.md#5-commands). This stays manual, because Discord needs an
 admin's own login for it. Add `#onboarding` for `/interview` when you turn off **All Channels**, or newcomers lose it.
 
-## 9. Test it
+## 8. Test it
 
 With an account that isn't an Administrator:
 

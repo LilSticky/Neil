@@ -1,0 +1,411 @@
+{
+  "roles": [
+    "Moderator",
+    "King",
+    "Onboarding",
+    "Doctor",
+    "R5",
+    "#<Home Kingdom>",
+    "PvP",
+    "Events",
+    "Recruitment",
+    "Off-topic",
+    "NaP discussions",
+    "Veteran"
+  ],
+  "externalRoles": [
+    "Interaction Bot"
+  ],
+  "languages": [
+    "English",
+    "German",
+    "French",
+    "Spanish",
+    "Italian",
+    "Portuguese",
+    "Russian",
+    "Turkish",
+    "Polish",
+    "Dutch",
+    "Arabic",
+    "Japanese",
+    "Korean",
+    "Chinese",
+    "Thai",
+    "Vietnamese",
+    "Indonesian"
+  ],
+  "categories": [
+    {
+      "name": "Onboarding",
+      "seenBy": [
+        "Onboarding",
+        "Moderator",
+        "King",
+        "R5"
+      ],
+      "channels": [
+        {
+          "name": "onboarding",
+          "type": "text",
+          "overwrites": {
+            "Onboarding": {
+              "allow": [
+                "SendMessages",
+                "SendMessagesInThreads"
+              ]
+            },
+            "R5": {
+              "allow": [
+                "SendMessagesInThreads"
+              ]
+            },
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessagesInThreads",
+                "CreatePrivateThreads",
+                "ManageThreads",
+                "ReadMessageHistory"
+              ]
+            },
+            "Moderator": {
+              "allow": [
+                "ManageThreads"
+              ]
+            },
+            "King": {
+              "allow": [
+                "ManageThreads"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Officers",
+      "seenBy": [
+        "Moderator",
+        "King"
+      ],
+      "channels": [
+        {
+          "name": "neil-log",
+          "type": "text",
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages"
+              ]
+            }
+          }
+        },
+        {
+          "name": "moderators",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "Basic information",
+      "seenBy": [
+        "#<Home Kingdom>"
+      ],
+      "channels": [
+        {
+          "name": "rules",
+          "type": "text",
+          "mode": "read-only"
+        },
+        {
+          "name": "welcome",
+          "type": "text",
+          "mode": "read-only"
+        }
+      ]
+    },
+    {
+      "name": "Home Kingdom",
+      "seenBy": [
+        "#<Home Kingdom>"
+      ],
+      "channels": [
+        {
+          "name": "home-kingdom-announcements",
+          "type": "announcement",
+          "mode": "only-king-posts"
+        }
+      ]
+    },
+    {
+      "name": "Hangout",
+      "seenBy": [
+        "#<Home Kingdom>"
+      ],
+      "channels": [
+        {
+          "name": "general",
+          "type": "text"
+        },
+        {
+          "name": "Hangout voice",
+          "type": "voice"
+        },
+        {
+          "name": "alliance-hall",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "Guest area",
+      "seenBy": [
+        "Doctor"
+      ],
+      "channels": [
+        {
+          "name": "guest-rules",
+          "type": "text",
+          "mode": "read-only"
+        },
+        {
+          "name": "guest-chat",
+          "type": "text"
+        },
+        {
+          "name": "Guest voice",
+          "type": "voice"
+        },
+        {
+          "name": "guest-announcements",
+          "type": "announcement",
+          "mode": "only-king-posts"
+        }
+      ]
+    },
+    {
+      "name": "NaP",
+      "seenBy": [
+        "#<Home Kingdom>"
+      ],
+      "channels": [
+        {
+          "name": "nap-discussion",
+          "type": "text",
+          "seenBy": [
+            "NaP discussions",
+            "King"
+          ]
+        },
+        {
+          "name": "nap-leaders",
+          "type": "text",
+          "seenBy": [
+            "R5",
+            "King"
+          ]
+        },
+        {
+          "name": "nap-announcements",
+          "type": "announcement",
+          "mode": "only-king-posts",
+          "translated": true
+        },
+        {
+          "name": "nap-forum",
+          "type": "forum"
+        }
+      ]
+    },
+    {
+      "name": "PvP",
+      "seenBy": [
+        "PvP"
+      ],
+      "channels": [
+        {
+          "name": "pvp-chat",
+          "type": "text"
+        },
+        {
+          "name": "PvP voice",
+          "type": "voice"
+        },
+        {
+          "name": "pvp-intel",
+          "type": "text"
+        },
+        {
+          "name": "pvp-tactics",
+          "type": "forum"
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "seenBy": [
+        "Events"
+      ],
+      "channels": [
+        {
+          "name": "event-chat",
+          "type": "text"
+        },
+        {
+          "name": "event-announcements",
+          "type": "text"
+        },
+        {
+          "name": "event-help",
+          "type": "text"
+        },
+        {
+          "name": "guides",
+          "type": "forum",
+          "overwrites": {
+            "Veteran": {
+              "allow": [
+                "SendMessages",
+                "SendMessagesInThreads"
+              ]
+            },
+            "Moderator": {
+              "allow": [
+                "ViewChannel",
+                "ManageThreads"
+              ]
+            },
+            "King": {
+              "allow": [
+                "ViewChannel",
+                "ManageThreads"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Alliance Duel",
+      "seenBy": [
+        "PvP",
+        "Events"
+      ],
+      "channels": [
+        {
+          "name": "ad-chat",
+          "type": "text"
+        },
+        {
+          "name": "AD voice",
+          "type": "voice"
+        },
+        {
+          "name": "ad-announcements",
+          "type": "announcement",
+          "mode": "only-king-posts"
+        },
+        {
+          "name": "ad-tactics",
+          "type": "forum"
+        },
+        {
+          "name": "ad-intel",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "Kingdom vs Kingdom",
+      "seenBy": [
+        "PvP",
+        "Events"
+      ],
+      "channels": [
+        {
+          "name": "kvk-chat",
+          "type": "text"
+        },
+        {
+          "name": "KvK voice",
+          "type": "voice"
+        },
+        {
+          "name": "kvk-announcements",
+          "type": "announcement",
+          "mode": "only-king-posts"
+        },
+        {
+          "name": "kvk-tactics",
+          "type": "forum"
+        },
+        {
+          "name": "kvk-intel",
+          "type": "text"
+        },
+        {
+          "name": "Vanguard",
+          "type": "voice"
+        },
+        {
+          "name": "Overwatch",
+          "type": "voice"
+        },
+        {
+          "name": "Strike Team",
+          "type": "voice"
+        },
+        {
+          "name": "Blackout",
+          "type": "voice"
+        },
+        {
+          "name": "War Room",
+          "type": "voice"
+        }
+      ]
+    },
+    {
+      "name": "Recruitment",
+      "seenBy": [
+        "Recruitment"
+      ],
+      "channels": [
+        {
+          "name": "recruitment",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "name": "Off-topic",
+      "seenBy": [
+        "Off-topic"
+      ],
+      "channels": [
+        {
+          "name": "off-topic",
+          "type": "text"
+        },
+        {
+          "name": "memes",
+          "type": "text"
+        }
+      ]
+    }
+  ],
+  "allianceArea": {
+    "channels": [
+      {
+        "name": "alliance-chat",
+        "type": "text"
+      },
+      {
+        "name": "alliance-voice",
+        "type": "voice"
+      }
+    ]
+  }
+}
