@@ -16,9 +16,9 @@
 - [x] T003 Dictionary: Rank Approval in `documentation/DICTIONARY.md`, as the user decided (FR-005)
 - [x] T004 [P] Guides: `documentation/SERVER-SETUP.md` (FR-005)
 - [x] T005 [P] Add §6r to `documentation/TEST-RUN.md`
-- [ ] T006 `bot-reviewer` pass, findings in `review.md`
-- [ ] T007 `spec-auditor` pass, findings in `audit.md`
-- [ ] T008 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
+- [x] T006 `bot-reviewer` pass, findings in `review.md`
+- [x] T007 `spec-auditor` pass, findings in `audit.md`
+- [x] T008 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
 - [ ] T009 Manual check on the test server (TEST-RUN.md §6r), which needs the deploy
 
 ## Dependencies

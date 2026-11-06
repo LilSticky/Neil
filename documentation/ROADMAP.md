@@ -33,6 +33,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 020 | Set up the server | a server owner run one script that does as much of the setup as Discord allows, from what slice 019 decides ([#62](https://github.com/LilSticky/Neil/issues/62)) | Alliance Duel, Kingdom vs Kingdom | setup script, `server-layout.json`, `[TAG]` Alliance roles | merged; manual check open (TEST-RUN.md §6q) |
 | 021 | Keep Preferences within the Home Kingdom | a Guest get no Preferences message and no Preference Roles, so Preference channels stay closed to Guests ([#64](https://github.com/LilSticky/Neil/issues/64)) | Home Kingdom Member | Preferences, Preference Roles | merged (manual check open) |
 | 022 | Choose Recruitment instead of Trading | a Member choose Recruitment as an Interest, in place of Trading ([#65](https://github.com/LilSticky/Neil/issues/65)) | Recruitment | Preferences menu | merged; manual check open (TEST-RUN.md §6p) |
+| 023 | No Rank Approval for Guests | a Guest be Linked without waiting on a leader who can't answer ([#67](https://github.com/LilSticky/Neil/issues/67)) | Rank Approval | `pendingApprovalFor` | merged; manual check open (TEST-RUN.md §6r) |
 
 ## Later (unordered)
 

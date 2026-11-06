@@ -356,8 +356,8 @@ async function pressLinkButton(
 
 /**
  * Stores the Officer Link: the Link, the Interview as linked, and a pending Rank Approval when the rank is unknown and the
- * Player is in the Home Kingdom (a Guest gets none), in one
- * transaction. A Member who left, or a state that moved on, is refused privately, and the card ends with nothing stored.
+ * Player is in the Home Kingdom (a Guest gets none), in one transaction. A Member who left, or a state that moved on, is
+ * refused privately, and the card ends with nothing stored.
  */
 async function confirmLink(button: LinkButtonInteraction, pending: PendingLink, deps: LinkButtonDeps): Promise<void> {
   const now = deps.now();
