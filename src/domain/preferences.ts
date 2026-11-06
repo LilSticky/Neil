@@ -167,7 +167,7 @@ export function preselectedLanguage(playerLanguage: string | undefined): GameLan
  * No Applied State is neither a known Home Kingdom Member nor a known Guest (data-model.md).
  */
 export function isKnownInHomeKingdom(appliedRoles: readonly string[] | undefined, homeKingdom: KingdomNumber): boolean {
-  return appliedRoles !== undefined && appliedRoles.includes(`#${homeKingdom}`);
+  return appliedRoles !== undefined && appliedRoles.includes(`#${homeKingdom.toString()}`);
 }
 
 /** Whether a Member is known to be a Guest: their Applied State is known and holds no Home Kingdom role. */
