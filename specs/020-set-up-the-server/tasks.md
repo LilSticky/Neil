@@ -39,12 +39,12 @@ TDD for all code: each code task is `test-first`, then `implementer`. `[P]` mean
 
 **Independent test**: planning the state left by a real run gives no steps.
 
-- [ ] T014 [US3] Tests through plan, apply and plan on the fake: the second plan has no steps; extra overwrites and other permissions inside a corrected overwrite survive; channels outside the layout are never written; fix what they find
+- [x] T014 [US3] Tests through plan, apply and plan on the fake: the second plan has no steps; extra overwrites and other permissions inside a corrected overwrite survive; channels outside the layout are never written; fix what they find
 
 ## Phase 6: Documents and checks
 
-- [ ] T015 [P] SERVER-SETUP.md: `[NML]` roles, AD and KvK in section 3, the script in section 4 and section 7, "What Neil never does" stays true; STARTUP-GUIDE.md and MIGRATION-GUIDE.md: steps shrink to the script, with the Administrator grant, the warnings and the announced date
-- [ ] T016 [P] DICTIONARY: Alliance Duel, Kingdom vs Kingdom, `[TAG]` in Managed Role. Discovery section 6: this slice's answers. `specs/019` T008 ticked
+- [x] T015 [P] SERVER-SETUP.md: `[NML]` roles, AD and KvK in section 3, the script in section 4 and section 7, "What Neil never does" stays true; STARTUP-GUIDE.md and MIGRATION-GUIDE.md: steps shrink to the script, with the Administrator grant, the warnings and the announced date
+- [x] T016 [P] DICTIONARY: Alliance Duel, Kingdom vs Kingdom, `[TAG]` in Managed Role. Discovery section 6: this slice's answers. `specs/019` T008 ticked
 - [ ] T017 TEST-RUN.md §6q from quickstart.md; STATUS and ROADMAP
 - [ ] T018 `bot-reviewer` and `spec-auditor`, findings fixed, review in `specs/020-set-up-the-server/review.md`
 - [ ] T019 Manual check on the test server (quickstart.md): needs the user

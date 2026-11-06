@@ -131,6 +131,11 @@ export class FakeSetupServer implements SetupServer {
     this.failures.set(`${op}:${name}`, error);
   }
 
+  /** Lets every write that failed before succeed again, as after the owner has fixed the cause. */
+  clearFailures(): void {
+    this.failures.clear();
+  }
+
   findRole(name: string): SetupRoleInfo | undefined {
     return this.roles.find((role) => role.name === name);
   }

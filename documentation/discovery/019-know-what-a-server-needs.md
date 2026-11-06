@@ -298,6 +298,15 @@ The reference both guides link to: what Neil does (section 1), the three lists, 
   - Off-topic: its own channel; the same group holds a memes channel.
   - Events: the forum, event chat, event announcements and an ask-for-help channel. "The other events are only of interest within the same alliance, except for AD and KvK as separate groups with overlapping interest of NaP, Events and PvP."
 
+## 7. Slice 020's answers (2026-11-06)
+
+These win over sections 1 to 6; the full list is in `specs/020-set-up-the-server/spec.md`.
+
+- **Q6:** temporary Administrator, not the recommended option (ADR 12).
+- **Q1, for the script:** channels outside the layout are only reported; the owner hides them.
+- **Alliance roles** carry brackets, `[NML]`, so the script can find them.
+- **AD and KvK:** Alliance Duel and Kingdom vs Kingdom. Chat, voice, announcements, tactics forum and intel each, and five tactical voice channels for KvK. Seen by `PvP` and `Events`, which replaces "seen by the Home Kingdom only".
+
 ## Slice 020: Set up the server
 
 A server owner runs one script that does as much of the server setup as Discord allows: roles, categories, channels and permission overwrites from one layout file, with a dry run, safe to run twice, reporting what it can't do. The user asked to take as much off their hands as possible.

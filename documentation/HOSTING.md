@@ -63,7 +63,7 @@ deploy.
 - `#neil-log`: Neil needs View Channel and Send Messages.
 
 **Roles for slice 006** ([ADR 8](adr/0008-neil-creates-managed-roles.md)): Neil's role needs **Manage Roles** and
-**Manage Nicknames**, and must sit **above** the Managed Roles (Alliance tags, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`)
+**Manage Nicknames**, and must sit **above** the Managed Roles (Alliance roles, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`)
 and **below** the Moderator and King roles. Neil creates missing Managed Roles itself, without permissions; never
 give a role with such a name any permissions (Neil then refuses to use it). Neil cannot rename the server owner.
 

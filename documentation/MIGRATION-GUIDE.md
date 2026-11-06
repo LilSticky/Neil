@@ -43,10 +43,13 @@ Each is a private thread, so expect a wave of them.
 Restart Neil. Check `#neil-log`: one line gives the `Doctor` and `Onboarding` counts. Do they match the Members you expect?
 Don't go on until they do.
 
-## 5. Create the missing roles
+## 5. Prepare the layout file
 
-Create every role the Server Layout uses that doesn't exist yet, with **no permissions** and **below** Neil. Check that Home
-Kingdom Members hold `#<Home Kingdom>`: nearly every channel will depend on it.
+Edit `server-layout.json` so its names match what you already have: the script finds roles, categories and channels by exact
+name, and creates whatever it doesn't find. A channel with another name stays outside the layout.
+
+Wait for one Daily Sync after deploying slices 020 and 021: Alliance roles become `[NML]` only then, and Guests lose their
+Preference Roles only then.
 
 Delete the `Trading` role if your server has it: Recruitment replaced that Interest, and Neil no longer uses the role. If a
 channel is already set on `Trading`, set it on `Recruitment` first, or it goes dark for those Members.
@@ -54,29 +57,34 @@ channel is already set on `Trading`, set it on `Recruitment` first, or it goes d
 If your server already has a role named `Recruitment`, rename it before the deploy. Neil treats that name as a Preference
 Role and takes it off anyone who hasn't chosen the Interest at the Daily Sync.
 
-## 6. Move one category at a time
+Check that Home Kingdom Members hold `#<Home Kingdom>`: nearly every channel will depend on it.
 
-For each category in the Server Layout:
+## 6. Run the setup script on the announced date
 
-1. Allow the role that should see it, and any bot that needs it.
-2. Only then deny **@everyone** View Channel.
-3. Click **Sync Now** on channels that aren't synced.
-4. Check with **View Server As Role**, then go on to the next.
+*Whoever runs Neil*, with `DISCORD_TOKEN`, `DISCORD_GUILD_ID` and `HOME_KINGDOM` in `.env`. Neil may stay online.
 
-Start with what newcomers and Guests must not see. Set the special cases on the channels themselves
-([SERVER-SETUP.md §3](SERVER-SETUP.md#3-the-server-layout)).
+1. `npm run server:setup` changes nothing. Read all of it, days before the date if you can: it lists what it would create, what it
+   would correct, what is outside the layout, and any role it won't use.
+2. ⚠️ **Every channel it warns about is hidden from @everyone at once by the real run.** There is no second step, so the real run
+   is your cutover: make it on the announced date, and not before.
+3. The server owner gives Neil's role **Administrator** for the run (ADR 12).
+4. `npm run server:setup -- --apply`.
+5. 🔴 **Take Administrator off Neil's role straight away.**
+6. Check with **View Server As Role**: `Onboarding` alone, **Doctor** alone, then **Doctor** plus `#<Home Kingdom>`.
 
-If you're moving channels off `Doctor`, allow `#<Home Kingdom>` **first**, then remove `Doctor`. Guests keep only the Guest area.
+The script keeps the overwrites you made and only adds or corrects the permissions the layout names. So if a channel still
+allows `Doctor`, Guests keep seeing it: the report lists it as an extra overwrite. Remove those yourself. It also doesn't
+move a channel that sits in another category; the report says where it is.
 
 ## 7. Hide what isn't in the layout
 
-Don't delete channels that aren't in the Server Layout. Deny **@everyone** View Channel, allow `#<Home Kingdom>`, keep the
+The script only reports these channels and never changes them. Don't delete them. Deny **@everyone** View Channel, allow `#<Home Kingdom>`, keep the
 overwrites they already have, and note them in a list for your Officers. If a channel is for Guests too, move it to the Guest area.
 
 ## 8. Gate the Preference channels last
 
-Language channels come after everything else, once Members have had time to use `/channels`. Wait for one Daily Sync after
-deploying slice 021: it takes the Preference Roles off the Guests who still hold them.
+The script creates a chat for each language, and an existing language channel is hidden by the real run. If Members need more
+time to use `/channels`, take that language out of `server-layout.json` until they've had it, and run the script again later.
 
 ## 9. Set the commands
 
@@ -85,6 +93,6 @@ sitting as turning off **All Channels**, or newcomers lose it.
 
 ## 10. Test, and keep the way back
 
-- With an account that isn't an Administrator, run [the startup guide's test](STARTUP-GUIDE.md#9-test-it).
+- With an account that isn't an Administrator, run [the startup guide's test](STARTUP-GUIDE.md#8-test-it).
 - **View Server As Role**: `Onboarding` alone, **Doctor** alone, then **Doctor** plus `#<Home Kingdom>`.
 - If a category went wrong, removing its @everyone ❌ brings it back at once.

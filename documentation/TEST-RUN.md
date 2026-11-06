@@ -327,6 +327,22 @@ Branch `022-choose-recruitment-instead-of-trading`. Deploy and Restart first. No
 | 6p.2 | Choose Recruitment | The `Recruitment` role, and the Recruitment channel once it is gated | | |
 | 6p.3 | Clear Recruitment | The role comes off | | |
 
+## 6q. Set up the server (slice 020, collected 2026-11-06)
+
+On the test server, with its token and ID in `.env`. Neil needs a role there first ([STARTUP-GUIDE.md](STARTUP-GUIDE.md) step 2).
+
+| # | Step | Expected | Result |
+|---|------|----------|--------|
+| 6q.1 | `npm run server:setup` | Lists everything to create; the server is unchanged | |
+| 6q.2 | `npm run server:setup -- --apply` without Administrator | Refused; nothing changes | |
+| 6q.3 | Give Neil's role Administrator, run again with `--apply` | The layout appears; forums and announcements are text channels if Community is off | |
+| 6q.4 | Run it again | `Nothing to do.` | |
+| 6q.5 | Add a role `[TST]`, an unknown channel and an extra overwrite on `#general`, run again | `[TST]` gets an area; the other two are reported and unchanged | |
+| 6q.6 | Take Administrator off, drag Moderator and King above Neil, set the printed IDs, start Neil | Neil starts | |
+| 6q.7 | **View Server As Role** | **Onboarding** sees `#onboarding` only; **Doctor** alone sees the Guest area only | |
+| 6q.8 | A Linked Member with a plain `NML` role, after the Daily Sync | The same role, named `[NML]`, still held | |
+| 6q.9 | With Community on, if you can | Forums and announcement channels are created as such | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

@@ -566,6 +566,9 @@ describe("runSetup", () => {
     const byHand = indexWhere(report, (line) => /Integrations/.test(line));
     expect(exitCode).toBe(0);
     expect(byHand).toBeGreaterThan(ids);
+    expect(report).toMatch(/Server Members Intent and Presence Intent/);
+    expect(report).toMatch(/Community/);
+    expect(report).toMatch(/limit commands to their channels/);
     expect(lastLine(report)).toBe(LAST_LINE);
   });
 
@@ -733,5 +736,160 @@ describe("the shipped server-layout.json", () => {
     const voice = groupNamed(expanded, "Kingdom vs Kingdom").channels.filter((channel) => channel.type === "voice");
 
     expect(voice).toHaveLength(6);
+  });
+});
+
+const COMMUNITY = ["COMMUNITY"];
+const NO_FEATURES: string[] = [];
+
+/** A small layout: a Hangout with a text, a forum and an announcement, an Officers area, and an Alliance area. */
+const SMALL_LAYOUT: ServerLayout = {
+  roles: ["Moderator", "King", "R5", KINGDOM_ROLE],
+  externalRoles: [],
+  languages: ["English"],
+  categories: [
+    {
+      name: "Hangout",
+      seenBy: [KINGDOM_ROLE],
+      channels: [
+        { name: "general", type: "text", seenBy: ["R5"] },
+        { name: "tactics", type: "forum", seenBy: ["R5"] },
+        { name: "news", type: "announcement", mode: "only-king-posts" },
+      ],
+    },
+    {
+      name: "Officers",
+      seenBy: ["Moderator", "King"],
+      channels: [{ name: "neil-log", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } } }],
+    },
+  ],
+  allianceArea: { channels: [{ name: "alliance-chat", type: "text" }, { name: "alliance-voice", type: "voice" }] },
+};
+
+/** The ids of the targets an overwrite list lets see its channel. */
+function viewerIds(overwrites: readonly { targetId: string; allow: bigint }[]): string[] {
+  return overwrites.filter((overwrite) => (overwrite.allow & VIEW) !== 0n).map((overwrite) => overwrite.targetId);
+}
+
+describe("running the setup again", () => {
+  test.each([
+    { label: "with Community", features: COMMUNITY },
+    { label: "without Community", features: NO_FEATURES },
+  ])("plans no steps after a real run of the shipped layout on an empty server, $label", async ({ features }) => {
+    const server = new FakeSetupServer({ features });
+    const first = await planFor(shippedLayout(), server);
+    expect(first.steps.length).toBeGreaterThan(0);
+
+    const outcomes = await applySetup(first, server);
+
+    expect(outcomes.filter((outcome) => outcome.status === "failed")).toEqual([]);
+    expect((await planFor(shippedLayout(), server)).steps).toEqual([]);
+  });
+
+  test.each([
+    { label: "with Community", features: COMMUNITY },
+    { label: "without Community", features: NO_FEATURES },
+  ])("plans no steps after a real run of a small layout on an empty server, $label", async ({ features }) => {
+    const server = new FakeSetupServer({ features });
+    const first = await planFor(SMALL_LAYOUT, server);
+    expect(first.steps.length).toBeGreaterThan(0);
+
+    await applySetup(first, server);
+
+    expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
+  });
+
+  test("without Community, creates a forum and an announcement as text, and plans nothing for them on the next run", async () => {
+    const server = new FakeSetupServer({ features: NO_FEATURES });
+    const first = await planFor(SMALL_LAYOUT, server);
+    expect(first.findings.map((finding) => finding.kind)).toContain("fallback-to-text");
+
+    await applySetup(first, server);
+
+    expect(server.findChannel("tactics")?.kind).toBe("text");
+    expect(server.findChannel("news")?.kind).toBe("text");
+    expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
+  });
+
+  test("gives an Alliance role added later only its area: a category seen by it alone, with text and voice", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    await applySetup(await planFor(SMALL_LAYOUT, server), server);
+    const abc = server.defineRole("[ABC]", { position: 2 });
+
+    const plan = await planFor(SMALL_LAYOUT, server);
+    expect(plan.steps.map((step) => step.kind)).toEqual(["create-category", "create-channel", "create-channel"]);
+    expect(plan.steps.map((step) => step.name)).toEqual(["[ABC]", "alliance-chat", "alliance-voice"]);
+
+    await applySetup(plan, server);
+
+    expect(viewerIds(server.findChannel("[ABC]")?.overwrites ?? [])).toEqual([abc]);
+    expect(viewerIds(server.findChannel("alliance-chat")?.overwrites ?? [])).toEqual([abc]);
+    expect(viewerIds(server.findChannel("alliance-voice")?.overwrites ?? [])).toEqual([abc]);
+    expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
+  });
+
+  test("keeps an extra overwrite on a layout channel, and an unrelated permission inside a corrected overwrite", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    const r5 = server.defineRole("R5");
+    const veteran = server.defineRole("Veteran");
+    const hangout = server.defineChannel("Hangout", { kind: "category" });
+    server.defineChannel("general", {
+      kind: "text",
+      parentId: hangout,
+      overwrites: [
+        { targetId: server.guildId, allow: 0n, deny: VIEW },
+        { targetId: r5, allow: MANAGE_MESSAGES, deny: 0n },
+        { targetId: veteran, allow: SEND, deny: 0n },
+      ],
+    });
+    const first = await planFor(SMALL_LAYOUT, server);
+    expect(first.findings).toContainEqual({ kind: "extra-overwrite", name: "general", target: "Veteran" });
+
+    await applySetup(first, server);
+
+    const general = server.findChannel("general");
+    expect(general?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual({ targetId: r5, allow: MANAGE_MESSAGES | VIEW, deny: 0n });
+    expect(general?.overwrites.find((overwrite) => overwrite.targetId === veteran)).toEqual({ targetId: veteran, allow: SEND, deny: 0n });
+    const second = await planFor(SMALL_LAYOUT, server);
+    expect(second.steps).toEqual([]);
+    expect(second.findings).toContainEqual({ kind: "extra-overwrite", name: "general", target: "Veteran" });
+  });
+
+  test("never writes a channel outside the layout, and reports it on every run", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    const hangout = server.defineChannel("Hangout", { kind: "category" });
+    const oldChat = server.defineChannel("old-chat", {
+      kind: "text",
+      parentId: hangout,
+      overwrites: [{ targetId: server.guildId, allow: SEND, deny: 0n }],
+    });
+    const first = await planFor(SMALL_LAYOUT, server);
+    expect(first.findings).toContainEqual({ kind: "outside-layout", name: "old-chat" });
+
+    await applySetup(first, server);
+
+    const second = await planFor(SMALL_LAYOUT, server);
+    expect(second.findings).toContainEqual({ kind: "outside-layout", name: "old-chat" });
+    expect(server.writes.filter((write) => write.op === "edit-overwrites" && write.channelId === oldChat)).toEqual([]);
+    expect(server.findChannel("old-chat")?.overwrites).toEqual([{ targetId: server.guildId, allow: SEND, deny: 0n }]);
+  });
+
+  test("after one failed write, a second run finishes the work and plans nothing", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    server.failWrite("create-channel", "general", new Error("Discord refused"));
+    const first = await planFor(SMALL_LAYOUT, server);
+
+    const firstOutcomes = await applySetup(first, server);
+
+    expect(firstOutcomes.filter((outcome) => outcome.status === "failed").map((outcome) => outcome.step.name)).toEqual(["general"]);
+    server.clearFailures();
+    const second = await planFor(SMALL_LAYOUT, server);
+    expect(second.steps.map((step) => step.name)).toEqual(["general"]);
+
+    const secondOutcomes = await applySetup(second, server);
+
+    expect(secondOutcomes.filter((outcome) => outcome.status === "failed")).toEqual([]);
+    expect(server.findChannel("general")).toBeDefined();
+    expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
   });
 });
