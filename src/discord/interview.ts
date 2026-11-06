@@ -864,8 +864,7 @@ async function sendLinkNote(deps: InterviewDeps, memberId: MemberId): Promise<vo
 /** Posts the Preferences message after a Link; a failure is logged, never thrown. True when the message is posted. */
 async function postPreferencesAfterLink(deps: InterviewDeps, interview: AwaitingConfirmation, link: Link): Promise<boolean> {
   try {
-    await deps.preferences.postAfterLink(interview.memberId, interview.threadId, interview.player, link.allianceRank);
-    return true;
+    return await deps.preferences.postAfterLink(interview.memberId, interview.threadId, interview.player, link.allianceRank);
   } catch (error) {
     deps.logError(`Posting the Preferences message after a Link failed: ${errorText(error)}`);
     return false;

@@ -19,10 +19,10 @@
 
 **Independent Test**: a Link to a Player of another Kingdom posts no message and stores nothing.
 
-- [ ] T003 [US1] `postAfterLink` in `src/discord/preferences-after-link.ts` posts nothing and stores nothing for a Player outside the Home Kingdom, and reports whether it posted; update `src/discord/__fakes__/preferences-after-link.ts` (FR-001)
-- [ ] T004 [US1] `finishLink` in `src/discord/interview.ts` deletes the thread when nothing was posted and no Rank Approval is pending (FR-003)
-- [ ] T005 [P] [US1] `finishOfficerLink` in `src/discord/corrections.ts` sends no `/channels` note for a Player outside the Home Kingdom (FR-002)
-- [ ] T006 [US1] Add the refusal to `src/discord/preferences-texts.ts`, exactly as in the contract, and answer a known Guest's `/channels` with it in `src/discord/preferences-choices.ts` (FR-008)
+- [x] T003 [US1] `postAfterLink` in `src/discord/preferences-after-link.ts` posts nothing and stores nothing for a Player outside the Home Kingdom, and reports whether it posted; update `src/discord/__fakes__/preferences-after-link.ts` (FR-001)
+- [x] T004 [US1] `finishLink` in `src/discord/interview.ts` deletes the thread when nothing was posted and no Rank Approval is pending (FR-003)
+- [x] T005 [P] [US1] `finishOfficerLink` in `src/discord/corrections.ts` sends no `/channels` note for a Player outside the Home Kingdom (FR-002)
+- [x] T006 [US1] Add the refusal to `src/discord/preferences-texts.ts`, exactly as in the contract, and answer a known Guest's `/channels` with it in `src/discord/preferences-choices.ts` (FR-008)
 
 ## Phase 4: User Story 2 - A Guest holds no Preference Roles (P1)
 
