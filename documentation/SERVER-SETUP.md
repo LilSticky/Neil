@@ -113,8 +113,8 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Onboarding | `#onboarding` | Onboarding, Moderator, King, `R5` | 🔴 |
 | Officers | `#neil-log`, Moderator channel | Moderator, King | 🔴 for the log; 🟡 for the Moderator channel |
 | Basic information | `#rules`, `#welcome` (read only) | Kingdom | 🟡 |
-| Home Kingdom | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server) and your other Home Kingdom channels | Kingdom | 🟡 |
-| Hangout | `#general`, voice, `#alliance-hall` (commands) | Kingdom | 🟡 |
+| Home Kingdom | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#news` (read only, follows the official server), and your other Home Kingdom channels | Kingdom | 🟡 |
+| Hangout | `#general`, voice, `#alliance-hall` (commands), `#suggestions` | Kingdom | 🟡 |
 | Guest area | guest rules (read only), text, voice, announcements for everyone (only King posts) | Doctor | 🟡 |
 | NaP | closed discussion | NaP discussions, King | 🟡 |
 | | closed leaders' channel | `R5`, King | 🟡 |

@@ -154,6 +154,11 @@
               ]
             }
           }
+        },
+        {
+          "name": "news",
+          "type": "text",
+          "mode": "read-only"
         }
       ]
     },
@@ -173,6 +178,10 @@
         },
         {
           "name": "alliance-hall",
+          "type": "text"
+        },
+        {
+          "name": "suggestions",
           "type": "text"
         }
       ]
