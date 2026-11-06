@@ -28,7 +28,7 @@ thread closes as for any Link with no Rank Approval waiting.
 **Why this priority**: it is the whole slice. A Guest's rank gives no role, and the leader asked often can't open the thread, so
 the question only keeps a thread open.
 
-**Independent Test**: automated: a Link of a Player outside the Home Kingdom with no rank stores no Rank Approval, pings nobody
+**Independent Test**: automated: a Link of a Player outside the Home Kingdom with no rank stores no Rank Approval, asks nobody
 and deletes the thread.
 
 **Acceptance Scenarios**:
@@ -46,6 +46,7 @@ and deletes the thread.
 
 - A Guest whose rank the game lists: nothing changes, no Rank Approval was needed.
 - A Guest who later moves to the Home Kingdom with no rank in the game: Neil doesn't ask; an Officer uses `/rank`.
+- The `#neil-log` line still names the Alliance's leader when they are Linked, as for any Link; that is not a Rank Approval.
 - A Rank Approval already pending when its Member becomes a Guest: it stays and ends as any other. Nothing cancels it.
 
 ## Requirements *(mandatory)*

@@ -241,7 +241,7 @@ discovery.
 * A Member still on the server also loses their Managed Roles and the nickname Neil gave them
 
 ## Rank Approval
-* The confirmation of a Linked Player's Alliance Rank by hand, when the Game API lists no rank for them
+* The confirmation of a Home Kingdom Member's Alliance Rank by hand, when the Game API lists no rank for them; a Guest is not asked about
 * Given by the Member Linked to the Alliance's R5; if there is none, by an Officer; never by the Linked Member themselves
 * An Officer may also give one at any time for a Linked Player in an Alliance; it replaces an earlier approved rank, and a rank from the Game API still replaces it
 * Goes to the Officers when the chosen Member leaves

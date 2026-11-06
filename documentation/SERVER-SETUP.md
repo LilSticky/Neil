@@ -35,7 +35,7 @@ nickname and roles matching the game.
 | **Daily Sync** | Neil | Once a day (03:00 UTC by default) Neil re-reads the game and updates nicknames and roles. |
 | **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the Server Layout) lets them see only `#onboarding`. |
 | **Doctor Role** | Neil | Every Linked Member, Guests included, holds the `Doctor` role. It shows the Guest area. |
-| **Rank Approval** | the Alliance's R5, or an Officer | When the game lists no rank for a new Member, Neil asks their Alliance's R5 in a private thread to confirm it. |
+| **Rank Approval** | the Alliance's R5, or an Officer | When the game lists no rank for a new Home Kingdom Member, Neil asks their Alliance's R5 in a private thread to confirm it. Guests aren't asked about; an Officer can still use `/rank`. |
 | **Say goodbye** | Neil | A Linked Member who leaves the server is Unlinked, and the Officers are told in the log. |
 | **Look up** | any Member | `/player` (by name or uid) and `/alliance` (by name or tag, with suggestions as you type) show profile cards. The Alliance card has a button for an activity overview. Each Member's lookups stop at a Daily Allowance. `/usage` shows a Member's own use. |
 | **Correct a Link** | Officers, and Members for themselves | `/unlink` (Members: yourself; Officers: anyone), `/rank` (Officers set an Alliance Rank), `/link` (Officers Link a Member whose Interview was handed off). |
@@ -273,7 +273,7 @@ check section 5 for any new command.
 | A Guest sees a Home Kingdom channel | that channel allows **Doctor** or a Preference Role | allow `#<Home Kingdom>` instead; see section 3 |
 | `/player` isn't offered in a channel | section 5 limits it | use `#alliance-hall`, or add the channel |
 | A newcomer can't use `/interview` | section 5 doesn't include `#onboarding` | add `#onboarding` for `/interview` |
-| An R5 can't open a Rank Approval thread | `R5` lacks a permission in `#onboarding`, or the leader is a Guest and holds no `R5` | section 4; for a Guest, an Officer uses `/rank` |
+| An R5 can't open a Rank Approval thread | `R5` lacks a permission in `#onboarding` | section 4 |
 | Translations stop in an announcement channel | Interaction Bot lost its allow | section 3, special cases |
 | Officers don't see `/quota`, `/rank`, `/link` | Integrations isn't set | section 5 |
 | The setup script refuses a real run | Neil's role lacks Administrator, or Neil has no role | give it for the run, then take it off |
