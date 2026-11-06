@@ -1,113 +1,94 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Onboarding in steps
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
-
-**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
-
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
+**Branch**: `025-onboarding-in-steps` | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md) | **Issue**: [#73](https://github.com/LilSticky/Neil/issues/73)
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+Replace the four-menu Preferences message with four steps shown one at a time, in the Interview thread after the Link and with
+`/channels`. The thread stays open until the Member finishes or the Interview times out. Rewrite the Interview's main texts in the
+Liaison voice. No new storage, command or role.
+
+Research and contracts are short, so they live here, as in recent slices. There is no data model change.
 
 ## Technical Context
 
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
+**Language/Version**: TypeScript, strict, Node (as the repository)
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]
+**Primary Dependencies**: discord.js
 
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]
+**Storage**: none new; stored Preferences and the existing Preferences prompt are the only record, no migration
 
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
+**Testing**: Vitest, with fakes at the Discord boundary
 
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]
+**Target Platform**: Wispbyte (ADR 6)
 
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: Discord bot
 
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]
+**Constraints**: message content up to 2000 characters; select option description up to 100; custom id up to 100
 
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]
-
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]
-
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Scale/Scope**: 2 text modules, 1 handler
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+- I. Domain language: no dictionary change; "step" is a plain word here. Pass.
+- II. TDD: every task below starts with a failing test. Pass.
+- III. Framework-free domain: step order is a pure list in `src/domain/preferences.ts`. Pass.
+- IV. Game API: no new call; the steps read stored data only. Pass.
+- V. Least privilege: no new permission, role or intent. Pass.
+- VI. Status and docs: STATUS, ROADMAP and TEST-RUN are updated. Pass.
 
-[Gates determined based on constitution file]
+## Decisions
+
+### D1. Steps hold no state
+
+The step lives in the custom id, the answers in the store. An old button shows that step from stored answers, so nothing goes stale.
+Rejected: a stored current step, which would need a migration.
+
+### D2. Custom ids
+
+Select menus keep `pref:{question}:{memberId}`. A new button form `pref:go:{step}:{memberId}` shows a step, used by Next, Skip and
+Back. `pref:done:{memberId}` stays. A select press re-renders the same step.
+
+### D3. Next and Skip are one button
+
+A step shows **Skip** while its question is unanswered and **Next** once answered; both go to the next step and change nothing. The
+last step shows **Done** instead. Back is on every step but the first.
+
+### D4. The thread stays open
+
+The existing Preferences prompt already keeps the thread until Done or the sweeper's timeout, and already defers to a pending Rank
+Approval. The steps reuse it. Slice 024 was changed at the user's word so that this stays, and owns how the Member keeps sight of
+the thread once Linked (#66). Rebase on it before Phase B and re-read this decision.
+
+### D5. Explanations live in the adapter
+
+Interest explanations are Discord text, so they go in `preferences-texts.ts`, as option descriptions of at most 100 characters.
+Who is offered what stays in `interestOptions`.
+
+### D6. Interview texts
+
+`LINK_NOTE` stays for lookups. Only the texts in FR-012 change; buttons, custom ids, pings and log lines do not. Existing tests that
+match exact wording are updated with the text.
 
 ## Project Structure
 
-### Documentation (this feature)
-
 ```text
-specs/[###-feature]/
-├── plan.md              # This file (/speckit-plan command output)
-├── research.md          # Phase 0 output (/speckit-plan command)
-├── data-model.md        # Phase 1 output (/speckit-plan command)
-├── quickstart.md        # Phase 1 output (/speckit-plan command)
-├── contracts/           # Phase 1 output (/speckit-plan command)
-└── tasks.md             # Phase 2 output (/speckit-tasks command - NOT created by /speckit-plan)
+src/domain/preferences.ts             # step order, next and previous step
+src/discord/preferences-texts.ts      # step messages, finishing message
+src/discord/preferences-choices.ts    # go press, select press re-renders its step, /channels starts at Languages
+src/discord/preferences-after-link.ts # posts the Languages step
+src/discord/interview-texts.ts        # Liaison voice (independent of slice 024)
 ```
 
-### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
+## Order
 
-```text
-# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
-src/
-├── models/
-├── services/
-├── cli/
-└── lib/
+Phase A (now, on this branch): Interview texts. Phase B (after slice 024 merges and this branch is rebased): everything else.
 
-tests/
-├── contract/
-├── integration/
-└── unit/
+## Validation
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
-backend/
-├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
-└── tests/
-
-frontend/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   └── services/
-└── tests/
-
-# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
-api/
-└── [same as backend above]
-
-ios/ or android/
-└── [platform-specific structure: feature modules, UI flows, platform tests]
-```
-
-**Structure Decision**: [Document the selected structure and reference the real
-directories captured above]
+Automated: `npm run test`, `npm run lint`, `npm run typecheck`. Manual: a new TEST-RUN.md section: Link on the test server, walk the
+steps in the thread, let a second Member time out, then run `/channels`.
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check has violations that must be justified**
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+None.

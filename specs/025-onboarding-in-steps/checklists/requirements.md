@@ -31,4 +31,4 @@
 
 ## Notes
 
-- `channelsNoteMessage` in Assumptions names slice 024's message, for traceability only.
+- Corrected on 2026-11-06: steps run in the Interview thread, with no private message button.
