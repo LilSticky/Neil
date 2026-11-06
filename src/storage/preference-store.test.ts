@@ -73,9 +73,19 @@ describe("createPreferenceStore", () => {
     const store = createPreferenceStore(db);
 
     store.setInterests(ALICE, interests("pvp", "events"));
-    store.setInterests(ALICE, interests("trading"));
+    store.setInterests(ALICE, interests("recruitment"));
 
-    expect(store.get(ALICE).interests).toEqual(interests("trading"));
+    expect(store.get(ALICE).interests).toEqual(interests("recruitment"));
+  });
+
+  test("a stored Trading interest is dropped from get and reported through onInvalid", () => {
+    const onInvalid = vi.fn<(line: string) => void>();
+    const store = createPreferenceStore(db, onInvalid);
+    db.prepare("INSERT INTO preference (member_id, kind, value) VALUES (?, ?, ?)").run(ALICE, "interest", "trading");
+
+    expect(store.get(ALICE).interests).toEqual(interests());
+    expect(onInvalid).toHaveBeenCalledTimes(1);
+    expect(onInvalid).toHaveBeenCalledWith(expect.stringContaining("trading"));
   });
 
   test("setExperience stores the Experience, replaces it, and undefined clears it", () => {

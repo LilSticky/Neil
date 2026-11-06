@@ -212,6 +212,11 @@ discovery.
 * Offered only to a Member Linked to an R4; a Member Linked to an R5 gets it without asking; anyone else loses it
 * Other Members see only the NaP publications
 
+## Recruitment
+* The Interest for talking about recruiting Players to the Kingdom's Alliances
+* Shows the Recruitment channel
+* Offered to every Home Kingdom Member
+
 ## Link
 * The confirmed pairing of one Member and one Player, made from In-game Proof and the Member's confirmation ("that's me"), or as an Officer Link
 * A Member has at most one Link, and a Player at most one

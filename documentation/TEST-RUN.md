@@ -317,6 +317,16 @@ Branch `021-keep-preferences-within-the-home-kingdom`. Deploy and Restart first.
 | 6o.3 | Give that Guest a Preference Role by hand, then wait for the Daily Sync | The role is gone; `#neil-log` has one line | | |
 | 6o.4 | Link a test account to a Player in the Home Kingdom | The Preferences message and the roles, as before | | |
 
+## 6p. Choose Recruitment instead of Trading (slice 022, collected 2026-11-06)
+
+Branch `022-choose-recruitment-instead-of-trading`. Deploy and Restart first. No commands to register. Run only the Wispbyte Neil.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6p.1 | Run `/channels` as a Home Kingdom Member | Interests offer Recruitment, not Trading | | |
+| 6p.2 | Choose Recruitment | The `Recruitment` role, and the Recruitment channel once it is gated | | |
+| 6p.3 | Clear Recruitment | The role comes off | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

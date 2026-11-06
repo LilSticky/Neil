@@ -66,7 +66,7 @@ export const REGIONS: readonly Region[] = [
 ];
 
 /** The key of an Interest, as stored in a Preference. `nap` is offered to R4 only and given to R5 (plan R3, R5). */
-export type InterestKey = "pvp" | "events" | "trading" | "off-topic" | "nap";
+export type InterestKey = "pvp" | "events" | "recruitment" | "off-topic" | "nap";
 
 /** An Interest a Member can choose: its key and the Preference Role it gives. */
 export interface Interest {
@@ -78,7 +78,7 @@ export interface Interest {
 export const INTERESTS: readonly Interest[] = [
   { key: "pvp", roleName: "PvP" },
   { key: "events", roleName: "Events" },
-  { key: "trading", roleName: "Trading" },
+  { key: "recruitment", roleName: "Recruitment" },
   { key: "off-topic", roleName: "Off-topic" },
   { key: "nap", roleName: "NaP discussions" },
 ];

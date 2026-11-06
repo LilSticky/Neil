@@ -66,7 +66,7 @@ nickname and roles matching the game.
 | `R1`–`R5` | Neil, when first needed, or you | automatic | Alliance Rank, for Home Kingdom Alliances only. |
 | `#330`, `#331`, … | Neil, when first needed, or you | automatic | The Kingdom a Member's Player is in. `#<Home Kingdom>` shows nearly everything. |
 | `T1`–`T10` | Neil, when first needed | automatic | Troop Bracket. |
-| **Preference Roles**: languages (e.g. `Italian`), `Americas`, `Europe/Africa`, `Asia/Oceania`, `PvP`, `Events`, `Trading`, `Off-topic`, `NaP discussions`, `New`, `Intermediate`, `Veteran` | Neil, when first chosen, or you | automatic | Given by the Member's choices. Regions, `New` and `Intermediate` show no channel. |
+| **Preference Roles**: languages (e.g. `Italian`), `Americas`, `Europe/Africa`, `Asia/Oceania`, `PvP`, `Events`, `Recruitment`, `Off-topic`, `NaP discussions`, `New`, `Intermediate`, `Veteran` | Neil, when first chosen, or you | automatic | Given by the Member's choices. Regions, `New` and `Intermediate` show no channel. |
 
 🔴 **Requirement: never give a permission to a role Neil uses.** Neil creates them with no permissions, and refuses to use
 a role with one of these names that has any. A permission-free role you make with such a name **becomes Neil's**: it finds
@@ -120,7 +120,7 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | PvP | chat, voice, intel (Members use `/player`, `/alliance`, `/reaper` here), tactics forum | PvP | 🟡 |
 | Events | event chat, event announcements, ask for help, guides forum | Events | 🟡 |
 | AD, KvK | a group each; channels still to be decided | Kingdom | 🟡 |
-| Recruitment | one text channel | `Trading` until the Recruitment Interest replaces it | 🟡 |
+| Recruitment | one text channel | Recruitment | 🟡 |
 | Off-topic | off-topic, memes | Off-topic | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
 
@@ -137,10 +137,6 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 - **No Community on your server?** Forums and announcement channels may need it. Use plain text channels instead; the
   permissions above stay the same.
 - **Guest area, no commands:** nothing to set here. Section 5 limits every command to other channels, and Guests see none of them.
-
-Today's limit, with its own slice:
-
-- `Trading` still exists as an Interest; [issue #65](https://github.com/LilSticky/Neil/issues/65) replaces it with Recruitment.
 
 ---
 

@@ -7,6 +7,10 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 022, Choose Recruitment instead of Trading ([specs](../specs/022-choose-recruitment-instead-of-trading/), issue
+[#65](https://github.com/LilSticky/Neil/issues/65)): Recruitment replaces Trading as an Interest, in the same place in the menu. No migration: nobody holds Trading, and the user deletes the role by hand (the user's decisions).
+Merged to `main` with T001–T008 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6p, T009) needs the deploy, so Definition of Done 2 is open.
+
 Slice 021, Keep Preferences within the Home Kingdom ([specs](../specs/021-keep-preferences-within-the-home-kingdom/), issue
 [#64](https://github.com/LilSticky/Neil/issues/64)): a Guest gets no Preferences message and no Preference Roles, and `/channels` refuses them privately. Guests lose the roles at the Daily Sync and keep their stored Preferences until the Unlink (the user's decisions). No migration, no new command.
 Merged to `main` with T001–T016 and T018 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6o, T017) needs the deploy, so Definition of Done 2 is open.
@@ -46,17 +50,18 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** in a new session: slice 022, Choose Recruitment instead of Trading (issue [#65](https://github.com/LilSticky/Neil/issues/65)). Then slice 020, the setup script ([#62](https://github.com/LilSticky/Neil/issues/62)), whose rights are still to be decided (discovery Q6).
+**Next step:** in a new session: slice 020, the setup script ([#62](https://github.com/LilSticky/Neil/issues/62)), whose rights are still to be decided (discovery Q6).
 
-For the user, still open: deploy slice 021 and let one Daily Sync run before gating channels on Preference Roles, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), explaining AD and KvK, then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n and §6o.
+For the user, still open: deploy slices 021 and 022 and let one Daily Sync run before gating channels on Preference Roles, delete the `Trading` role, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), explaining AD and KvK, then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n, §6o and §6p.
 Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Presence Intent, Linked the Members there, restarted and registered the commands.
 Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 
 ## Known broken / WIP
 
+- `npm run test` can time out at 5 seconds in unrelated tests when two runs overlap; alone it is green (seen in slice 022).
 - Preferences may be invisible once `#onboarding` is hidden: untested, issue [#66](https://github.com/LilSticky/Neil/issues/66). A Guest leader can't open a Rank Approval thread: issue [#67](https://github.com/LilSticky/Neil/issues/67).
 - Until slice 021 is deployed and one Daily Sync has run, Guests can hold Preference Roles, so don't gate channels on them.
-- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o).
+- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).

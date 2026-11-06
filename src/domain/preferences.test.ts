@@ -70,11 +70,11 @@ describe("REGIONS, INTERESTS and EXPERIENCES", () => {
     expect(REGIONS.map((region) => region.roleName)).toEqual(["Americas", "Europe/Africa", "Asia/Oceania"]);
   });
 
-  test("INTERESTS are PvP, Events, Trading, Off-topic and NaP discussions", () => {
+  test("INTERESTS are PvP, Events, Recruitment, Off-topic and NaP discussions", () => {
     expect(INTERESTS).toEqual([
       { key: "pvp", roleName: "PvP" },
       { key: "events", roleName: "Events" },
-      { key: "trading", roleName: "Trading" },
+      { key: "recruitment", roleName: "Recruitment" },
       { key: "off-topic", roleName: "Off-topic" },
       { key: "nap", roleName: NAP_ROLE },
     ]);
@@ -198,6 +198,10 @@ describe("ALL_PREFERENCE_ROLE_NAMES", () => {
         ...EXPERIENCES.map((experience) => experience.roleName),
       ]),
     );
+  });
+
+  test("holds no Trading role name, since Trading is replaced by Recruitment", () => {
+    expect(ALL_PREFERENCE_ROLE_NAMES).not.toContain("Trading");
   });
 
   test("holds no name that is a Managed Role name for any Alliance tag", () => {
