@@ -416,6 +416,23 @@ ID and `HOME_KINGDOM` in `.env`.
 | 6v.9 | Delete Neil's pinned message in one channel, run with `--apply` | It is posted and pinned again | |
 | 6v.10 | Without Community, look at `guides`, `nap-forum` and the three tactics channels | Real forums, each with its topic as the post guidelines; announcement channels are text | |
 
+## 6w. Onboarding in steps (slice 025, collected 2026-11-07)
+
+Branch `025-onboarding-in-steps`. No new commands, no migration. Run after 6v, on its layout. You need two Home Kingdom test accounts and one Guest.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6w.1 | Join with a test account and read the Interview | Neil speaks as the alliance hall's Liaison, says why it needs the uid and what comes next; never a doctor | | |
+| 6w.2 | Link it | The thread stays and shows **Step 1 of 4: Languages**, one menu, the game Language preselected, **Skip** or **Next**, no **Back** | | |
+| 6w.3 | Pick a Language | Saved and the role given at once, a line in `#neil-log`, the same step shown again with **Next** | | |
+| 6w.4 | **Next** through Interests, Region and Experience; **Back** once | Each step one menu with its explanation; Region and Experience say they are optional; **Back** shows the earlier step with your answers | | |
+| 6w.5 | Press **Done** on Experience | The thread is deleted and `Onboarding` goes | | |
+| 6w.6 | Link the second account and touch nothing | At the Interview timeout the thread is deleted and `Onboarding` goes | | |
+| 6w.7 | Link the Guest | No steps; the thread closes as today | | |
+| 6w.8 | `/channels` in `#alliance-hall` as the first account | Private Languages step with stored answers; **Done** at the end gives the finishing message with `/channels` and, for New, the guides line | | |
+| 6w.9 | Press an old step button from 6w.4 after changing an answer with `/channels` | That step shows the current answers; nothing else changes | | |
+| 6w.10 | **View Server As Role** `Recruitment` and `#<Home Kingdom>` | `recruitment` and the three per-Region recruitment channels; `news` is visible even without any role | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

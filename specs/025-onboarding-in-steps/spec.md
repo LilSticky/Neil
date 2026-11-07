@@ -145,7 +145,10 @@ the buttons and the pings are unchanged.
 - **FR-014**: Error messages, refusals and log lines MUST stay as they are.
 - **FR-015**: Every text MUST fit Discord's limits, and use dictionary terms.
 - **FR-016**: The Recruitment category MUST hold one channel per Region beside the general one, all seen by the `Recruitment` role
-  (the user's decision; Discord cannot require a Region as well).
+  (the user's decision; Discord cannot require a Region as well). On 2026-11-07 the user chose this set over slice 029's
+  `looking-for-alliance` and `looking-for-players`, which it replaces.
+- **FR-017**: The Server Layout MUST hold `#news` (read only, seen by everyone, fed by a Follow of the game's official server) in
+  Basic information and `#suggestions` in Hangout, each with a description (the user's decisions, kept on 2026-11-07).
 
 ### Key Entities
 
