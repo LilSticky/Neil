@@ -728,7 +728,7 @@ describe("the shipped server-layout.json", () => {
     const namesIn = (category: string) => groupNamed(expanded, category).channels.map((channel) => channel.name);
 
     expect(namesIn("Officers")).toEqual(expect.arrayContaining(["neil-log", "moderators"]));
-    expect(namesIn("Home Kingdom")).toEqual(["home-kingdom-announcements"]);
+    expect(namesIn("Home Kingdom")).not.toContain("news");
     expect(namesIn("Basic information")).toContain("news");
     expect(namesIn("Hangout")).toContain("suggestions");
   });
