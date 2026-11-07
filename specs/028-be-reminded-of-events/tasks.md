@@ -28,8 +28,8 @@ Tasks in one phase run in order unless marked [P].
 
 ## Phase D: US3, Leaders set their Event Kinds (P2)
 
-- [ ] T013 [US3] `/event-kinds add|remove|list` in `src/discord/event-kinds.ts` and its texts: R4 or R5 for their Alliance, Officers for the kingdom, `list` option for both, private answers, refusals keep what was recorded, `add` replaces the same name, at most 25 (FR-009, US3 AS1–AS3, AS6, plan D9)
-- [ ] T014 [US3] Register `/event-kinds` in `src/discord/commands.ts` and `/help` (slice 027)
+- [x] T013 [US3] `/event-kinds add|remove|list` in `src/discord/event-kinds.ts` and its texts: R4 or R5 for their Alliance, Officers for the kingdom, `list` option for both, private answers, refusals keep what was recorded, `add` replaces the same name, at most 25 (FR-009, US3 AS1–AS3, AS6, plan D9)
+- [x] T014 [US3] Register `/event-kinds` in `src/discord/commands.ts` and `/help` (slice 027)
 
 ## Phase E: US4, A Member switches invitations off (P3)
 

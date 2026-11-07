@@ -348,12 +348,67 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty and /booty-alerts", () => {
+  test("hold /event-kinds, open to every Member (Alliance R4 and R5 use it too), guild only, with subcommands add (name, before-start, signup-deadline, before-signup, list), remove (name, list) and list (list), where list is kingdom or alliance", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "event-kinds",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "add",
+            options: [
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "name", required: true }),
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "before-start", required: true }),
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "signup-deadline", required: false }),
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "before-signup", required: false }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "list",
+                required: false,
+                choices: [expect.objectContaining({ value: "kingdom" }), expect.objectContaining({ value: "alliance" })],
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "remove",
+            options: [
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "name", required: true }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "list",
+                required: false,
+                choices: [expect.objectContaining({ value: "kingdom" }), expect.objectContaining({ value: "alliance" })],
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "list",
+            options: [
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "list",
+                required: false,
+                choices: [expect.objectContaining({ value: "kingdom" }), expect.objectContaining({ value: "alliance" })],
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts and /event-kinds", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "booty",
       "booty-alerts",
       "channels",
+      "event-kinds",
       "help",
       "interview",
       "link",
