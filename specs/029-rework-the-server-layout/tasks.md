@@ -95,12 +95,12 @@ None: the slice works in slice 020's modules.
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T018 [P] `documentation/SERVER-SETUP.md` §3: the new table (Hangout, Recruitment, Events voice, translated copies,
+- [x] T018 [P] `documentation/SERVER-SETUP.md` §3: the new table (Hangout, Recruitment, Events voice, translated copies,
   announcements seen by the Kingdom, no Guest or AD announcements) and descriptions; `documentation/STARTUP-GUIDE.md`
   step 3 and 8 where they name channels.
-- [ ] T019 [P] Dictionary: propose to the user the changes to Home Kingdom information, Guest area and Recruitment
+- [x] T019 [P] Dictionary: propose to the user the changes to Home Kingdom information, Guest area and Recruitment
   (`domain-modeler`); edit `documentation/DICTIONARY.md` only after approval.
-- [ ] T020 [P] `documentation/TEST-RUN.md` §6v from [quickstart.md](quickstart.md); STATUS and ROADMAP (`housekeeper`).
+- [x] T020 [P] `documentation/TEST-RUN.md` §6v from [quickstart.md](quickstart.md); STATUS and ROADMAP (`housekeeper`).
 - [ ] T021 `npm run test`, `npm run typecheck`, `npm run lint`, a dry run against the test server; `spec-auditor` before
   merging.
 - [ ] T022 Manual: the user empties the test server and runs TEST-RUN.md §6v (Definition of Done 2).
