@@ -30,7 +30,8 @@ export type SetupWrite =
       readonly parentId: string;
       readonly overwrites: readonly OverwriteEdit[];
     }
-  | { readonly op: "edit-overwrites"; readonly channelId: string; readonly overwrites: readonly OverwriteEdit[] };
+  | { readonly op: "edit-overwrites"; readonly channelId: string; readonly overwrites: readonly OverwriteEdit[] }
+  | { readonly op: "edit-role"; readonly roleId: string; readonly permissions: bigint };
 
 export type SetupWriteOp = SetupWrite["op"];
 
@@ -249,6 +250,18 @@ export class FakeSetupServer implements SetupServer {
     if (failure !== undefined) return Promise.reject(failure);
     const channel = this.channels.find((candidate) => candidate.id === channelId);
     if (channel !== undefined) channel.overwrites = [...overwrites];
+    return Promise.resolve();
+  }
+
+  /** Sets a role's whole permission bit field, as Discord's role edit does; a failure is keyed by the role's name. */
+  editRolePermissions(roleId: string, permissions: bigint): Promise<void> {
+    const role = this.roles.find((candidate) => candidate.id === roleId);
+    const name = role?.name ?? roleId;
+    this.writes.push({ op: "edit-role", roleId, permissions });
+    this.sequence.push(`edit-role ${name}`);
+    const failure = this.failures.get(`edit-role:${name}`);
+    if (failure !== undefined) return Promise.reject(failure);
+    if (role !== undefined) role.permissions = permissions;
     return Promise.resolve();
   }
 

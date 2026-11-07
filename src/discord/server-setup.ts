@@ -14,6 +14,7 @@ import {
   type LayoutChannel,
   type OverwriteSpec,
   type Permission,
+  type RolePermission,
   type ServerLayout,
   type WantedOverwrite,
 } from "../domain/server-layout.js";
@@ -98,6 +99,8 @@ export interface SetupServer {
   }): Promise<string>;
   /** Writes the channel's whole overwrite list in one request. */
   editOverwrites(channelId: string, overwrites: readonly OverwriteEdit[]): Promise<void>;
+  /** Sets the role's whole permission bit field, as Discord's role edit does. */
+  editRolePermissions(roleId: string, permissions: bigint): Promise<void>;
   setTopic(channelId: string, topic: string): Promise<void>;
   /** The pinned messages of a channel, newest first; undefined when Discord refuses the read (Neil lacks Administrator). */
   readPins(channelId: string): Promise<readonly SetupPinInfo[] | undefined>;
@@ -127,6 +130,11 @@ const PERMISSION_BITS: Record<Permission, bigint> = {
   Speak: PermissionFlagsBits.Speak,
 };
 const PERMISSIONS: readonly Permission[] = Object.keys(PERMISSION_BITS).filter(isPermission);
+/** The Discord bit of each role permission the layout may give (slice 028, plan D10). */
+const ROLE_PERMISSION_BITS: Record<RolePermission, bigint> = {
+  CreateEvents: PermissionFlagsBits.CreateEvents,
+};
+const ROLE_PERMISSIONS: readonly RolePermission[] = Object.keys(ROLE_PERMISSION_BITS).filter(isRolePermission);
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 const LOWERCASE_NO_SPACES = /^[a-z0-9_-]+$/;
 const LAST_LINE = "Now take Administrator off Neil's role.";
@@ -147,6 +155,10 @@ const ID_SETTINGS: readonly { setting: string; kind: "role" | "channel"; name: s
 
 function isPermission(name: string): name is Permission {
   return Object.hasOwn(PERMISSION_BITS, name);
+}
+
+function isRolePermission(name: string): name is RolePermission {
+  return Object.hasOwn(ROLE_PERMISSION_BITS, name);
 }
 
 // ---- The layout file -------------------------------------------------------------------------------------------------
@@ -178,6 +190,7 @@ const layoutSchema = z.strictObject({
   translations: z.array(z.string()),
   categories: z.array(categorySchema),
   allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
+  rolePermissions: z.record(z.string(), z.array(z.string())).optional(),
 });
 type RawChannel = z.infer<typeof channelSchema>;
 
@@ -213,7 +226,7 @@ export function parseLayout(text: string): ServerLayout {
     checkChannel("allianceArea", channel, known, channelNames, translations),
   );
 
-  return {
+  const layout: ServerLayout = {
     roles: [...raw.roles],
     externalRoles: [...raw.externalRoles],
     languages: [...raw.languages],
@@ -221,6 +234,21 @@ export function parseLayout(text: string): ServerLayout {
     categories,
     allianceArea: { channels: allianceChannels },
   };
+  if (raw.rolePermissions !== undefined) layout.rolePermissions = checkRolePermissions(raw.rolePermissions, raw.roles);
+  return layout;
+}
+
+/** Each named role is a listed role, and each permission a known one (slice 028, plan D10). */
+function checkRolePermissions(raw: Record<string, string[]>, roles: readonly string[]): Record<string, RolePermission[]> {
+  const result: Record<string, RolePermission[]> = {};
+  for (const [role, names] of Object.entries(raw)) {
+    if (!roles.includes(role)) throw new Error(`rolePermissions: "${role}" is no listed role`);
+    result[role] = names.map((name) => {
+      if (!isRolePermission(name)) throw new Error(`rolePermissions, role "${role}": "${name}" is not a known permission`);
+      return name;
+    });
+  }
+  return result;
 }
 
 /** Each translation is a listed language, once (data-model.md, Rules checked on load). */
@@ -396,6 +424,7 @@ function toServerRole(role: SetupRoleInfo): ServerRole {
     hasPermissions: role.permissions !== 0n,
     managed: role.managed,
     position: role.position,
+    rolePermissions: rolePermissionNamesOf(role.permissions),
   };
 }
 
@@ -417,13 +446,18 @@ function bitsOf(names: readonly Permission[]): bigint {
   return names.reduce((bits, name) => bits | PERMISSION_BITS[name], 0n);
 }
 
+/** The role permission names whose bits are set; bits the domain does not name are left out. */
+function rolePermissionNamesOf(bits: bigint): RolePermission[] {
+  return ROLE_PERMISSIONS.filter((name) => (bits & ROLE_PERMISSION_BITS[name]) !== 0n);
+}
+
 // ---- Writing --------------------------------------------------------------------------------------------------------
 
 /** What applying needs by name: the server's roles and categories as they stand, and its channels with their bits. */
 interface Book {
   everyoneId: string;
   botUserId: string;
-  roles: { id: string; name: string }[];
+  roles: { id: string; name: string; permissions: bigint }[];
   categories: { id: string; name: string }[];
   channels: Map<string, SetupChannelInfo>;
   /** The channels this run created, so that a description step with no id can find its channel. */
@@ -453,7 +487,7 @@ async function readBook(port: SetupServer): Promise<Book> {
   return {
     everyoneId: guild.id,
     botUserId: bot.userId,
-    roles: roles.map((role) => ({ id: role.id, name: role.name })),
+    roles: roles.map((role) => ({ id: role.id, name: role.name, permissions: role.permissions })),
     categories: channels
       .filter((channel) => channel.kind === "category")
       .map((channel) => ({ id: channel.id, name: channel.name })),
@@ -464,6 +498,8 @@ async function readBook(port: SetupServer): Promise<Book> {
 
 const PHASE: Record<SetupStep["kind"], number> = {
   "create-role": 0,
+  // Planned after the create-role steps of the same roles, so a stable sort keeps it behind them.
+  "allow-permission": 0,
   "create-category": 1,
   "create-channel": 2,
   "correct-overwrites": 3,
@@ -480,7 +516,14 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
   switch (step.kind) {
     case "create-role": {
       const id = await port.createRole(step.name);
-      book.roles.push({ id, name: step.name });
+      book.roles.push({ id, name: step.name, permissions: 0n });
+      return;
+    }
+    case "allow-permission": {
+      const role = single(book.roles.filter((candidate) => candidate.name === step.name), `role "${step.name}"`);
+      const permissions = role.permissions | ROLE_PERMISSION_BITS[step.permission];
+      await port.editRolePermissions(role.id, permissions);
+      role.permissions = permissions;
       return;
     }
     case "create-category": {
@@ -666,6 +709,8 @@ function describeStep(step: SetupStep): string {
       return `correct permissions of ${step.name}`;
     case "set-topic":
       return `set topic of ${step.name}`;
+    case "allow-permission":
+      return `allow ${step.permission} on ${step.name}`;
     case "post-description":
       return `post description in ${step.name}`;
     case "edit-description":

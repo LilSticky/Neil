@@ -356,7 +356,16 @@
           "seenBy": [
             "#<Home Kingdom>"
           ],
-          "mode": "only-king-posts"
+          "mode": "only-king-posts",
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages",
+                "EmbedLinks"
+              ]
+            }
+          }
         },
         {
           "name": "event-help",
@@ -534,6 +543,20 @@
         "type": "voice",
         "description": "Your Alliance's own voice channel 🎙️"
       }
+    ]
+  },
+  "rolePermissions": {
+    "R4": [
+      "CreateEvents"
+    ],
+    "R5": [
+      "CreateEvents"
+    ],
+    "Moderator": [
+      "CreateEvents"
+    ],
+    "King": [
+      "CreateEvents"
     ]
   }
 }

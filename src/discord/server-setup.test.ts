@@ -62,6 +62,7 @@ const MANAGE_ROLES = PermissionFlagsBits.ManageRoles;
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 const EMBED_LINKS = PermissionFlagsBits.EmbedLinks;
 const READ_HISTORY = PermissionFlagsBits.ReadMessageHistory;
+const CREATE_EVENTS = PermissionFlagsBits.CreateEvents;
 
 /** The layout file as text, built from a base that follows every rule; `overrides` replace top-level keys. */
 function layoutFile(overrides: Record<string, unknown> = {}): string {
@@ -588,7 +589,13 @@ describe("applySetup", () => {
 
     await applySetup(plan, server);
 
-    const phase: Record<SetupWriteOp, number> = { "create-role": 0, "create-category": 1, "create-channel": 2, "edit-overwrites": 3 };
+    const phase: Record<SetupWriteOp, number> = {
+      "create-role": 0,
+      "edit-role": 0,
+      "create-category": 1,
+      "create-channel": 2,
+      "edit-overwrites": 3,
+    };
     const phases = server.writes.map((write) => phase[write.op]);
     expect(phases).toEqual([...phases].sort((a, b) => a - b));
     expect(writesOf(server, "create-role").length).toBeGreaterThan(0);
@@ -1855,5 +1862,130 @@ describe("the shipped layout grants what @everyone may lack", () => {
       JSON.stringify({ ...SMALL_LAYOUT, categories: [{ name: "V", seenBy: ["R5"], channels: [{ name: "v", type: "voice", description: "Talk.", overwrites: { R5: { allow: ["Connect", "Speak"], deny: [] } } }] }] }),
     );
     expect(parsed.categories[0]?.channels[0]?.overwrites?.R5?.allow).toEqual(["Connect", "Speak"]);
+  });
+});
+
+/** A layout file with only the roles and rolePermissions the Create Events tests need: no categories, no languages. */
+function rolePermissionsFile(rolePermissions: unknown, roles: string[] = ["R4"]): string {
+  return layoutFile({
+    roles,
+    externalRoles: [],
+    languages: [],
+    translations: [],
+    categories: [],
+    allianceArea: { channels: [] },
+    rolePermissions,
+  });
+}
+
+describe("parseLayout rolePermissions (FR-014, plan D10)", () => {
+  test("accepts CreateEvents for a listed role and keeps it", () => {
+    const parsed = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    expect(parsed.rolePermissions).toEqual({ R4: ["CreateEvents"] });
+  });
+
+  test("refuses a role name that is no listed role, naming it", () => {
+    const message = refusal(rolePermissionsFile({ Ghost: ["CreateEvents"] }));
+
+    expect(message).toContain("Ghost");
+  });
+
+  test("refuses a permission name that is not a known one, naming the role and the permission", () => {
+    const message = refusal(rolePermissionsFile({ R4: ["CreateEvnts"] }));
+
+    expect(message).toContain("R4");
+    expect(message).toContain("CreateEvnts");
+  });
+});
+
+describe("the shipped server-layout.json for Create Events and Event announcements (FR-014, plan D10)", () => {
+  test("gives CreateEvents to R4, R5, Moderator and King", () => {
+    expect(shippedLayout().rolePermissions).toEqual({
+      R4: ["CreateEvents"],
+      R5: ["CreateEvents"],
+      Moderator: ["CreateEvents"],
+      King: ["CreateEvents"],
+    });
+  });
+
+  test("gives Neil View Channel, Send Messages and Embed Links on event-announcements", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const channel = groupNamed(expanded, "Events").channels.find((candidate) => candidate.name === "event-announcements");
+    const neil = channel?.overwrites.find((overwrite) => overwrite.target === "Neil");
+
+    expect(neil?.allow).toEqual(expect.arrayContaining(["ViewChannel", "SendMessages", "EmbedLinks"]));
+  });
+
+  test("keeps event-announcements only-king-posts: only the King and Neil may post there", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const channel = groupNamed(expanded, "Events").channels.find((candidate) => candidate.name === "event-announcements");
+    const posters = channel?.overwrites.filter((overwrite) => overwrite.allow.includes("SendMessages")).map((overwrite) => overwrite.target);
+
+    expect([...(posters ?? [])].sort()).toEqual(["King", "Neil"]);
+  });
+});
+
+describe("runSetup gives CreateEvents to the roles rolePermissions names (FR-014, plan D10)", () => {
+  test("says would allow CreateEvents on R4 on a dry run, and writes nothing", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4");
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("would allow CreateEvents on R4");
+    expect(server.writes).toEqual([]);
+  });
+
+  test("adds CreateEvents to an existing role on a real run", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4");
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(server.findRole("R4")?.permissions).toBe(CREATE_EVENTS);
+  });
+
+  test("keeps the permissions an existing role already holds when it adds CreateEvents", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4", { permissions: MANAGE_ROLES });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(server.findRole("R4")?.permissions).toBe(MANAGE_ROLES | CREATE_EVENTS);
+  });
+
+  test("gives CreateEvents to a role the real run creates", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(server.findRole("R4")?.permissions).toBe(CREATE_EVENTS);
+  });
+
+  test("has nothing to do for a second run once the role holds CreateEvents", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+    await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+    const writesBefore = server.writes.length;
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(server.writes.slice(writesBefore)).toEqual([]);
+    expect(report).not.toMatch(/would allow CreateEvents/);
+  });
+
+  test("does not plan CreateEvents for a role that already holds it", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4", { permissions: CREATE_EVENTS });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(report).not.toMatch(/would allow CreateEvents/);
   });
 });

@@ -38,8 +38,8 @@ Tasks in one phase run in order unless marked [P].
 
 ## Phase F: Server Layout
 
-- [ ] T017 Neil's overwrite on `event-announcements` (View Channel, Send Messages, Embed Links) in `server-layout.json` (FR-014)
-- [ ] T018 `rolePermissions` in `server-layout.json`, `src/domain/server-layout.ts` and `src/discord/server-setup.ts`: `R4`, `R5`, `Moderator`, `King` → `CreateEvents`; add a missing permission, never remove; dry run reports it; a second run has nothing to do (FR-014, plan D10)
+- [x] T017 Neil's overwrite on `event-announcements` (View Channel, Send Messages, Embed Links) in `server-layout.json` (FR-014)
+- [x] T018 `rolePermissions` in `server-layout.json`, `src/domain/server-layout.ts` and `src/discord/server-setup.ts`: `R4`, `R5`, `Moderator`, `King` → `CreateEvents`; add a missing permission, never remove; dry run reports it; a second run has nothing to do (FR-014, plan D10)
 
 ## Phase G: Finish
 

@@ -7,6 +7,7 @@ import {
   type ExpandedChannel,
   type ExpandedLayout,
   type Permission,
+  type RolePermission,
   type ServerLayout,
   type WantedOverwrite,
 } from "./server-layout.js";
@@ -17,6 +18,8 @@ export interface ServerRole {
   hasPermissions: boolean;
   managed: boolean;
   position: number;
+  /** The layout's role permissions the role holds; left out when none is known (slice 028). */
+  rolePermissions?: RolePermission[];
 }
 
 export interface ServerOverwrite {
@@ -70,6 +73,8 @@ export type SetupStep =
       overwrites: WantedOverwrite[];
     }
   | { kind: "set-topic"; id: string; name: string; topic: string }
+  /** A role permission the role lacks; a role the run creates gets it too. Planned after the role's create-role step. */
+  | { kind: "allow-permission"; name: string; permission: RolePermission }
   /** A channel that has no Neil description yet; `id` is undefined for a channel the plan creates. */
   /** `pinned` is false in a voice channel, where Discord can't pin: there the description is its first message. */
   | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string; pinned: boolean }
@@ -105,11 +110,13 @@ interface Plan {
   readonly topicSteps: SetupStep[];
   readonly descriptionSteps: SetupStep[];
   readonly findings: SetupFinding[];
+  /** The roles the layout names in rolePermissions: they may hold permissions without a finding. */
+  readonly rolePermissionRoles: ReadonlySet<string>;
   /** Server channels and categories the layout accounts for; any other is outside the layout. */
   readonly claimed: Set<string>;
 }
 
-/** Roles of the layout that may hold permissions without a finding: Moderator and King. */
+/** Roles of the layout that may hold permissions without a finding, besides those rolePermissions names: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
 
 /**
@@ -128,10 +135,12 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
     topicSteps: [],
     descriptionSteps: [],
     findings: [],
+    rolePermissionRoles: new Set(Object.keys(layout.rolePermissions ?? {})),
     claimed: new Set(),
   };
 
   planRoles(plan, expanded);
+  planRolePermissions(plan, layout.rolePermissions ?? {});
   planCategories(plan, expanded, allianceRoleNames);
   for (const channel of server.channels) {
     if (!plan.claimed.has(channel.id)) plan.findings.push({ kind: "outside-layout", name: channel.name });
@@ -177,8 +186,21 @@ function planRoles(plan: Plan, layout: ExpandedLayout): void {
   }
 }
 
+/** Each role permission a listed role lacks. Only missing ones are planned: nothing is removed, and a role not there yet lacks all. */
+function planRolePermissions(plan: Plan, rolePermissions: Record<string, RolePermission[]>): void {
+  for (const [name, permissions] of Object.entries(rolePermissions)) {
+    const found = lookup(plan.server.roles.filter((role) => role.name === name));
+    if (found.kind === "many") continue;
+    const held = found.kind === "one" ? (found.item.rolePermissions ?? []) : [];
+    for (const permission of new Set(permissions)) {
+      if (!held.includes(permission)) plan.roleSteps.push({ kind: "allow-permission", name, permission });
+    }
+  }
+}
+
 function reviewRole(plan: Plan, role: ServerRole): void {
-  if (role.hasPermissions && !PERMISSION_ROLES.includes(role.name)) plan.findings.push({ kind: "role-has-permissions", name: role.name });
+  const exempt = PERMISSION_ROLES.includes(role.name) || plan.rolePermissionRoles.has(role.name);
+  if (role.hasPermissions && !exempt) plan.findings.push({ kind: "role-has-permissions", name: role.name });
   if (role.position >= plan.server.botTopPosition) plan.findings.push({ kind: "role-above-neil", name: role.name });
 }
 
