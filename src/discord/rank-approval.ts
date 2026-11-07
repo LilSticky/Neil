@@ -7,6 +7,7 @@ import type { PreferenceStore } from "../storage/preference-store.js";
 import { answer } from "./lookup.js";
 import type { NameAndRoles } from "./name-and-roles.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import {
   parseRankCustomId,
   rankAskedMessage,
@@ -40,6 +41,8 @@ export interface RankApprovalDeps {
   readonly preferences: Pick<PreferenceStore, "prompt">;
   readonly channels: OnboardingChannels;
   readonly nameAndRoles: NameAndRoles;
+  /** Taken off just before the approval's thread is deleted; an open Preferences message keeps the role. */
+  readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly officerRoles: OfficerRoles;
   /** The role ids of the Member who pressed a button, as the Discord client reads them. */
   readonly memberRoleIdsOf: (memberId: MemberId) => Promise<readonly string[]>;
@@ -97,12 +100,16 @@ export function keepsApprovalThread(
   return preferences.prompt(approval.linkedMemberId)?.threadId === approval.threadId;
 }
 
-/** Deletes the approval's thread, unless the Member's Preferences message is still open in it. */
+/**
+ * Deletes the approval's thread, unless the Member's Preferences message is still open in it. The Onboarding Role is taken
+ * off just before the deletion, since the thread closes the Interview.
+ */
 async function deleteApprovalThread(
   deps: RankApprovalDeps,
   approval: { readonly threadId: string; readonly linkedMemberId: MemberId },
 ): Promise<void> {
   if (keepsApprovalThread(deps.preferences, approval)) return;
+  await deps.onboardingRole.takeOff(approval.linkedMemberId);
   await deps.channels.deleteThread(approval.threadId);
 }
 

@@ -6,9 +6,16 @@ export const ONBOARDING_ROLE_NAME = "Onboarding";
 /** What to do with the Onboarding Role for a Member: give it, take it off, or leave it as it is. */
 export type OnboardingRoleStep = RoleStep;
 
-/** A Member wants the Onboarding Role when they are not a bot and not Linked. */
-export function wantsOnboardingRole(member: { readonly bot: boolean; readonly linked: boolean }): boolean {
-  return !member.bot && !member.linked;
+/**
+ * A Member wants the Onboarding Role when they are not a bot, and either not Linked or still in an open Interview thread: a
+ * Link alone does not take it off, the thread closing does.
+ */
+export function wantsOnboardingRole(member: {
+  readonly bot: boolean;
+  readonly linked: boolean;
+  readonly threadOpen: boolean;
+}): boolean {
+  return !member.bot && (!member.linked || member.threadOpen);
 }
 
 /** The step that makes a Member's holding of the Onboarding Role match what they want; the rule is planRoleStep's. */

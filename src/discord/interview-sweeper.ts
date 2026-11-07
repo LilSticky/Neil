@@ -9,6 +9,7 @@ import type { InterviewStore } from "../storage/interview-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { PostedPreferencePrompt, PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import {
   abandonedLogLine,
   askUidMessage,
@@ -34,6 +35,8 @@ export interface SweeperDeps {
   readonly links: LinkStore;
   readonly preferences: PreferenceStore;
   readonly channels: OnboardingChannels;
+  /** Taken off just before an expired Preferences thread is deleted; a pending Rank Approval keeps the thread and the role. */
+  readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly timeoutMs: number;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
@@ -161,9 +164,15 @@ async function closeExpiredPreferences(deps: SweeperDeps, now: Date): Promise<vo
   }
 }
 
-/** The thread goes first: when its deletion fails the prompt stays open, and the next sweep retries it. */
+/**
+ * The Onboarding Role is taken off, then the thread goes: when its deletion fails the prompt stays open, and the next sweep
+ * retries it; taking the role off again changes nothing.
+ */
 async function closeExpiredPreference(deps: SweeperDeps, prompt: PostedPreferencePrompt): Promise<void> {
-  if (deps.links.pendingFor(prompt.memberId) === undefined) await deps.channels.deleteThread(prompt.threadId);
+  if (deps.links.pendingFor(prompt.memberId) === undefined) {
+    await deps.onboardingRole.takeOff(prompt.memberId);
+    await deps.channels.deleteThread(prompt.threadId);
+  }
   deps.preferences.closePrompt(prompt.memberId);
 }
 

@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { Link } from "../domain/link.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
+import { FakePreferenceStore } from "./__fakes__/preference-store.js";
 import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js";
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import { createOnboardingRole } from "./onboarding-role.js";
@@ -31,12 +32,21 @@ function heldNames(member: FakeRolesMember): string[] {
   return member.roles.map((role) => role.name).sort();
 }
 
-/** The Links the service reads: a Member is Linked when a Link is recorded for them. */
+/**
+ * The Links the service reads: a Member is Linked when a Link is recorded for them, and may have a pending Rank Approval,
+ * which keeps their Interview thread open.
+ */
 class FakeLinks {
   private readonly linked = new Set<MemberId>();
+  private readonly pending = new Set<MemberId>();
 
   link(memberId: MemberId): void {
     this.linked.add(memberId);
+  }
+
+  /** Records a pending Rank Approval of the Member: their Interview thread stays open until it ends. */
+  pendingApproval(memberId: MemberId): void {
+    this.pending.add(memberId);
   }
 
   linkFor(memberId: MemberId): Link | undefined {
@@ -49,15 +59,20 @@ class FakeLinks {
       madeBy: { kind: "in-game-proof" },
     };
   }
+
+  pendingFor(memberId: MemberId): { readonly state: "pending" } | undefined {
+    return this.pending.has(memberId) ? { state: "pending" } : undefined;
+  }
 }
 
 function setUp(officerRoleIds: readonly string[] = []) {
   const guild = new FakeRolesGuild(OWNER);
   const members = new FakeServerMembers();
   const links = new FakeLinks();
+  const preferences = new FakePreferenceStore();
   const logError = vi.fn<(line: string) => void>();
   const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
-  const service = createOnboardingRole({ members, links, logError, log, officerRoleIds });
+  const service = createOnboardingRole({ members, links, preferences, logError, log, officerRoleIds });
   /** Puts a Member on the server, holding the given roles, as the discord.js adapter would find them. */
   const join = (memberId: MemberId, roles: readonly string[] = [], bot = false): FakeRolesMember => {
     const member = guild.member(memberId, roles);
@@ -65,7 +80,7 @@ function setUp(officerRoleIds: readonly string[] = []) {
     members.join(memberId, guild, member);
     return member;
   };
-  return { guild, links, logError, log, service, join, members };
+  return { guild, links, preferences, logError, log, service, join, members };
 }
 
 describe("give", () => {
@@ -154,6 +169,38 @@ describe("atStartup", () => {
     await service.atStartup();
 
     expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("keeps the Onboarding Role on a Linked Member whose Preferences message is open in their thread", async () => {
+    const { guild, links, preferences, logError, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    const alice = join(ALICE, ["Onboarding"]);
+    links.link(ALICE);
+    preferences.openPrompt(ALICE, "thread-of-alice", NOW);
+    const aliceRemove = vi.spyOn(alice, "removeRole");
+
+    await service.atStartup();
+
+    expect(aliceRemove).not.toHaveBeenCalled();
+    expect(heldNames(alice)).toEqual(["Onboarding"]);
+    expect(logError).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  test("keeps the Onboarding Role on a Linked Member with a pending Rank Approval, whose thread stays open", async () => {
+    const { guild, links, logError, log, service, join } = setUp();
+    guild.defineRole("Onboarding");
+    const alice = join(ALICE, ["Onboarding"]);
+    links.link(ALICE);
+    links.pendingApproval(ALICE);
+    const aliceRemove = vi.spyOn(alice, "removeRole");
+
+    await service.atStartup();
+
+    expect(aliceRemove).not.toHaveBeenCalled();
+    expect(heldNames(alice)).toEqual(["Onboarding"]);
+    expect(logError).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
   });
 
   test("gives the Onboarding Role to a Member who is not Linked and does not hold it", async () => {

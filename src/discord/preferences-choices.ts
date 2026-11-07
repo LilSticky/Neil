@@ -20,6 +20,7 @@ import type { AppliedStore } from "../storage/applied-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
+import type { OnboardingRole } from "./onboarding-role.js";
 import type { PreferenceRoles } from "./preferences.js";
 import type { PrivateReply } from "./interview-texts.js";
 import {
@@ -47,6 +48,8 @@ export interface PreferenceChoicesDeps {
   readonly applied: Pick<AppliedStore, "get">;
   readonly homeKingdom: KingdomNumber;
   readonly channels: Pick<OnboardingChannels, "log" | "deleteThread">;
+  /** Taken off just before the Done thread is deleted; a pending Rank Approval keeps the thread and the role. */
+  readonly onboardingRole: Pick<OnboardingRole, "takeOff">;
   readonly guidesForumId: string | undefined;
   readonly logError: (line: string) => void;
 }
@@ -139,13 +142,17 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
 
 /**
  * Done: the message is answered first, then the thread goes, unless a Rank Approval waits, and only then the prompt closes:
- * a thread that cannot be deleted leaves the prompt open, so that the next sweep retries it.
+ * a thread that cannot be deleted leaves the prompt open, so that the next sweep retries it. The Onboarding Role is taken
+ * off just before the thread goes, since that closes the Interview.
  */
 async function finish(deps: PreferenceChoicesDeps, press: PreferencePress, memberId: MemberId): Promise<void> {
   await press.update(savedMessage());
   const prompt = deps.preferences.prompt(memberId);
   if (prompt === undefined) return;
-  if (deps.rankApprovals.pendingFor(memberId) === undefined) await deps.channels.deleteThread(prompt.threadId);
+  if (deps.rankApprovals.pendingFor(memberId) === undefined) {
+    await deps.onboardingRole.takeOff(memberId);
+    await deps.channels.deleteThread(prompt.threadId);
+  }
   deps.preferences.closePrompt(memberId);
 }
 

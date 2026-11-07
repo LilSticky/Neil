@@ -1131,7 +1131,22 @@ describe("createInterviews", () => {
       expect(h.channels.deleted).toEqual([]);
     });
 
-    test("takes the Onboarding Role off the Member once the Link is stored", async () => {
+    test("keeps the Onboarding Role on the Member once the Link is stored, while the Preferences message is open", async () => {
+      const interviewId = await confirmationShown(h, PLAYER);
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(h.onboardingRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+    });
+
+    test("keeps the Onboarding Role on the Member with a pending Rank Approval, until the approval ends", async () => {
+      await pendingRankApprovalOfMember(h);
+
+      expect(h.onboardingRole.calls).toEqual([{ kind: "give", memberId: MEMBER }]);
+    });
+
+    test("takes the Onboarding Role off the Guest at the Link, when no Preferences message is posted and no Rank Approval is pending", async () => {
+      h.preferences.declineAll();
       const interviewId = await confirmationShown(h, PLAYER);
 
       await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
@@ -1142,13 +1157,36 @@ describe("createInterviews", () => {
       ]);
     });
 
-    test("takes the Onboarding Role off the Member with a pending Rank Approval too", async () => {
-      await pendingRankApprovalOfMember(h);
+    test("takes the Onboarding Role off before the Guest's thread is deleted", async () => {
+      h.preferences.declineAll();
+      const interviewId = await confirmationShown(h, PLAYER);
+      let deletedWhenTakenOff: readonly string[] | undefined;
+      h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+        if (call.kind === "takeOff") deletedWhenTakenOff = [...h.channels.deleted];
+      };
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
+
+      expect(deletedWhenTakenOff).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
+    test("takes the Onboarding Role off at the Link when the Preferences message cannot be posted, before the thread is deleted", async () => {
+      h.preferences.failWith(new Error("Discord refused the post to the thread"));
+      const interviewId = await confirmationShown(h, PLAYER);
+      let deletedWhenTakenOff: readonly string[] | undefined;
+      h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+        if (call.kind === "takeOff") deletedWhenTakenOff = [...h.channels.deleted];
+      };
+
+      await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
 
       expect(h.onboardingRole.calls).toEqual([
         { kind: "give", memberId: MEMBER },
         { kind: "takeOff", memberId: MEMBER },
       ]);
+      expect(deletedWhenTakenOff).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
     });
 
     test("gives the Doctor Role to the Member once the Link is stored", async () => {
@@ -1160,6 +1198,7 @@ describe("createInterviews", () => {
     });
 
     test("gives the Doctor Role before the Onboarding Role is taken off, so the Member is never in neither role", async () => {
+      h.preferences.declineAll();
       const interviewId = await confirmationShown(h, PLAYER);
       let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
       h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
@@ -1167,17 +1206,6 @@ describe("createInterviews", () => {
       };
 
       await h.service.onButton(new FakeButton(interviewCustomId("confirm", interviewId), { id: MEMBER }));
-
-      expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: MEMBER }]);
-    });
-
-    test("gives the Doctor Role before the Onboarding Role is taken off, also with a pending Rank Approval", async () => {
-      let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
-      h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
-        if (call.kind === "takeOff") doctorCallsAtTakeOff = [...h.doctorRole.calls];
-      };
-
-      await pendingRankApprovalOfMember(h);
 
       expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: MEMBER }]);
     });
@@ -1745,6 +1773,7 @@ describe("createInterviews", () => {
         links: h.links,
         preferences: createPreferenceStore(db),
         channels: h.channels,
+        onboardingRole: h.onboardingRole,
         timeoutMs: TIMEOUT_MS,
         now: () => later,
         logError: (line: string) => {
@@ -1768,6 +1797,7 @@ describe("createInterviews", () => {
         links: h.links,
         preferences: createPreferenceStore(db),
         channels: h.channels,
+        onboardingRole: h.onboardingRole,
         timeoutMs: TIMEOUT_MS,
         now: h.deps.now,
         logError: (line: string) => {

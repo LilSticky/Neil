@@ -10,16 +10,25 @@ describe("ONBOARDING_ROLE_NAME", () => {
 
 describe("wantsOnboardingRole", () => {
   test("wants the role for a Member who is not a bot and not Linked", () => {
-    expect(wantsOnboardingRole({ bot: false, linked: false })).toBe(true);
+    expect(wantsOnboardingRole({ bot: false, linked: false, threadOpen: false })).toBe(true);
   });
 
-  test("does not want the role for a Linked Member", () => {
-    expect(wantsOnboardingRole({ bot: false, linked: true })).toBe(false);
+  test("does not want the role for a Linked Member whose Interview thread is closed", () => {
+    expect(wantsOnboardingRole({ bot: false, linked: true, threadOpen: false })).toBe(false);
   });
 
-  test("does not want the role for a bot, Linked or not", () => {
-    expect(wantsOnboardingRole({ bot: true, linked: false })).toBe(false);
-    expect(wantsOnboardingRole({ bot: true, linked: true })).toBe(false);
+  test("wants the role for a Linked Member whose Interview thread is open", () => {
+    expect(wantsOnboardingRole({ bot: false, linked: true, threadOpen: true })).toBe(true);
+  });
+
+  test("wants the role for a Member who is not Linked, whether or not a thread is open", () => {
+    expect(wantsOnboardingRole({ bot: false, linked: false, threadOpen: true })).toBe(true);
+  });
+
+  test("does not want the role for a bot, Linked or not, thread open or not", () => {
+    expect(wantsOnboardingRole({ bot: true, linked: false, threadOpen: false })).toBe(false);
+    expect(wantsOnboardingRole({ bot: true, linked: true, threadOpen: false })).toBe(false);
+    expect(wantsOnboardingRole({ bot: true, linked: true, threadOpen: true })).toBe(false);
   });
 });
 

@@ -21,6 +21,7 @@ import {
 } from "./interview-texts.js";
 import { createRankApprovals, type RankButtonLike } from "./rank-approval.js";
 import { FakeNameAndRoles } from "./__fakes__/name-and-roles.js";
+import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 
 type PendingApproval = Extract<RankApproval, { readonly state: "pending" }>;
 type ApprovedApproval = Extract<RankApproval, { readonly state: "approved" }>;
@@ -155,6 +156,7 @@ interface Harness {
   readonly channels: FakeChannels;
   readonly roles: Map<MemberId, readonly string[]>;
   readonly nameAndRoles: FakeNameAndRoles;
+  readonly onboardingRole: FakeOnboardingRole;
   readonly errors: string[];
   readonly service: ReturnType<typeof createRankApprovals>;
   /** Holds the role lookup of the Member's next press until the returned function is called. */
@@ -198,6 +200,7 @@ describe("createRankApprovals", () => {
     const channels = new FakeChannels();
     const roles = new Map<MemberId, readonly string[]>([[OFFICER, [OFFICERS.moderatorRoleId]]]);
     const nameAndRoles = new FakeNameAndRoles();
+    const onboardingRole = new FakeOnboardingRole();
     const errors: string[] = [];
     const roleGates = new Map<MemberId, Promise<void>>();
     const preferences = createPreferenceStore(db, () => undefined);
@@ -206,6 +209,7 @@ describe("createRankApprovals", () => {
       preferences,
       channels,
       nameAndRoles,
+      onboardingRole,
       officerRoles: OFFICERS,
       memberRoleIdsOf: async (memberId: MemberId) => {
         await roleGates.get(memberId);
@@ -223,7 +227,7 @@ describe("createRankApprovals", () => {
         gate.resolve(undefined);
       };
     };
-    h = { links, preferences, channels, roles, errors, nameAndRoles, service, holdRolesOf };
+    h = { links, preferences, channels, roles, errors, nameAndRoles, onboardingRole, service, holdRolesOf };
   });
 
   afterEach(() => {
@@ -289,6 +293,29 @@ describe("createRankApprovals", () => {
       expect(h.channels.deleted).toEqual([THREAD]);
     });
 
+    test("takes the Onboarding Role off the Member when the approval's thread is deleted", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+
+      await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
+
+      expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: MEMBER }]);
+    });
+
+    test("takes the Onboarding Role off before the approval's thread is deleted", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      let deletedWhenTakenOff: readonly string[] | undefined;
+      h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+        if (call.kind === "takeOff") deletedWhenTakenOff = [...h.channels.deleted];
+      };
+
+      await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
+
+      expect(deletedWhenTakenOff).toEqual([]);
+      expect(h.channels.deleted).toEqual([THREAD]);
+    });
+
     test("keeps the thread while the Member's Preferences message is open in it, with no message in it", async () => {
       const approval = linkWithPendingApproval(h, { kind: "officers" });
       await h.service.announce(approval, PLAYER_UNKNOWN);
@@ -299,6 +326,16 @@ describe("createRankApprovals", () => {
 
       expect(h.channels.posts.slice(postsBefore)).toEqual([]);
       expect(h.channels.deleted).toEqual([]);
+    });
+
+    test("keeps the Onboarding Role while the Member's Preferences message is open in the approval's thread", async () => {
+      const approval = linkWithPendingApproval(h, { kind: "officers" });
+      await h.service.announce(approval, PLAYER_UNKNOWN);
+      h.preferences.openPrompt(MEMBER, THREAD, NOW);
+
+      await h.service.onButton(rankPress(approval.id, "R3", OFFICER));
+
+      expect(h.onboardingRole.calls).toEqual([]);
     });
 
     test("still deletes the thread when the Member's Preferences message is open in another thread", async () => {

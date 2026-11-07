@@ -27,10 +27,14 @@ export interface LinkStateRoleDeps {
   readonly officerRoleIds: readonly string[];
 }
 
-/** What a role that follows the Link needs to know of a Member: whether a bot, and whether Linked. */
+/**
+ * What a role that follows the Link needs to know of a Member: whether a bot, whether Linked, and whether their Interview
+ * thread is open.
+ */
 export interface LinkStateMember {
   readonly bot: boolean;
   readonly linked: boolean;
+  readonly threadOpen: boolean;
 }
 
 /** The counts of one startup sweep: roles given, taken off, and changes refused (skipped). */
@@ -44,6 +48,8 @@ export interface RoleCounts {
 export interface LinkStateRoleSpec {
   readonly name: string;
   readonly wants: (member: LinkStateMember) => boolean;
+  /** Whether the Member's Interview thread is open. A role that does not follow the thread leaves it out: no thread is open. */
+  readonly threadOpen?: (memberId: MemberId) => boolean;
   readonly startupLogLine: (counts: RoleCounts) => BaseMessageOptions;
   /** The line logged when a give or take-off outside the startup sweep is skipped: the Member, the role and the reason. */
   readonly skippedLogLine: (memberId: MemberId, reason: SkipReason) => BaseMessageOptions;
@@ -137,11 +143,11 @@ async function sweep(deps: LinkStateRoleDeps, spec: LinkStateRoleSpec): Promise<
       const holds = server.member.roles.some(
         (role) => role.name === spec.name && !deps.officerRoleIds.includes(role.id),
       );
-      const step = planRoleStep(holds, spec.wants({ bot: false, linked: deps.links.linkFor(memberId) !== undefined }));
+      const step = planRoleStep(holds, spec.wants(stateOf(deps, spec, memberId)));
       if (step === "give") {
-        // Checked again just before the give: a Member whose Link changed after the listing must not get the role it no
-        // longer wants.
-        if (!spec.wants({ bot: false, linked: deps.links.linkFor(memberId) !== undefined })) continue;
+        // Checked again just before the give: a Member whose Link or thread changed after the listing must not get the role
+        // it no longer wants.
+        if (!spec.wants(stateOf(deps, spec, memberId))) continue;
         const skip = await changeAndLog(deps, spec, memberId, server, giveNamedRole);
         counts[skip === undefined ? "given" : "skipped"] += 1;
       } else if (step === "take-off") {
@@ -153,6 +159,15 @@ async function sweep(deps: LinkStateRoleDeps, spec: LinkStateRoleSpec): Promise<
     }
   }
   await logCounts(deps, spec, counts);
+}
+
+/** The state a Member is in, as the role's rule reads it. */
+function stateOf(deps: LinkStateRoleDeps, spec: LinkStateRoleSpec, memberId: MemberId): LinkStateMember {
+  return {
+    bot: false,
+    linked: deps.links.linkFor(memberId) !== undefined,
+    threadOpen: spec.threadOpen?.(memberId) ?? false,
+  };
 }
 
 /** Posts the summary line when anything was given, taken off or skipped. A refused line is logged; the sweep stands. */
