@@ -6,6 +6,7 @@ import { AllowanceKeeper, type MemberUsageStorage } from "./game-api/allowance-k
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js";
 import type { AppliedStore } from "./storage/applied-store.js";
+import type { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import type { DailySyncStore } from "./storage/daily-sync-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
@@ -51,6 +52,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly dailySync: DailySyncStore;
   readonly reaper: ReaperStore;
   readonly preferences: PreferenceStore;
+  readonly bootyAlerts: BootyAlertsStore;
 }
 
 export interface Connection {
@@ -149,6 +151,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       troopBracketLevels: config.troopBracketLevels,
       dailySync: store.dailySync,
       reaper: store.reaper,
+      bootyAlerts: store.bootyAlerts,
       preferences: store.preferences,
       guidesForumId: config.guidesForumId,
       syncHourUtc: config.syncHourUtc,

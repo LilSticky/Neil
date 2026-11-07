@@ -1,6 +1,7 @@
 import { DiscordAPIError, RESTJSONErrorCodes, type BaseMessageOptions } from "discord.js";
 import { cancel, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { AppliedState, AppliedStore } from "../storage/applied-store.js";
+import type { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import { applyNameAndRoles } from "./member-roles.js";
 import type { ServerMembers } from "./name-and-roles.js";
@@ -40,6 +41,8 @@ export interface UnlinkDeps {
   readonly doctorRole: Pick<DoctorRole, "takeOff">;
   /** Takes the Preference Roles off a Member whose Link ends, and deletes their Preferences. */
   readonly preferenceRoles: Pick<PreferenceRoles, "forget">;
+  /** Deletes the Booty Alerts of a Member whose Link ends, so they do not outlive the Link. */
+  readonly bootyAlerts: Pick<BootyAlertsStore, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -62,6 +65,10 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
   // Every Unlink forgets the Preferences, also a Member already gone from the server: their rows must not outlive the Link.
   await attemptAsync(deps, memberId, "forgetting the Preferences", () => deps.preferenceRoles.forget(memberId));
+  // The Booty Alerts store is synchronous, so its forget runs through attempt, which logs a failure the same way.
+  attempt(deps, memberId, "forgetting the Booty Alerts", () => {
+    deps.bootyAlerts.forget(memberId);
+  });
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {
     notChanged = await takeOffOnServer(deps, memberId, applied);

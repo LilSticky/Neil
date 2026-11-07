@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { DiscordAPIError, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { Link } from "../domain/link.js";
+import { parseBootyWindow } from "../domain/booty.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
 import { approve, cancel, type Approver, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import { AppliedStore } from "../storage/applied-store.js";
+import { BootyAlertsStore, type StoredBootyAlerts } from "../storage/booty-alerts-store.js";
 import { openDatabase } from "../storage/database.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeDoctorRole, type DoctorRoleCall } from "./__fakes__/doctor-role.js";
@@ -169,6 +171,8 @@ interface Harness {
   readonly doctorRole: FakeDoctorRole;
   /** The Preference Roles: records every forget, the Preferences of the Member Unlink forgets. */
   readonly preferenceRoles: FakePreferenceRoles;
+  /** The Booty Alerts of the Members: a real store on the test database, which Unlink forgets from. */
+  readonly bootyAlerts: BootyAlertsStore;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -280,6 +284,7 @@ describe("createUnlink", () => {
     const onboardingRole = new FakeOnboardingRole();
     const doctorRole = new FakeDoctorRole();
     const preferenceRoles = new FakePreferenceRoles();
+    const bootyAlerts = new BootyAlertsStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -288,6 +293,7 @@ describe("createUnlink", () => {
       onboardingRole,
       doctorRole,
       preferenceRoles,
+      bootyAlerts,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -295,7 +301,7 @@ describe("createUnlink", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, service };
   });
 
   afterEach(() => {
@@ -755,6 +761,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
     const onboardingRole = new FakeOnboardingRole();
     const doctorRole = new FakeDoctorRole();
     const preferenceRoles = new FakePreferenceRoles();
+    const bootyAlerts = new BootyAlertsStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -763,6 +770,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
       onboardingRole,
       doctorRole,
       preferenceRoles,
+      bootyAlerts,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -770,7 +778,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, service };
   });
 
   afterEach(() => {
@@ -805,6 +813,107 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
     await h.service.unlink({ id: ALICE }, BY_OFFICER);
 
     expect(h.preferenceRoles.forgotten).toEqual([ALICE]);
+    expect(h.links.linkFor(ALICE)).toBeUndefined();
+    expect(h.channels.logs).toHaveLength(1);
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.errors).toEqual([expect.stringContaining(ALICE)]);
+  });
+});
+
+/** Booty Alerts for a test: the window given, read in Europe/Lisbon, for the mode given. */
+function recordedBootyAlerts(): StoredBootyAlerts {
+  const parsed = parseBootyWindow(480, 1380);
+  if (!parsed.ok) throw new Error("the test Booty Alerts window must parse");
+  return { mode: "always", window: parsed.value, timeZone: "Europe/Lisbon" };
+}
+
+describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let h: Harness;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-unlink-booty-"));
+    db = openDatabase(dataDir);
+    const links = new LinkStore(db);
+    const applied = new AppliedStore(db);
+    const channels = new FakeChannels();
+    const privateMessages = new FakePrivateMessages();
+    const errors: string[] = [];
+    const members = new FakeServerMembers();
+    const guild = new FakeRolesGuild(OWNER_ID);
+    guild.defineRole("[NML]");
+    guild.defineRole("R4");
+    const onboardingRole = new FakeOnboardingRole();
+    const doctorRole = new FakeDoctorRole();
+    const preferenceRoles = new FakePreferenceRoles();
+    const bootyAlerts = new BootyAlertsStore(db);
+    const service = createUnlink({
+      links,
+      applied,
+      channels,
+      members,
+      onboardingRole,
+      doctorRole,
+      preferenceRoles,
+      bootyAlerts,
+      now: () => NOW,
+      sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
+      officerRoles: OFFICERS,
+      logError: (line: string) => {
+        errors.push(line);
+      },
+    });
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, service };
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test.each<[string, UnlinkReason]>([
+    ["the Member Unlinks themselves", "self"],
+    ["an Officer Unlinks the Member", BY_OFFICER],
+    ["the Member leaves the server", "left"],
+    ["the Member is found missing", "missing"],
+  ])("forgets the Booty Alerts of the Member when %s", async (_case, reason) => {
+    linkMember(h, LEAVER_ID, LEAVER_UID);
+    h.bootyAlerts.save(LEAVER_ID, recordedBootyAlerts());
+
+    await h.service.unlink(LEAVER, reason);
+
+    expect(h.bootyAlerts.get(LEAVER_ID)).toBeUndefined();
+  });
+
+  test("forgets the Booty Alerts of a Member whose Link has already ended meanwhile", async () => {
+    h.bootyAlerts.save(LEAVER_ID, recordedBootyAlerts());
+
+    await h.service.unlink(LEAVER, "missing");
+
+    expect(h.bootyAlerts.get(LEAVER_ID)).toBeUndefined();
+  });
+
+  test("leaves the Booty Alerts of the other Members as they are", async () => {
+    linkMember(h, LEAVER_ID, LEAVER_UID);
+    h.bootyAlerts.save(LEAVER_ID, recordedBootyAlerts());
+    h.bootyAlerts.save(ALICE, recordedBootyAlerts());
+
+    await h.service.unlink(LEAVER, "self");
+
+    expect(h.bootyAlerts.get(ALICE)).toEqual(recordedBootyAlerts());
+  });
+
+  test("a failure to forget is logged, and the Unlink still ends the Link and logs it", async () => {
+    linkMember(h, ALICE, ALICE_UID);
+    joinServer(h, ALICE, ["[NML]"], undefined);
+    h.bootyAlerts.save(ALICE, recordedBootyAlerts());
+    vi.spyOn(h.bootyAlerts, "forget").mockImplementation(() => {
+      throw new Error("database is locked");
+    });
+
+    await h.service.unlink({ id: ALICE }, BY_OFFICER);
+
     expect(h.links.linkFor(ALICE)).toBeUndefined();
     expect(h.channels.logs).toHaveLength(1);
     expect(h.privateMessages.attempts).toHaveLength(1);

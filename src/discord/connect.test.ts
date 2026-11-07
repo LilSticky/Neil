@@ -12,6 +12,7 @@ import type { Alliance, LookupResult, Match, Player } from "../domain/player.js"
 import { timeOut } from "../domain/onboarding-interview.js";
 import { recordStart } from "../domain/start-record.js";
 import { AppliedStore } from "../storage/applied-store.js";
+import { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
@@ -206,6 +207,7 @@ describe("connect", () => {
   let dailySync: DailySyncStore;
   let reaper: ReaperStore;
   let preferences: PreferenceStore;
+  let bootyAlerts: BootyAlertsStore;
   let gameApi: FakeGameApi;
   let connection: { disconnect(): Promise<void> } | undefined;
 
@@ -218,6 +220,7 @@ describe("connect", () => {
     dailySync = new DailySyncStore(db);
     reaper = new ReaperStore(db);
     preferences = createPreferenceStore(db);
+    bootyAlerts = new BootyAlertsStore(db);
     gameApi = new FakeGameApi();
     connection = undefined;
     FakeClient.served = undefined;
@@ -285,6 +288,7 @@ describe("connect", () => {
       dailySync,
       reaper,
       preferences,
+      bootyAlerts,
       guidesForumId: undefined,
       syncHourUtc: 3,
       syncShare: 500,

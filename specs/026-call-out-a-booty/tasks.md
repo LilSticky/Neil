@@ -16,8 +16,8 @@
 **Independent Test**: recorded Booty Alerts are shown again by `/booty-alerts`, and decide whether the Member matches.
 
 - [ ] T005 [US2] `/booty-alerts` in `src/discord/booty.ts`, `src/discord/booty-texts.ts`, `src/discord/commands.ts`: options per contracts, private answer, options left out keep what is recorded, invalid input refused (FR-009, scenarios 1 and 5)
-- [ ] T006 [US2] Time zones in `src/discord/booty.ts`: autocomplete from `Intl.supportedValuesOf("timeZone")`, local minute with `Intl.DateTimeFormat`, daylight saving covered (scenarios 2 to 4)
-- [ ] T007 [US2] Forget Booty Alerts at Unlink in `src/discord/unlink.ts` (FR-011, scenario 6)
+- [x] T006 [US2] Time zones in `src/discord/booty-time.ts`: autocomplete from `Intl.supportedValuesOf("timeZone")`, local minute with `Intl.DateTimeFormat`, daylight saving covered (scenarios 2 to 4)
+- [x] T007 [US2] Forget Booty Alerts at Unlink in `src/discord/unlink.ts` (FR-011, scenario 6)
 
 ## Phase 3: User Story 1 - A Member makes a Booty Call (P1)
 

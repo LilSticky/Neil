@@ -22,6 +22,7 @@ import type { KingdomNumber } from "../domain/lookup-input.js";
 import { cameOnline, type PresenceStatus } from "../domain/interview-start.js";
 import type { StartRecord } from "../domain/start-record.js";
 import type { AppliedStore } from "../storage/applied-store.js";
+import type { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import type { DailySyncStore } from "../storage/daily-sync-store.js";
 import type { InterviewStore } from "../storage/interview-store.js";
 import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
@@ -454,6 +455,8 @@ export interface ConnectOptions {
   readonly reaper: ReaperStore;
   /** The Preferences and the open Preferences messages, in neil.db. */
   readonly preferences: PreferenceStore;
+  /** The Booty Alerts of the Members, in neil.db: an Unlink forgets them. */
+  readonly bootyAlerts: BootyAlertsStore;
   /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
   readonly guidesForumId: string | undefined;
   /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
@@ -1031,6 +1034,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       onboardingRole,
       doctorRole,
       preferenceRoles,
+      bootyAlerts: options.bootyAlerts,
       now,
       sendPrivateMessage,
       officerRoles,
