@@ -35,6 +35,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 022 | Choose Recruitment instead of Trading | a Member choose Recruitment as an Interest, in place of Trading ([#65](https://github.com/LilSticky/Neil/issues/65)) | Recruitment | Preferences menu | merged; manual check open (TEST-RUN.md §6p) |
 | 023 | No Rank Approval for Guests | a Guest be Linked without waiting on a leader who can't answer ([#67](https://github.com/LilSticky/Neil/issues/67)) | Rank Approval | `pendingApprovalFor` | merged; manual check open (TEST-RUN.md §6r) |
 | 024 | Keep the thread until it closes | a Member see their Interview thread and answer their Preferences until it closes ([#66](https://github.com/LilSticky/Neil/issues/66)) | Onboarding Role | when the role comes off, startup sweep | merged; manual check open (TEST-RUN.md §6s) |
+| 026 | Call out a booty | a Member alert their Alliance to a Booty, and each Member choose when they are mentioned ([#75](https://github.com/LilSticky/Neil/issues/75)) | Booty, Booty Call, Booty Alerts | `/booty`, `/booty-alerts` | merged; manual check open (TEST-RUN.md §6u) |
 | 027 | See what Neil can do | a Member see each command they can use, how to write it and what it is for ([#76](https://github.com/LilSticky/Neil/issues/76)) | | `/help`, built from the command definitions | merged; manual check open (TEST-RUN.md §6t) |
 
 ## Later (unordered)
@@ -42,7 +43,7 @@ States: `planned` · `in progress` · `in review` · `done`
 Ideas from the user (2026-11-04), not yet sliced. Each needs domain discovery (`domain-modeler`) first; the terms
 below are working words, not dictionary terms.
 
-- **Be alarmed for excavations ("booty")**: opt-in alarms when an alliance excavation starts. Blocked on the Game
+- **Be alarmed for excavations by Neil itself**: alarms with no Member calling them, on top of slice 026's Booty Call. Blocked on the Game
   API; its developer is working on something that would help.
 - **Be reminded of events**: Neil keeps Discord events for in-game events, and opt-in Members are invited,
   reminded, reminded to sign up, and given the event's guides.

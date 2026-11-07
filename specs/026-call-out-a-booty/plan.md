@@ -35,7 +35,7 @@ per Booty Call. See [research.md](research.md), [data-model.md](data-model.md), 
 | II. TDD | Every code task is `test-first`, then `implementer`. |
 | III. Framework-Free Domain | `src/domain/booty.ts` takes time, presence and the local minute as inputs. `Intl` stays in the adapter. |
 | IV. Respect the Game API | One uncharged request through the client; a failure falls back to Discord alone. |
-| V. Least Privilege | No new intent or role. Stored personal data (mode, window, time zone) is recorded in ADR 13, as this principle asks. Booty Calls are logged. |
+| V. Least Privilege | No new intent or role. Neil gets View Channel, Send Messages and Embed Links on `alliance-chat` only, since an Alliance area shows nobody else. Stored personal data (mode, window, time zone) is recorded in ADR 13, as this principle asks. Booty Calls are logged. |
 | VI. Context Never Gets Lost | STATUS, ROADMAP, DICTIONARY, guides and an ADR change in this slice. |
 | VII. Small Vertical Slices | One PR, usable end to end. |
 
@@ -45,11 +45,14 @@ Passes, before and after design.
 
 ```text
 src/domain/booty.ts                 rules: mode, window, match, cooldown, expiry
-src/discord/booty.ts                /booty, its buttons, /booty-alerts
+src/discord/booty.ts                /booty-alerts
+src/discord/booty-call.ts           /booty, its buttons, the Booty Call
+src/discord/booty-time.ts           local time, time zones, autocomplete
 src/discord/booty-texts.ts          card, confirmation, refusals
 src/storage/booty-alerts-store.ts   Booty Alerts
 src/storage/database.ts             migration
-src/discord/commands.ts, client.ts, unlink.ts, src/main.ts   wiring
+src/discord/commands.ts, client.ts, unlink.ts, src/startup.ts, src/main.ts   wiring
+src/domain/server-layout.ts, src/discord/server-setup.ts, server-layout.json   Neil on alliance-chat
 ```
 
 ## Decisions
@@ -71,4 +74,8 @@ src/discord/commands.ts, client.ts, unlink.ts, src/main.ts   wiring
 - **Cooldown**: claimed in memory before the first `await` of the press, which also settles two Members confirming at once. It is
   released if posting the card fails, so a failed post doesn't block the Alliance.
 - **Time zone**: `/booty-alerts` autocompletes `Intl.supportedValuesOf("timeZone")`. Defaults: whole day (00:00 to 00:00), UTC.
-- **Peers**: `client.ts` is also touched by slice 024. DICTIONARY, the guides, TEST-RUN, STATUS and ROADMAP wait until 024 has merged, as agreed with its session.
+- **Answering in time**: `/booty` answers the checks that need no wait with `reply`, then defers privately before it reads the role's holders
+  over REST, and answers with `editReply`. A Confirm acknowledges with `update` before any slow read.
+- **Confirm checks again**: the channel, the Link and the role, since time has passed. The role is read after the claim and the
+  acknowledgement; a Member who lost it releases the claim, and no Game API request is made.
+- **Neil on `alliance-chat`**: an overwrite in the Server Layout, so `allianceArea` channels now take `overwrites` as other channels do.

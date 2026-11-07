@@ -4,8 +4,9 @@
 
 No options. Guild only. Visible to every Member; Neil checks the channel and the caller.
 
-- Allowed: the answer is private, with buttons `booty:confirm:{memberId}:{issuedAtMs}` and `booty:cancel:{memberId}`.
-- Refused: a private text; nothing else happens.
+- Allowed: the answer is private, deferred and then edited, with buttons `booty:confirm:{memberId}:{issuedAtMs}` and `booty:cancel:{memberId}`.
+- Refused: a private text; nothing else happens. The wrong channel and a Member who isn't Linked are answered at once; a Member without the Alliance role after the deferral.
+- Confirm checks the channel, the Link and the role again.
 
 A press by anyone else than `memberId` is refused privately.
 

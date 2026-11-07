@@ -167,6 +167,7 @@ or No (a person must do it).
 | Manage Roles and Manage Nicknames on Neil | All name and role changes; one line in the log | No |
 | Neil in `#onboarding`: View Channel, Send Messages in Threads, Create Private Threads, Manage Threads | Neil won't start | Yes* |
 | Neil in `#neil-log`: View Channel, Send Messages | Neil won't start | Yes* |
+| Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed | Yes* |
 | Read Message History for Neil and Use Application Commands for Members, in `#onboarding` (they usually come from @everyone defaults; don't deny them) | Interview edits; `/interview` | Yes* |
 | Onboarding in `#onboarding`: View Channel, Send Messages, Send Messages in Threads | Onboarding Interview | Yes* |
 | Moderator and King in `#onboarding`: View Channel, Manage Threads | Hand-offs, and Rank Approval with no Linked R5 | Yes* |

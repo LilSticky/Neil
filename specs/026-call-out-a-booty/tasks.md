@@ -6,7 +6,7 @@
 
 ## Phase 1: Foundational
 
-- [x] T001 Dictionary: add Booty, Booty Call and Booty Alerts as approved, in `documentation/DICTIONARY.md` (after slice 024 merges; rebase first)
+- [x] T001 Dictionary: add Booty, Booty Call and Booty Alerts as approved, in `documentation/DICTIONARY.md`
 - [x] T002 [P] ADR 13, personal data of Booty Alerts, in `documentation/adr/` with its index
 - [x] T003 Rules in `src/domain/booty.ts`: mode `off`, `always`, `online`, `offline`; window in minutes 0 to 1439, equal start and end meaning the whole day, over midnight when start is after end, end minute outside; the match rule; `HH:MM` parsing; one-minute expiry and cooldown
 - [x] T004 Migration and store in `src/storage/database.ts`, `src/storage/booty-alerts-store.ts`: table `booty_alerts` per data-model.md; get, save, forget; no row means Off (FR-010, FR-011)
@@ -33,15 +33,15 @@
 
 ## Phase 4: Polish
 
-- [x] T015 Guides and TEST-RUN section for this slice, in `documentation/SERVER-SETUP.md`, `documentation/TEST-RUN.md` (FR-013; after slice 024 merges)
+- [x] T015 Guides and TEST-RUN section for this slice, in `documentation/SERVER-SETUP.md`, `documentation/TEST-RUN.md` (FR-013)
 - [x] T016 `bot-reviewer` pass, findings in `specs/026-call-out-a-booty/review.md`
-- [ ] T017 `spec-auditor` pass, findings in `specs/026-call-out-a-booty/audit.md`
-- [ ] T018 Update `documentation/STATUS.md`, `documentation/ROADMAP.md`
+- [x] T017 `spec-auditor` pass, findings in `specs/026-call-out-a-booty/audit.md`
+- [x] T018 Update `documentation/STATUS.md`, `documentation/ROADMAP.md`
 - [ ] T019 Manual check on the test server, by the user (needs the deploy), per [quickstart.md](quickstart.md)
 
 ## Dependencies
 
-T003 → T004 → US2 → US1. T014 needs T005 to T013. T001 and T015 wait for slice 024's merge; T003 onward uses the terms, so T001 lands before this branch's PR. T016 → T017 → T018.
+T003 → T004 → US2 → US1. T014 needs T005 to T013. T016 → T017 → T018.
 
 ## Parallel
 

@@ -83,7 +83,7 @@ daily time window in their own city time zone.
 - **FR-002**: Neil MUST ask for a private confirmation before anything is posted; it expires after one minute.
 - **FR-003**: On Confirm, Neil MUST post one card in that channel, naming the caller and the Alliance.
 - **FR-004**: Neil MUST mention exactly the Members of that Alliance, other than the caller, whose Booty Alerts match at that moment.
-- **FR-005**: A Member MUST be treated as online when Discord or the game says so.
+- **FR-005**: A Member MUST be treated as online when Discord shows them as anything but offline, or when the game does; a Player without a Last Online is online now, as in the dictionary.
 - **FR-006**: A Booty Call MUST cost at most one Game API request, through the rate-limited, caching client.
 - **FR-007**: If the Game API can't answer, Neil MUST still post the card, as in the Edge Cases.
 - **FR-008**: Neil MUST allow one Booty Call per Alliance per minute, and point later callers to the existing card.
@@ -92,6 +92,7 @@ daily time window in their own city time zone.
 - **FR-011**: Booty Alerts MUST be kept across restarts and forgotten at Unlink.
 - **FR-012**: Neil MUST log each Booty Call in `#neil-log`: caller, Alliance and how many were mentioned.
 - **FR-013**: The dictionary, guides and TEST-RUN.md MUST describe the commands.
+- **FR-014**: The Server Layout MUST let Neil post the card in `alliance-chat`, with View Channel, Send Messages and Embed Links there and nothing more.
 
 ### Key Entities
 
