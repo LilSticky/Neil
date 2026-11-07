@@ -146,7 +146,7 @@ const layoutSchema = z.strictObject({
   externalRoles: z.array(z.string()),
   languages: z.array(z.string()),
   categories: z.array(categorySchema),
-  allianceArea: z.strictObject({ channels: z.array(z.strictObject({ name: z.string(), type: z.string() })) }),
+  allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
 });
 type RawChannel = z.infer<typeof channelSchema>;
 

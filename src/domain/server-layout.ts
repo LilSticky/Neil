@@ -36,7 +36,7 @@ export interface ServerLayout {
   externalRoles: string[];
   languages: string[];
   categories: LayoutCategory[];
-  allianceArea: { channels: { name: string; type: ChannelType }[] };
+  allianceArea: { channels: LayoutChannel[] };
 }
 
 /** One overwrite a channel or category should carry. `target` is a role name, `@everyone`, `Neil` or an external role name. */

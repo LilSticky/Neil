@@ -35,7 +35,13 @@ import { fileURLToPath } from "node:url";
 import { PermissionFlagsBits } from "discord.js";
 import { describe, expect, test } from "vitest";
 import { GAME_LANGUAGES } from "../domain/preferences.js";
-import { expandLayout, type ExpandedCategory, type ServerLayout } from "../domain/server-layout.js";
+import {
+  expandLayout,
+  type ExpandedCategory,
+  type ExpandedChannel,
+  type ServerLayout,
+  type WantedOverwrite,
+} from "../domain/server-layout.js";
 import { planSetup, type ServerState, type SetupPlan } from "../domain/setup-plan.js";
 import { FakeSetupServer, type SetupWrite, type SetupWriteOp } from "./__fakes__/setup-server.js";
 import { applySetup, parseLayout, readServer, runSetup, type SetupChannelInfo } from "./server-setup.js";
@@ -266,6 +272,33 @@ describe("parseLayout", () => {
 
     expect(message).toContain("Hangout");
     expect(message).toContain("guest rules");
+  });
+
+  test("accepts overwrites on an alliance-chat channel of the Alliance area and keeps them", () => {
+    const text = layoutFile({
+      allianceArea: {
+        channels: [
+          { name: "alliance-chat", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages"] } } },
+          { name: "alliance-voice", type: "voice" },
+        ],
+      },
+    });
+
+    const chat = parseLayout(text).allianceArea.channels.find((channel) => channel.name === "alliance-chat");
+    expect(chat?.overwrites).toEqual({ Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } });
+  });
+
+  test("refuses an overwrite target in the Alliance area that is no listed role, naming the channel", () => {
+    const message = refusal(
+      layoutFile({
+        allianceArea: {
+          channels: [{ name: "alliance-chat", type: "text", overwrites: { Ghost: { allow: ["ViewChannel"] } } }],
+        },
+      }),
+    );
+
+    expect(message).toContain("alliance-chat");
+    expect(message).toContain("Ghost");
   });
 });
 
@@ -715,6 +748,26 @@ describe("the shipped server-layout.json", () => {
   };
   const allowOf = (channel: string, target: string) =>
     channelNamed(channel).overwrites.find((overwrite) => overwrite.target === target)?.allow ?? [];
+
+  test("gives alliance-chat in every Alliance area Neil what neil-log gives it, and alliance-voice nothing", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, ["[ABC]", "[XYZ]"]);
+    const neilOn = (channel: ExpandedChannel): WantedOverwrite | undefined =>
+      channel.overwrites.find((overwrite) => overwrite.target === "Neil");
+    const neilLog = neilOn(channelNamed("neil-log"));
+    if (neilLog === undefined) throw new Error("neil-log gives Neil no overwrite");
+
+    for (const area of ["[ABC]", "[XYZ]"]) {
+      const channels = groupNamed(expanded, area).channels;
+      const chat = channels.find((channel) => channel.name === "alliance-chat");
+      const voice = channels.find((channel) => channel.name === "alliance-voice");
+      if (chat === undefined || voice === undefined) throw new Error(`${area} has no alliance-chat or alliance-voice`);
+
+      const neilOnChat = neilOn(chat);
+      expect(new Set(neilOnChat?.allow)).toEqual(new Set(neilLog.allow));
+      expect(neilOnChat?.deny).toEqual(neilLog.deny);
+      expect(neilOn(voice)).toBeUndefined();
+    }
+  });
 
   test("gives Neil every permission it checks at startup, and Read Message History, in onboarding and neil-log", () => {
     expect(allowOf("onboarding", "Neil")).toEqual(

@@ -658,7 +658,7 @@ describe("/booty and its Booty Call", () => {
       const mentioned = server.posts.flatMap((_post, index) => mentionedBy(index));
       expect(new Set(mentioned)).toEqual(new Set(crowd.map((member) => member.memberId)));
       expect(mentioned).toHaveLength(200);
-    });
+    }, 30_000); // The setup writes 400 rows, one commit each, which is slow on Windows under a full run.
 
     test("when nobody matches, the card is still posted, with no mentions", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);

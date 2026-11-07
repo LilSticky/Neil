@@ -29,11 +29,11 @@
 - [x] T011 [US1] Fallback when the Game API can't answer: Alliance role holders, Discord alone (FR-007)
 - [x] T012 [US1] Card and mentions in `src/discord/booty-call.ts`, `src/discord/booty-texts.ts`: card once, mentions in content in chunks of 80, `allowedMentions.users` exact, no mentions when nobody matches, log line (FR-003, FR-012, scenarios 3 and 8)
 - [x] T013 [US1] Cooldown in `src/discord/booty-call.ts`: claimed before the first await, released if the post fails, later callers pointed to the card (FR-008, scenario 7)
-- [ ] T014 [US1] Wiring in `src/discord/client.ts`, `src/main.ts`: commands, autocomplete, `booty:` buttons; check Neil may post in `alliance-chat` in `src/domain/server-layout.ts`
+- [x] T014 [US1] Wiring in `src/discord/client.ts`, `src/main.ts`: commands, autocomplete, `booty:` buttons; check Neil may post in `alliance-chat` in `src/domain/server-layout.ts`
 
 ## Phase 4: Polish
 
-- [ ] T015 Guides and TEST-RUN section for this slice, in `documentation/SERVER-SETUP.md`, `documentation/TEST-RUN.md` (FR-013; after slice 024 merges)
+- [x] T015 Guides and TEST-RUN section for this slice, in `documentation/SERVER-SETUP.md`, `documentation/TEST-RUN.md` (FR-013; after slice 024 merges)
 - [ ] T016 `bot-reviewer` pass, findings in `specs/026-call-out-a-booty/review.md`
 - [ ] T017 `spec-auditor` pass, findings in `specs/026-call-out-a-booty/audit.md`
 - [ ] T018 Update `documentation/STATUS.md`, `documentation/ROADMAP.md`

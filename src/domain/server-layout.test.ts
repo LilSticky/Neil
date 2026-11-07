@@ -241,6 +241,27 @@ describe("expandLayout: Alliance areas", () => {
     expect(targetsOf(chat.overwrites)).toEqual(["@everyone", "[ABC]"]);
   });
 
+  test("gives each Alliance's alliance-chat the overwrites the layout names, and its alliance-voice none", () => {
+    const withNeilInChat: ServerLayout = {
+      ...layout,
+      allianceArea: {
+        channels: [
+          { name: "alliance-chat", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } } },
+          { name: "alliance-voice", type: "voice" },
+        ],
+      },
+    };
+    const result = expandLayout(withNeilInChat, HOME_KINGDOM, ["[ABC]", "[XYZ]"]);
+
+    for (const name of ["[ABC]", "[XYZ]"]) {
+      const area = categoryNamed(result, name);
+      const neil = overwriteFor(channelNamed(area, "alliance-chat").overwrites, "Neil");
+      expect(new Set(neil.allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+      expect(neil.deny).toEqual([]);
+      expect(targetsOf(channelNamed(area, "alliance-voice").overwrites)).toEqual(["@everyone", name]);
+    }
+  });
+
   test("without a [TAG] role there is no Alliance area", () => {
     const result = expanded([]);
     expect(result.categories.map((category) => category.name).some((name) => name.startsWith("["))).toBe(false);
