@@ -14,7 +14,7 @@ None: the slice works in slice 020's modules.
 
 ## Phase 2: Foundational (the layout file's new fields)
 
-- [ ] T001 Red: in `src/discord/server-setup.test.ts`, `parseLayout` accepts a channel `description` (string), a channel
+- [x] T001 Red: in `src/discord/server-setup.test.ts`, `parseLayout` accepts a channel `description` (string), a channel
   `codeOfConduct` (list of strings, optional) and a top-level `translations` (list of Language names); it refuses a channel
   without `description`, a `description` over 1024 characters ("required, 1–1024 characters"), and a `translations` entry
   missing from `languages` or listed twice, each naming the category and channel. Same for `allianceArea` channels.
