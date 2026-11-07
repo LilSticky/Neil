@@ -26,6 +26,8 @@ export class FakeEventInvitationServer implements EventInvitationServer {
   private readonly roles = new Map<MemberId, EventRole[]>();
   private readonly allianceChats = new Map<string, string>();
   private scheduled: readonly unknown[] = [];
+  private readonly interested = new Map<string, MemberId[]>();
+  private readonly left = new Set<MemberId>();
   private postFailure: Error | undefined = undefined;
 
   /** The Member holds the role, by its name (such as `Events` or `[NML]`). */
@@ -51,6 +53,24 @@ export class FakeEventInvitationServer implements EventInvitationServer {
   /** The next post rejects with the error, as Discord does when it refuses a message. */
   failNextPost(error: Error): void {
     this.postFailure = error;
+  }
+
+  /** The Members who marked the Discord event with this id Interested, as Discord lists them (a Member who left may be listed). */
+  setInterested(eventId: string, memberIds: readonly MemberId[]): void {
+    this.interested.set(eventId, [...memberIds]);
+  }
+
+  /** The Member left the server: they are no longer on it, and so not mentioned in a reminder. */
+  leave(memberId: MemberId): void {
+    this.left.add(memberId);
+  }
+
+  interestedIn(eventId: string): Promise<readonly MemberId[]> {
+    return Promise.resolve([...(this.interested.get(eventId) ?? [])]);
+  }
+
+  isOnServer(memberId: MemberId): Promise<boolean> {
+    return Promise.resolve(!this.left.has(memberId));
   }
 
   holdersOf(roleName: string): Promise<readonly MemberId[]> {

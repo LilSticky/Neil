@@ -39,8 +39,14 @@ const scheduledEventSchema = z.object({
   creatorId: snowflake.nullable(),
 });
 
-/** The guild of a scheduled event, which its link in an invitation needs. */
+/** The guild of a scheduled event, which its link in an invitation or a reminder needs. */
 const scheduledEventGuildSchema = z.object({ guildId: snowflake });
+
+/** The guild a scheduled event belongs to, or undefined when it has none Neil can read. Never throws. */
+export function guildIdOf(scheduledEvent: unknown): string | undefined {
+  const guild = scheduledEventGuildSchema.safeParse(scheduledEvent);
+  return guild.success ? guild.data.guildId : undefined;
+}
 
 const EVENT_STATUS: Record<GuildScheduledEventStatus, EventStatus> = {
   [GuildScheduledEventStatus.Scheduled]: "scheduled",
@@ -110,6 +116,14 @@ export interface EventInvitations {
 /** The role whose holders are mentioned in a Kingdom Event's invitation. */
 const EVENTS_ROLE = "Events";
 
+/** The channel an Event's messages go to: #event-announcements for a Kingdom Event, the Alliance's alliance-chat for an Alliance Event. */
+export function eventChannelId(
+  server: Pick<EventInvitationServer, "announcementsChannelId" | "allianceChatId">,
+  owner: EventOwner,
+): string | undefined {
+  return owner.kind === "kingdom" ? server.announcementsChannelId() : server.allianceChatId(owner.tag);
+}
+
 /**
  * Creates the Event invitations. A new Event is posted once: a Kingdom Event to #event-announcements, an Alliance Event
  * to its alliance-chat, mentioning the holders of `Events` or of the Alliance role less those with Event Invitations Off.
@@ -134,7 +148,7 @@ export function createEventInvitations(deps: EventInvitationDeps): EventInvitati
 
   async function postInvitation(guildId: string, event: Event, now: Date): Promise<void> {
     const owner = eventOwnerOf(event.name);
-    const channelId = owner.kind === "kingdom" ? server.announcementsChannelId() : server.allianceChatId(owner.tag);
+    const channelId = eventChannelId(server, owner);
     if (channelId === undefined) return refuse(event, "its Alliance has no alliance-chat");
     const creator = event.creatorId === undefined ? undefined : await creatorOf(owner, event.creatorId);
     if (!mayActOnEvent(owner, creator)) return refuse(event, `its creator ${event.creatorId ?? "(none)"} may not create it`);
@@ -154,8 +168,8 @@ export function createEventInvitations(deps: EventInvitationDeps): EventInvitati
 
   async function invite(scheduledEvent: unknown): Promise<void> {
     const read = eventOf(scheduledEvent);
-    const guild = scheduledEventGuildSchema.safeParse(scheduledEvent);
-    if (!read.ok || !guild.success) {
+    const guildId = guildIdOf(scheduledEvent);
+    if (!read.ok || guildId === undefined) {
       deps.logError(`An Event was not read: ${read.ok ? "no guild" : read.reason}`);
       return;
     }
@@ -164,7 +178,7 @@ export function createEventInvitations(deps: EventInvitationDeps): EventInvitati
     events.recordFirstSeen(event.id, now.toISOString());
     if (event.start.getTime() <= now.getTime() || events.findEvent(event.id)?.invitedAt !== undefined) return;
     try {
-      await postInvitation(guild.data.guildId, event, now);
+      await postInvitation(guildId, event, now);
     } catch (error) {
       deps.logError(`Inviting to the Event ${event.name} failed: ${errorMessage(error)}`);
     }

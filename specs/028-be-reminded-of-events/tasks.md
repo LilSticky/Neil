@@ -21,8 +21,8 @@ Tasks in one phase run in order unless marked [P].
 - [x] T008 [US2] `dueReminders` in `src/domain/events.ts`: targets `start` and `signup`, keyed by lead time; skip those due before `firstSeenAt`, after the target, or for a cancelled, completed or deleted Event; several due at once for one target collapse into the shortest lead time; no kind gives one reminder 30 minutes before the start and no Sign-up reminder (FR-006, FR-008, FR-012, plan D5, D7)
 - [x] T009 [US2] Kind match in `src/domain/events.ts`: the kind's name in the event name, ignoring case, longest wins, only the Event's own list (FR-010, US3 AS4–AS5)
 - [x] T010 [US2] Reminder texts in `src/discord/event-texts.ts`: start and Sign-up lines with the deadline, the event link, mention chunks (plan D8)
-- [ ] T011 [US2] The one-minute tick in `src/discord/events.ts`: fetch subscribers, mention only Linked Members who may take part (no Guests for a Kingdom Event, Alliance role for an Alliance Event), Event Invitations Off ignored, nobody Interested posts nothing, record sent, log (FR-007, US2 AS1–AS8, plan D2)
-- [ ] T012 [US2] Moved start, cancel and delete: reminders follow the new start without repeats; a deleted Event's rows go (FR-012, US2 AS7–AS8)
+- [x] T011 [US2] The one-minute tick in `src/discord/events.ts`: fetch subscribers, mention only Linked Members who may take part (no Guests for a Kingdom Event, Alliance role for an Alliance Event), Event Invitations Off ignored, nobody Interested posts nothing, record sent, log (FR-007, US2 AS1–AS8, plan D2)
+- [x] T012 [US2] Moved start, cancel and delete: reminders follow the new start without repeats; a deleted Event's rows go (FR-012, US2 AS7–AS8)
 
 ## Phase D: US3, Leaders set their Event Kinds (P2)
 
