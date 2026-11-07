@@ -355,6 +355,16 @@ Branch `023-no-rank-approval-for-guests`. No new commands.
 | 6r.2 | `/rank` that Member as an Officer, with R4 | The nickname shows `\|R4`; no `R4` role | | |
 | 6r.3 | Link a test account in the Home Kingdom whose rank the game doesn't list | The Rank Approval is asked, as before | | |
 
+## 6t. See what Neil can do (slice 027, collected 2026-11-07)
+
+Branch `027-see-what-neil-can-do`. New command: `/help`. Before: run `npm run commands:register`.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6t.1 | `/help` as a Member | A private list of commands with usage and purpose; no `/quota`, `/rank` or `/link` | | |
+| 6t.2 | `/help` as an Officer | The same list, then the Officer commands | | |
+| 6t.3 | Read `/player`, `/rank` and `/reaper closest` in the list | Required options as `<name>`, optional ones as `[name]`; each `/reaper` subcommand on its own line | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

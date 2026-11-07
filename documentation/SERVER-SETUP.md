@@ -41,6 +41,7 @@ nickname and roles matching the game.
 | **Correct a Link** | Officers, and Members for themselves | `/unlink` (Members: yourself; Officers: anyone), `/rank` (Officers set an Alliance Rank), `/link` (Officers Link a Member whose Interview was handed off). |
 | **Daily Quota** | Officers | `/quota` shows how many Game API requests are left today, and the top Members. |
 | **REAPER** | any Member; Home Kingdom R5s edit | A shared list of Exiles (malicious Players): `/reaper closest`, `/reaper list`, `/reaper add`, `/reaper remove`. |
+| **Help** | any Member | `/help` privately lists the commands you can use, how to write them and what they are for. Officers see their commands too. |
 | **Ping** | any Member | `/ping` shows that Neil is online, and which version. Temporary. |
 
 ### What Neil never does
@@ -205,7 +206,7 @@ can use every command everywhere, so test with an account that isn't one.
 |---------|---------------------|--------------|
 | `/quota`, `/rank`, `/link` | 🔴 add **Moderator** and **King** | 🟡 Moderator channel |
 | `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the intel channels (PvP, Alliance Duel, Kingdom vs Kingdom) |
-| `/channels`, `/usage`, `/ping` | leave as is | 🟡 `#alliance-hall` |
+| `/channels`, `/usage`, `/ping`, `/help` | leave as is | 🟡 `#alliance-hall` |
 | `/unlink` | leave as is | 🟡 `#alliance-hall` and the Moderator channel |
 | `/interview` | leave as is | 🟡 `#onboarding`, or newcomers can't start a new Interview |
 
