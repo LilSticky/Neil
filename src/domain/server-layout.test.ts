@@ -102,11 +102,16 @@ describe("expandLayout: base rules", () => {
     expect(overwriteFor(general.overwrites, "@everyone").deny).toEqual(["ViewChannel"]);
   });
 
-  test("a seenBy role is allowed View Channel on the category and on its channels", () => {
+  test("a seenBy role is allowed View Channel on the category", () => {
     const hangout = categoryNamed(expanded(), "Hangout");
     expect(overwriteFor(hangout.overwrites, KINGDOM_ROLE).allow).toEqual(["ViewChannel"]);
-    const general = channelNamed(hangout, "general");
-    expect(overwriteFor(general.overwrites, KINGDOM_ROLE).allow).toEqual(["ViewChannel"]);
+  });
+
+  test("a seenBy role is allowed to view, read the history of and post in a text channel, whatever @everyone holds", () => {
+    const general = channelNamed(categoryNamed(expanded(), "Hangout"), "general");
+    expect(new Set(overwriteFor(general.overwrites, KINGDOM_ROLE).allow)).toEqual(
+      new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]),
+    );
   });
 
   test("a plain channel is spelled out with only @everyone and the seenBy role", () => {
@@ -128,11 +133,12 @@ describe("expandLayout: base rules", () => {
 });
 
 describe("expandLayout: channel modes and flags", () => {
-  test("read-only denies SendMessages to each seenBy role", () => {
+  test("read-only denies posting and threads to each seenBy role, which still views and reads the history", () => {
     const pvpTalk = channelNamed(categoryNamed(expanded(), "Hangout"), "pvp-talk");
-    expect(new Set(overwriteFor(pvpTalk.overwrites, "R5").deny)).toEqual(new Set(["SendMessages"]));
-    expect(new Set(overwriteFor(pvpTalk.overwrites, "PvP").deny)).toEqual(new Set(["SendMessages"]));
-    expect(overwriteFor(pvpTalk.overwrites, "R5").allow).toEqual(["ViewChannel"]);
+    const posting = new Set(["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"]);
+    expect(new Set(overwriteFor(pvpTalk.overwrites, "R5").deny)).toEqual(posting);
+    expect(new Set(overwriteFor(pvpTalk.overwrites, "PvP").deny)).toEqual(posting);
+    expect(new Set(overwriteFor(pvpTalk.overwrites, "R5").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory"]));
   });
 
   test("only-king-posts denies posting and threads to each seenBy role", () => {
@@ -142,10 +148,10 @@ describe("expandLayout: channel modes and flags", () => {
     );
   });
 
-  test("only-king-posts lets King view and send", () => {
+  test("only-king-posts lets King view, send and read the history", () => {
     const announcements = channelNamed(categoryNamed(expanded(), "Hangout"), "kvk-announcements");
     const king = overwriteFor(announcements.overwrites, "King");
-    expect(new Set(king.allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+    expect(new Set(king.allow)).toEqual(new Set(["ViewChannel", "SendMessages", "ReadMessageHistory"]));
   });
 
   test("translated lets the Interaction Bot view and send", () => {
@@ -165,8 +171,8 @@ describe("expandLayout: own overwrites", () => {
   test("a channel's own seenBy replaces the category's seenBy", () => {
     const closed = channelNamed(categoryNamed(expanded(), "Hangout"), "closed");
     expect(targetsOf(closed.overwrites)).not.toContain(KINGDOM_ROLE);
-    expect(overwriteFor(closed.overwrites, "R5").allow).toEqual(["ViewChannel"]);
-    expect(overwriteFor(closed.overwrites, "King").allow).toEqual(["ViewChannel"]);
+    expect(new Set(overwriteFor(closed.overwrites, "R5").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]));
+    expect(new Set(overwriteFor(closed.overwrites, "King").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]));
   });
 
   test("an own deny wins over the category's allow for the same permission", () => {
@@ -201,8 +207,8 @@ describe("expandLayout: own overwrites", () => {
     const result = expandLayout({ ...layout, categories: [withOwnAllow] }, HOME_KINGDOM, []);
     const mixed = channelNamed(categoryNamed(result, "Hangout"), "mixed");
     const kingdom = overwriteFor(mixed.overwrites, KINGDOM_ROLE);
-    expect(new Set(kingdom.allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
-    expect(kingdom.deny).toEqual([]);
+    expect(new Set(kingdom.allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]));
+    expect(new Set(kingdom.deny)).toEqual(new Set(["SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"]));
   });
 });
 
@@ -215,7 +221,7 @@ describe("expandLayout: languages", () => {
   test("each language channel is seen by its language's role and denied to @everyone", () => {
     const english = channelNamed(categoryNamed(expanded(), "Languages"), "english-chat");
     expect(english.type).toBe("text");
-    expect(overwriteFor(english.overwrites, "English").allow).toEqual(["ViewChannel"]);
+    expect(new Set(overwriteFor(english.overwrites, "English").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]));
     expect(overwriteFor(english.overwrites, "@everyone").deny).toEqual(["ViewChannel"]);
     expect(targetsOf(english.overwrites)).toEqual(["@everyone", "English"]);
   });
@@ -334,7 +340,7 @@ describe("expandLayout: translated copies", () => {
     const copy = channelNamed(categoryNamed(expandLayout(withTranslations, HOME_KINGDOM, []), "Hangout"), "kvk-announcements-french");
 
     expect(new Set(overwriteFor(copy.overwrites, "French").deny)).toEqual(new Set(POSTING_PERMISSIONS));
-    expect(new Set(overwriteFor(copy.overwrites, "King").allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+    expect(new Set(overwriteFor(copy.overwrites, "King").allow)).toEqual(new Set(["ViewChannel", "SendMessages", "ReadMessageHistory"]));
   });
 
   test("the Interaction Bot may view and send in a copy", () => {
@@ -495,5 +501,40 @@ describe("expandLayout: topic and description message", () => {
       );
       expect(general.message).toBe("📌 **#general**\nA test channel.\n\n👀 Seen by: #330\n✍️ Posts: #330\n\nline 1\n\nline 2");
     });
+  });
+});
+
+describe("expandLayout: what a seer may do, by channel type", () => {
+  const typed: ServerLayout = {
+    ...layout,
+    categories: [
+      {
+        name: "Typed",
+        seenBy: ["PvP"],
+        channels: [
+          { name: "Typed voice", type: "voice", description: "A test channel." },
+          { name: "typed-forum", type: "forum", description: "A test channel." },
+          { name: "read-forum", type: "forum", description: "A test channel.", mode: "read-only", overwrites: { R5: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } } },
+        ],
+      },
+    ],
+  };
+  const typedChannel = (name: string): ExpandedChannel => channelNamed(categoryNamed(expandLayout(typed, HOME_KINGDOM, []), "Typed"), name);
+
+  test("a voice channel lets its seers view, connect and speak, whatever @everyone holds", () => {
+    expect(new Set(overwriteFor(typedChannel("Typed voice").overwrites, "PvP").allow)).toEqual(new Set(["ViewChannel", "Connect", "Speak"]));
+  });
+
+  test("a forum lets its seers view, read, create posts and reply in them", () => {
+    expect(new Set(overwriteFor(typedChannel("typed-forum").overwrites, "PvP").allow)).toEqual(
+      new Set(["ViewChannel", "ReadMessageHistory", "SendMessages", "SendMessagesInThreads"]),
+    );
+  });
+
+  test("a read-only forum lets its seers read only, and its own overwrite lets a role post", () => {
+    const forum = typedChannel("read-forum");
+    expect(new Set(overwriteFor(forum.overwrites, "PvP").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory"]));
+    expect(overwriteFor(forum.overwrites, "PvP").deny).toEqual(expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]));
+    expect(overwriteFor(forum.overwrites, "R5").allow).toEqual(expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]));
   });
 });

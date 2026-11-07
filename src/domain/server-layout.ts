@@ -9,7 +9,9 @@ export type Permission =
   | "CreatePrivateThreads"
   | "ManageThreads"
   | "ReadMessageHistory"
-  | "EmbedLinks";
+  | "EmbedLinks"
+  | "Connect"
+  | "Speak";
 export type ChannelType = "text" | "voice" | "forum" | "announcement";
 
 export interface OverwriteSpec {
@@ -90,7 +92,19 @@ export function translatedDescription(description: string, language: string): st
 
 const VIEW: Permission = "ViewChannel";
 const SEND: Permission = "SendMessages";
+const HISTORY: Permission = "ReadMessageHistory";
 const POSTING: Permission[] = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"];
+
+/**
+ * What a seer of each type of channel may do there, granted on the channel so it works whatever @everyone holds on the
+ * server: a read-only or only-king-posts channel drops the posting part.
+ */
+const SEER_GRANTS: Record<ChannelType, { reading: Permission[]; posting: Permission[] }> = {
+  text: { reading: [VIEW, HISTORY], posting: [SEND] },
+  announcement: { reading: [VIEW, HISTORY], posting: [SEND] },
+  forum: { reading: [VIEW, HISTORY], posting: [SEND, "SendMessagesInThreads"] },
+  voice: { reading: [VIEW, "Connect", "Speak"], posting: [] },
+};
 
 type Grant = "allow" | "deny";
 type Grants = Map<string, Map<Permission, Grant>>;
@@ -169,13 +183,13 @@ function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[]
   const { resolve } = expansion;
   const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
   const grants = categoryGrants(seenBy);
-  if (channel.mode === "read-only") {
-    for (const role of seenBy) grant(grants, role, [SEND], "deny");
+  const seer = SEER_GRANTS[channel.type];
+  for (const role of seenBy) {
+    grant(grants, role, seer.reading, "allow");
+    if (channel.mode === undefined) grant(grants, role, seer.posting, "allow");
+    else grant(grants, role, POSTING, "deny");
   }
-  if (channel.mode === "only-king-posts") {
-    for (const role of seenBy) grant(grants, role, POSTING, "deny");
-    grant(grants, KING_ROLE, [VIEW, SEND], "allow");
-  }
+  if (channel.mode === "only-king-posts") grant(grants, KING_ROLE, [VIEW, SEND, HISTORY], "allow");
   if (channel.translated === true) grant(grants, TRANSLATION_BOT_ROLE, [VIEW, SEND], "allow");
   for (const [target, spec] of Object.entries(channel.overwrites ?? {})) {
     grant(grants, resolve(target), spec.allow, "allow");

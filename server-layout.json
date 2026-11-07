@@ -106,7 +106,8 @@
             "Neil": {
               "allow": [
                 "ViewChannel",
-                "SendMessages"
+                "SendMessages",
+                "ReadMessageHistory"
               ]
             }
           }
@@ -366,6 +367,7 @@
           "name": "guides",
           "type": "forum",
           "description": "Guides by our Veterans, one post per guide 📚",
+          "mode": "read-only",
           "overwrites": {
             "Veteran": {
               "allow": [

@@ -61,6 +61,7 @@ const CREATE_PUBLIC_THREADS = PermissionFlagsBits.CreatePublicThreads;
 const MANAGE_ROLES = PermissionFlagsBits.ManageRoles;
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 const EMBED_LINKS = PermissionFlagsBits.EmbedLinks;
+const READ_HISTORY = PermissionFlagsBits.ReadMessageHistory;
 
 /** The layout file as text, built from a base that follows every rule; `overrides` replace top-level keys. */
 function layoutFile(overrides: Record<string, unknown> = {}): string {
@@ -654,7 +655,7 @@ describe("applySetup", () => {
     await applySetup(plan, server);
 
     const general = server.findChannel("general");
-    expect(general?.overwrites.find((o) => o.targetId === r5)?.allow).toBe(MANAGE_MESSAGES | VIEW);
+    expect(general?.overwrites.find((o) => o.targetId === r5)?.allow).toBe(MANAGE_MESSAGES | VIEW | READ_HISTORY | SEND);
     expect(general?.overwrites.find((o) => o.targetId === veteran)).toEqual({ type: 0, targetId: veteran, allow: SEND, deny: 0n });
   });
 
@@ -933,7 +934,8 @@ describe("the shipped server-layout.json", () => {
     );
     for (const language of GAME_LANGUAGES) {
       const channel = languages.channels.find((candidate) => candidate.name === `${language.roleName.toLowerCase()}-chat`);
-      expect(channel?.overwrites).toContainEqual(expect.objectContaining({ target: language.roleName, allow: ["ViewChannel"] }));
+      const seer = channel?.overwrites.find((overwrite) => overwrite.target === language.roleName);
+      expect(new Set(seer?.allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]));
     }
   });
 
@@ -1273,7 +1275,7 @@ describe("running the setup again", () => {
     await applySetup(first, server);
 
     const general = server.findChannel("general");
-    expect(general?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual({ type: 0, targetId: r5, allow: MANAGE_MESSAGES | VIEW, deny: 0n });
+    expect(general?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual({ type: 0, targetId: r5, allow: MANAGE_MESSAGES | VIEW | READ_HISTORY | SEND, deny: 0n });
     expect(general?.overwrites.find((overwrite) => overwrite.targetId === veteran)).toEqual({ type: 0, targetId: veteran, allow: SEND, deny: 0n });
     const second = await planFor(SMALL_LAYOUT, server);
     expect(second.steps).toEqual([]);
@@ -1356,7 +1358,7 @@ describe("the type of an overwrite survives the merge of a corrected channel", (
 
     const roleEdit = writesOf(server, "edit-overwrites").find((write) => write.channelId === general);
     expect(roleEdit?.overwrites.find((overwrite) => overwrite.targetId === r5)).toEqual(
-      expect.objectContaining({ type: 0, allow: MANAGE_MESSAGES | VIEW }),
+      expect.objectContaining({ type: 0, allow: MANAGE_MESSAGES | VIEW | READ_HISTORY | SEND }),
     );
     const neilEdit = writesOf(server, "edit-overwrites").find((write) => write.channelId === log);
     expect(neilEdit?.overwrites.find((overwrite) => overwrite.targetId === server.botUserId)).toEqual(
@@ -1834,5 +1836,24 @@ describe("a voice channel's description", () => {
     const plan = await planFor(changed, server);
 
     expect(plan.steps.map((step) => `${step.kind} ${step.name}`)).toEqual(["edit-description alliance-voice"]);
+  });
+});
+
+describe("the shipped layout grants what @everyone may lack", () => {
+  test("the guides forum is read only, so only Veterans post there", () => {
+    const guides = shippedLayout().categories.flatMap((category) => category.channels).find((channel) => channel.name === "guides");
+    expect(guides?.mode).toBe("read-only");
+  });
+
+  test("Neil reads the history of #neil-log, so a dry run finds its description", () => {
+    const log = shippedLayout().categories.flatMap((category) => category.channels).find((channel) => channel.name === "neil-log");
+    expect(log?.overwrites?.Neil?.allow).toContain("ReadMessageHistory");
+  });
+
+  test("Connect and Speak are permissions a layout may name, written as Discord's bits", () => {
+    const parsed = parseLayout(
+      JSON.stringify({ ...SMALL_LAYOUT, categories: [{ name: "V", seenBy: ["R5"], channels: [{ name: "v", type: "voice", description: "Talk.", overwrites: { R5: { allow: ["Connect", "Speak"], deny: [] } } }] }] }),
+    );
+    expect(parsed.categories[0]?.channels[0]?.overwrites?.R5?.allow).toEqual(["Connect", "Speak"]);
   });
 });
