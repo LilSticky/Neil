@@ -92,6 +92,18 @@ Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 
 `#gift-codes` is in the Server Layout (the user's request, 2026-11-07): Home Kingdom only, posted in by `R4`, `R5` and King, or fed by a **Follow** from the game's official server, which the user sets up by hand ([SERVER-SETUP.md](SERVER-SETUP.md)). Check: TEST-RUN.md 6q.10 and 6q.11.
 
+## Before the release
+
+One of the last steps before the user announces the release:
+
+- **Dry run against the real server** (`npm run server:setup`, with that server in `DISCORD_GUILD_ID`; it changes nothing).
+  The script has only ever run on the emptied test server and has never met an existing layout. Read the report for
+  what it can't migrate: channels and roles found only by exact name (others are duplicated beside the old ones and
+  reported outside the layout), channels in another category or of another type (only reported), extra overwrites
+  (kept, so they can leak), roles with permissions or duplicate names (skipped), topics it would replace, and
+  descriptions it would pin in busy channels. Record what it finds here, and decide from it whether a slice to map old
+  names and clean up overwrites is needed before the cutover ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md) step 6).
+
 ## Known broken / WIP
 
 - The setup script's real run hides existing layout channels from @everyone at once. On the live server it is the cutover: only on the announced date ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md) step 6).
