@@ -38,6 +38,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 025 | Onboarding in steps | a Member choose their Preferences one step at a time, with each choice explained, in the Interview thread and with `/channels` ([#73](https://github.com/LilSticky/Neil/issues/73)) | Preferences, Onboarding Interview | step buttons, Interview texts, `#news`, `#suggestions`, recruitment per Region | merged; manual check open (TEST-RUN.md §6w) |
 | 026 | Call out a booty | a Member alert their Alliance to a Booty, and each Member choose when they are mentioned ([#75](https://github.com/LilSticky/Neil/issues/75)) | Booty, Booty Call, Booty Alerts | `/booty`, `/booty-alerts` | merged; manual check open (TEST-RUN.md §6u) |
 | 027 | See what Neil can do | a Member see each command they can use, how to write it and what it is for ([#76](https://github.com/LilSticky/Neil/issues/76)) | | `/help`, built from the command definitions | merged; manual check open (TEST-RUN.md §6t) |
+| 028 | Be reminded of events | a Member be invited to each Event and reminded of the ones they mark Interested, before the start and before the Sign-up Deadline, and leaders set the Event Kinds' lead times | Event, Kingdom Event, Alliance Event, Event Kind, Sign-up Deadline, Event Invitation, Event Reminder | scheduled events intent, `/event-kinds`, `/event-invitations`, one-minute tick, `rolePermissions` | merged; manual check open (TEST-RUN.md §6x) |
 | 029 | Rework the Server Layout | a Member see what each channel is for and who sees it, in a reworked layout (one Hangout, Recruitment channels (replaced by slice 025's per-Region set), coaching voice, translated KvK and NaP announcements, a code of conduct in the rules) [#80](https://github.com/LilSticky/Neil/issues/80) | Server Layout, Hangout | setup script, `server-layout.json` | merged; manual check open (TEST-RUN.md §6v) |
 
 ## Later (unordered)
@@ -47,8 +48,6 @@ below are working words, not dictionary terms.
 
 - **Be alarmed for excavations by Neil itself**: alarms with no Member calling them, on top of slice 026's Booty Call. Blocked on the Game
   API; its developer is working on something that would help.
-- **Be reminded of events**: Neil keeps Discord events for in-game events, and opt-in Members are invited,
-  reminded, reminded to sign up, and given the event's guides.
 - **Prepare an Undead Siege**: help plan who reinforces whom across the 20 waves, knowing that not every Player is
   eligible to take part.
 - **Fight KvK / AD on Raid Day**: manage raid groups and their communication, on top of the player and alliance

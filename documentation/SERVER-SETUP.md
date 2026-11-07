@@ -30,7 +30,7 @@ nickname and roles matching the game.
 |------------|-----|-----|
 | **Onboarding Interview** | every newcomer | When someone joins, Neil opens a private thread in `#onboarding` and asks which Player they are. The Member proves it with their uid (the number under their in-game profile picture). A Member who isn't Linked also gets an Interview on coming online, and at a start of Neil, up to 10 per start. If the thread got lost, `/interview` starts a new one. |
 | **Link** | Neil | Once the Member confirms ("that's me"), Neil Links them to the Player, then gives them their nickname and roles. |
-| **Preferences** | Neil | After the Link, one message in the Interview thread with four menus (Languages, Region, Interests, Experience) and a **Done** button. Each choice gives a Preference Role, which shows the matching channels. `/channels` shows the same menus later, privately. |
+| **Preferences** | Neil | After the Link, the Interview thread shows four steps (Languages, Interests, Region, Experience), one menu each, with **Skip** or **Next**, **Back** and **Done**. Each choice gives a Preference Role, which shows the matching channels. `/channels` starts the same steps later, privately. |
 | **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance role (`[NML]`), Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |
 | **Daily Sync** | Neil | Once a day (03:00 UTC by default) Neil re-reads the game and updates nicknames and roles. |
 | **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the Server Layout) lets them see only `#onboarding`. After the Link they keep it until their Interview thread closes, so they can finish their Preferences there. |
@@ -42,6 +42,7 @@ nickname and roles matching the game.
 | **Daily Quota** | Officers | `/quota` shows how many Game API requests are left today, and the top Members. |
 | **REAPER** | any Member; Home Kingdom R5s edit | A shared list of Exiles (malicious Players): `/reaper closest`, `/reaper list`, `/reaper add`, `/reaper remove`. |
 | **Booty Call** | any Member of the Alliance | `/booty` in the Alliance's `alliance-chat` asks for a private Confirm, then posts a card that mentions the Members of that Alliance whose Booty Alerts match. One per Alliance per minute. `/booty-alerts` records when you want to be mentioned: Off (the default), Always, Only when online or Only when offline, with a daily window and your time zone. |
+| **Events** | Officers and an Alliance's R4 or R5 create; any Member | Create a Discord scheduled event (Server name → **Create Event**). An event named `[TAG] …` is that Alliance's; any other is the Kingdom's. Neil posts one Event Invitation, in `#event-announcements` mentioning the `Events` role, or in the Alliance's `alliance-chat` mentioning its members, with the links from the event's description as guides. Members who click **Interested** are reminded: 30 minutes before the start, or at the Event Kind's lead times, and before its Sign-up Deadline. Neil only announces an Alliance Event created by that Alliance's R4 or R5 or an Officer, and a Kingdom Event created by an Officer. `/event-kinds` keeps the Event Kinds (Officers for the Kingdom, R4 and R5 for their Alliance); `/event-invitations` switches the invitation mentions off. Neil sees only events in a channel it can view, or with **Somewhere Else** as the location. |
 | **Help** | any Member | `/help` privately lists the commands you can use, how to write them and what they are for. Officers see their commands too. |
 | **Ping** | any Member | `/ping` shows that Neil is online, and which version. Temporary. |
 
@@ -228,7 +229,8 @@ can use every command everywhere, so test with an account that isn't one.
 | `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the intel channels (PvP, Alliance Duel, Kingdom vs Kingdom) |
 | `/channels`, `/usage`, `/ping`, `/help` | leave as is | 🟡 `#alliance-hall` |
 | `/booty` | leave as is | 🔴 don't limit it, or allow every `alliance-chat`: it works nowhere else |
-| `/booty-alerts` | leave as is | 🟡 `#alliance-hall` |
+| `/booty-alerts`, `/event-invitations` | leave as is | 🟡 `#alliance-hall` |
+| `/event-kinds` | leave as is (R4 and R5 use it too; Neil checks who may) | 🟡 `#alliance-hall` and the Moderator channel |
 | `/unlink` | leave as is | 🟡 `#alliance-hall` and the Moderator channel |
 | `/interview` | leave as is | 🟡 `#onboarding`, or newcomers can't start a new Interview |
 

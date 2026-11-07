@@ -7,6 +7,9 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 028, Be reminded of events ([specs](../specs/028-be-reminded-of-events/), [discovery](discovery/028-be-reminded-of-events.md)): Neil reads Discord scheduled events (a new, unprivileged intent, ADR 14) and posts one Event Invitation per Event, in `#event-announcements` (Kingdom Event, mentioning `Events`) or the Alliance's `alliance-chat` (`[TAG]` in the name, mentioning its members), if its creator may create it. A one-minute tick reminds the Members who clicked Interested, 30 minutes before the start or at the Event Kind's lead times and before its Sign-up Deadline. `/event-kinds` and `/event-invitations` are new. The setup script now grants Create Events to `R4`, `R5`, Moderator and King (`rolePermissions`, the user's decision). Migration 15.
+Merged to `main` with T001–T022 and T024 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6x, T023) needs the deploy, `npm run commands:register` and the setup script, so Definition of Done 2 is open. The real discord.js adapters have only been tested with fakes.
+
 Slice 025, Onboarding in steps ([specs](../specs/025-onboarding-in-steps/), issue
 [#73](https://github.com/LilSticky/Neil/issues/73)): after the Link, the Interview thread shows the Preferences as four steps (Languages, Interests, Region, Experience) with Skip or Next, Back and Done, and `/channels` starts the same steps privately. The Interview speaks as the alliance hall's Liaison. The Server Layout gains `#news` (seen by everyone), `#suggestions`, and a recruitment channel per Region in place of slice 029's two (the user's decisions). No migration, no new command.
 Merged to `main` with T001–T018 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6w, T020) needs the deploy and an emptied test server, so Definition of Done 2 is open.
@@ -78,7 +81,7 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** the user empties the test server again, then follows the setup guide ([STARTUP-GUIDE.md](STARTUP-GUIDE.md)): dry run, Administrator, `--apply`, Administrator off, place the roles, put the new IDs in `.env` and on Wispbyte, `npm run commands:register`, start Neil, then TEST-RUN.md §6v and §6w.
+**Next step:** the user empties the test server again, then follows the setup guide ([STARTUP-GUIDE.md](STARTUP-GUIDE.md)): dry run, Administrator, `--apply`, Administrator off, place the roles, put the new IDs in `.env` and on Wispbyte, `npm run commands:register`, start Neil, then TEST-RUN.md §6v, §6w and §6x.
 
 For the user, still open: deploy slices 020, 021 and 022 and let one Daily Sync run before the setup script's real run, delete the `Trading` role, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n, §6o, §6p, §6r, §6s, §6t and §6u. §6q.1–6q.4 passed on 2026-11-07; the rest of §6q is replaced by §6v. For slice 026: `npm run commands:register`, the setup script again so Neil may post in `alliance-chat`, then TEST-RUN.md §6u.
 Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Presence Intent, Linked the Members there, restarted and registered the commands.
@@ -93,7 +96,7 @@ Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 - Announcement channels need Community; without it the script makes them plain text channels. Forums are built as forums either way (to confirm in TEST-RUN §6v).
 - `npm run test` can time out at 5 seconds in unrelated tests when two runs overlap; alone it is green (seen in slice 022).
 - Until slice 021 is deployed and one Daily Sync has run, Guests can hold Preference Roles, so don't gate channels on them.
-- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r), slice 024 (T009, §6s), slice 027 (T008, §6t), slice 026 (T019, §6u), slice 025 (T020, §6w), slice 029 (§6v; §6q.1–6q.4 passed on 2026-11-07).
+- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r), slice 024 (T009, §6s), slice 027 (T008, §6t), slice 026 (T019, §6u), slice 025 (T020, §6w), slice 028 (T023, §6x), slice 029 (§6v; §6q.1–6q.4 passed on 2026-11-07).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).
