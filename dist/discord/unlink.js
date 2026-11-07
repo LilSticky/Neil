@@ -17,6 +17,10 @@ async function unlinkMember(deps, memberId, reason) {
     const removed = attempt(deps, memberId, "ending the Link", () => deps.links.unlink(memberId));
     // Every Unlink forgets the Preferences, also a Member already gone from the server: their rows must not outlive the Link.
     await attemptAsync(deps, memberId, "forgetting the Preferences", () => deps.preferenceRoles.forget(memberId));
+    // The Booty Alerts store is synchronous, so its forget runs through attempt, which logs a failure the same way.
+    attempt(deps, memberId, "forgetting the Booty Alerts", () => {
+        deps.bootyAlerts.forget(memberId);
+    });
     let notChanged = [];
     if (!removedByDiscord(reason)) {
         notChanged = await takeOffOnServer(deps, memberId, applied);

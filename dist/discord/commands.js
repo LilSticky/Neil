@@ -60,6 +60,32 @@ export const usage = new SlashCommandBuilder()
     .setName("usage")
     .setDescription("Show your Game API requests today and your Daily Allowance")
     .setContexts(InteractionContextType.Guild);
+export const booty = new SlashCommandBuilder()
+    .setName("booty")
+    .setDescription("Call a Booty for your Alliance: a card alerts the Members whose Booty Alerts match")
+    .setContexts(InteractionContextType.Guild);
+export const bootyAlerts = new SlashCommandBuilder()
+    .setName("booty-alerts")
+    .setDescription("Choose when a Booty Call alerts you: the mode, a daily window and your time zone")
+    .setContexts(InteractionContextType.Guild)
+    .addStringOption((option) => option
+    .setName("mode")
+    .setDescription("Off, Always, Only when online or Only when offline")
+    .setRequired(false)
+    .addChoices({ name: "Off", value: "off" }, { name: "Always", value: "always" }, { name: "Only when online", value: "online" }, { name: "Only when offline", value: "offline" }))
+    .addStringOption((option) => option
+    .setName("from")
+    .setDescription("Start of your daily window, HH:MM on the 24-hour clock, e.g. 08:00")
+    .setRequired(false))
+    .addStringOption((option) => option
+    .setName("to")
+    .setDescription("End of your daily window, HH:MM on the 24-hour clock, e.g. 23:00")
+    .setRequired(false))
+    .addStringOption((option) => option
+    .setName("time-zone")
+    .setDescription("Your time zone, e.g. Europe/Lisbon")
+    .setRequired(false)
+    .setAutocomplete(true));
 export const help = new SlashCommandBuilder()
     .setName("help")
     .setDescription("Show the commands you can use and what they are for")
@@ -140,5 +166,7 @@ export const commands = [
     reaper.toJSON(),
     usage.toJSON(),
     help.toJSON(),
+    booty.toJSON(),
+    bootyAlerts.toJSON(),
 ];
 //# sourceMappingURL=commands.js.map

@@ -5,6 +5,7 @@ import { readBuildInfo } from "./build-info.js";
 import { connect } from "./discord/client.js";
 import { GameApiClient } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
+import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
@@ -40,6 +41,7 @@ await start({
             knownAlliances: new KnownAllianceStore(db),
             dailySync: new DailySyncStore(db),
             reaper: new ReaperStore(db),
+            bootyAlerts: new BootyAlertsStore(db),
             preferences: createPreferenceStore(db, (line) => {
                 console.error(line);
             }),

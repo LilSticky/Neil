@@ -221,6 +221,7 @@ export class GameApiClient {
             might: body.power,
             sanctuaryLevel: body.lv,
             details: playerDetailsFrom(body),
+            ...rosterOf(body),
         };
         if (body.aid === null || body.aid === 0) {
             return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, fetchedAt };
@@ -508,6 +509,21 @@ function playerDetailsFrom(body) {
         avatarPath: body.avatar_url,
         kingdomBadgePath: body.server_badge_url,
     };
+}
+/**
+ * The Alliance roster a Player's 200 body gives: each row's uid and online reading. A row whose uid is not a uid is left
+ * out; a body with no `alliance_members` gives no roster at all.
+ */
+function rosterOf(body) {
+    if (body.alliance_members === undefined || body.alliance_members === null)
+        return {};
+    const roster = body.alliance_members.flatMap((row) => {
+        const uid = parseUid(row.uid);
+        if (!uid.ok)
+            return [];
+        return [{ uid: uid.value, online: row.online ?? undefined, lastOnlineAt: dateFromSeconds(row.last_online_at) }];
+    });
+    return { roster };
 }
 /** A Player is shielded when `shielding` is a non-zero number; 0 means not shielded and an unreadable value is unknown. */
 function shieldedFrom(shielding) {

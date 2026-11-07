@@ -16,6 +16,7 @@ const PERMISSION_BITS = {
     CreatePrivateThreads: PermissionFlagsBits.CreatePrivateThreads,
     ManageThreads: PermissionFlagsBits.ManageThreads,
     ReadMessageHistory: PermissionFlagsBits.ReadMessageHistory,
+    EmbedLinks: PermissionFlagsBits.EmbedLinks,
 };
 const PERMISSIONS = Object.keys(PERMISSION_BITS).filter(isPermission);
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
@@ -61,7 +62,7 @@ const layoutSchema = z.strictObject({
     externalRoles: z.array(z.string()),
     languages: z.array(z.string()),
     categories: z.array(categorySchema),
-    allianceArea: z.strictObject({ channels: z.array(z.strictObject({ name: z.string(), type: z.string() })) }),
+    allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
 });
 /**
  * Reads the layout file (data-model.md, Rules checked on load). The shape is checked by zod; the values by hand, so each

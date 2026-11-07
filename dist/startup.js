@@ -76,6 +76,7 @@ export async function start(deps) {
             troopBracketLevels: config.troopBracketLevels,
             dailySync: store.dailySync,
             reaper: store.reaper,
+            bootyAlerts: store.bootyAlerts,
             preferences: store.preferences,
             guidesForumId: config.guidesForumId,
             syncHourUtc: config.syncHourUtc,
