@@ -33,7 +33,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PermissionFlagsBits } from "discord.js";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { GAME_LANGUAGES } from "../domain/preferences.js";
 import {
   expandLayout,
@@ -44,7 +44,7 @@ import {
   type WantedOverwrite,
 } from "../domain/server-layout.js";
 import { planSetup, type ServerState, type SetupPlan } from "../domain/setup-plan.js";
-import { FakeSetupServer, type SetupWrite, type SetupWriteOp } from "./__fakes__/setup-server.js";
+import { FakeSetupServer, type ChannelWrite, type SetupWrite, type SetupWriteOp } from "./__fakes__/setup-server.js";
 import { applySetup, parseLayout, readServer, runSetup, type SetupChannelInfo } from "./server-setup.js";
 
 const HOME_KINGDOM = 330;
@@ -1142,8 +1142,8 @@ describe("running the setup again", () => {
     const abc = server.defineRole("[ABC]", { position: 2 });
 
     const plan = await planFor(SMALL_LAYOUT, server);
-    expect(plan.steps.map((step) => step.kind)).toEqual(["create-category", "create-channel", "create-channel"]);
-    expect(plan.steps.map((step) => step.name)).toEqual(["[ABC]", "alliance-chat", "alliance-voice"]);
+    expect(plan.steps.map((step) => step.kind)).toEqual(["create-category", "create-channel", "create-channel", "post-description", "post-description"]);
+    expect(plan.steps.map((step) => step.name)).toEqual(["[ABC]", "alliance-chat", "alliance-voice", "alliance-chat", "alliance-voice"]);
 
     await applySetup(plan, server);
 
@@ -1223,10 +1223,11 @@ describe("running the setup again", () => {
 
     const firstOutcomes = await applySetup(first, server);
 
-    expect(firstOutcomes.filter((outcome) => outcome.status === "failed").map((outcome) => outcome.step.name)).toEqual(["general"]);
+    expect(firstOutcomes.filter((outcome) => outcome.status === "failed").map((outcome) => outcome.step.kind)).toEqual(["create-channel", "post-description"]);
     server.clearFailures();
     const second = await planFor(SMALL_LAYOUT, server);
-    expect(second.steps.map((step) => step.name)).toEqual(["general"]);
+    expect(second.steps.map((step) => step.kind)).toEqual(["create-channel", "post-description"]);
+    expect(second.steps.map((step) => step.name)).toEqual(["general", "general"]);
 
     const secondOutcomes = await applySetup(second, server);
 
@@ -1393,5 +1394,326 @@ describe("a created Moderator in the hand steps", () => {
 
     expect(lines(report)).toContain("create role Moderator");
     expect(indexWhere(report, (line) => /Neil's role above every role it gives/.test(line) && /Moderator/.test(line))).toBeGreaterThan(-1);
+  });
+});
+
+// ---- Topics and descriptions (slice 029, tasks T011, research R1 to R3, R6, data-model.md) ---------------------------
+
+const OTHER_USER_ID = "400000000000000000";
+const PIN = "📌";
+
+/** A layout with a text, an announcement, a voice channel and a forum, each with its description. */
+const DESCRIBED_LAYOUT: ServerLayout = {
+  roles: [KINGDOM_ROLE],
+  externalRoles: [],
+  languages: [],
+  translations: [],
+  categories: [
+    {
+      name: "Hangout",
+      seenBy: [KINGDOM_ROLE],
+      channels: [
+        { name: "general", type: "text", description: "Chat with the Kingdom." },
+        { name: "news", type: "announcement", description: "News from the King." },
+        { name: "lounge", type: "voice", description: "Talk out loud." },
+      ],
+    },
+    {
+      name: "Tactics",
+      seenBy: [KINGDOM_ROLE],
+      channels: [{ name: "tactics", type: "forum", description: "Tactics for the Kingdom." }],
+    },
+  ],
+  allianceArea: { channels: [] },
+};
+
+/** The layout of the stale server: general and news, which the server already has with other topics and text. */
+const STALE_LAYOUT: ServerLayout = {
+  roles: [KINGDOM_ROLE],
+  externalRoles: [],
+  languages: [],
+  translations: [],
+  categories: [
+    {
+      name: "Hangout",
+      seenBy: [KINGDOM_ROLE],
+      channels: [
+        { name: "general", type: "text", description: "Chat with the Kingdom." },
+        { name: "news", type: "announcement", description: "News from the King." },
+      ],
+    },
+  ],
+  allianceArea: { channels: [] },
+};
+
+/** A server with Hangout, general (old topic, an old description by Neil) and news (no topic, no description). */
+function serverWithStaleDescriptions(options: { botPermissions?: bigint } = {}): FakeSetupServer {
+  const server = new FakeSetupServer({ features: COMMUNITY, ...options });
+  const hangout = server.defineChannel("Hangout", { kind: "category" });
+  const general = server.defineChannel("general", { kind: "text", parentId: hangout, topic: "Old topic." });
+  server.definePin(general, { authorId: server.botUserId, content: `${PIN} **#general**\nOld description.` });
+  server.defineChannel("news", { kind: "announcement", parentId: hangout });
+  return server;
+}
+
+/** The pinned-message posts written to a channel, in order. */
+function postsIn(server: FakeSetupServer, channel: string): Extract<ChannelWrite, { op: "post-pinned-message" }>[] {
+  return server.channelWrites.filter(
+    (write): write is Extract<ChannelWrite, { op: "post-pinned-message" }> => write.op === "post-pinned-message" && write.channelId === channel,
+  );
+}
+
+/** The full description message of a channel in a layout, as the setup posts it: the text, the seen-by and the posts lines. */
+function descriptionOf(layout: ServerLayout, name: string): string {
+  const found = expandLayout(layout, HOME_KINGDOM, []).categories.flatMap((category) => category.channels).find((channel) => channel.name === name);
+  if (found?.message === undefined) throw new Error(`the layout has no description for ${name}`);
+  return found.message;
+}
+
+/** The pinned messages of a channel, newest first, as the port reads them. */
+async function pinsOf(server: FakeSetupServer, name: string): Promise<string[]> {
+  const pins = await server.readPins(channelId(server, name));
+  if (pins === undefined) throw new Error(`the pins of ${name} are unread`);
+  return pins.map((pin) => pin.content);
+}
+
+describe("readServer reads each channel's topic and Neil's description", () => {
+  test("maps the topic of a channel, and leaves it out when the channel has none", async () => {
+    const server = new FakeSetupServer();
+    server.defineChannel("general", { kind: "text", topic: "Chat here." });
+    server.defineChannel("off-topic", { kind: "text" });
+
+    const state = await readServer(server);
+
+    expect(state.channels.find((channel) => channel.name === "general")?.topic).toBe("Chat here.");
+    expect(state.channels.find((channel) => channel.name === "off-topic")?.topic).toBeUndefined();
+  });
+
+  test("reads the oldest pin by Neil that starts with the pin mark as the description, and ignores the other pins", async () => {
+    const server = new FakeSetupServer();
+    const general = server.defineChannel("general", { kind: "text" });
+    server.definePin(general, { authorId: OTHER_USER_ID, content: `${PIN} **#general**\nWritten by a Member.` });
+    server.definePin(general, { authorId: server.botUserId, content: "A note that does not start with the mark." });
+    const oldest = server.definePin(general, { authorId: server.botUserId, content: `${PIN} **#general**\nThe oldest.` });
+    server.definePin(general, { authorId: server.botUserId, content: `${PIN} **#general**\nA newer one.` });
+
+    const state = await readServer(server);
+
+    expect(state.channels.find((channel) => channel.name === "general")?.description).toEqual({
+      messageId: oldest,
+      text: `${PIN} **#general**\nThe oldest.`,
+    });
+  });
+
+  test("reads Neil's description of text, announcement and voice channels, and reads no pins of a forum or a category", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY });
+    const hangout = server.defineChannel("Hangout", { kind: "category" });
+    const general = server.defineChannel("general", { kind: "text", parentId: hangout });
+    const news = server.defineChannel("news", { kind: "announcement", parentId: hangout });
+    const lounge = server.defineChannel("lounge", { kind: "voice", parentId: hangout });
+    const tactics = server.defineChannel("tactics", { kind: "forum", parentId: hangout });
+    const generalPin = server.definePin(general, { authorId: server.botUserId, content: `${PIN} **#general**\nA.` });
+    const newsPin = server.definePin(news, { authorId: server.botUserId, content: `${PIN} **#news**\nB.` });
+    const loungePin = server.definePin(lounge, { authorId: server.botUserId, content: `${PIN} **#lounge**\nC.` });
+    server.definePin(tactics, { authorId: server.botUserId, content: `${PIN} **#tactics**\nD.` });
+    const readPins = vi.spyOn(server, "readPins");
+
+    const state = await readServer(server);
+    const byName = (name: string) => state.channels.find((channel) => channel.name === name);
+
+    expect(byName("general")?.description?.messageId).toBe(generalPin);
+    expect(byName("news")?.description?.messageId).toBe(newsPin);
+    expect(byName("lounge")?.description?.messageId).toBe(loungePin);
+    expect(byName("tactics")?.description).toBeUndefined();
+    expect(byName("Hangout")?.description).toBeUndefined();
+    expect(readPins).not.toHaveBeenCalledWith(tactics);
+    expect(readPins).not.toHaveBeenCalledWith(hangout);
+  });
+});
+
+describe("runSetup creates topics and descriptions on an empty server", () => {
+  test("creates each channel with its description as topic, and a voice channel with no topic", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR, features: COMMUNITY });
+
+    const { exitCode } = await runSetup({ layout: DESCRIBED_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(exitCode).toBe(0);
+    expect(server.findChannel("general")?.topic).toBe("Chat with the Kingdom.");
+    expect(server.findChannel("news")?.topic).toBe("News from the King.");
+    expect(server.findChannel("tactics")?.topic).toBe("Tactics for the Kingdom.");
+    expect(server.findChannel("lounge")?.topic).toBeUndefined();
+  });
+
+  test("posts one description in each text, announcement and voice channel after its creation, and none in a forum", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR, features: COMMUNITY });
+
+    await runSetup({ layout: DESCRIBED_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    for (const name of ["general", "news", "lounge"]) {
+      const id = channelId(server, name);
+      const posts = postsIn(server, id);
+      expect(posts).toHaveLength(1);
+      expect(posts[0]?.content.startsWith(`${PIN} **#${name}**`)).toBe(true);
+      expect(server.sequence.indexOf(`post-pinned-message ${name}`)).toBeGreaterThan(server.sequence.indexOf(`create-channel ${name}`));
+    }
+    const tacticsId = channelId(server, "tactics");
+    expect(server.channelWrites.some((write) => write.op === "post-pinned-message" && write.channelId === tacticsId)).toBe(false);
+  });
+
+  test("a second real run on the same server says Nothing to do. and writes nothing", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR, features: COMMUNITY });
+    await runSetup({ layout: DESCRIBED_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+    expect(await pinsOf(server, "general")).toEqual([descriptionOf(DESCRIBED_LAYOUT, "general")]);
+    const writesBefore = server.writes.length;
+    const channelWritesBefore = server.channelWrites.length;
+
+    const { report, exitCode } = await runSetup({ layout: DESCRIBED_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("Nothing to do.");
+    expect(exitCode).toBe(0);
+    expect(server.writes).toHaveLength(writesBefore);
+    expect(server.channelWrites).toHaveLength(channelWritesBefore);
+  });
+});
+
+describe("runSetup corrects a stale topic and description", () => {
+  test("says would set topic, would edit description and would post description on a dry run, and writes nothing", async () => {
+    const server = serverWithStaleDescriptions();
+
+    const { report } = await runSetup({ layout: STALE_LAYOUT, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("would set topic of general");
+    expect(lines(report)).toContain("would edit description in general");
+    expect(lines(report)).toContain("would set topic of news");
+    expect(lines(report)).toContain("would post description in news");
+    expect(server.writes).toHaveLength(0);
+    expect(server.channelWrites).toHaveLength(0);
+    expect(server.findChannel("general")?.topic).toBe("Old topic.");
+  });
+
+  test("sets the topic, edits the description and posts the new one on a real run, and reports them without would", async () => {
+    const server = serverWithStaleDescriptions({ botPermissions: ADMINISTRATOR });
+    const generalId = channelId(server, "general");
+
+    const { report } = await runSetup({ layout: STALE_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("set topic of general");
+    expect(lines(report)).toContain("edit description in general");
+    expect(lines(report)).toContain("set topic of news");
+    expect(lines(report)).toContain("post description in news");
+    expect(report).not.toMatch(/would /);
+    expect(server.findChannel("general")?.topic).toBe("Chat with the Kingdom.");
+    expect(
+      server.channelWrites.some(
+        (write) => write.op === "edit-message" && write.channelId === generalId && write.content.includes("Chat with the Kingdom."),
+      ),
+    ).toBe(true);
+    expect(await pinsOf(server, "general")).toEqual([descriptionOf(STALE_LAYOUT, "general")]);
+  });
+
+  test("applies the topics and descriptions after the overwrites", async () => {
+    const server = serverWithStaleDescriptions();
+    const plan = await planFor(STALE_LAYOUT, server);
+
+    await applySetup(plan, server);
+
+    const firstDescriptionWrite = server.sequence.findIndex((entry) => /^(set-topic|post-pinned-message|edit-message) /.test(entry));
+    expect(server.sequence.some((entry) => entry.startsWith("edit-overwrites "))).toBe(true);
+    expect(firstDescriptionWrite).toBeGreaterThan(-1);
+    expect(server.sequence.slice(firstDescriptionWrite).filter((entry) => entry.startsWith("edit-overwrites "))).toEqual([]);
+  });
+});
+
+describe("runSetup reports a description whose channel failed to be created", () => {
+  test("applySetup gives the post-description step of that channel a failed outcome", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY });
+    server.failWrite("create-channel", "general", new Error("Discord refused"));
+    const plan = await planFor(DESCRIBED_LAYOUT, server);
+
+    const outcomes = await applySetup(plan, server);
+
+    const description = outcomes.find((outcome) => outcome.step.kind === "post-description" && outcome.step.name === "general");
+    expect(description?.status).toBe("failed");
+    expect(server.channelWrites.some((write) => write.op === "post-pinned-message" && write.content.startsWith(`${PIN} **#general**`))).toBe(false);
+  });
+
+  test("the report names the description as failed and exits 1", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR, features: COMMUNITY });
+    server.failWrite("create-channel", "general", new Error("Discord refused"));
+
+    const { report, exitCode } = await runSetup({ layout: DESCRIBED_LAYOUT, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(indexWhere(report, (line) => line.startsWith("failed:") && line.includes("post description in general"))).toBeGreaterThan(-1);
+    expect(exitCode).toBe(1);
+  });
+});
+
+describe("runSetup refuses a description message over 2000 characters", () => {
+  test("exits 1, names the channel and writes nothing, even on a real run", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR, features: COMMUNITY });
+    const longLine = "x".repeat(90);
+    const layout: ServerLayout = {
+      roles: [KINGDOM_ROLE],
+      externalRoles: [],
+      languages: [],
+      translations: [],
+      categories: [
+        {
+          name: "Hangout",
+          seenBy: [KINGDOM_ROLE],
+          channels: [
+            {
+              name: "general",
+              type: "text",
+              description: "The code of conduct is long.",
+              codeOfConduct: Array.from({ length: 25 }, () => longLine),
+            },
+          ],
+        },
+      ],
+      allianceArea: { channels: [] },
+    };
+
+    const { report, exitCode } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(exitCode).toBe(1);
+    expect(lines(report).some((line) => line.includes("general") && line.includes("2000"))).toBe(true);
+    expect(server.writes).toHaveLength(0);
+    expect(server.channelWrites).toHaveLength(0);
+    expect(server.sequence).toHaveLength(0);
+  });
+});
+
+describe("a dry run without Administrator reads no pins where Discord refuses the read", () => {
+  test("readServer maps a refused pin read to pinsReadable false, and a readable one to true", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY });
+    server.defineChannel("general", { kind: "text" });
+    server.defineChannel("news", { kind: "announcement" });
+    server.refusePinReads("general");
+
+    const state = await readServer(server);
+
+    expect(state.channels.find((channel) => channel.name === "general")?.pinsReadable).toBe(false);
+    expect(state.channels.find((channel) => channel.name === "news")?.pinsReadable).toBe(true);
+  });
+
+  test("reports one line for all the channels whose pins are unread, with their count, and exits 0", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY });
+    const hangout = server.defineChannel("Hangout", { kind: "category" });
+    server.defineChannel("general", { kind: "text", parentId: hangout });
+    server.defineChannel("news", { kind: "announcement", parentId: hangout });
+    server.defineChannel("lounge", { kind: "voice", parentId: hangout });
+    server.refusePinReads("general");
+    server.refusePinReads("news");
+    server.refusePinReads("lounge");
+
+    const { report, exitCode } = await runSetup({ layout: DESCRIBED_LAYOUT, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report).filter((line) => line.includes("can't read the pinned messages"))).toEqual([
+      "Neil can't read the pinned messages of 3 channels without Administrator; a real run checks their descriptions.",
+    ]);
+    expect(exitCode).toBe(0);
+    expect(server.writes).toHaveLength(0);
+    expect(server.channelWrites).toHaveLength(0);
   });
 });

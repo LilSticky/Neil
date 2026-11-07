@@ -61,18 +61,18 @@ None: the slice works in slice 020's modules.
   `✍️ Posts: read only`. Language chats get "Chat in <Language>."; Alliance areas name their `[TAG]` role.
 - [x] T008 [US2] Green: topic and message in `src/domain/server-layout.ts` (or `src/domain/channel-description.ts` if it
   grows past a few functions).
-- [ ] T009 [US2] Red: in `src/domain/setup-plan.test.ts`, with `ServerChannel.topic` and `ServerChannel.description`
+- [x] T009 [US2] Red: in `src/domain/setup-plan.test.ts`, with `ServerChannel.topic` and `ServerChannel.description`
   (`{ messageId, text }`): a new channel's `create-channel` step carries its topic and is followed by `post-description`;
   an existing channel with another topic gets `set-topic`; without Neil's description, `post-description`; with a
   different text, `edit-description`; with matching topic and text, no step. Forums get no description step, voice no topic.
-- [ ] T010 [US2] Green: the new steps in `src/domain/setup-plan.ts`.
-- [ ] T011 [US2] Red: in `src/discord/server-setup.test.ts`, `readServer` reads each channel's topic and, for text,
+- [x] T010 [US2] Green: the new steps in `src/domain/setup-plan.ts`.
+- [x] T011 [US2] Red: in `src/discord/server-setup.test.ts`, `readServer` reads each channel's topic and, for text,
   announcement and voice channels, Neil's description: the oldest pin by Neil's user starting with `📌`; other pins are
   ignored. `applySetup` runs topics and descriptions after overwrites, finds a new channel by name in its category, fails
   `post-description` when the channel's creation failed, and the report says `set topic of`, `post description in`,
   `edit description in` (with `would` on a dry run). A message over 2000 characters stops the run before any write with
   exit 1, naming the channel. A second run on the fake after a real run reports `Nothing to do.`
-- [ ] T012 [US2] Green: `SetupServer` gains `readPinnedDescriptions`-style reads, `setTopic`, `postPinnedMessage`,
+- [x] T012 [US2] Green: `SetupServer` gains `readPinnedDescriptions`-style reads, `setTopic`, `postPinnedMessage`,
   `editMessage`, and `createChannel` takes a topic, in `src/discord/server-setup.ts` and its `FakeSetupServer`.
 - [x] T013 [US2] Red: in `src/discord/setup-server-rest.test.ts`: the topic is in the create body and in
   `PATCH /channels/{id}`; `readChannels` maps `topic`; pins come from `GET /channels/{id}/messages/pins` (`items[].message`,
@@ -88,10 +88,10 @@ None: the slice works in slice 020's modules.
 
 **Independent Test**: the expanded message of `rules` and `guest-rules` ends with their code of conduct.
 
-- [ ] T016 [US3] Red: in `src/domain/server-layout.test.ts`, a channel with `codeOfConduct` has its lines, joined by line
+- [x] T016 [US3] Red: in `src/domain/server-layout.test.ts`, a channel with `codeOfConduct` has its lines, joined by line
   breaks, after a blank line at the end of its message; and in the shipped-layout tests, the `rules` and `guest-rules`
   messages hold the approved texts and stay under 2000 characters.
-- [ ] T017 [US3] Green: append the code of conduct in `src/domain/server-layout.ts`.
+- [x] T017 [US3] Green: append the code of conduct in `src/domain/server-layout.ts`.
 
 ## Phase 6: Polish & Cross-Cutting
 

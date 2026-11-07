@@ -166,6 +166,26 @@ describe("createRestSetupServer reads the pins of a channel", () => {
   });
 });
 
+describe("createRestSetupServer reads no pins where Discord refuses the read with 403", () => {
+  test("resolves to undefined when the pin read is refused with status 403 (Missing Access)", async () => {
+    const rest = fakeRest();
+    const refusal = Object.assign(new Error("Missing Access"), { status: 403, code: 50001 });
+    rest.get.mockRejectedValueOnce(refusal);
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    expect(await server.readPins(CHANNEL_ID)).toBeUndefined();
+    expect(rest.get).toHaveBeenCalledWith(Routes.channelMessagesPins(CHANNEL_ID));
+  });
+
+  test("still rejects a pin read that fails with another status", async () => {
+    const rest = fakeRest();
+    rest.get.mockRejectedValueOnce(Object.assign(new Error("Internal Server Error"), { status: 500 }));
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await expect(server.readPins(CHANNEL_ID)).rejects.toThrow("Internal Server Error");
+  });
+});
+
 describe("createRestSetupServer posts a description with no mentions", () => {
   test("posts the content with allowed_mentions parse empty, and returns the id of the new message", async () => {
     const rest = fakeRest({ post: { [Routes.channelMessages(CHANNEL_ID)]: { id: MESSAGE_ID } } });

@@ -69,6 +69,8 @@ const pinsResponse = z.object({
     }),
   ),
 });
+/** Discord's 403 (Missing Access): a channel whose pins Neil cannot see without Administrator. */
+const forbiddenResponse = z.object({ status: z.literal(403) });
 /** Discord's type 6 message: the notice a channel writes when a message is pinned. */
 const PIN_NOTICE_TYPE = 6;
 const messagesResponse = z.array(
@@ -173,7 +175,14 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       await rest.patch(Routes.channel(channelId), { body: { topic } });
     },
     async readPins(channelId) {
-      const pins = pinsResponse.parse(await rest.get(Routes.channelMessagesPins(channelId)));
+      let response: unknown;
+      try {
+        response = await rest.get(Routes.channelMessagesPins(channelId));
+      } catch (error) {
+        if (forbiddenResponse.safeParse(error).success) return undefined;
+        throw error;
+      }
+      const pins = pinsResponse.parse(response);
       return pins.items.map((item) => ({
         messageId: item.message.id,
         authorId: item.message.author.id,

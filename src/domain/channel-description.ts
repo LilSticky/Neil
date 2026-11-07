@@ -14,6 +14,8 @@ export interface ChannelDescription {
   message: string | undefined;
 }
 
+/** Starts every description message; Neil finds its own description by it (research R3). */
+export const PIN_MARK = "📌";
 const NO_POSTS = "read only";
 
 /**
@@ -33,7 +35,7 @@ export function describeChannel(
     .filter((overwrite) => overwrite.allow.includes("SendMessages") || (isSeer(overwrite, hidden) && !overwrite.deny.includes("SendMessages")))
     .map((overwrite) => overwrite.target);
 
-  const lines = [`📌 **#${channel.name}**`, channel.description, "", `👀 Seen by: ${seers.join(", ")}`];
+  const lines = [`${PIN_MARK} **#${channel.name}**`, channel.description, "", `👀 Seen by: ${seers.join(", ")}`];
   if (channel.type !== "voice") lines.push(`✍️ Posts: ${posters.length > 0 ? posters.join(", ") : NO_POSTS}`);
   if (channel.codeOfConduct !== undefined && channel.codeOfConduct.length > 0) lines.push("", ...channel.codeOfConduct);
   return { topic, message: lines.join("\n") };

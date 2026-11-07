@@ -3,9 +3,11 @@
 import { PermissionFlagsBits } from "discord.js";
 import { z } from "zod";
 import { redact } from "../startup.js";
+import { PIN_MARK } from "../domain/channel-description.js";
 import {
   BOT_TARGET,
   EVERYONE_TARGET,
+  expandLayout,
   type ChannelType,
   type LayoutCategory,
   type LayoutChannel,
@@ -15,6 +17,7 @@ import {
   type WantedOverwrite,
 } from "../domain/server-layout.js";
 import {
+  allianceRoleNamesOf,
   planSetup,
   type ServerChannel,
   type ServerRole,
@@ -90,13 +93,13 @@ export interface SetupServer {
     readonly type: ChannelType;
     readonly parentId: string;
     readonly overwrites: readonly OverwriteEdit[];
-    readonly topic?: string;
+    readonly topic: string | undefined;
   }): Promise<string>;
   /** Writes the channel's whole overwrite list in one request. */
   editOverwrites(channelId: string, overwrites: readonly OverwriteEdit[]): Promise<void>;
   setTopic(channelId: string, topic: string): Promise<void>;
-  /** The pinned messages of a channel. */
-  readPins(channelId: string): Promise<readonly SetupPinInfo[]>;
+  /** The pinned messages of a channel, newest first; undefined when Discord refuses the read (Neil lacks Administrator). */
+  readPins(channelId: string): Promise<readonly SetupPinInfo[] | undefined>;
   /** Posts a message with no mentions, pins it, and returns its id. */
   postPinnedMessage(channelId: string, content: string): Promise<string>;
   editMessage(channelId: string, messageId: string, content: string): Promise<void>;
@@ -318,20 +321,34 @@ export async function readServer(port: SetupServer): Promise<ServerState> {
     hasCommunity: guild.features.includes("COMMUNITY"),
     botIsAdministrator: [...botRoles, ...(everyone === undefined ? [] : [everyone])].some(hasAdministrator),
     roles: roles.map(toServerRole),
-    channels: channels.map(
-      (channel): ServerChannel => ({
-        id: channel.id,
-        name: channel.name,
-        kind: channel.kind,
-        parentId: channel.parentId,
-        overwrites: channel.overwrites.map((overwrite) => ({
-          targetId: overwrite.targetId,
-          allow: permissionNamesOf(overwrite.allow),
-          deny: permissionNamesOf(overwrite.deny),
-        })),
-      }),
-    ),
+    channels: await Promise.all(channels.map((channel) => readChannel(port, channel, bot.userId))),
   };
+}
+
+/** A channel as the plan needs it. Pins are read only where a description can be: text, announcement and voice channels. */
+async function readChannel(port: SetupServer, channel: SetupChannelInfo, botUserId: string): Promise<ServerChannel> {
+  const describable = channel.kind !== "category" && channel.kind !== "forum";
+  const pins = describable ? await port.readPins(channel.id) : [];
+  return {
+    id: channel.id,
+    name: channel.name,
+    kind: channel.kind,
+    parentId: channel.parentId,
+    topic: channel.topic,
+    description: pins === undefined ? undefined : neilDescriptionOf(pins, botUserId),
+    pinsReadable: pins !== undefined,
+    overwrites: channel.overwrites.map((overwrite) => ({
+      targetId: overwrite.targetId,
+      allow: permissionNamesOf(overwrite.allow),
+      deny: permissionNamesOf(overwrite.deny),
+    })),
+  };
+}
+
+/** Neil's description: the oldest pin by Neil's user whose text starts with the pin mark. Discord lists pins newest first. */
+function neilDescriptionOf(pins: readonly SetupPinInfo[], botUserId: string): ServerChannel["description"] {
+  const oldest = pins.filter((pin) => pin.authorId === botUserId && pin.content.startsWith(PIN_MARK)).at(-1);
+  return oldest === undefined ? undefined : { messageId: oldest.messageId, text: oldest.content };
 }
 
 function toServerRole(role: SetupRoleInfo): ServerRole {
@@ -371,6 +388,8 @@ interface Book {
   roles: { id: string; name: string }[];
   categories: { id: string; name: string }[];
   channels: Map<string, SetupChannelInfo>;
+  /** The channels this run created, so that a description step with no id can find its channel. */
+  created: { id: string; name: string; categoryName: string }[];
 }
 
 /**
@@ -401,6 +420,7 @@ async function readBook(port: SetupServer): Promise<Book> {
       .filter((channel) => channel.kind === "category")
       .map((channel) => ({ id: channel.id, name: channel.name })),
     channels: new Map(channels.map((channel) => [channel.id, channel])),
+    created: [],
   };
 }
 
@@ -409,6 +429,9 @@ const PHASE: Record<SetupStep["kind"], number> = {
   "create-category": 1,
   "create-channel": 2,
   "correct-overwrites": 3,
+  "set-topic": 4,
+  "post-description": 5,
+  "edit-description": 5,
 };
 
 function inOrder(steps: readonly SetupStep[]): SetupStep[] {
@@ -429,12 +452,10 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
       return;
     }
     case "create-channel": {
-      const parent = single(
-        book.categories.filter((category) => category.name === step.categoryName),
-        `category "${step.categoryName}" is not there (its step failed)`,
-      );
+      const parent = categoryNamed(book, step.categoryName);
       const overwrites = step.overwrites.map((wanted) => editFor(book, wanted));
-      await port.createChannel({ name: step.name, type: step.type, parentId: parent.id, overwrites });
+      const id = await port.createChannel({ name: step.name, type: step.type, parentId: parent.id, overwrites, topic: step.topic });
+      book.created.push({ id, name: step.name, categoryName: step.categoryName });
       return;
     }
     case "correct-overwrites": {
@@ -444,7 +465,28 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
       await port.editOverwrites(step.id, mergeOverwrites(current.overwrites, wanted));
       return;
     }
+    case "set-topic":
+      await port.setTopic(step.id, step.topic);
+      return;
+    case "post-description": {
+      const channelId = step.id ?? createdIdOf(book, step.name, step.categoryName);
+      await port.postPinnedMessage(channelId, step.content);
+      return;
+    }
+    case "edit-description":
+      await port.editMessage(step.id, step.messageId, step.content);
+      return;
   }
+}
+
+function categoryNamed(book: Book, name: string): { id: string; name: string } {
+  return single(book.categories.filter((category) => category.name === name), `category "${name}" is not there (its step failed)`);
+}
+
+/** The id of a channel this run created in the category; a channel whose creation failed has none. */
+function createdIdOf(book: Book, name: string, categoryName: string): string {
+  const created = book.created.filter((channel) => channel.name === name && channel.categoryName === categoryName);
+  return single(created, `channel "${name}" created in this run (its creation failed, or it is not there)`).id;
 }
 
 function editFor(book: Book, wanted: WantedOverwrite): OverwriteEdit {
@@ -504,6 +546,8 @@ export interface RunOptions {
 export async function runSetup(options: RunOptions): Promise<{ report: string; exitCode: 0 | 1 }> {
   const { layout, homeKingdom, apply, port, secrets } = options;
   const before = await readServer(port);
+  const overlong = overlongLines(layout, homeKingdom, before);
+  if (overlong.length > 0) return { report: redact(overlong.join("\n"), secrets), exitCode: 1 };
   const plan = planSetup(layout, before, homeKingdom);
   const blocked = apply && !before.botIsAdministrator;
   const real = apply && !blocked;
@@ -513,14 +557,17 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
   // The read after the writes may fail too; the outcomes are still reported, and the ID lines are left out.
   const after = real ? await readAfterWrites(port) : before;
   const changed = plan.steps.filter((step) => !failures.some((failure) => failure.step === step));
-  const outside = plan.findings.filter((finding) => finding.kind === "outside-layout");
-  const warnings = plan.findings.filter((finding) => finding.kind !== "outside-layout");
+  const unreadCount = plan.findings.filter((finding) => finding.kind === "descriptions-unread").length;
+  const lineFindings = plan.findings.filter(isLineFinding);
+  const outside = lineFindings.filter((finding) => finding.kind === "outside-layout");
+  const warnings = lineFindings.filter((finding) => finding.kind !== "outside-layout");
   const tense = (step: SetupStep): string => (real ? describeStep(step) : `would ${describeStep(step)}`);
 
   const lines = [
     ...administratorNote(before.botIsAdministrator, apply),
     ...changed.map(tense),
     ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map((finding) => describeFinding(finding, real)),
+    ...(unreadCount > 0 ? [unreadLine(unreadCount)] : []),
     ...outside.map((finding) => describeFinding(finding, real)),
     ...failures.map((failure) => `failed: ${describeStep(failure.step)}: ${failure.reason}`),
     ...(plan.steps.length === 0 ? ["Nothing to do."] : []),
@@ -533,6 +580,23 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
     report: redact(lines.join("\n"), secrets),
     exitCode: blocked || failures.length > 0 ? 1 : 0,
   };
+}
+
+const MESSAGE_MAX = 2000;
+
+/**
+ * One line per description message longer than Discord allows. The message depends on the Kingdom number and on the
+ * server's `[TAG]` roles, so it is rendered here from the server as read (research R6), before any write.
+ */
+function overlongLines(layout: ServerLayout, homeKingdom: number, server: ServerState): string[] {
+  const expanded = expandLayout(layout, homeKingdom, allianceRoleNamesOf(server));
+  return expanded.categories
+    .flatMap((category) => category.channels)
+    .flatMap((channel) => {
+      const length = channel.message === undefined ? 0 : Array.from(channel.message).length;
+      if (length <= MESSAGE_MAX) return [];
+      return [`${channel.name}: its description message is ${length.toString()} characters; Discord allows ${MESSAGE_MAX.toString()}. Nothing was written.`];
+    });
 }
 
 /** The server as it is after a real run's writes; undefined when the read fails. */
@@ -561,7 +625,25 @@ function describeStep(step: SetupStep): string {
       return `create ${step.type} channel ${step.name} in ${step.categoryName}`;
     case "correct-overwrites":
       return `correct permissions of ${step.name}`;
+    case "set-topic":
+      return `set topic of ${step.name}`;
+    case "post-description":
+      return `post description in ${step.name}`;
+    case "edit-description":
+      return `edit description in ${step.name}`;
   }
+}
+
+/** The findings that get a line of their own; the unread descriptions are counted into one line instead. */
+type LineFinding = Exclude<SetupFinding, { kind: "descriptions-unread" }>;
+
+function isLineFinding(finding: SetupFinding): finding is LineFinding {
+  return finding.kind !== "descriptions-unread";
+}
+
+/** One line for all the channels whose pins Neil cannot read (a dry run without Administrator). */
+function unreadLine(count: number): string {
+  return `Neil can't read the pinned messages of ${count.toString()} channels without Administrator; a real run checks their descriptions.`;
 }
 
 /** Warnings: hides-from-everyone first, the other findings after, each group in the order of the plan. */
@@ -570,7 +652,7 @@ function warningRank(finding: SetupFinding): number {
 }
 
 /** A finding as a line; `real` is whether the run writes, which decides the tense of what it will do. */
-function describeFinding(finding: SetupFinding, real: boolean): string {
+function describeFinding(finding: LineFinding, real: boolean): string {
   switch (finding.kind) {
     case "hides-from-everyone":
       return real ? `${finding.name} is hidden from @everyone` : `${finding.name} would be hidden from @everyone`;
