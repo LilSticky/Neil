@@ -2,6 +2,7 @@ import type { BaseMessageOptions } from "discord.js";
 import type { PresenceStatus } from "../../domain/interview-start.js";
 import type { MemberId } from "../../domain/rank-approval.js";
 import type { BootyCallServer } from "../booty-call.js";
+import type { CallTimeline } from "./booty-call-interaction.js";
 
 /** One message a Booty Call posted to a channel, with the link Discord would give it. */
 export interface PostedMessage {
@@ -16,15 +17,20 @@ const GUILD_ID = "100000000000000000";
  * The server as Booty Calls use it: who holds a role, the Discord presence of a Member, posts to a channel, and the
  * #neil-log lines. Nothing reaches Discord. A Member whose presence was never set reads as offline. A post that was
  * made to fail with `failNextPost` rejects once, and is not recorded as posted. A read of holders that was made to
- * fail with `failNextHoldersRead` rejects once.
+ * fail with `failNextHoldersRead` rejects once. Each read of holders is written to the timeline given, if any.
  */
 export class FakeBootyCallServer implements BootyCallServer {
   readonly posts: PostedMessage[] = [];
   readonly logs: string[] = [];
   private readonly roles = new Map<string, MemberId[]>();
   private readonly presences = new Map<MemberId, PresenceStatus>();
+  private readonly timeline: CallTimeline;
   private postFailure: Error | undefined = undefined;
   private holdersFailure: Error | undefined = undefined;
+
+  constructor(timeline: CallTimeline = []) {
+    this.timeline = timeline;
+  }
 
   /** The Member holds the role, by its name (such as `[NML]`). */
   grantRole(roleName: string, memberId: MemberId): void {
@@ -51,6 +57,7 @@ export class FakeBootyCallServer implements BootyCallServer {
   }
 
   holdersOf(roleName: string): Promise<readonly MemberId[]> {
+    this.timeline.push("holdersOf");
     if (this.holdersFailure !== undefined) {
       const failure = this.holdersFailure;
       this.holdersFailure = undefined;

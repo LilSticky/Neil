@@ -34,7 +34,7 @@
 ## Phase 4: Polish
 
 - [x] T015 Guides and TEST-RUN section for this slice, in `documentation/SERVER-SETUP.md`, `documentation/TEST-RUN.md` (FR-013; after slice 024 merges)
-- [ ] T016 `bot-reviewer` pass, findings in `specs/026-call-out-a-booty/review.md`
+- [x] T016 `bot-reviewer` pass, findings in `specs/026-call-out-a-booty/review.md`
 - [ ] T017 `spec-auditor` pass, findings in `specs/026-call-out-a-booty/audit.md`
 - [ ] T018 Update `documentation/STATUS.md`, `documentation/ROADMAP.md`
 - [ ] T019 Manual check on the test server, by the user (needs the deploy), per [quickstart.md](quickstart.md)

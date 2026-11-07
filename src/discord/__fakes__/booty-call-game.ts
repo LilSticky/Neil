@@ -73,6 +73,7 @@ export class FakeBootyCallGameApi {
 /** The Links the Booty Call reads: the caller's Link, and the Member a roster uid is Linked to. */
 export class FakeBootyCallLinks implements Pick<LinkStore, "linkFor" | "memberForUid"> {
   private readonly linked = new Map<MemberId, Link>();
+  private memberFailure: Error | undefined = undefined;
 
   link(memberId: MemberId, uid: string): void {
     this.linked.set(memberId, {
@@ -92,7 +93,17 @@ export class FakeBootyCallLinks implements Pick<LinkStore, "linkFor" | "memberFo
     return this.linked.get(memberId);
   }
 
+  /** The next memberForUid throws the error, as the Link store does when it cannot read its rows. */
+  failNextMemberForUid(error: Error): void {
+    this.memberFailure = error;
+  }
+
   memberForUid(uid: Uid): MemberId | undefined {
+    if (this.memberFailure !== undefined) {
+      const failure = this.memberFailure;
+      this.memberFailure = undefined;
+      throw failure;
+    }
     for (const link of this.linked.values()) {
       if (link.uid === uid) return link.memberId;
     }

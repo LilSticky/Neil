@@ -98,6 +98,7 @@ const PERMISSION_BITS: Record<Permission, bigint> = {
   CreatePrivateThreads: PermissionFlagsBits.CreatePrivateThreads,
   ManageThreads: PermissionFlagsBits.ManageThreads,
   ReadMessageHistory: PermissionFlagsBits.ReadMessageHistory,
+  EmbedLinks: PermissionFlagsBits.EmbedLinks,
 };
 const PERMISSIONS: readonly Permission[] = Object.keys(PERMISSION_BITS).filter(isPermission);
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;

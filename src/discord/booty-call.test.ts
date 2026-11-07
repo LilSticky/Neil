@@ -8,7 +8,7 @@ import { type BootyMode, type BootyWindow, parseBootyWindow } from "../domain/bo
 import type { RosterEntry } from "../domain/player.js";
 import { BootyAlertsStore, type StoredBootyAlerts } from "../storage/booty-alerts-store.js";
 import { openDatabase } from "../storage/database.js";
-import { FakeBootyCallInteraction } from "./__fakes__/booty-call-interaction.js";
+import { type BootyCallAnswer, type CallTimeline, FakeBootyCallInteraction } from "./__fakes__/booty-call-interaction.js";
 import { FakeBootyCallGameApi, FakeBootyCallLinks, rosterEntry, type RosterState } from "./__fakes__/booty-call-game.js";
 import { FakeBootyCallServer } from "./__fakes__/booty-call-server.js";
 import { type BootyChannel, type BootyCalls, createBootyCalls } from "./booty-call.js";
@@ -74,19 +74,30 @@ function componentIds(value: unknown): string[] {
   return [];
 }
 
+/** The answers that carry a message: every answer but the deferral that acknowledges a /booty, which carries none. */
+function repliesOf(interaction: FakeBootyCallInteraction): Exclude<BootyCallAnswer, { readonly method: "deferReply" }>[] {
+  return interaction.answers.flatMap((answer) => (answer.method === "deferReply" ? [] : [answer]));
+}
+
+/** The custom ids of every button the messages carry, in order, whether they came by reply or by editReply. */
 function buttonIdsOf(interaction: FakeBootyCallInteraction): string[] {
-  return interaction.answers.flatMap((answer) => componentIds(answer.options.components));
+  return repliesOf(interaction).flatMap((answer) => componentIds(answer.options.components));
 }
 
-/** The text of every answer the interaction got. */
+/** The text of every message the interaction got, whether it came by reply or by editReply. */
 function answerTextsOf(interaction: FakeBootyCallInteraction): string[] {
-  return interaction.answers.map((answer) => answer.options.content ?? "");
+  return repliesOf(interaction).map((answer) => answer.options.content ?? "");
 }
 
-/** Every reply and follow-up on the interaction is private: an ephemeral message. */
+/** The methods the interaction was answered with, in order, so a test can tell reply from deferReply and editReply. */
+function methodsOf(interaction: FakeBootyCallInteraction): string[] {
+  return interaction.answers.map((answer) => answer.method);
+}
+
+/** Every answer that can be private on its own (a reply, a follow-up or the deferral) is ephemeral. */
 function expectPrivate(interaction: FakeBootyCallInteraction): void {
   for (const answer of interaction.answers) {
-    if (answer.method === "reply" || answer.method === "followUp") {
+    if (answer.method === "reply" || answer.method === "followUp" || answer.method === "deferReply") {
       expect(answer.options.flags).toBe(MessageFlags.Ephemeral);
     }
   }
@@ -101,6 +112,7 @@ describe("/booty and its Booty Call", () => {
   let server: FakeBootyCallServer;
   let clock: Date;
   let logged: string[];
+  let timeline: CallTimeline;
   let calls: BootyCalls;
 
   beforeEach(() => {
@@ -109,7 +121,8 @@ describe("/booty and its Booty Call", () => {
     store = new BootyAlertsStore(db);
     links = new FakeBootyCallLinks();
     game = new FakeBootyCallGameApi();
-    server = new FakeBootyCallServer();
+    timeline = [];
+    server = new FakeBootyCallServer(timeline);
     clock = NOW;
     logged = [];
     calls = createBootyCalls({
@@ -138,7 +151,7 @@ describe("/booty and its Booty Call", () => {
 
   /** Runs /booty for the Member in the channel, and returns the interaction that recorded the answers. */
   async function askBooty(userId: string, channel: BootyChannel = ALLIANCE_CHAT): Promise<FakeBootyCallInteraction> {
-    const interaction = new FakeBootyCallInteraction({ userId, displayName: NAMES[userId] ?? "Someone", channel });
+    const interaction = new FakeBootyCallInteraction({ userId, displayName: NAMES[userId] ?? "Someone", channel, timeline });
     await calls.onCommand(interaction);
     return interaction;
   }
@@ -149,7 +162,13 @@ describe("/booty and its Booty Call", () => {
     userId: string,
     channel: BootyChannel | undefined = ALLIANCE_CHAT,
   ): Promise<FakeBootyCallInteraction> {
-    const interaction = new FakeBootyCallInteraction({ userId, displayName: NAMES[userId] ?? "Someone", channel, customId });
+    const interaction = new FakeBootyCallInteraction({
+      userId,
+      displayName: NAMES[userId] ?? "Someone",
+      channel,
+      customId,
+      timeline,
+    });
     await calls.onButton(interaction);
     return interaction;
   }
@@ -822,6 +841,175 @@ describe("/booty and its Booty Call", () => {
       expect(buttonIdsOf(bobAsked)).toHaveLength(2);
       await press(confirmIdOf(bobAsked), BOB);
       expect(server.posts).toHaveLength(1);
+    });
+  });
+
+  describe("the 3-second window of /booty (T014)", () => {
+    test("a /booty in another channel is answered at once with reply, before any read of holders", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+
+      const asked = await askBooty(ALICE, GENERAL);
+
+      expect(methodsOf(asked)).toEqual(["reply"]);
+      expect(timeline).not.toContain("holdersOf");
+    });
+
+    test("a /booty by a Member who is not Linked is answered at once with reply, before any read of holders", async () => {
+      server.grantRole(NML_ROLE, ALICE);
+
+      const asked = await askBooty(ALICE);
+
+      expect(methodsOf(asked)).toEqual(["reply"]);
+      expect(timeline).not.toContain("holdersOf");
+    });
+
+    test("a /booty is deferred privately before the Alliance role's holders are read, and the confirmation follows as an editReply", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+
+      const asked = await askBooty(ALICE);
+
+      expect(timeline).toEqual(["deferReply", "holdersOf", "editReply"]);
+      expect(methodsOf(asked)).toEqual(["deferReply", "editReply"]);
+    });
+
+    test.each<[string, () => Promise<FakeBootyCallInteraction>]>([
+      [
+        "the confirmation",
+        async () => {
+          enrol(ALICE, ALICE_UID, [NML_ROLE]);
+          return askBooty(ALICE);
+        },
+      ],
+      [
+        "the not-in-Alliance refusal",
+        async () => {
+          enrol(ALICE, ALICE_UID);
+          return askBooty(ALICE);
+        },
+      ],
+      [
+        "the unavailable refusal",
+        async () => {
+          enrol(ALICE, ALICE_UID, [NML_ROLE]);
+          server.failNextHoldersRead(new Error("Discord did not answer"));
+          return askBooty(ALICE);
+        },
+      ],
+      [
+        "the cooling-down refusal",
+        async () => {
+          enrol(ALICE, ALICE_UID, [NML_ROLE]);
+          enrol(BOB, BOB_UID, [NML_ROLE]);
+          await bootyCallBy(ALICE);
+          clock = new Date(NOW.getTime() + 30_000);
+          return askBooty(BOB);
+        },
+      ],
+    ])("%s comes as an editReply after the deferral, stays private, and no reply follows the defer", async (_label, arrange) => {
+      const asked = await arrange();
+
+      expect(methodsOf(asked)).toEqual(["deferReply", "editReply"]);
+      expectPrivate(asked);
+    });
+
+    test("a failed deferReply is logged and does not throw out of /booty", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      const interaction = new FakeBootyCallInteraction({ userId: ALICE, displayName: "Alice", channel: ALLIANCE_CHAT, timeline });
+      interaction.failNextDefer(new Error("Discord refused the defer"));
+
+      await expect(calls.onCommand(interaction)).resolves.toBeUndefined();
+
+      expect(logged.join("\n")).toContain("Discord refused the defer");
+    });
+  });
+
+  describe("a Confirm that throws after the claim (T013)", () => {
+    /** Alice asks /booty; the next Link lookup of the roster then throws, and Alice's Confirm is the one that meets it. */
+    async function askWithLookupThatThrows(): Promise<string> {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always"));
+      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      const asked = await askBooty(ALICE);
+      links.failNextMemberForUid(new Error("the Link store could not read a row"));
+      return confirmIdOf(asked);
+    }
+
+    test("a Confirm whose Link lookup throws does not throw out of the press, and the caller is told the card could not be posted", async () => {
+      const confirmId = await askWithLookupThatThrows();
+
+      const pressed = await press(confirmId, ALICE);
+
+      expectPrivate(pressed);
+      expect(answerTextsOf(pressed).at(-1)).toBe(bootyCallMessages.postFailed);
+      expect(server.posts).toHaveLength(0);
+    });
+
+    test("the failure of a Confirm that throws is logged, with its message", async () => {
+      const confirmId = await askWithLookupThatThrows();
+
+      await press(confirmId, ALICE);
+
+      expect(logged.join("\n")).toContain("the Link store could not read a row");
+    });
+
+    test("after a Confirm that throws, the Alliance is free: another Member's /booty and Confirm post at once", async () => {
+      const confirmId = await askWithLookupThatThrows();
+      await press(confirmId, ALICE);
+
+      await bootyCallBy(BOB);
+
+      expect(server.posts).toHaveLength(1);
+    });
+  });
+
+  describe("what the log says about Members (ADR 13)", () => {
+    test("a Member whose time zone Intl does not know is logged by Member id, and the time zone text is left out", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always", "Mars/Olympus"));
+      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+
+      await bootyCallBy(ALICE);
+
+      expect(logged.join("\n")).not.toContain("Mars/Olympus");
+      expect(logged.some((line) => line.includes(BOB))).toBe(true);
+    });
+
+    test("a corrupt Booty Alerts row is logged without its time zone text", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      enrol(BOB, BOB_UID, [NML_ROLE]);
+      db.prepare("INSERT INTO booty_alerts (member_id, mode, window_start, window_end, time_zone) VALUES (?, ?, ?, ?, ?)").run(
+        BOB,
+        "sometimes",
+        0,
+        0,
+        "Mars/Olympus",
+      );
+      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+
+      await bootyCallBy(ALICE);
+
+      expect(logged.join("\n")).not.toContain("Mars/Olympus");
+    });
+
+    test("across a Booty Call with several Members mentioned, no log line and no #neil-log line contains a mentioned Member's id", async () => {
+      const mentionedMembers = [BOB, CAROL, DAVE];
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always"));
+      enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("always"));
+      enrol(DAVE, DAVE_UID, [NML_ROLE], alertsOf("always"));
+      roster(
+        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(DAVE_UID, "Dave Game", { online: true, lastOnlineAt: NOW }),
+      );
+
+      await bootyCallBy(ALICE);
+
+      expect(mentionedBy().sort()).toEqual([...mentionedMembers].sort());
+      const lines = [...logged, ...server.logs];
+      for (const memberId of mentionedMembers) {
+        expect(lines.filter((line) => line.includes(memberId))).toEqual([]);
+      }
     });
   });
 });

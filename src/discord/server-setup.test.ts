@@ -59,6 +59,7 @@ const MANAGE_MESSAGES = PermissionFlagsBits.ManageMessages;
 const CREATE_PUBLIC_THREADS = PermissionFlagsBits.CreatePublicThreads;
 const MANAGE_ROLES = PermissionFlagsBits.ManageRoles;
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
+const EMBED_LINKS = PermissionFlagsBits.EmbedLinks;
 
 /** The layout file as text, built from a base that follows every rule; `overrides` replace top-level keys. */
 function layoutFile(overrides: Record<string, unknown> = {}): string {
@@ -288,6 +289,20 @@ describe("parseLayout", () => {
     expect(chat?.overwrites).toEqual({ Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } });
   });
 
+  test("accepts EmbedLinks as an overwrite permission on alliance-chat and keeps it", () => {
+    const text = layoutFile({
+      allianceArea: {
+        channels: [
+          { name: "alliance-chat", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks"] } } },
+          { name: "alliance-voice", type: "voice" },
+        ],
+      },
+    });
+
+    const chat = parseLayout(text).allianceArea.channels.find((channel) => channel.name === "alliance-chat");
+    expect(chat?.overwrites).toEqual({ Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks"], deny: [] } });
+  });
+
   test("refuses an overwrite target in the Alliance area that is no listed role, naming the channel", () => {
     const message = refusal(
       layoutFile({
@@ -326,6 +341,20 @@ describe("readServer", () => {
 
     expect(overwrite?.allow.slice().sort()).toEqual(["SendMessages", "ViewChannel"]);
     expect(overwrite?.deny).toEqual(["CreatePublicThreads"]);
+  });
+
+  test("names EmbedLinks from its bit, as a permission the layout may use", async () => {
+    const server = new FakeSetupServer();
+    const r5 = server.defineRole("R5");
+    server.defineChannel("alliance-chat", {
+      kind: "text",
+      overwrites: [{ type: 0, targetId: r5, allow: VIEW | EMBED_LINKS, deny: 0n }],
+    });
+
+    const state = await readServer(server);
+    const overwrite = state.channels.find((channel) => channel.name === "alliance-chat")?.overwrites.find((o) => o.targetId === r5);
+
+    expect(overwrite?.allow.slice().sort()).toEqual(["EmbedLinks", "ViewChannel"]);
   });
 
   test("says whether each role holds any permission", async () => {
@@ -749,12 +778,10 @@ describe("the shipped server-layout.json", () => {
   const allowOf = (channel: string, target: string) =>
     channelNamed(channel).overwrites.find((overwrite) => overwrite.target === target)?.allow ?? [];
 
-  test("gives alliance-chat in every Alliance area Neil what neil-log gives it, and alliance-voice nothing", () => {
+  test("gives Neil exactly ViewChannel, SendMessages and EmbedLinks on alliance-chat in every Alliance area, and alliance-voice nothing", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, ["[ABC]", "[XYZ]"]);
     const neilOn = (channel: ExpandedChannel): WantedOverwrite | undefined =>
       channel.overwrites.find((overwrite) => overwrite.target === "Neil");
-    const neilLog = neilOn(channelNamed("neil-log"));
-    if (neilLog === undefined) throw new Error("neil-log gives Neil no overwrite");
 
     for (const area of ["[ABC]", "[XYZ]"]) {
       const channels = groupNamed(expanded, area).channels;
@@ -763,8 +790,8 @@ describe("the shipped server-layout.json", () => {
       if (chat === undefined || voice === undefined) throw new Error(`${area} has no alliance-chat or alliance-voice`);
 
       const neilOnChat = neilOn(chat);
-      expect(new Set(neilOnChat?.allow)).toEqual(new Set(neilLog.allow));
-      expect(neilOnChat?.deny).toEqual(neilLog.deny);
+      expect(neilOnChat?.allow.slice().sort()).toEqual(["EmbedLinks", "SendMessages", "ViewChannel"]);
+      expect(neilOnChat?.deny).toEqual([]);
       expect(neilOn(voice)).toBeUndefined();
     }
   });
@@ -891,6 +918,23 @@ describe("running the setup again", () => {
     expect(viewerIds(server.findChannel("alliance-chat")?.overwrites ?? [])).toEqual([abc]);
     expect(viewerIds(server.findChannel("alliance-voice")?.overwrites ?? [])).toEqual([abc]);
     expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
+  });
+
+  test("writes Neil's EmbedLinks on alliance-chat as Discord's Embed Links bit", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    server.defineRole("[ABC]", { position: 2 });
+    const layout: ServerLayout = {
+      ...SMALL_LAYOUT,
+      allianceArea: {
+        channels: [
+          { name: "alliance-chat", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks"], deny: [] } } },
+        ],
+      },
+    };
+    await applySetup(await planFor(layout, server), server);
+
+    const neil = server.findChannel("alliance-chat")?.overwrites.find((overwrite) => overwrite.targetId === server.botUserId);
+    expect((neil?.allow ?? 0n) & EMBED_LINKS).toBe(EMBED_LINKS);
   });
 
   test("keeps an extra overwrite on a layout channel, and an unrelated permission inside a corrected overwrite", async () => {

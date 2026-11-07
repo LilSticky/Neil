@@ -864,6 +864,12 @@ function bootyCommandLike(command: ChatInputCommandInteraction): BootyCallComman
     reply: async (options) => {
       await command.reply(options);
     },
+    deferReply: async (options) => {
+      await command.deferReply(options);
+    },
+    editReply: async (options) => {
+      await command.editReply(options);
+    },
   };
 }
 

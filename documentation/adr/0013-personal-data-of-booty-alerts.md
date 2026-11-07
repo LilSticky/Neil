@@ -25,4 +25,5 @@ and how many Members were mentioned, not who they were.
 - Nothing is stored for a Member who never opts in.
 - Being mentioned shows others in the channel that a Member's Booty Alerts matched at that moment. That follows from the Member's own opt-in.
 - A Member who leaves the server is Unlinked, so their row goes with the Link.
+- An error line in the console may name a Member whose Booty Alerts could not be read, so the row can be fixed by hand. It never holds their time zone or window, and that Member was not mentioned.
 - Officers can't see from the log who was mentioned, though the card's mentions remain in the channel.

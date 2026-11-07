@@ -423,7 +423,8 @@
           "Neil": {
             "allow": [
               "ViewChannel",
-              "SendMessages"
+              "SendMessages",
+              "EmbedLinks"
             ]
           }
         }

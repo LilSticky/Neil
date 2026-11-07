@@ -6,6 +6,7 @@ import {
   type APIButtonComponentWithCustomId,
   type APIEmbed,
   type BaseMessageOptions,
+  type InteractionDeferReplyOptions,
   type InteractionEditReplyOptions,
   type InteractionReplyOptions,
   type InteractionUpdateOptions,
@@ -52,8 +53,11 @@ interface BootyCallInteraction {
   reply(options: InteractionReplyOptions): Promise<unknown>;
 }
 
-/** The /booty command, as a Booty Call receives it. */
-export type BootyCallCommand = BootyCallInteraction;
+/** The /booty command, as a Booty Call receives it: deferred privately before the holders are read, then edited. */
+export interface BootyCallCommand extends BootyCallInteraction {
+  deferReply(options: InteractionDeferReplyOptions): Promise<unknown>;
+  editReply(options: InteractionEditReplyOptions): Promise<unknown>;
+}
 
 /** A press of a Booty Call button, as a Booty Call receives it: the custom id names the button, and the press is updated or edited. */
 export interface BootyCallButton extends BootyCallInteraction {
@@ -129,28 +133,44 @@ export function createBootyCalls(deps: BootyCallDeps): BootyCalls {
     return answer("Replying to /booty", () => interaction.reply({ content, flags: MessageFlags.Ephemeral }));
   }
 
+  /** Answers a /booty after its deferral: the message replaces the deferred reply. */
+  function editRefusal(interaction: BootyCallCommand, content: string): Promise<void> {
+    return answer("Editing the /booty reply", () => interaction.editReply({ content }));
+  }
+
+  /** Acknowledges a /booty privately, so the holders can be read within Discord's 3-second window. False when it failed. */
+  async function deferPrivately(interaction: BootyCallCommand): Promise<boolean> {
+    try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      return true;
+    } catch (error) {
+      deps.logError(`Deferring /booty failed: ${errorMessage(error)}`);
+      return false;
+    }
+  }
+
   async function onCommand(interaction: BootyCallCommand): Promise<void> {
     const alliance = allianceOf(interaction.channel);
     if (alliance === undefined) return refuse(interaction, bootyCallMessages.wrongChannel);
     const memberId = interaction.user.id;
     if (deps.links.linkFor(memberId) === undefined) return refuse(interaction, bootyCallMessages.notLinked);
+    if (!(await deferPrivately(interaction))) return undefined;
 
     const holders = await holdersOf(alliance.roleName);
-    if (holders === undefined) return refuse(interaction, bootyCallMessages.unavailable);
-    if (!holders.includes(memberId)) return refuse(interaction, bootyCallMessages.notInAlliance);
+    if (holders === undefined) return editRefusal(interaction, bootyCallMessages.unavailable);
+    if (!holders.includes(memberId)) return editRefusal(interaction, bootyCallMessages.notInAlliance);
 
     const nowMs = deps.now().getTime();
     const cooling = activeCooldown(alliance.roleName, nowMs);
     if (cooling !== undefined) {
-      return refuse(interaction, bootyCallMessages.coolingDown(alliance.roleName, cooling.link));
+      return editRefusal(interaction, bootyCallMessages.coolingDown(alliance.roleName, cooling.link));
     }
     const confirmId = `booty:confirm:${memberId}:${nowMs.toString()}`;
     const cancelId = `booty:cancel:${memberId}`;
-    await answer("Replying to /booty", () =>
-      interaction.reply({
+    await answer("Editing the /booty reply", () =>
+      interaction.editReply({
         content: bootyCallMessages.confirmation(alliance.roleName),
         components: [confirmRow(confirmId, cancelId)],
-        flags: MessageFlags.Ephemeral,
       }),
     );
     return undefined;
@@ -183,8 +203,31 @@ export function createBootyCalls(deps: BootyCallDeps): BootyCalls {
     await answer("Updating the Booty Call", () =>
       interaction.update({ content: bootyCallMessages.calling, components: [] }),
     );
-    await callTheAlliance(interaction, alliance, claim, link.uid);
+    try {
+      await callTheAlliance(interaction, alliance, claim, link.uid);
+    } catch (error) {
+      await failAfterClaim(interaction, alliance.roleName, claim, error);
+    }
     return undefined;
+  }
+
+  /**
+   * A throw anywhere in the call after the claim. Before the card is posted, the claim is released and the caller is
+   * told the card could not be posted. Once it is posted, the card is out: the claim stays, and the caller gets the link.
+   */
+  async function failAfterClaim(
+    interaction: BootyCallButton,
+    roleName: string,
+    claim: Cooldown,
+    error: unknown,
+  ): Promise<void> {
+    deps.logError(`The Booty Call failed: ${errorMessage(error)}`);
+    const link = claim.link;
+    if (link === undefined) {
+      release(roleName, claim);
+      return answer("Editing the Booty Call reply", () => interaction.editReply({ content: bootyCallMessages.postFailed }));
+    }
+    return answer("Editing the Booty Call reply", () => interaction.editReply({ content: bootyCallMessages.posted(link) }));
   }
 
   /** Runs after the Confirm is acknowledged: the caller's holding is read now, and the Game API is asked only once it holds. */
@@ -262,7 +305,7 @@ export function createBootyCalls(deps: BootyCallDeps): BootyCalls {
     if (alerts === undefined || alerts.mode === "off") return false;
     const localMinute = localMinuteOf(deps.now(), alerts.timeZone);
     if (localMinute === undefined) {
-      deps.logError(`Booty Alerts of ${memberId} were skipped: the time zone ${alerts.timeZone} is not known`);
+      deps.logError(`Booty Alerts of ${memberId} were skipped: the time zone is not known`);
       return false;
     }
     const online = isBootyOnline(game, await discordOnline(memberId));

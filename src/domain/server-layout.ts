@@ -7,7 +7,8 @@ export type Permission =
   | "CreatePublicThreads"
   | "CreatePrivateThreads"
   | "ManageThreads"
-  | "ReadMessageHistory";
+  | "ReadMessageHistory"
+  | "EmbedLinks";
 export type ChannelType = "text" | "voice" | "forum" | "announcement";
 
 export interface OverwriteSpec {
