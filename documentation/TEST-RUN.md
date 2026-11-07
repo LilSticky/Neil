@@ -405,7 +405,7 @@ ID and `HOME_KINGDOM` in `.env`.
 
 | # | Step | Expected | Result |
 |---|------|----------|--------|
-| 6v.1 | `npm run server:setup` | No `guest-announcements`, `ad-announcements`, Home Kingdom or Off-topic category; `looking-for-alliance`, `looking-for-players`, `Coaching voice` and eight translated announcement channels listed; a `would post description in …` line for every text, announcement and voice channel | |
+| 6v.1 | `npm run server:setup` | No `guest-announcements`, `ad-announcements`, Home Kingdom or Off-topic category; `recruitment` and one recruitment channel per Region (slice 025), `news`, `suggestions`, `Coaching voice` and eight translated announcement channels listed; a `would post description in …` line for every text, announcement and voice channel | |
 | 6v.2 | Give Neil's role Administrator, `npm run server:setup -- --apply` | The layout appears; every text channel has a topic and one pinned message from Neil, with no "pinned a message" notice below it | |
 | 6v.3 | Run it again, then take Administrator off | `Nothing to do.` | |
 | 6v.4 | Open `#rules` and `#guest-rules` | The code of conduct is there, below the description | |

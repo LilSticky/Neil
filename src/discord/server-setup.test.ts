@@ -892,7 +892,6 @@ describe("the shipped server-layout.json", () => {
     const namesIn = (category: string) => groupNamed(expanded, category).channels.map((channel) => channel.name);
 
     expect(namesIn("Officers")).toEqual(expect.arrayContaining(["neil-log", "moderators"]));
-    expect(namesIn("Home Kingdom")).not.toContain("news");
     expect(namesIn("Basic information")).toContain("news");
     expect(namesIn("Hangout")).toContain("suggestions");
   });
@@ -1060,7 +1059,7 @@ describe("the shipped server-layout.json", () => {
 
     expect(categoryViewers(hangout)).toContain(KINGDOM_ROLE);
     expect(hangout.channels.map((channel) => channel.name).sort()).toEqual(
-      ["home-kingdom-announcements", "gift-codes", "general", "Hangout voice", "alliance-hall", "off-topic", "memes"].sort(),
+      ["home-kingdom-announcements", "gift-codes", "general", "Hangout voice", "alliance-hall", "suggestions", "off-topic", "memes"].sort(),
     );
   });
 
@@ -1068,13 +1067,6 @@ describe("the shipped server-layout.json", () => {
     for (const name of ["off-topic", "memes"]) {
       expect(channelViewers(channelNamed(name))).toEqual(["Off-topic"]);
     }
-  });
-
-  test("holds looking-for-alliance and looking-for-players in Recruitment, and no recruitment channel", () => {
-    const names = groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Recruitment").channels.map((channel) => channel.name);
-
-    expect(names.slice().sort()).toEqual(["looking-for-alliance", "looking-for-players"]);
-    expect(names).not.toContain("recruitment");
   });
 
   test("holds a Coaching voice channel in Events", () => {
