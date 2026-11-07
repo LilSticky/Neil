@@ -33,7 +33,6 @@ import {
   preferenceStepMessage,
   preferencesFailedReply,
   preferencesLogLine,
-  preferencesMessage,
   savedMessage,
   type PreferenceQuestion,
   type PreferencesMessage,
@@ -170,7 +169,7 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
     await command.reply(guestChannelsReply());
     return;
   }
-  const message = messageFor(deps, memberId, deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
+  const message = stepMessageFor(deps, memberId, "languages", deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
   await command.reply({ ...message, flags: MessageFlags.Ephemeral });
 }
 
@@ -249,23 +248,7 @@ async function change(
   await deps.channels.log(preferencesLogLine(memberId, preferences));
 }
 
-/** The Preferences message as /channels shows it; the Member's playing language is not looked up here. */
-function messageFor(
-  deps: PreferenceChoicesDeps,
-  memberId: MemberId,
-  preferences: Preferences,
-  rank: AllianceRank | undefined,
-): PreferencesMessage {
-  return preferencesMessage({
-    memberId,
-    preferences,
-    rank,
-    playerLanguage: undefined,
-    guidesForumId: deps.guidesForumId,
-  });
-}
-
-/** One step of the Preferences, as the presses show it; the Member's playing language is not looked up here. */
+/** One step of the Preferences, as the presses and /channels show it; the Member's playing language is not looked up here. */
 function stepMessageFor(
   deps: PreferenceChoicesDeps,
   memberId: MemberId,

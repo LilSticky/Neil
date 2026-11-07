@@ -30,7 +30,6 @@ import {
   preferencesCustomId,
   preferencesFailedReply,
   preferencesLogLine,
-  preferencesMessage,
   type PreferenceQuestion,
 } from "./preferences-texts.js";
 
@@ -535,6 +534,38 @@ describe("a Member who is not Linked", () => {
   });
 });
 
+describe("a go press by a Guest, or by a Member who is not Linked", () => {
+  test("a known Guest's go press gets the Guest refusal, and shows no step and changes nothing", async () => {
+    const { store, roles, channels, applied, linkAlice, goOf, choices, trace } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    const press = goOf("region");
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([guestChannelsReply()]);
+    expect(press.updates).toEqual([]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual([]);
+  });
+
+  test("a Member who is not Linked and presses a go button gets the not-linked reply, and shows no step and changes nothing", async () => {
+    const { store, roles, channels, goOf, choices, trace } = setUp();
+    const press = goOf("interests");
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([notLinkedReply()]);
+    expect(press.updates).toEqual([]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual([]);
+  });
+});
+
 describe("Done", () => {
   test("closes the open prompt and deletes its thread", async () => {
     const { store, channels, linkAlice, doneOf, choices } = setUp();
@@ -684,8 +715,9 @@ describe("/channels", () => {
 
     expect(command.replies).toEqual([
       {
-        ...preferencesMessage({
+        ...preferenceStepMessage({
           memberId: ALICE,
+          step: "languages",
           preferences,
           rank: "R4",
           playerLanguage: undefined,
@@ -733,8 +765,9 @@ describe("/channels for a Guest, or for a Member the Applied State does not plac
 
     expect(command.replies).toEqual([
       {
-        ...preferencesMessage({
+        ...preferenceStepMessage({
           memberId: ALICE,
+          step: "languages",
           preferences: EMPTY_PREFERENCES,
           rank: "R3",
           playerLanguage: undefined,
@@ -755,8 +788,9 @@ describe("/channels for a Guest, or for a Member the Applied State does not plac
 
     expect(command.replies).toEqual([
       {
-        ...preferencesMessage({
+        ...preferenceStepMessage({
           memberId: ALICE,
+          step: "languages",
           preferences: EMPTY_PREFERENCES,
           rank: "R3",
           playerLanguage: undefined,
