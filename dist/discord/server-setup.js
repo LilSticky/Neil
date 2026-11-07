@@ -4,6 +4,7 @@ import { PermissionFlagsBits } from "discord.js";
 import { z } from "zod";
 import { redact } from "../startup.js";
 import { PIN_MARK } from "../domain/channel-description.js";
+import { forumHowTo } from "../domain/forum-how-to.js";
 import { BOT_TARGET, EVERYONE_TARGET, ROLE_PERMISSION_BITS, expandLayout, translatedDescription, } from "../domain/server-layout.js";
 import { allianceRoleNamesOf, planSetup, } from "../domain/setup-plan.js";
 const ROLE_OVERWRITE = 0;
@@ -52,6 +53,16 @@ const overwriteSchema = z.strictObject({
     deny: z.array(z.string()).default([]),
 });
 // The description is required, but checked by hand (descriptionOf) so that a refusal names the category and channel.
+// The forum block is required on a forum and refused elsewhere, and its values are checked by hand (checkForum).
+const forumSchema = z.strictObject({
+    tags: z.array(z.string()),
+    reaction: z.string(),
+    howTo: z.strictObject({
+        belongs: z.string(),
+        exampleTitle: z.string(),
+        template: z.array(z.string()),
+    }),
+});
 const channelSchema = z.strictObject({
     name: z.string(),
     type: z.string(),
@@ -61,6 +72,7 @@ const channelSchema = z.strictObject({
     translated: z.boolean().optional(),
     seenBy: z.array(z.string()).optional(),
     overwrites: z.record(z.string(), overwriteSchema).optional(),
+    forum: forumSchema.optional(),
 });
 const categorySchema = z.strictObject({
     name: z.string(),
@@ -198,6 +210,9 @@ function checkChannel(container, raw, known, names, translations) {
     for (const target of raw.seenBy ?? [])
         checkTarget(known, place, target);
     const overwrites = raw.overwrites === undefined ? undefined : checkOverwrites(place, raw.overwrites, known);
+    const forum = checkForum(place, type, raw.forum);
+    if (forum !== undefined)
+        checkHowToLength(place, raw.name, forum);
     const channel = { name: raw.name, type, description };
     if (raw.codeOfConduct !== undefined)
         channel.codeOfConduct = [...raw.codeOfConduct];
@@ -209,7 +224,78 @@ function checkChannel(container, raw, known, names, translations) {
         channel.seenBy = [...raw.seenBy];
     if (overwrites !== undefined)
         channel.overwrites = overwrites;
+    if (forum !== undefined)
+        channel.forum = forum;
     return channel;
+}
+const REACTION = /^\p{Extended_Pictographic}\uFE0F?$/u;
+const TAGS_MAX = 20;
+const TAG_MAX = 20;
+const BELONGS_MAX = 500;
+const EXAMPLE_TITLE_MAX = 100;
+const TEMPLATE_MAX = 10;
+const TEMPLATE_LINE_MAX = 100;
+/** Discord's limit on one message, which a forum's how-to post is. */
+const MESSAGE_MAX = 2000;
+/** A forum has its forum block and no other channel does (slice 030); the block's values are checked here. */
+function checkForum(place, type, raw) {
+    if (type !== "forum") {
+        if (raw !== undefined)
+            throw new Error(`${place}: only a forum has a forum block`);
+        return undefined;
+    }
+    if (raw === undefined)
+        throw new Error(`${place}: a forum needs its forum block (tags, reaction, howTo)`);
+    return {
+        tags: checkTags(place, raw.tags),
+        reaction: checkReaction(place, raw.reaction),
+        howTo: checkHowTo(place, raw.howTo),
+    };
+}
+function checkTags(place, tags) {
+    if (tags.length < 1 || tags.length > TAGS_MAX) {
+        throw new Error(`${place}: forum tags must be 1–${TAGS_MAX.toString()} entries, not ${tags.length.toString()}`);
+    }
+    const seen = new Set();
+    for (const tag of tags) {
+        checkLength(place, `tag "${tag}"`, tag, TAG_MAX);
+        if (tag !== tag.trim())
+            throw new Error(`${place}: tag "${tag}" must not start or end with spaces`);
+        const key = tag.toLowerCase();
+        if (seen.has(key))
+            throw new Error(`${place}: tag "${tag}" is named twice`);
+        seen.add(key);
+    }
+    return [...tags];
+}
+function checkReaction(place, reaction) {
+    if (!REACTION.test(reaction)) {
+        throw new Error(`${place}: reaction must be one emoji: one Extended_Pictographic code point, optionally followed by U+FE0F`);
+    }
+    return reaction;
+}
+function checkHowTo(place, howTo) {
+    checkLength(place, "forum belongs", howTo.belongs, BELONGS_MAX);
+    checkLength(place, "forum example title", howTo.exampleTitle, EXAMPLE_TITLE_MAX);
+    if (howTo.template.length < 1 || howTo.template.length > TEMPLATE_MAX) {
+        throw new Error(`${place}: forum template must be 1–${TEMPLATE_MAX.toString()} lines, not ${howTo.template.length.toString()}`);
+    }
+    for (const line of howTo.template)
+        checkLength(place, `template line "${line}"`, line, TEMPLATE_LINE_MAX);
+    return { belongs: howTo.belongs, exampleTitle: howTo.exampleTitle, template: [...howTo.template] };
+}
+/** The how-to post of a forum is one message, so its text must fit Discord's limit (counted in characters, as Discord does). */
+function checkHowToLength(place, name, forum) {
+    const length = Array.from(forumHowTo(name, forum).content).length;
+    if (length > MESSAGE_MAX) {
+        throw new Error(`${place}: the how-to post is ${length.toString()} characters; Discord allows ${MESSAGE_MAX.toString()}`);
+    }
+}
+/** A text of 1 to `max` characters. */
+function checkLength(place, what, value, max) {
+    if (value.length < 1 || value.length > max) {
+        throw new Error(`${place}: ${what} must be 1–${max.toString()} characters, not ${value.length.toString()}`);
+    }
 }
 function checkOverwrites(place, raw, known) {
     const result = {};
@@ -271,7 +357,29 @@ async function readChannel(port, channel, botUserId) {
             allow: permissionNamesOf(overwrite.allow),
             deny: permissionNamesOf(overwrite.deny),
         })),
+        forum: channel.kind === "forum" ? await readForum(port, channel, botUserId) : undefined,
     };
+}
+/** A forum's tags and reaction as read, and Neil's how-to post among its posts; the posts unread leave the post unknown. */
+async function readForum(port, channel, botUserId) {
+    const posts = await port.readForumPosts(channel.id);
+    const howTo = posts === undefined ? undefined : neilHowToOf(posts, botUserId);
+    return {
+        tags: [...(channel.tags ?? [])],
+        reaction: channel.reaction,
+        postsReadable: posts !== undefined,
+        howTo,
+        otherPinned: posts !== undefined && posts.some((post) => post.pinned && post.threadId !== howTo?.threadId),
+    };
+}
+/** Neil's how-to post: the oldest post by Neil whose starter starts with the pin mark, the oldest by thread id. */
+function neilHowToOf(posts, botUserId) {
+    const oldest = posts
+        .filter((post) => post.ownerId === botUserId && post.content?.startsWith(PIN_MARK) === true)
+        .reduce((best, post) => (best === undefined || BigInt(post.threadId) < BigInt(best.threadId) ? post : best), undefined);
+    if (oldest === undefined)
+        return undefined;
+    return { threadId: oldest.threadId, title: oldest.title, content: oldest.content, archived: oldest.archived, pinned: oldest.pinned };
 }
 /** The messages that may hold Neil's description, newest first; none for a category or forum. */
 async function describingMessagesOf(port, channel) {
@@ -356,6 +464,11 @@ const PHASE = {
     "set-topic": 4,
     "post-description": 5,
     "edit-description": 5,
+    "set-forum-tags": 6,
+    "set-forum-reaction": 6,
+    "open-how-to": 6,
+    "edit-how-to": 6,
+    "pin-how-to": 6,
 };
 function inOrder(steps) {
     return [...steps].sort((a, b) => PHASE[a.kind] - PHASE[b.kind]);
@@ -409,7 +522,29 @@ async function applyStep(step, port, book) {
         case "edit-description":
             await port.editMessage(step.id, step.messageId, step.content);
             return;
+        case "set-forum-tags":
+            await port.setForumTags(forumIdOf(book, step), step.tags);
+            return;
+        case "set-forum-reaction":
+            await port.setForumReaction(forumIdOf(book, step), step.reaction);
+            return;
+        case "open-how-to": {
+            const threadId = await port.openForumPost(forumIdOf(book, step), step.title, step.content);
+            if (step.pin)
+                await port.pinForumPost(threadId, false);
+            return;
+        }
+        case "edit-how-to":
+            await port.editForumPost(step.threadId, step.title, step.content, step.unarchive);
+            return;
+        case "pin-how-to":
+            await port.pinForumPost(step.threadId, step.unarchive);
+            return;
     }
+}
+/** The id of a forum a step names: its id, or for a forum the plan created, the id this run gave it. */
+function forumIdOf(book, step) {
+    return step.id ?? createdIdOf(book, step.name, step.categoryName);
 }
 function categoryNamed(book, name) {
     return single(book.categories.filter((category) => category.name === name), `category "${name}" is not there (its step failed)`);
@@ -479,6 +614,7 @@ export async function runSetup(options) {
     const after = real ? await readAfterWrites(port) : before;
     const changed = plan.steps.filter((step) => !failures.some((failure) => failure.step === step));
     const unreadCount = plan.findings.filter((finding) => finding.kind === "descriptions-unread").length;
+    const unreadPostsCount = plan.findings.filter((finding) => finding.kind === "forum-posts-unread").length;
     const lineFindings = plan.findings.filter(isLineFinding);
     const outside = lineFindings.filter((finding) => finding.kind === "outside-layout");
     const warnings = lineFindings.filter((finding) => finding.kind !== "outside-layout");
@@ -488,6 +624,7 @@ export async function runSetup(options) {
         ...changed.map(tense),
         ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map((finding) => describeFinding(finding, real)),
         ...(unreadCount > 0 ? [unreadLine(unreadCount)] : []),
+        ...(unreadPostsCount > 0 ? [unreadPostsLine(unreadPostsCount)] : []),
         ...outside.map((finding) => describeFinding(finding, real)),
         ...failures.map((failure) => `failed: ${describeStep(failure.step)}: ${failure.reason}`),
         ...(plan.steps.length === 0 ? ["Nothing to do."] : []),
@@ -500,7 +637,6 @@ export async function runSetup(options) {
         exitCode: blocked || failures.length > 0 ? 1 : 0,
     };
 }
-const MESSAGE_MAX = 2000;
 /**
  * One line per description message longer than Discord allows. The message depends on the Kingdom number and on the
  * server's `[TAG]` roles, so it is rendered here from the server as read (research R6), before any write.
@@ -550,14 +686,28 @@ function describeStep(step) {
             return `post description in ${step.name}`;
         case "edit-description":
             return `edit description in ${step.name}`;
+        case "set-forum-tags":
+            return `set tags of ${step.name}`;
+        case "set-forum-reaction":
+            return `set reaction of ${step.name}`;
+        case "open-how-to":
+            return `open how-to post in ${step.name}`;
+        case "edit-how-to":
+            return `edit how-to post in ${step.name}`;
+        case "pin-how-to":
+            return `pin how-to post in ${step.name}`;
     }
 }
 function isLineFinding(finding) {
-    return finding.kind !== "descriptions-unread";
+    return finding.kind !== "descriptions-unread" && finding.kind !== "forum-posts-unread";
 }
 /** One line for all the channels whose pins Neil cannot read (a dry run without Administrator). */
 function unreadLine(count) {
     return `Neil can't read the pinned messages of ${count.toString()} channels without Administrator; a real run checks their descriptions.`;
+}
+/** One line for all the forums whose posts Neil cannot read (a dry run without Administrator). */
+function unreadPostsLine(count) {
+    return `Neil can't read the posts of ${count.toString()} forums without Administrator; a real run checks their how-to posts.`;
 }
 /** Warnings: hides-from-everyone first, the other findings after, each group in the order of the plan. */
 function warningRank(finding) {
@@ -586,6 +736,10 @@ function describeFinding(finding, real) {
             return `${finding.name} is above Neil's role; Neil can't give it`;
         case "fallback-to-text":
             return `${finding.name}: without Community it is created as text instead of ${finding.from}`;
+        case "extra-tag":
+            return `${finding.name} has tag ${finding.tag} that the layout doesn't name`;
+        case "other-post-pinned":
+            return `${finding.name} has another pinned post; Neil's how-to post stays unpinned`;
     }
 }
 /** The IDs as SETTING=value lines, from the server as it is now; a role or channel missing or doubled gives no line. */

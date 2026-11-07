@@ -1,4 +1,5 @@
 import { describeChannel } from "./channel-description.js";
+import { forumHowTo } from "./forum-how-to.js";
 import { tagOfAllianceRole } from "./managed-roles.js";
 /** The Discord bit of each role permission the layout may give (slice 028, plan D10): CreateEvents is bit 44. */
 export const ROLE_PERMISSION_BITS = {
@@ -84,6 +85,8 @@ function expandChannel(channel, categorySeenBy, expansion) {
     const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
     const grants = categoryGrants(seenBy);
     const seer = SEER_GRANTS[channel.type];
+    if (channel.type === "forum")
+        grant(grants, EVERYONE_TARGET, [SEND], "deny");
     for (const role of seenBy) {
         grant(grants, role, seer.reading, "allow");
         if (channel.mode === undefined)
@@ -100,7 +103,16 @@ function expandChannel(channel, categorySeenBy, expansion) {
         grant(grants, resolve(target), spec.deny, "deny");
     }
     const overwrites = toOverwrites(grants);
-    return { name: channel.name, type: channel.type, overwrites, ...describeChannel(channel, overwrites, expansion.hidden) };
+    return {
+        name: channel.name,
+        type: channel.type,
+        overwrites,
+        ...describeChannel(channel, overwrites, expansion.hidden),
+        forum: channel.forum === undefined ? undefined : expandForum(channel.name, channel.forum),
+    };
+}
+function expandForum(name, forum) {
+    return { tags: [...forum.tags], reaction: forum.reaction, howTo: forumHowTo(name, forum) };
 }
 function grant(grants, target, permissions, how) {
     if (permissions.length === 0)

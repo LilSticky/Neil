@@ -2,6 +2,10 @@ import { tagOfAllianceRole } from "./managed-roles.js";
 import { BOT_TARGET, EVERYONE_TARGET, expandLayout, ROLE_PERMISSION_BITS, } from "./server-layout.js";
 /** Roles of the layout that may hold any permission without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
+/** The variation selector that turns an emoji into its emoji presentation (U+FE0F). */
+const VARIATION_SELECTOR = /\uFE0F/gu;
+/** The state of a forum the plan creates: no tags, no reaction and no posts. */
+const NO_FORUM_STATE = { tags: [], reaction: undefined, postsReadable: true, howTo: undefined, otherPinned: false };
 /**
  * The steps and findings that make a server match the layout (data-model.md, Setup plan). Reads nothing but its arguments
  * and writes nothing. The `[TAG]` roles of the server give the Alliance areas.
@@ -17,6 +21,7 @@ export function planSetup(layout, server, homeKingdom) {
         channelSteps: [],
         topicSteps: [],
         descriptionSteps: [],
+        forumSteps: [],
         findings: [],
         rolePermissions: layout.rolePermissions ?? {},
         claimed: new Set(),
@@ -35,6 +40,7 @@ export function planSetup(layout, server, homeKingdom) {
             ...plan.channelSteps,
             ...plan.topicSteps,
             ...plan.descriptionSteps,
+            ...plan.forumSteps,
         ],
         findings: plan.findings,
     };
@@ -154,6 +160,8 @@ function planChannel(plan, channel, categoryName, categoryId, isAlliance) {
     }
     checkOverwrites(plan, existing, usable(plan, channel.overwrites), plan.channelSteps);
     checkText(plan, existing, channel, categoryName);
+    if (channel.forum !== undefined)
+        planForumState(plan, channel.forum, channel.name, categoryName, existing.id, existing.forum);
 }
 /** The topic of a channel that exists, and Neil's description: posted when missing, edited when its text differs. */
 function checkText(plan, existing, channel, categoryName) {
@@ -213,6 +221,65 @@ function createChannel(plan, channel, categoryName) {
             pinned: channel.type !== "voice",
         });
     }
+    if (channel.forum !== undefined)
+        planForumState(plan, channel.forum, channel.name, categoryName, undefined, NO_FORUM_STATE);
+}
+/**
+ * The steps that bring a forum's tags, reaction and how-to post in step with the layout (data-model.md, Steps). `id` is
+ * undefined for a forum the plan creates. A forum whose state was not read gets no steps.
+ */
+function planForumState(plan, wanted, name, categoryName, id, state) {
+    if (state === undefined)
+        return;
+    planForumTags(plan, wanted, name, categoryName, id, state);
+    if (bareEmoji(state.reaction) !== bareEmoji(wanted.reaction)) {
+        plan.forumSteps.push({ kind: "set-forum-reaction", id, name, categoryName, reaction: wanted.reaction });
+    }
+    planHowTo(plan, wanted, name, categoryName, id, state);
+}
+/** An emoji without its variation selector: the layout and Discord may each include U+FE0F or leave it out. */
+function bareEmoji(emoji) {
+    return emoji?.replace(VARIATION_SELECTOR, "");
+}
+/** Tag names are the same tag when they differ only in case (slice 030). */
+function sameTagName(a, b) {
+    return a.toLowerCase() === b.toLowerCase();
+}
+/**
+ * Missing tags, and kept tags whose case differs from the layout's, give one step with the whole list: the layout's tags in
+ * its order, with a kept tag taking the layout's spelling, then the new ones, then the extras, which stay.
+ */
+function planForumTags(plan, wanted, name, categoryName, id, state) {
+    const missing = wanted.tags.filter((tag) => !state.tags.some((existing) => sameTagName(existing.name, tag)));
+    const present = wanted.tags.flatMap((tag) => state.tags.filter((existing) => sameTagName(existing.name, tag)).map((existing) => ({ ...existing, name: tag })));
+    const extras = state.tags.filter((existing) => !wanted.tags.some((tag) => sameTagName(existing.name, tag)));
+    for (const extra of extras)
+        plan.findings.push({ kind: "extra-tag", name, tag: extra.name });
+    const renamed = present.some((kept) => state.tags.some((existing) => existing.id === kept.id && existing.name !== kept.name));
+    if (missing.length === 0 && !renamed)
+        return;
+    const tags = [...present, ...missing.map((tag) => ({ name: tag })), ...extras];
+    plan.forumSteps.push({ kind: "set-forum-tags", id, name, categoryName, tags });
+}
+/** Neil's how-to post: opened when missing, edited when its text differs, pinned when unpinned and no other post is. */
+function planHowTo(plan, wanted, name, categoryName, id, state) {
+    if (!state.postsReadable) {
+        plan.findings.push({ kind: "forum-posts-unread", name });
+        return;
+    }
+    const { title, content } = wanted.howTo;
+    const howTo = state.howTo;
+    if (state.otherPinned && (howTo === undefined || !howTo.pinned))
+        plan.findings.push({ kind: "other-post-pinned", name });
+    if (howTo === undefined) {
+        plan.forumSteps.push({ kind: "open-how-to", id, name, categoryName, title, content, pin: !state.otherPinned });
+        return;
+    }
+    if (howTo.title !== title || howTo.content !== content) {
+        plan.forumSteps.push({ kind: "edit-how-to", threadId: howTo.threadId, name, title, content, unarchive: howTo.archived });
+    }
+    if (!howTo.pinned && !state.otherPinned)
+        plan.forumSteps.push({ kind: "pin-how-to", threadId: howTo.threadId, name, unarchive: howTo.archived });
 }
 /** Without Community an announcement channel is planned as text, so an existing text channel stands for it. Forums need no Community. */
 function typeMatches(actual, expected, hasCommunity) {
