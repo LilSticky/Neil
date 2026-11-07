@@ -33,7 +33,7 @@
  *     | { kind: "set-forum-reaction"; id: string | undefined; name: string; categoryName: string; reaction: string }
  *     | { kind: "open-how-to"; id: string | undefined; name: string; categoryName: string; title: string; content: string; pin: boolean }
  *     | { kind: "edit-how-to"; threadId: string; name: string; title: string; content: string; unarchive: boolean }
- *     | { kind: "pin-how-to"; threadId: string; name: string };
+ *     | { kind: "pin-how-to"; threadId: string; name: string; unarchive: boolean };
  *     // correct-overwrites: only the targets whose named allow or deny is missing, each with its full wanted allow and deny
  *     // steps order: roles, categories, channels (with overwrites), then set-topic, then post/edit-description
  *   type SetupFinding =
@@ -1325,5 +1325,134 @@ describe("planSetup: an existing forum whose state matches", () => {
         step.kind === "pin-how-to",
     );
     expect(forumSteps).toEqual([]);
+  });
+});
+
+/** The layout with the tactics forum's tags replaced, for a forum whose tags differ from the server's. */
+function layoutWithTags(tags: string[]): ServerLayout {
+  const forum: ForumSetup = { ...layoutForum("tactics"), tags };
+  return {
+    ...layout,
+    categories: layout.categories.map((category) => ({
+      ...category,
+      channels: category.channels.map((candidate) => (candidate.name === "tactics" ? { ...candidate, forum } : candidate)),
+    })),
+  };
+}
+
+/** Neil's how-to post of the tactics forum with the text the layout wants, and the given state. */
+function howToPost(overrides: Partial<NonNullable<ForumState["howTo"]>> = {}): NonNullable<ForumState["howTo"]> {
+  const wanted = forumHowTo("tactics", layoutForum("tactics"));
+  return { threadId: "post-tactics", title: wanted.title, content: wanted.content, archived: false, pinned: true, ...overrides };
+}
+
+/** The state of the tactics forum as matchingForum gives it, with some parts replaced. */
+function forumWith(overrides: Partial<ForumState>): ForumState {
+  return { ...matchingForum("tactics"), ...overrides };
+}
+
+/** A server with the Hangout category and a tactics forum in it, in the given state. */
+function serverWithTactics(state: ForumState): ServerState {
+  return serverWithHangout([withForum(described(channel("tactics", "forum", "Hangout"), "A test channel.", undefined), state)]);
+}
+
+describe("planSetup: an existing forum's tags", () => {
+  test("a missing tag gives one set-forum-tags step: the present tags with their ids in layout order, then the new ones, then the extras", () => {
+    const wanted = layoutWithTags(["Rally", "Scouting", "Defense"]);
+    const state = forumWith({
+      tags: [
+        { id: "t-scouting", name: "Scouting" },
+        { id: "t-rally", name: "Rally" },
+        { id: "t-old", name: "Old" },
+      ],
+    });
+
+    const plan = planSetup(wanted, serverWithTactics(state), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "set-forum-tags",
+        name: "tactics",
+        tags: [{ id: "t-rally", name: "Rally" }, { id: "t-scouting", name: "Scouting" }, { name: "Defense" }, { id: "t-old", name: "Old" }],
+      }),
+    );
+  });
+
+  test("an extra tag gives an extra-tag finding and no tag step, so the tag stays", () => {
+    const state = forumWith({ tags: [{ id: "t-rally", name: "Rally" }, { id: "t-old", name: "Old" }] });
+
+    const plan = planSetup(layout, serverWithTactics(state), HOME_KINGDOM);
+
+    expect(plan.findings).toContainEqual({ kind: "extra-tag", name: "tactics", tag: "Old" });
+    expect(plan.steps.filter((step) => step.kind === "set-forum-tags")).toEqual([]);
+  });
+});
+
+describe("planSetup: an existing forum's reaction", () => {
+  test("a reaction that differs gives set-forum-reaction with the layout's reaction", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ reaction: "📚" })), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "set-forum-reaction", name: "tactics", reaction: "⚔️" }));
+  });
+});
+
+describe("planSetup: an existing forum's how-to post", () => {
+  test("a post whose text differs gives edit-how-to with the layout's title and content, not unarchived", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ howTo: howToPost({ content: "Old text.", pinned: true }) })), HOME_KINGDOM);
+    const wanted = forumHowTo("tactics", layoutForum("tactics"));
+
+    expect(plan.steps).toContainEqual({
+      kind: "edit-how-to",
+      threadId: "post-tactics",
+      name: "tactics",
+      title: wanted.title,
+      content: wanted.content,
+      unarchive: false,
+    });
+  });
+
+  test("an archived post with other text is unarchived before it is edited", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ howTo: howToPost({ content: "Old text.", archived: true }) })), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "edit-how-to", threadId: "post-tactics", unarchive: true }));
+  });
+
+  test("an unpinned post, with no other post pinned, gets pin-how-to, not unarchived", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ howTo: howToPost({ pinned: false }) })), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual({ kind: "pin-how-to", threadId: "post-tactics", name: "tactics", unarchive: false });
+  });
+
+  test("an archived unpinned post gets pin-how-to with unarchive, so it can be pinned", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ howTo: howToPost({ pinned: false, archived: true }) })), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "pin-how-to", threadId: "post-tactics", unarchive: true }));
+  });
+
+  test("another post pinned and no Neil post give other-post-pinned and open-how-to unpinned", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ howTo: undefined, otherPinned: true })), HOME_KINGDOM);
+
+    expect(plan.findings).toContainEqual({ kind: "other-post-pinned", name: "tactics" });
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "open-how-to", name: "tactics", pin: false }));
+  });
+
+  test("another post pinned and Neil's post unpinned give other-post-pinned and no pin-how-to", () => {
+    const plan = planSetup(layout, serverWithTactics(forumWith({ howTo: howToPost({ pinned: false }), otherPinned: true })), HOME_KINGDOM);
+
+    expect(plan.findings).toContainEqual({ kind: "other-post-pinned", name: "tactics" });
+    expect(plan.steps.filter((step) => step.kind === "pin-how-to")).toEqual([]);
+  });
+
+  test("unreadable posts give forum-posts-unread and no post steps, while the tags and reaction are still planned", () => {
+    const wanted = layoutWithTags(["Rally", "Defense"]);
+    const state = forumWith({ postsReadable: false, howTo: undefined, tags: [], reaction: "📚" });
+
+    const plan = planSetup(wanted, serverWithTactics(state), HOME_KINGDOM);
+
+    expect(plan.findings).toContainEqual({ kind: "forum-posts-unread", name: "tactics" });
+    const postKinds: string[] = ["open-how-to", "edit-how-to", "pin-how-to"];
+    expect(plan.steps.filter((step) => postKinds.includes(step.kind))).toEqual([]);
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "set-forum-tags", name: "tactics" }));
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "set-forum-reaction", name: "tactics" }));
   });
 });

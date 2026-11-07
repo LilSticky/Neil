@@ -461,6 +461,7 @@ function forumPostsReplies(): Answers {
       has_more: false,
     },
     [Routes.channelMessage(THREAD_ID, THREAD_ID)]: { id: THREAD_ID, content: "Rally at dawn, step by step.", author: { id: OTHER_MEMBER_ID } },
+    [Routes.channelMessage(OTHER_FORUM_THREAD_ID, OTHER_FORUM_THREAD_ID)]: { id: OTHER_FORUM_THREAD_ID, content: "Elsewhere.", author: { id: OTHER_MEMBER_ID } },
     [Routes.channelMessage(ARCHIVED_THREAD_ID, ARCHIVED_THREAD_ID)]: {
       id: ARCHIVED_THREAD_ID,
       content: "📌 **How to post in #tactics**",
@@ -530,6 +531,72 @@ describe("createRestSetupServer reads the posts of a forum", () => {
   });
 });
 
+describe("createRestSetupServer refuses a starter message without content", () => {
+  test("rejects the read of the posts, rather than reading the post's content as empty", async () => {
+    const rest = fakeRest({
+      get: {
+        ...forumPostsReplies(),
+        [Routes.channelMessage(THREAD_ID, THREAD_ID)]: { id: THREAD_ID, author: { id: OTHER_MEMBER_ID } },
+      },
+    });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await expect(server.readForumPosts(FORUM_ID)).rejects.toThrow();
+  });
+});
+
+describe("createRestSetupServer reads every page of a forum's archived posts", () => {
+  const PAGE_ONE_THREAD_ID = "790000000000000000";
+  const PAGE_TWO_THREAD_ID = "791000000000000000";
+  const FIRST_PAGE_LAST_ARCHIVED = "2026-10-01T10:00:00.000Z";
+  const ARCHIVED_PATH = Routes.channelThreads(FORUM_ID, "public");
+
+  /** An archived post of the forum, archived at the given time. */
+  const archivedThread = (id: string, archivedAt: string) => ({
+    id,
+    name: `Post ${id}`,
+    type: 11,
+    parent_id: FORUM_ID,
+    owner_id: OTHER_MEMBER_ID,
+    thread_metadata: { archived: true, archive_timestamp: archivedAt },
+    flags: 0,
+  });
+
+  /** The page of archived posts that follows the given `before` time; the first page has none. */
+  const pageAfter = (before: string | null): unknown => {
+    if (before === null) return { threads: [archivedThread(PAGE_ONE_THREAD_ID, FIRST_PAGE_LAST_ARCHIVED)], has_more: true };
+    if (before === FIRST_PAGE_LAST_ARCHIVED) return { threads: [archivedThread(PAGE_TWO_THREAD_ID, "2026-09-01T10:00:00.000Z")], has_more: false };
+    return { threads: [], has_more: false };
+  };
+
+  test("asks for the next page before the archive time of the last post, until has_more is false", async () => {
+    const rest = fakeRest();
+    rest.get.mockImplementation((route: string): Promise<unknown> => {
+      const url = new URL(route, "https://discord.test");
+      if (url.pathname === ARCHIVED_PATH) return Promise.resolve(pageAfter(url.searchParams.get("before")));
+      if (url.pathname === Routes.guildActiveThreads(GUILD_ID)) return Promise.resolve({ threads: [] });
+      if (url.pathname === Routes.channelMessage(PAGE_ONE_THREAD_ID, PAGE_ONE_THREAD_ID)) {
+        return Promise.resolve({ id: PAGE_ONE_THREAD_ID, content: "A post." });
+      }
+      if (url.pathname === Routes.channelMessage(PAGE_TWO_THREAD_ID, PAGE_TWO_THREAD_ID)) {
+        return Promise.resolve({ id: PAGE_TWO_THREAD_ID, content: "A post." });
+      }
+      return Promise.resolve({});
+    });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const posts = await server.readForumPosts(FORUM_ID);
+
+    const befores = routesOf(rest.get)
+      .map((route) => String(route))
+      .filter((route) => new URL(route, "https://discord.test").pathname === ARCHIVED_PATH)
+      .map((route) => new URL(route, "https://discord.test").searchParams.get("before"));
+    expect(befores).toEqual([null, FIRST_PAGE_LAST_ARCHIVED]);
+    expect(posts?.map((post) => post.threadId)).toEqual(expect.arrayContaining([PAGE_ONE_THREAD_ID, PAGE_TWO_THREAD_ID]));
+    expect(posts).toHaveLength(2);
+  });
+});
+
 describe("createRestSetupServer opens a how-to post in a forum", () => {
   test("posts the thread with its name and the message's content, no mentions, and returns the thread id", async () => {
     const rest = fakeRest({ post: { [Routes.threads(FORUM_ID)]: { id: THREAD_ID } } });
@@ -552,9 +619,21 @@ describe("createRestSetupServer pins a forum post", () => {
     const rest = fakeRest();
     const server = createRestSetupServer(rest, GUILD_ID);
 
-    await server.pinForumPost(THREAD_ID);
+    await server.pinForumPost(THREAD_ID, false);
 
     expect(rest.patch).toHaveBeenCalledWith(Routes.channel(THREAD_ID), { body: { flags: 1 << 1 } });
+  });
+
+  test("unarchives the post first when asked to, then patches the pinned flag", async () => {
+    const rest = fakeRest();
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.pinForumPost(ARCHIVED_THREAD_ID, true);
+
+    expect(rest.patch.mock.calls).toEqual([
+      [Routes.channel(ARCHIVED_THREAD_ID), { body: { archived: false } }],
+      [Routes.channel(ARCHIVED_THREAD_ID), { body: { flags: 1 << 1 } }],
+    ]);
   });
 });
 

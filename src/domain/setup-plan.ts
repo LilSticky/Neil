@@ -105,7 +105,8 @@ export type SetupStep =
       pin: boolean;
     }
   | { kind: "edit-how-to"; threadId: string; name: string; title: string; content: string; unarchive: boolean }
-  | { kind: "pin-how-to"; threadId: string; name: string };
+  /** `unarchive` is true when the post is archived, since Discord refuses to pin an archived post. */
+  | { kind: "pin-how-to"; threadId: string; name: string; unarchive: boolean };
 
 export type SetupFinding =
   | { kind: "outside-layout"; name: string }
@@ -410,7 +411,7 @@ function planHowTo(
   if (howTo.title !== title || howTo.content !== content) {
     plan.forumSteps.push({ kind: "edit-how-to", threadId: howTo.threadId, name, title, content, unarchive: howTo.archived });
   }
-  if (!howTo.pinned && !state.otherPinned) plan.forumSteps.push({ kind: "pin-how-to", threadId: howTo.threadId, name });
+  if (!howTo.pinned && !state.otherPinned) plan.forumSteps.push({ kind: "pin-how-to", threadId: howTo.threadId, name, unarchive: howTo.archived });
 }
 
 /** Without Community an announcement channel is planned as text, so an existing text channel stands for it. Forums need no Community. */

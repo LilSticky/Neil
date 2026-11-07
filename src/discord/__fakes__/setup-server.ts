@@ -395,10 +395,12 @@ export class FakeSetupServer implements SetupServer {
     return Promise.resolve(this.definePost(forumId, { authorId: this.botUserId, title, content }));
   }
 
-  pinForumPost(threadId: string): Promise<void> {
+  pinForumPost(threadId: string, unarchive: boolean): Promise<void> {
     const post = this.postOf(threadId);
     this.sequence.push(`pin-forum-post ${this.nameOf(post?.forumId ?? threadId)}`);
-    if (post !== undefined) post.pinned = true;
+    if (post === undefined) return Promise.resolve();
+    if (unarchive) post.archived = false;
+    post.pinned = true;
     return Promise.resolve();
   }
 

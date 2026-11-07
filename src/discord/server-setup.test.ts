@@ -34,6 +34,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { PermissionFlagsBits } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
+import { forumHowTo } from "../domain/forum-how-to.js";
 import { GAME_LANGUAGES } from "../domain/preferences.js";
 import {
   expandLayout,
@@ -984,6 +985,19 @@ describe("runSetup", () => {
 });
 
 describe("the shipped server-layout.json", () => {
+  test.each([
+    { name: "guides", reaction: "📚", tags: ["Beginner", "Events", "PvP", "Heroes", "Economy", "Alliance Duel", "KvK"] },
+    { name: "nap-forum", reaction: "🤝", tags: ["Question", "Proposal", "Agreement", "Violation"] },
+    { name: "pvp-tactics", reaction: "⚔️", tags: ["Rally", "Defense", "Scouting", "Troops", "Lessons learned"] },
+    { name: "ad-tactics", reaction: "⚔️", tags: ["Plan", "Schedule", "Points", "Lessons learned"] },
+    { name: "kvk-tactics", reaction: "⚔️", tags: ["Plan", "Squads", "Targets", "Defense", "Lessons learned"] },
+  ])("$name carries the decided tags and reaction (slice 030)", ({ name, reaction, tags }) => {
+    const forum = shippedLayout().categories.flatMap((category) => category.channels).find((channel) => channel.name === name);
+    expect(forum?.type).toBe("forum");
+    expect(forum?.forum?.tags).toEqual(tags);
+    expect(forum?.forum?.reaction).toBe(reaction);
+  });
+
   test("holds #gift-codes in Hangout, where only R4, R5 and the King post", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
     const channel = groupNamed(expanded, "Hangout").channels.find((candidate) => candidate.name === "gift-codes");
@@ -1967,5 +1981,268 @@ describe("the shipped layout grants what @everyone may lack", () => {
       JSON.stringify({ ...SMALL_LAYOUT, categories: [{ name: "V", seenBy: ["R5"], channels: [{ name: "v", type: "voice", description: "Talk.", overwrites: { R5: { allow: ["Connect", "Speak"], deny: [] } } }] }] }),
     );
     expect(parsed.categories[0]?.channels[0]?.overwrites?.R5?.allow).toEqual(["Connect", "Speak"]);
+  });
+});
+
+// ---- Forums (slice 030) ---------------------------------------------------------------------------------------------
+
+/** A layout with one Tactics category holding the named forums, each with the given tags, the reaction ⚔️ and FORUM_HOW_TO. */
+function forumsLayout(names: readonly string[], tags: readonly string[] = ["Rally", "Defense"]): ServerLayout {
+  return {
+    roles: [KINGDOM_ROLE],
+    externalRoles: [],
+    languages: [],
+    translations: [],
+    categories: [
+      {
+        name: "Tactics",
+        seenBy: [KINGDOM_ROLE],
+        channels: names.map(
+          (name): LayoutChannel => ({
+            name,
+            type: "forum",
+            description: "Tactics for the Kingdom.",
+            forum: { tags: [...tags], reaction: "⚔️", howTo: FORUM_HOW_TO },
+          }),
+        ),
+      },
+    ],
+    allianceArea: { channels: [] },
+  };
+}
+
+/** A server with a Tactics category and the named forums in it, empty: no tags, no reaction and no posts. */
+function serverWithForums(names: readonly string[], options: { botPermissions?: bigint } = {}): FakeSetupServer {
+  const server = new FakeSetupServer({ features: COMMUNITY, ...options });
+  const tactics = server.defineChannel("Tactics", { kind: "category" });
+  for (const name of names) server.defineChannel(name, { kind: "forum", parentId: tactics });
+  return server;
+}
+
+/** The forums of a layout, in its categories and in the Alliance area. */
+function forumsOf(layout: ServerLayout): LayoutChannel[] {
+  const channels = [...layout.categories.flatMap((category) => category.channels), ...layout.allianceArea.channels];
+  return channels.filter((channel) => channel.type === "forum");
+}
+
+describe("readServer reads a forum's tags, reaction and Neil's how-to post", () => {
+  test("reads the tags with their ids, the default reaction, and that the posts are readable", async () => {
+    const server = new FakeSetupServer();
+    server.defineChannel("tactics", { kind: "forum", tags: ["Rally", "Defense"], reaction: "⚔️" });
+    const forumInfo = (await server.readChannels()).find((channel) => channel.name === "tactics");
+
+    const forum = (await readServer(server)).channels.find((channel) => channel.name === "tactics")?.forum;
+
+    expect(forum?.tags.map((tag) => tag.name)).toEqual(["Rally", "Defense"]);
+    expect(forum?.tags).toEqual(forumInfo?.tags);
+    expect(forum?.reaction).toBe("⚔️");
+    expect(forum?.postsReadable).toBe(true);
+  });
+
+  test("takes Neil's how-to post to be the oldest post by Neil whose starter starts with the pin mark, in whatever order the posts are listed", async () => {
+    const server = new FakeSetupServer();
+    const tactics = server.defineChannel("tactics", { kind: "forum" });
+    server.definePost(tactics, { authorId: OTHER_USER_ID, title: "Rally", content: `${PIN} a Member's post` });
+    const oldest = server.definePost(tactics, {
+      authorId: server.botUserId,
+      title: "How to post in #tactics",
+      content: `${PIN} **How to post in #tactics**`,
+      pinned: true,
+    });
+    const middle = server.definePost(tactics, { authorId: server.botUserId, title: "How to post, again", content: `${PIN} a second copy` });
+    const newest = server.definePost(tactics, { authorId: server.botUserId, title: "How to post, once more", content: `${PIN} a third copy` });
+    // The port lists the middle post first, then the oldest, then the newest: neither end of the list is the oldest.
+    const listedInOrder = [middle, oldest, newest];
+    const listed = server.readForumPosts.bind(server);
+    vi.spyOn(server, "readForumPosts").mockImplementation(async (forumId) => {
+      const posts = await listed(forumId);
+      return posts?.slice().sort((a, b) => listedInOrder.indexOf(a.threadId) - listedInOrder.indexOf(b.threadId));
+    });
+
+    const forum = (await readServer(server)).channels.find((channel) => channel.name === "tactics")?.forum;
+
+    expect(forum?.howTo).toEqual({
+      threadId: oldest,
+      title: "How to post in #tactics",
+      content: `${PIN} **How to post in #tactics**`,
+      archived: false,
+      pinned: true,
+    });
+  });
+
+  test("says another post is pinned when a post that is not Neil's how-to post is pinned", async () => {
+    const server = new FakeSetupServer();
+    const tactics = server.defineChannel("tactics", { kind: "forum" });
+    server.definePost(tactics, { authorId: OTHER_USER_ID, title: "Rally at dawn", content: "Step by step.", pinned: true });
+
+    const forum = (await readServer(server)).channels.find((channel) => channel.name === "tactics")?.forum;
+
+    expect(forum?.otherPinned).toBe(true);
+  });
+
+  test("does not count Neil's own pinned how-to post as another pinned post", async () => {
+    const server = new FakeSetupServer();
+    const tactics = server.defineChannel("tactics", { kind: "forum" });
+    server.definePost(tactics, {
+      authorId: server.botUserId,
+      title: "How to post in #tactics",
+      content: `${PIN} **How to post in #tactics**`,
+      pinned: true,
+    });
+
+    const forum = (await readServer(server)).channels.find((channel) => channel.name === "tactics")?.forum;
+
+    expect(forum?.otherPinned).toBe(false);
+  });
+
+  test("reads the posts as unreadable, with no how-to post, when Discord refuses the post reads", async () => {
+    const server = serverWithForums(["tactics"]);
+    server.refuseForumPostReads("tactics");
+
+    const forum = (await readServer(server)).channels.find((channel) => channel.name === "tactics")?.forum;
+
+    expect(forum?.postsReadable).toBe(false);
+    expect(forum?.howTo).toBeUndefined();
+    expect(forum?.otherPinned).toBe(false);
+  });
+});
+
+describe("applySetup gives a new forum its tags, reaction and pinned how-to post, after its creation", () => {
+  test("sets the tags, then the reaction, then opens the how-to post and pins it", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY });
+
+    const outcomes = await applySetup(await planFor(forumsLayout(["tactics"]), server), server);
+
+    expect(outcomes.filter((outcome) => outcome.status === "failed")).toEqual([]);
+    const created = server.sequence.indexOf("create-channel tactics");
+    expect(server.sequence.slice(created)).toEqual([
+      "create-channel tactics",
+      "set-forum-tags tactics",
+      "set-forum-reaction tactics",
+      "open-forum-post tactics",
+      "pin-forum-post tactics",
+    ]);
+  });
+});
+
+describe("a real run finishes the forums of the shipped layout", () => {
+  test.each([
+    { label: "with Community", features: COMMUNITY },
+    { label: "without Community", features: NO_FEATURES },
+  ])("gives each forum its tags, reaction and one pinned how-to post, and denies @everyone View and Send, $label", async ({ features }) => {
+    const layout = shippedLayout();
+    const server = new FakeSetupServer({ features, botPermissions: ADMINISTRATOR });
+
+    const { exitCode } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(exitCode).toBe(0);
+    const channels = await server.readChannels();
+    for (const forum of forumsOf(layout)) {
+      const block = forum.forum;
+      if (block === undefined) throw new Error(`${forum.name} has no forum block`);
+      const info = channels.find((channel) => channel.name === forum.name);
+      if (info === undefined) throw new Error(`no channel named ${forum.name}`);
+      expect(info.tags?.map((tag) => tag.name)).toEqual(block.tags);
+      expect(info.reaction).toBe(block.reaction);
+      const pinned = ((await server.readForumPosts(info.id)) ?? []).filter((post) => post.ownerId === server.botUserId && post.pinned);
+      expect(pinned.map((post) => ({ title: post.title, content: post.content }))).toEqual([forumHowTo(forum.name, block)]);
+      const everyone = info.overwrites.find((overwrite) => overwrite.targetId === server.guildId);
+      expect((everyone?.deny ?? 0n) & (VIEW | SEND)).toBe(VIEW | SEND);
+    }
+    expect((await planFor(layout, server)).steps).toEqual([]);
+  });
+});
+
+describe("runSetup reports the forum steps, with would on a dry run", () => {
+  test("says would set tags, would set reaction and would open how-to post for a new forum's steps on a dry run, and writes nothing", async () => {
+    const server = serverWithForums(["tactics"]);
+
+    const { report } = await runSetup({ layout: forumsLayout(["tactics"]), homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("would set tags of tactics");
+    expect(lines(report)).toContain("would set reaction of tactics");
+    expect(lines(report)).toContain("would open how-to post in tactics");
+    expect(server.sequence).toEqual([]);
+  });
+
+  test("reports the same steps without would on a real run, and exits 0", async () => {
+    const server = serverWithForums(["tactics"], { botPermissions: ADMINISTRATOR });
+
+    const { report, exitCode } = await runSetup({ layout: forumsLayout(["tactics"]), homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("set tags of tactics");
+    expect(lines(report)).toContain("set reaction of tactics");
+    expect(lines(report)).toContain("open how-to post in tactics");
+    expect(report).not.toMatch(/would /);
+    expect(exitCode).toBe(0);
+  });
+
+  /** A server with the tactics forum and an unpinned post of Neil's, whose text is out of date. */
+  function serverWithStaleHowTo(options: { botPermissions?: bigint } = {}): FakeSetupServer {
+    const server = serverWithForums(["tactics"], options);
+    server.definePost(channelId(server, "tactics"), { authorId: server.botUserId, title: "How to post in #tactics", content: `${PIN} an old text` });
+    return server;
+  }
+
+  test("says would edit how-to post and would pin how-to post on a dry run, and writes nothing", async () => {
+    const server = serverWithStaleHowTo();
+
+    const { report } = await runSetup({ layout: forumsLayout(["tactics"]), homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("would edit how-to post in tactics");
+    expect(lines(report)).toContain("would pin how-to post in tactics");
+    expect(server.sequence).toEqual([]);
+  });
+
+  test("reports edit how-to post and pin how-to post without would on a real run", async () => {
+    const server = serverWithStaleHowTo({ botPermissions: ADMINISTRATOR });
+
+    const { report, exitCode } = await runSetup({ layout: forumsLayout(["tactics"]), homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("edit how-to post in tactics");
+    expect(lines(report)).toContain("pin how-to post in tactics");
+    expect(report).not.toMatch(/would /);
+    expect(exitCode).toBe(0);
+  });
+});
+
+describe("runSetup words the forum findings as contracts/cli.md gives them", () => {
+  test("says a forum has another pinned post, and that Neil's how-to post stays unpinned", async () => {
+    const server = serverWithForums(["tactics"]);
+    server.definePost(channelId(server, "tactics"), { authorId: OTHER_USER_ID, title: "Rally at dawn", content: "Step by step.", pinned: true });
+
+    const { report } = await runSetup({ layout: forumsLayout(["tactics"]), homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("tactics has another pinned post; Neil's how-to post stays unpinned");
+  });
+
+  test("says a forum has a tag the layout does not name, and that the tag stays", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY });
+    const tactics = server.defineChannel("Tactics", { kind: "category" });
+    server.defineChannel("tactics", { kind: "forum", parentId: tactics, tags: ["Rally", "Defense", "Old"] });
+
+    const { report } = await runSetup({ layout: forumsLayout(["tactics"]), homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(lines(report)).toContain("tactics has tag Old that the layout doesn't name");
+  });
+
+  test("counts the forums whose posts Neil can't read into one line, with their number, and exits 0 on a dry run", async () => {
+    const server = serverWithForums(["tactics", "lessons"]);
+    server.refuseForumPostReads("tactics");
+    server.refuseForumPostReads("lessons");
+
+    const { report, exitCode } = await runSetup({
+      layout: forumsLayout(["tactics", "lessons"]),
+      homeKingdom: HOME_KINGDOM,
+      apply: false,
+      port: server,
+      secrets: [],
+    });
+
+    expect(lines(report).filter((line) => line.includes("can't read the posts"))).toEqual([
+      "Neil can't read the posts of 2 forums without Administrator; a real run checks their how-to posts.",
+    ]);
+    expect(lines(report).filter((line) => line.includes("can't read its posts"))).toEqual([]);
+    expect(exitCode).toBe(0);
   });
 });

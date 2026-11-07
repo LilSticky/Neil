@@ -94,21 +94,27 @@ const messagesResponse = z.array(
     message_reference: z.object({ message_id: z.string().optional() }).nullish(),
   }),
 );
-/** A thread of the guild's active list or a forum's archived list; a list without threads is empty. */
+/**
+ * A page of the guild's active list or of a forum's archived list; a list without threads is empty. `archive_timestamp` is
+ * optional here because only the archived paging needs it, and only when another page follows.
+ */
 const threadsResponse = z.object({
-  threads: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      parent_id: z.string().nullish(),
-      owner_id: z.string(),
-      thread_metadata: z.object({ archived: z.boolean() }),
-      flags: z.number().int().default(0),
-    }),
-  ).default([]),
+  threads: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        parent_id: z.string().nullish(),
+        owner_id: z.string(),
+        thread_metadata: z.object({ archived: z.boolean(), archive_timestamp: z.string().optional() }),
+        flags: z.number().int().default(0),
+      }),
+    )
+    .default([]),
+  has_more: z.boolean().default(false),
 });
-/** A thread's starter message: the post's content, which reads as empty when the message carries none; its id is the thread's id. */
-const starterResponse = z.object({ content: z.string().default("") });
+/** A thread's starter message: the post's content, which must be present; its id is the thread's id. */
+const starterResponse = z.object({ content: z.string() });
 /** The thread flag that pins a post to the top of its forum (Discord's ChannelFlags.Pinned). */
 const PINNED_FLAG = ChannelFlags.Pinned;
 
@@ -176,13 +182,29 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
     return activeThreads;
   };
 
-  /** A forum's archived public posts; undefined when Discord refuses the read with 403 (Missing Access). */
+  /**
+   * A forum's archived public posts, every page: each page after the first asks for the posts archived before the last
+   * post of the page. Undefined when Discord refuses a read with 403 (Missing Access).
+   */
   const archivedThreadsOf = async (forumId: string): Promise<ThreadRead[] | undefined> => {
-    try {
-      return threadsOf(await rest.get(Routes.channelThreads(forumId, "public")));
-    } catch (error) {
-      if (forbiddenResponse.safeParse(error).success) return undefined;
-      throw error;
+    const listRoute = Routes.channelThreads(forumId, "public");
+    const threads: ThreadRead[] = [];
+    let before: string | undefined;
+    for (;;) {
+      const route = before === undefined ? listRoute : `${listRoute}?before=${encodeURIComponent(before)}`;
+      let response: unknown;
+      try {
+        response = await rest.get(route);
+      } catch (error) {
+        if (forbiddenResponse.safeParse(error).success) return undefined;
+        throw error;
+      }
+      const page = threadsResponse.parse(response);
+      threads.push(...page.threads);
+      if (!page.has_more) return threads;
+      const last = page.threads.at(-1);
+      before = last?.thread_metadata.archive_timestamp;
+      if (before === undefined) throw new Error("Discord has more archived posts but no archive time to page from");
     }
   };
 
@@ -328,7 +350,8 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       const body = { name: title, message: { content, allowed_mentions: { parse: [] } } };
       return idResponse.parse(await rest.post(Routes.threads(forumId), { body })).id;
     },
-    async pinForumPost(threadId) {
+    async pinForumPost(threadId, unarchive) {
+      if (unarchive) await rest.patch(Routes.channel(threadId), { body: { archived: false } });
       await rest.patch(Routes.channel(threadId), { body: { flags: PINNED_FLAG } });
     },
     async editForumPost(threadId, title, content, unarchive) {

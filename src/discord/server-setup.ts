@@ -21,6 +21,7 @@ import {
 import {
   allianceRoleNamesOf,
   planSetup,
+  type ForumState,
   type ServerChannel,
   type ServerRole,
   type ServerState,
@@ -143,8 +144,8 @@ export interface SetupServer {
   readForumPosts(forumId: string): Promise<readonly ForumPostInfo[] | undefined>;
   /** Opens a post in a forum with its starter message (no mentions) and returns the thread id. */
   openForumPost(forumId: string, title: string, content: string): Promise<string>;
-  /** Pins a post of a forum. */
-  pinForumPost(threadId: string): Promise<void>;
+  /** Pins a post of a forum; unarchives it first when asked. */
+  pinForumPost(threadId: string, unarchive: boolean): Promise<void>;
   /** Renames a post and edits its starter message; unarchives it first when asked. */
   editForumPost(threadId: string, title: string, content: string, unarchive: boolean): Promise<void>;
 }
@@ -486,8 +487,33 @@ async function readChannel(port: SetupServer, channel: SetupChannelInfo, botUser
       allow: permissionNamesOf(overwrite.allow),
       deny: permissionNamesOf(overwrite.deny),
     })),
-    forum: undefined,
+    forum: channel.kind === "forum" ? await readForum(port, channel, botUserId) : undefined,
   };
+}
+
+/** A forum's tags and reaction as read, and Neil's how-to post among its posts; the posts unread leave the post unknown. */
+async function readForum(port: SetupServer, channel: SetupChannelInfo, botUserId: string): Promise<ForumState> {
+  const posts = await port.readForumPosts(channel.id);
+  const howTo = posts === undefined ? undefined : neilHowToOf(posts, botUserId);
+  return {
+    tags: (channel.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
+    reaction: channel.reaction,
+    postsReadable: posts !== undefined,
+    howTo,
+    otherPinned: posts !== undefined && posts.some((post) => post.pinned && post.threadId !== howTo?.threadId),
+  };
+}
+
+/** Neil's how-to post: the oldest post by Neil whose starter starts with the pin mark, the oldest by thread id. */
+function neilHowToOf(posts: readonly ForumPostInfo[], botUserId: string): ForumState["howTo"] {
+  const oldest = posts
+    .filter((post) => post.ownerId === botUserId && post.content.startsWith(PIN_MARK))
+    .reduce<ForumPostInfo | undefined>(
+      (best, post) => (best === undefined || BigInt(post.threadId) < BigInt(best.threadId) ? post : best),
+      undefined,
+    );
+  if (oldest === undefined) return undefined;
+  return { threadId: oldest.threadId, title: oldest.title, content: oldest.content, archived: oldest.archived, pinned: oldest.pinned };
 }
 
 /** The messages that may hold Neil's description, newest first; none for a category or forum. */
@@ -643,14 +669,14 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
       return;
     case "open-how-to": {
       const threadId = await port.openForumPost(forumIdOf(book, step), step.title, step.content);
-      if (step.pin) await port.pinForumPost(threadId);
+      if (step.pin) await port.pinForumPost(threadId, false);
       return;
     }
     case "edit-how-to":
       await port.editForumPost(step.threadId, step.title, step.content, step.unarchive);
       return;
     case "pin-how-to":
-      await port.pinForumPost(step.threadId);
+      await port.pinForumPost(step.threadId, step.unarchive);
       return;
   }
 }
@@ -739,6 +765,7 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
   const after = real ? await readAfterWrites(port) : before;
   const changed = plan.steps.filter((step) => !failures.some((failure) => failure.step === step));
   const unreadCount = plan.findings.filter((finding) => finding.kind === "descriptions-unread").length;
+  const unreadPostsCount = plan.findings.filter((finding) => finding.kind === "forum-posts-unread").length;
   const lineFindings = plan.findings.filter(isLineFinding);
   const outside = lineFindings.filter((finding) => finding.kind === "outside-layout");
   const warnings = lineFindings.filter((finding) => finding.kind !== "outside-layout");
@@ -749,6 +776,7 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
     ...changed.map(tense),
     ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map((finding) => describeFinding(finding, real)),
     ...(unreadCount > 0 ? [unreadLine(unreadCount)] : []),
+    ...(unreadPostsCount > 0 ? [unreadPostsLine(unreadPostsCount)] : []),
     ...outside.map((finding) => describeFinding(finding, real)),
     ...failures.map((failure) => `failed: ${describeStep(failure.step)}: ${failure.reason}`),
     ...(plan.steps.length === 0 ? ["Nothing to do."] : []),
@@ -817,24 +845,29 @@ function describeStep(step: SetupStep): string {
     case "set-forum-reaction":
       return `set reaction of ${step.name}`;
     case "open-how-to":
-      return `post how-to in ${step.name}`;
+      return `open how-to post in ${step.name}`;
     case "edit-how-to":
-      return `edit how-to in ${step.name}`;
+      return `edit how-to post in ${step.name}`;
     case "pin-how-to":
-      return `pin how-to in ${step.name}`;
+      return `pin how-to post in ${step.name}`;
   }
 }
 
-/** The findings that get a line of their own; the unread descriptions are counted into one line instead. */
-type LineFinding = Exclude<SetupFinding, { kind: "descriptions-unread" }>;
+/** The findings that get a line of their own; the unread descriptions and forum posts are counted into one line each instead. */
+type LineFinding = Exclude<SetupFinding, { kind: "descriptions-unread" } | { kind: "forum-posts-unread" }>;
 
 function isLineFinding(finding: SetupFinding): finding is LineFinding {
-  return finding.kind !== "descriptions-unread";
+  return finding.kind !== "descriptions-unread" && finding.kind !== "forum-posts-unread";
 }
 
 /** One line for all the channels whose pins Neil cannot read (a dry run without Administrator). */
 function unreadLine(count: number): string {
   return `Neil can't read the pinned messages of ${count.toString()} channels without Administrator; a real run checks their descriptions.`;
+}
+
+/** One line for all the forums whose posts Neil cannot read (a dry run without Administrator). */
+function unreadPostsLine(count: number): string {
+  return `Neil can't read the posts of ${count.toString()} forums without Administrator; a real run checks their how-to posts.`;
 }
 
 /** Warnings: hides-from-everyone first, the other findings after, each group in the order of the plan. */
@@ -866,11 +899,9 @@ function describeFinding(finding: LineFinding, real: boolean): string {
     case "fallback-to-text":
       return `${finding.name}: without Community it is created as text instead of ${finding.from}`;
     case "extra-tag":
-      return `${finding.name} has the tag ${finding.tag}, which the layout does not name; kept`;
+      return `${finding.name} has tag ${finding.tag} that the layout doesn't name`;
     case "other-post-pinned":
-      return `${finding.name} has another pinned post; Neil's how-to post is not pinned`;
-    case "forum-posts-unread":
-      return `${finding.name}: Neil can't read its posts, so its how-to post is neither posted nor edited`;
+      return `${finding.name} has another pinned post; Neil's how-to post stays unpinned`;
   }
 }
 

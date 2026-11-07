@@ -56,12 +56,12 @@ pinned how-to post; a second run plans nothing.
   Channel reads include `available_tags` and `default_reaction_emoji`.
 - [x] T010 [US1] Green: `src/discord/setup-server-rest.ts`, the `SetupServer` port in `src/discord/server-setup.ts`, and
   `FakeSetupServer` (forum tags, reaction, posts with owner, archived and pinned; `refuseForumPostReads(name)`).
-- [ ] T011 [US1] Red: in `src/discord/server-setup.test.ts`: `readServer` fills `forum` for forums (Neil's post = oldest
+- [x] T011 [US1] Red: in `src/discord/server-setup.test.ts`: `readServer` fills `forum` for forums (Neil's post = oldest
   thread owned by Neil whose content starts with 📌; `otherPinned`; `postsReadable`); `applySetup` runs the forum steps
   after the descriptions and creates, then pins, the post; on an empty server with Community and without, a real run of the
   shipped layout followed by a second plan gives no steps; report lines of contracts/cli.md with and without `would`.
-- [ ] T012 [US1] Green: read, apply and report in `src/discord/server-setup.ts`.
-- [ ] T013 [US1] Shipped layout: add the five forum blocks from spec.md (tags, reactions) and how-to-posts.md to
+- [x] T012 [US1] Green: read, apply and report in `src/discord/server-setup.ts`.
+- [x] T013 [US1] Shipped layout: add the five forum blocks from spec.md (tags, reactions) and how-to-posts.md to
   `server-layout.json`; red first in the "shipped server-layout.json" tests of `src/discord/server-setup.test.ts` (each forum's
   tags and reaction as decided).
 
@@ -71,12 +71,12 @@ pinned how-to post; a second run plans nothing.
 
 **Independent Test**: plan against a server built from an older forum block.
 
-- [ ] T014 [US2] Red: in `src/domain/setup-plan.test.ts`: a missing tag gives `set-forum-tags` with the present tags (with
+- [x] T014 [US2] Red: in `src/domain/setup-plan.test.ts`: a missing tag gives `set-forum-tags` with the present tags (with
   ids) in layout order, the new ones, then the extras; an extra tag gives the `extra-tag` finding and stays; a different
   reaction gives `set-forum-reaction`; Neil's post with other text gives `edit-how-to` (with `unarchive` when archived);
   Neil's post unpinned and no other pinned gives `pin-how-to`; another pinned post gives `other-post-pinned` and
   `open-how-to` with `pin: false`; unreadable posts give `forum-posts-unread` and no post step.
-- [ ] T015 [US2] Green: `src/domain/setup-plan.ts`; report lines for the findings in `src/discord/server-setup.ts`
+- [x] T015 [US2] Green: `src/domain/setup-plan.ts`; report lines for the findings in `src/discord/server-setup.ts`
   (aggregate line for `forum-posts-unread`).
 
 ## Phase 5: User Story 3 - A Member posts the way the forum expects (P2)
