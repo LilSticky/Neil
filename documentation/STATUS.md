@@ -7,6 +7,10 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 027, See what Neil can do ([specs](../specs/027-see-what-neil-can-do/), issue
+[#76](https://github.com/LilSticky/Neil/issues/76)): `/help` privately lists the commands a caller can use, with usage and purpose, built from the command definitions. Officer commands show only to Officers (assumed, not asked). No migration.
+Merged to `main` with T001–T007 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6t, T008) needs the deploy and `npm run commands:register`, so Definition of Done 2 is open.
+
 Slice 023, No Rank Approval for Guests ([specs](../specs/023-no-rank-approval-for-guests/), issue
 [#67](https://github.com/LilSticky/Neil/issues/67)): a Link of a Guest opens no Rank Approval, in the Interview or by an Officer; `/rank` still works (the user's decision). No migration, no new command.
 Merged to `main` with T001–T008 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6r, T009) needs the deploy, so Definition of Done 2 is open.
@@ -60,7 +64,7 @@ Earlier: slices 001–012 are done; their manual checks were run by the user on 
 
 **Next step:** the user runs TEST-RUN.md §6q on the test server. Until then, no planned slice is waiting; issue [#66](https://github.com/LilSticky/Neil/issues/66) is open.
 
-For the user, still open: deploy slices 020, 021 and 022 and let one Daily Sync run before the setup script's real run, delete the `Trading` role, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n, §6o, §6p, §6q and §6r.
+For the user, still open: deploy slices 020, 021 and 022 and let one Daily Sync run before the setup script's real run, delete the `Trading` role, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n, §6o, §6p, §6q, §6r and §6t.
 Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Presence Intent, Linked the Members there, restarted and registered the commands.
 Neil isn't live yet and the test server is empty: no backwards compatibility until the user announces the release (the user's word, 2026-11-06).
 Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
@@ -74,7 +78,7 @@ Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 - `npm run test` can time out at 5 seconds in unrelated tests when two runs overlap; alone it is green (seen in slice 022).
 - Preferences may be invisible once `#onboarding` is hidden: untested, issue [#66](https://github.com/LilSticky/Neil/issues/66).
 - Until slice 021 is deployed and one Daily Sync has run, Guests can hold Preference Roles, so don't gate channels on them.
-- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r).
+- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r), slice 027 (T008, §6t).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).

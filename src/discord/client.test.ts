@@ -64,6 +64,7 @@ function handlers() {
     allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
     usage: vi.fn(() => Promise.resolve()),
+    help: vi.fn(() => Promise.resolve()),
     channels: vi.fn(() => Promise.resolve()),
     unlink: vi.fn(() => Promise.resolve()),
     rank: vi.fn(() => Promise.resolve()),
@@ -127,6 +128,17 @@ describe("createClient", () => {
 
     expect(routed.ping).toHaveBeenCalledWith(interaction);
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /help to the help handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("help");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.help).toHaveBeenCalledWith(interaction);
+    expect(routed.ping).not.toHaveBeenCalled();
   });
 
   test("hands /player to the player handler and nothing else", () => {
