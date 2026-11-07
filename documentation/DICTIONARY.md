@@ -24,11 +24,11 @@ discovery.
 ## Home Kingdom information
 * Channels only Members of the Home Kingdom see, shown to its Kingdom role (e.g. `#330`)
 * King announcements go here by default
-* Set up by hand; Neil does not change channel permissions
+* Lives in the Hangout category of the Server Layout; off-topic and memes there only for those who chose Off-topic
 
 ## Guest area
 * The channels every Doctor sees, Guests included: the only part of the server a Guest sees
-* Holds its own read-only rules, text and voice channels and the announcements meant for everyone
+* Holds its own read-only rules with the Guest code of conduct, text and voice channels
 * Replaces Shared information (slice 019); no command can be used there
 
 ## Basic information
@@ -45,11 +45,11 @@ discovery.
 
 ## Alliance Duel (AD)
 * An event in which Alliances fight each other
-* Has its own group of channels, seen by the PvP and Events roles
+* Has its own group of channels, seen by the PvP and Events roles, with no announcement channel of its own
 
 ## Kingdom vs Kingdom (KvK)
 * An event in which the Kingdom fights another Kingdom
-* Has its own group of channels, seen by the PvP and Events roles
+* Has its own group of channels, seen by the PvP and Events roles; its announcements, and their translated copies, reach the whole Home Kingdom
 
 ## Player
 * A character in Last Asylum: Plague, as the Game API describes it
@@ -237,7 +237,7 @@ discovery.
 
 ## Recruitment
 * The Interest for talking about recruiting Players to the Kingdom's Alliances
-* Shows the Recruitment channel
+* Shows the Recruitment channels: Players looking for an Alliance, and Alliances looking for Players
 * Offered to every Home Kingdom Member
 
 ## Link
