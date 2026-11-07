@@ -101,7 +101,7 @@ None: the slice works in slice 020's modules.
 - [x] T019 [P] Dictionary: propose to the user the changes to Home Kingdom information, Guest area and Recruitment
   (`domain-modeler`); edit `documentation/DICTIONARY.md` only after approval.
 - [x] T020 [P] `documentation/TEST-RUN.md` §6v from [quickstart.md](quickstart.md); STATUS and ROADMAP (`housekeeper`).
-- [ ] T021 `npm run test`, `npm run typecheck`, `npm run lint`, a dry run against the test server; `spec-auditor` before
+- [x] T021 `npm run test`, `npm run typecheck`, `npm run lint`, a dry run against the test server; `spec-auditor` before
   merging.
 - [ ] T022 Manual: the user empties the test server and runs TEST-RUN.md §6v (Definition of Done 2).
 

@@ -653,6 +653,22 @@ describe("planSetup: Community fallback", () => {
     );
   });
 
+  test("without Community a forum created as text gets its topic but no description message", () => {
+    const plan = planSetup(layout, server({ hasCommunity: false }), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "create-channel", name: "tactics", topic: "A test channel." }));
+    expect(plan.steps).not.toContainEqual(expect.objectContaining({ kind: "post-description", name: "tactics" }));
+  });
+
+  test("without Community an announcement created as text gets its topic and its description message", () => {
+    const plan = planSetup(layout, server({ hasCommunity: false }), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({ kind: "create-channel", name: "kvk-announcements", type: "text", fallbackFrom: "announcement" }),
+    );
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "kvk-announcements" }));
+  });
+
   test("with Community a forum is created as a forum, with no fallback", () => {
     const plan = planSetup(
       layout,

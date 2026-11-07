@@ -125,6 +125,10 @@ both channels.
 - Without Community, an announcement channel becomes a text channel and gets topic and message like any text channel; a
   forum created as text keeps the forum's treatment, the topic only.
 - Alliance areas (`[TAG]`): their channels get a description too, naming the Alliance.
+- A dry run without Administrator can't read the pins of channels Neil doesn't see: their descriptions aren't checked, and
+  the report says so in one line; the real run, with Administrator, checks them.
+- Discord refuses the pin after the message is posted: the message is deleted again, so the next run doesn't post twice;
+  a "pinned a message" notice that can't be deleted stays.
 
 ## Requirements *(mandatory)*
 
