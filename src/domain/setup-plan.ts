@@ -136,6 +136,8 @@ export type SetupFinding =
   | { kind: "external-role-missing"; name: string }
   | { kind: "role-has-permissions"; name: string }
   | { kind: "role-above-neil"; name: string }
+  /** A role above Neil's lacks a role permission: Discord lets no bot edit it, so it is set by hand. */
+  | { kind: "permission-by-hand"; name: string; permission: RolePermission }
   | { kind: "fallback-to-text"; name: string; from: "announcement" }
   | { kind: "hides-from-everyone"; name: string }
   /** The pins of a channel could not be read, so its description is neither posted nor edited. */
@@ -246,14 +248,22 @@ function planRoles(plan: Plan, layout: ExpandedLayout): void {
   }
 }
 
-/** Each role permission a listed role lacks. Only missing ones are planned: nothing is removed, and a role not there yet lacks all. */
+/**
+ * Each role permission a listed role lacks. Only missing ones are planned: nothing is removed, and a role not there yet lacks all.
+ * A role at or above Neil's top role can't be edited by Neil, even as Administrator, so its missing permissions are left by hand.
+ */
 function planRolePermissions(plan: Plan, rolePermissions: Record<string, RolePermission[]>): void {
   for (const [name, permissions] of Object.entries(rolePermissions)) {
     const found = lookup(plan.server.roles.filter((role) => role.name === name));
     if (found.kind === "many") continue;
     const held = found.kind === "one" ? (found.item.rolePermissions ?? []) : [];
     for (const permission of new Set(permissions)) {
-      if (!held.includes(permission)) plan.roleSteps.push({ kind: "allow-permission", name, permission });
+      if (held.includes(permission)) continue;
+      if (found.kind === "one" && found.item.position >= plan.server.botTopPosition) {
+        plan.findings.push({ kind: "permission-by-hand", name, permission });
+      } else {
+        plan.roleSteps.push({ kind: "allow-permission", name, permission });
+      }
     }
   }
 }
