@@ -88,7 +88,7 @@ Covered by US1's how-to post and permissions; checked by hand in TEST-RUN §6y.
 - [x] T016 Docs: SERVER-SETUP.md (forums: tags, reaction, how-to post, changed in the layout file), STARTUP-GUIDE.md,
   TEST-RUN.md §6y (quickstart.md "Manual"), STATUS.md, ROADMAP.md row 030; Dictionary terms proposed to the user.
 - [x] T017 Review: `bot-reviewer` on the diff; `spec-auditor` against spec.md.
-- [ ] T018 Manual: TEST-RUN §6y on the test server.
+- [x] T018 Manual: TEST-RUN §6y on the test server.
 
 ## Dependencies
 
