@@ -8,6 +8,7 @@ import { QuotaKeeper, type DailyQuotaStorage } from "./game-api/quota-keeper.js"
 import type { AppliedStore } from "./storage/applied-store.js";
 import type { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import type { DailySyncStore } from "./storage/daily-sync-store.js";
+import type { EventStore } from "./storage/event-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
@@ -53,6 +54,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly reaper: ReaperStore;
   readonly preferences: PreferenceStore;
   readonly bootyAlerts: BootyAlertsStore;
+  readonly events: EventStore;
 }
 
 export interface Connection {
@@ -152,6 +154,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       dailySync: store.dailySync,
       reaper: store.reaper,
       bootyAlerts: store.bootyAlerts,
+      events: store.events,
       preferences: store.preferences,
       guidesForumId: config.guidesForumId,
       syncHourUtc: config.syncHourUtc,

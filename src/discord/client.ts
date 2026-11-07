@@ -33,7 +33,13 @@ import { editorOf } from "../storage/reaper-editor.js";
 import type { ReaperStore } from "../storage/reaper-store.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
+import type { EventStore } from "../storage/event-store.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
+import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
+import { eventServerOf } from "./event-server.js";
+import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
+import { handleEventKinds, type EventKindsInteraction } from "./event-kinds.js";
+import { createEventInvitations, eventIdOf, type EventInvitations } from "./events.js";
 import {
   createBootyCalls,
   type BootyCalls,
@@ -159,6 +165,10 @@ export interface CommandHandlers {
   readonly booty: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /booty-alerts command: a Member chooses their Booty Alerts, privately. */
   readonly bootyAlerts: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /event-invitations command: a Linked Member shows or switches their Event Invitations, privately. */
+  readonly eventInvitations: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /event-kinds command: the Event Kinds of the kingdom or an Alliance, privately. */
+  readonly eventKinds: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** An autocomplete request of /booty-alerts, for its time-zone option. */
   readonly bootyAlertsAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   /** A button whose custom id starts with `booty:`, the Confirm and Cancel buttons of a Booty Call. */
@@ -169,6 +179,12 @@ export interface CommandHandlers {
   readonly memberOnline: (member: JoinedMember) => Promise<void>;
   /** A guild member left the server; their open Interview and pending Rank Approval end. */
   readonly memberLeft: (member: LeftMember) => Promise<void>;
+  /** A scheduled event of the served guild was created; the handler reads it as discord.js gives it. */
+  readonly scheduledEventCreated: (scheduledEvent: unknown) => Promise<void>;
+  /** A scheduled event of the served guild was edited; the handler reads its new state. */
+  readonly scheduledEventUpdated: (scheduledEvent: unknown) => Promise<void>;
+  /** A scheduled event of the served guild was deleted. */
+  readonly scheduledEventDeleted: (scheduledEvent: unknown) => Promise<void>;
   /** The /interview command, which starts an Onboarding Interview on demand. */
   readonly interview: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button or string select menu whose custom id starts with `interview:`. */
@@ -193,6 +209,10 @@ export interface CommandHandlers {
 interface Services {
   readonly interviews: Interviews;
   readonly rankApprovals: RankApprovals;
+  /** The Event invitations: a new or edited Event is posted once, and the Events ahead are invited at startup. */
+  readonly eventInvitations: EventInvitations;
+  /** The Event reminders, ticked every minute, and forgotten when their Event is deleted. */
+  readonly eventReminders: EventReminders;
   /** /reaper add and /reaper remove, which log to the log channel, and the pick lists, whose pick of /reaper add stores into REAPER. */
   readonly reaperAdd: (interaction: ChatInputCommandInteraction) => Promise<void>;
   readonly reaperRemove: (interaction: ChatInputCommandInteraction) => Promise<void>;
@@ -327,12 +347,17 @@ async function onlineMembersOf(
   return members;
 }
 
-/** A discord.js client with the Guilds, GuildMembers and GuildPresences intents that routes each event to its handler. */
+/** A discord.js client with the Guilds, GuildMembers, GuildPresences and GuildScheduledEvents intents that routes each event to its handler. */
 export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
   const logError = options.logError ?? console.error;
   // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildPresences,
+      GatewayIntentBits.GuildScheduledEvents,
+    ],
     partials: [Partials.GuildMember, Partials.User],
   });
   // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
@@ -352,6 +377,19 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
   client.on(Events.GuildMemberRemove, (member) => {
     if (member.guild.id !== options.guildId) return;
     void handlers.memberLeft({ id: member.id, username: member.user.username });
+  });
+  // The scheduled events of the served guild only: created, edited (the new state is handed on) and deleted.
+  client.on(Events.GuildScheduledEventCreate, (scheduledEvent) => {
+    if (scheduledEvent.guildId !== options.guildId) return;
+    void handlers.scheduledEventCreated(scheduledEvent);
+  });
+  client.on(Events.GuildScheduledEventUpdate, (_before, scheduledEvent) => {
+    if (scheduledEvent.guildId !== options.guildId) return;
+    void handlers.scheduledEventUpdated(scheduledEvent);
+  });
+  client.on(Events.GuildScheduledEventDelete, (scheduledEvent) => {
+    if (scheduledEvent.guildId !== options.guildId) return;
+    void handlers.scheduledEventDeleted(scheduledEvent);
   });
   // A Member who was offline and now is not comes online; the status itself is not logged or kept (ADR 11).
   client.on(Events.PresenceUpdate, (before, after) => {
@@ -412,6 +450,12 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
           break;
         case "booty-alerts":
           void handlers.bootyAlerts(interaction);
+          break;
+        case "event-invitations":
+          void handlers.eventInvitations(interaction);
+          break;
+        case "event-kinds":
+          void handlers.eventKinds(interaction);
           break;
       }
       return;
@@ -495,6 +539,8 @@ export interface ConnectOptions {
   readonly preferences: PreferenceStore;
   /** The Booty Alerts of the Members, in neil.db: an Unlink forgets them. */
   readonly bootyAlerts: BootyAlertsStore;
+  /** The Events Neil has seen, their reminders and Kinds, and the Event Invitations Off, in neil.db. */
+  readonly events: EventStore;
   /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
   readonly guidesForumId: string | undefined;
   /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
@@ -891,6 +937,31 @@ function bootyButtonLike(button: ButtonInteraction): BootyCallButton {
   };
 }
 
+/** The discord.js /event-kinds command as the Event Kinds read it: the caller and their roles by id and name, and the options. */
+function eventKindsLike(command: ChatInputCommandInteraction): EventKindsInteraction {
+  return {
+    user: { id: command.user.id },
+    options: {
+      getSubcommand: () => command.options.getSubcommand(),
+      getString: (name) => command.options.getString(name),
+    },
+    memberRoles: () =>
+      command.member instanceof GuildMember
+        ? [...command.member.roles.cache.values()].map((role) => ({ id: role.id, name: role.name }))
+        : [],
+    reply: (reply) => command.reply(reply),
+  };
+}
+
+/** The discord.js /event-invitations command as the Event Invitations read it: the caller by id, the option and the private reply. */
+function eventInvitationsLike(command: ChatInputCommandInteraction): EventInvitationsInteraction {
+  return {
+    user: { id: command.user.id },
+    options: { getString: (name) => command.options.getString(name) },
+    reply: (reply) => command.reply(reply),
+  };
+}
+
 /** The discord.js /booty-alerts command as the Booty Alerts reads it: the caller and the options, and the private reply. */
 function bootyAlertsLike(command: ChatInputCommandInteraction): BootyAlertsInteraction {
   return {
@@ -1036,6 +1107,19 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           const { bootyCalls } = await services;
           await bootyCalls.onCommand(bootyCommandLike(interaction));
         }),
+      eventInvitations: (interaction) =>
+        handleEventInvitations(eventInvitationsLike(interaction), {
+          links: options.links,
+          events: options.events,
+          logError,
+        }),
+      eventKinds: (interaction) =>
+        handleEventKinds(eventKindsLike(interaction), {
+          links: options.links,
+          events: options.events,
+          officerRoleIds: options.officerRoleIds,
+          logError,
+        }),
       bootyAlerts: (interaction) =>
         handleBootyAlerts(bootyAlertsLike(interaction), {
           links: options.links,
@@ -1082,6 +1166,19 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
       memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
       memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
+      scheduledEventCreated: (scheduledEvent) =>
+        answer("the scheduled event created", { logError }, async () =>
+          (await services).eventInvitations.onCreated(scheduledEvent),
+        ),
+      scheduledEventUpdated: (scheduledEvent) =>
+        answer("the scheduled event updated", { logError }, async () =>
+          (await services).eventInvitations.onUpdated(scheduledEvent),
+        ),
+      scheduledEventDeleted: (scheduledEvent) =>
+        answer("the scheduled event deleted", { logError }, async () => {
+          const eventId = eventIdOf(scheduledEvent);
+          if (eventId !== undefined) (await services).eventReminders.onDeleted(eventId);
+        }),
       interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
       unlink: async (interaction) => (await services).corrections.unlink(correctionLike(interaction)),
       rank: async (interaction) => (await services).corrections.rank(correctionLike(interaction)),
@@ -1106,6 +1203,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
   // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
   // apply); both are stopped again on disconnect.
   let stopSweeper: () => void = () => undefined;
+  let stopEventReminders: () => void = () => undefined;
   let stopDailySync: () => Promise<void> = () => Promise.resolve();
   // The startup check of the Interviews of the Members online, while it runs: disconnect waits for it before the client
   // (and the database after it) goes.
@@ -1194,6 +1292,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       doctorRole,
       preferenceRoles,
       bootyAlerts: options.bootyAlerts,
+      events: options.events,
       now,
       sendPrivateMessage,
       officerRoles,
@@ -1319,9 +1418,30 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       editorOf: editorOfMember,
       homeKingdom: options.homeKingdom,
     };
+    // The Event invitations and reminders read the server through one adapter, and log to #neil-log like the rest.
+    const eventServer = eventServerOf(guild, { log: (message) => channels.log(message) });
+    const eventInvitations = createEventInvitations({
+      events: options.events,
+      links: options.links,
+      server: eventServer,
+      officerRoleIds: options.officerRoleIds,
+      now,
+      logError,
+    });
+    const eventReminders = createEventReminders({
+      events: options.events,
+      links: options.links,
+      applied: options.applied,
+      homeKingdom: options.homeKingdom,
+      server: eventServer,
+      now,
+      logError,
+    });
     openServices({
       interviews,
       rankApprovals,
+      eventInvitations,
+      eventReminders,
       corrections,
       preferenceChoices,
       bootyCalls,
@@ -1409,9 +1529,24 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
+    // The Events ahead are invited at startup; the reminders are ticked once a minute, until disconnect stops them.
+    void eventInvitations.onStartup();
+    // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
+    let reminderTickRunning = false;
+    const reminderTimer = setInterval(() => {
+      if (reminderTickRunning) return;
+      reminderTickRunning = true;
+      void eventReminders.tick().finally(() => {
+        reminderTickRunning = false;
+      });
+    }, REMINDER_TICK_MS);
+    stopEventReminders = () => {
+      clearInterval(reminderTimer);
+    };
   } catch (error) {
     disconnecting = true;
     stopSweeper();
+    stopEventReminders();
     await stopDailySync();
     await startupInterviews;
     await client.destroy();
@@ -1421,6 +1556,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     disconnect: async () => {
       disconnecting = true;
       stopSweeper();
+      stopEventReminders();
       // A run in progress ends before its next request and is awaited, so its record and summary are made before logout.
       await stopDailySync();
       // The Interview check stops before its next Member, and is awaited, so its log line is made before logout.
