@@ -35,7 +35,26 @@ const channelsResponse = z.array(z.object({
     name: z.string(),
     type: z.number().int(),
     parent_id: z.string().nullish(),
+    topic: z.string().nullish(),
     permission_overwrites: z.array(overwriteResponse),
+}));
+const pinsResponse = z.object({
+    items: z.array(z.object({
+        message: z.object({
+            id: z.string(),
+            content: z.string(),
+            author: z.object({ id: z.string() }),
+        }),
+    })),
+});
+/** Discord's 403 (Missing Access): a channel whose pins Neil cannot see without Administrator. */
+const forbiddenResponse = z.object({ status: z.literal(403) });
+/** Discord's type 6 message: the notice a channel writes when a message is pinned. */
+const PIN_NOTICE_TYPE = 6;
+const messagesResponse = z.array(z.object({
+    id: z.string(),
+    type: z.number().int(),
+    message_reference: z.object({ message_id: z.string().optional() }).nullish(),
 }));
 /** The SetupServer of one guild, over Discord's REST API with the bot's token. */
 export function createRestSetupServer(rest, guildId) {
@@ -52,6 +71,28 @@ export function createRestSetupServer(rest, guildId) {
         allow: overwrite.allow.toString(),
         deny: overwrite.deny.toString(),
     }));
+    /** Deletes a message on a best-effort basis: a refusal is swallowed, the message stays, and the caller goes on. */
+    const deleteQuietly = async (route) => {
+        try {
+            await rest.delete(route);
+        }
+        catch {
+            // The message stays where it is; nothing the setup can do about it now.
+        }
+    };
+    /**
+     * Deletes the type 6 notice Discord writes when a message is pinned; the notice references the pinned message. The pin is
+     * already in place, so a reply that is not a message list leaves the notice where it is rather than failing the post.
+     */
+    const deletePinNotice = async (channelId, messageId) => {
+        const listed = messagesResponse.safeParse(await rest.get(`${Routes.channelMessages(channelId)}?limit=10`));
+        if (!listed.success)
+            return;
+        const notices = listed.data.filter((message) => message.type === PIN_NOTICE_TYPE && message.message_reference?.message_id === messageId);
+        for (const notice of notices) {
+            await deleteQuietly(Routes.channelMessage(channelId, notice.id));
+        }
+    };
     return {
         async readGuild() {
             const guild = guildResponse.parse(await rest.get(Routes.guild(guildId)));
@@ -83,6 +124,7 @@ export function createRestSetupServer(rest, guildId) {
                             allow: overwrite.allow,
                             deny: overwrite.deny,
                         })),
+                        topic: channel.topic ?? undefined,
                     },
                 ];
             });
@@ -102,11 +144,51 @@ export function createRestSetupServer(rest, guildId) {
                 type: DISCORD_TYPE[channel.type],
                 parent_id: channel.parentId,
                 permission_overwrites: encode(channel.overwrites),
+                topic: channel.topic,
             };
             return idResponse.parse(await rest.post(Routes.guildChannels(guildId), { body })).id;
         },
         async editOverwrites(channelId, overwrites) {
             await rest.patch(Routes.channel(channelId), { body: { permission_overwrites: encode(overwrites) } });
+        },
+        async setTopic(channelId, topic) {
+            await rest.patch(Routes.channel(channelId), { body: { topic } });
+        },
+        async readPins(channelId) {
+            let response;
+            try {
+                response = await rest.get(Routes.channelMessagesPins(channelId));
+            }
+            catch (error) {
+                if (forbiddenResponse.safeParse(error).success)
+                    return undefined;
+                throw error;
+            }
+            const pins = pinsResponse.parse(response);
+            return pins.items.map((item) => ({
+                messageId: item.message.id,
+                authorId: item.message.author.id,
+                content: item.message.content,
+            }));
+        },
+        async postPinnedMessage(channelId, content) {
+            const body = { content, allowed_mentions: { parse: [] } };
+            const messageId = idResponse.parse(await rest.post(Routes.channelMessages(channelId), { body })).id;
+            try {
+                await rest.put(Routes.channelMessagesPin(channelId, messageId));
+            }
+            catch (error) {
+                // An unpinned message would be a stray post: take it back down, then report why the pin failed.
+                await deleteQuietly(Routes.channelMessage(channelId, messageId));
+                throw error;
+            }
+            await deletePinNotice(channelId, messageId);
+            return messageId;
+        },
+        async editMessage(channelId, messageId, content) {
+            await rest.patch(Routes.channelMessage(channelId, messageId), {
+                body: { content, allowed_mentions: { parse: [] } },
+            });
         },
     };
 }

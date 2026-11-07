@@ -1,3 +1,4 @@
+import { describeChannel } from "./channel-description.js";
 import { tagOfAllianceRole } from "./managed-roles.js";
 export const EVERYONE_TARGET = "@everyone";
 export const BOT_TARGET = "Neil";
@@ -5,6 +6,10 @@ const KINGDOM_PLACEHOLDER = "#<Home Kingdom>";
 const KING_ROLE = "King";
 const TRANSLATION_BOT_ROLE = "Interaction Bot";
 const LANGUAGES_CATEGORY = "Languages";
+/** The description of a translated copy: the original's text, then the credit to the translation bot (slice 029). */
+export function translatedDescription(description, language) {
+    return `${description} Translated into ${language} by ${TRANSLATION_BOT_ROLE}.`;
+}
 const VIEW = "ViewChannel";
 const SEND = "SendMessages";
 const POSTING = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"];
@@ -14,14 +19,32 @@ const POSTING = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads",
  */
 export function expandLayout(layout, homeKingdom, allianceRoles) {
     const resolve = (target) => (target === KINGDOM_PLACEHOLDER ? `#${homeKingdom.toString()}` : target);
+    const expansion = { resolve, hidden: new Set([BOT_TARGET, ...layout.externalRoles]) };
+    const expandWithCopies = (channel, categorySeenBy) => {
+        const original = expandChannel(channel, categorySeenBy, expansion);
+        if (channel.translated !== true)
+            return [original];
+        const copies = layout.translations.map((language) => expandChannel({
+            ...channel,
+            name: `${channel.name}-${language.toLowerCase()}`,
+            seenBy: [language],
+            description: translatedDescription(channel.description, language),
+        }, categorySeenBy, expansion));
+        return [original, ...copies];
+    };
     const expand = (name, seenBy, channels) => ({
         name,
         overwrites: toOverwrites(categoryGrants(seenBy.map(resolve))),
-        channels: channels.map((channel) => expandChannel(channel, seenBy.map(resolve), resolve)),
+        channels: channels.flatMap((channel) => expandWithCopies(channel, seenBy.map(resolve))),
     });
     const categories = layout.categories.map((category) => expand(category.name, category.seenBy, category.channels));
     if (layout.languages.length > 0) {
-        categories.push(expand(LANGUAGES_CATEGORY, [], layout.languages.map((language) => ({ name: `${language.toLowerCase()}-chat`, type: "text", seenBy: [language] }))));
+        categories.push(expand(LANGUAGES_CATEGORY, [], layout.languages.map((language) => ({
+            name: `${language.toLowerCase()}-chat`,
+            type: "text",
+            description: `Chat in ${language}.`,
+            seenBy: [language],
+        }))));
     }
     for (const roleName of allianceRoles) {
         if (tagOfAllianceRole(roleName) === undefined)
@@ -41,7 +64,8 @@ function categoryGrants(seenBy) {
         grant(grants, role, [VIEW], "allow");
     return grants;
 }
-function expandChannel(channel, categorySeenBy, resolve) {
+function expandChannel(channel, categorySeenBy, expansion) {
+    const { resolve } = expansion;
     const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
     const grants = categoryGrants(seenBy);
     if (channel.mode === "read-only") {
@@ -59,7 +83,8 @@ function expandChannel(channel, categorySeenBy, resolve) {
         grant(grants, resolve(target), spec.allow, "allow");
         grant(grants, resolve(target), spec.deny, "deny");
     }
-    return { name: channel.name, type: channel.type, overwrites: toOverwrites(grants) };
+    const overwrites = toOverwrites(grants);
+    return { name: channel.name, type: channel.type, overwrites, ...describeChannel(channel, overwrites, expansion.hidden) };
 }
 function grant(grants, target, permissions, how) {
     if (permissions.length === 0)

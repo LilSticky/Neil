@@ -3,8 +3,9 @@
 import { PermissionFlagsBits } from "discord.js";
 import { z } from "zod";
 import { redact } from "../startup.js";
-import { BOT_TARGET, EVERYONE_TARGET, } from "../domain/server-layout.js";
-import { planSetup, } from "../domain/setup-plan.js";
+import { PIN_MARK } from "../domain/channel-description.js";
+import { BOT_TARGET, EVERYONE_TARGET, expandLayout, translatedDescription, } from "../domain/server-layout.js";
+import { allianceRoleNamesOf, planSetup, } from "../domain/setup-plan.js";
 const ROLE_OVERWRITE = 0;
 const MEMBER_OVERWRITE = 1;
 /** The Discord bit of each permission name the layout may use. */
@@ -44,9 +45,12 @@ const overwriteSchema = z.strictObject({
     allow: z.array(z.string()).default([]),
     deny: z.array(z.string()).default([]),
 });
+// The description is required, but checked by hand (descriptionOf) so that a refusal names the category and channel.
 const channelSchema = z.strictObject({
     name: z.string(),
     type: z.string(),
+    description: z.string().optional(),
+    codeOfConduct: z.array(z.string()).optional(),
     mode: z.string().optional(),
     translated: z.boolean().optional(),
     seenBy: z.array(z.string()).optional(),
@@ -61,6 +65,7 @@ const layoutSchema = z.strictObject({
     roles: z.array(z.string()),
     externalRoles: z.array(z.string()),
     languages: z.array(z.string()),
+    translations: z.array(z.string()),
     categories: z.array(categorySchema),
     allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
 });
@@ -77,6 +82,7 @@ export function parseLayout(text) {
     }
     const raw = parsed.data;
     const known = new Set([...raw.roles, ...raw.languages, ...raw.externalRoles, EVERYONE_TARGET, BOT_TARGET]);
+    const translations = checkTranslations(raw.translations, raw.languages);
     const categoryNames = new Set();
     const channelNames = new Map();
     const categories = raw.categories.map((category) => {
@@ -89,17 +95,48 @@ export function parseLayout(text) {
         return {
             name: category.name,
             seenBy: [...category.seenBy],
-            channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames)),
+            channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames, translations)),
         };
     });
-    const allianceChannels = raw.allianceArea.channels.map((channel) => checkChannel("allianceArea", channel, known, channelNames));
+    const allianceChannels = raw.allianceArea.channels.map((channel) => checkChannel("allianceArea", channel, known, channelNames, translations));
     return {
         roles: [...raw.roles],
         externalRoles: [...raw.externalRoles],
         languages: [...raw.languages],
+        translations,
         categories,
         allianceArea: { channels: allianceChannels },
     };
+}
+/** Each translation is a listed language, once (data-model.md, Rules checked on load). */
+function checkTranslations(translations, languages) {
+    const seen = new Set();
+    for (const language of translations) {
+        if (!languages.includes(language))
+            throw new Error(`translations: "${language}" is not one of the listed languages`);
+        if (seen.has(language))
+            throw new Error(`translations: "${language}" is listed twice`);
+        seen.add(language);
+    }
+    return [...translations];
+}
+const DESCRIPTION_MAX = 1024;
+function descriptionOf(place, value) {
+    if (value === undefined)
+        throw new Error(`${place}: description is required, 1–1024 characters`);
+    if (value.length === 0 || value.length > DESCRIPTION_MAX) {
+        throw new Error(`${place}: description must be 1–1024 characters, not ${value.length.toString()}`);
+    }
+    if (value !== value.trim())
+        throw new Error(`${place}: description must not start or end with spaces or line breaks`);
+    return value;
+}
+/** A translated channel's copies carry the description with their credit; the longest of them must fit the limit. */
+function checkTranslatedLength(place, description, translations) {
+    const longest = translations.reduce((max, language) => Math.max(max, translatedDescription(description, language).length), 0);
+    if (longest > DESCRIPTION_MAX) {
+        throw new Error(`${place}: the translated description is ${longest.toString()} characters; 1024 at most`);
+    }
 }
 function parseJson(text) {
     try {
@@ -115,7 +152,7 @@ function checkTarget(known, place, target) {
     if (!known.has(target))
         throw new Error(`${place}: "${target}" is no listed role, external role, @everyone or Neil`);
 }
-function checkChannel(container, raw, known, names) {
+function checkChannel(container, raw, known, names, translations) {
     const place = `${container}, channel "${raw.name}"`;
     const type = channelTypeOf(raw.type);
     if (type === undefined)
@@ -131,10 +168,15 @@ function checkChannel(container, raw, known, names) {
     if (earlier !== undefined)
         throw new Error(`channel "${raw.name}" is in two places: ${earlier} and ${place}`);
     names.set(raw.name, place);
+    const description = descriptionOf(place, raw.description);
+    if (raw.translated === true)
+        checkTranslatedLength(place, description, translations);
     for (const target of raw.seenBy ?? [])
         checkTarget(known, place, target);
     const overwrites = raw.overwrites === undefined ? undefined : checkOverwrites(place, raw.overwrites, known);
-    const channel = { name: raw.name, type };
+    const channel = { name: raw.name, type, description };
+    if (raw.codeOfConduct !== undefined)
+        channel.codeOfConduct = [...raw.codeOfConduct];
     if (mode !== undefined)
         channel.mode = mode;
     if (raw.translated !== undefined)
@@ -183,18 +225,32 @@ export async function readServer(port) {
         hasCommunity: guild.features.includes("COMMUNITY"),
         botIsAdministrator: [...botRoles, ...(everyone === undefined ? [] : [everyone])].some(hasAdministrator),
         roles: roles.map(toServerRole),
-        channels: channels.map((channel) => ({
-            id: channel.id,
-            name: channel.name,
-            kind: channel.kind,
-            parentId: channel.parentId,
-            overwrites: channel.overwrites.map((overwrite) => ({
-                targetId: overwrite.targetId,
-                allow: permissionNamesOf(overwrite.allow),
-                deny: permissionNamesOf(overwrite.deny),
-            })),
+        channels: await Promise.all(channels.map((channel) => readChannel(port, channel, bot.userId))),
+    };
+}
+/** A channel as the plan needs it. Pins are read only where a description can be: text, announcement and voice channels. */
+async function readChannel(port, channel, botUserId) {
+    const describable = channel.kind !== "category" && channel.kind !== "forum";
+    const pins = describable ? await port.readPins(channel.id) : [];
+    return {
+        id: channel.id,
+        name: channel.name,
+        kind: channel.kind,
+        parentId: channel.parentId,
+        topic: channel.topic,
+        description: pins === undefined ? undefined : neilDescriptionOf(pins, botUserId),
+        pinsReadable: pins !== undefined,
+        overwrites: channel.overwrites.map((overwrite) => ({
+            targetId: overwrite.targetId,
+            allow: permissionNamesOf(overwrite.allow),
+            deny: permissionNamesOf(overwrite.deny),
         })),
     };
+}
+/** Neil's description: the oldest pin by Neil's user whose text starts with the pin mark. Discord lists pins newest first. */
+function neilDescriptionOf(pins, botUserId) {
+    const oldest = pins.filter((pin) => pin.authorId === botUserId && pin.content.startsWith(PIN_MARK)).at(-1);
+    return oldest === undefined ? undefined : { messageId: oldest.messageId, text: oldest.content };
 }
 function toServerRole(role) {
     return {
@@ -247,6 +303,7 @@ async function readBook(port) {
             .filter((channel) => channel.kind === "category")
             .map((channel) => ({ id: channel.id, name: channel.name })),
         channels: new Map(channels.map((channel) => [channel.id, channel])),
+        created: [],
     };
 }
 const PHASE = {
@@ -254,6 +311,9 @@ const PHASE = {
     "create-category": 1,
     "create-channel": 2,
     "correct-overwrites": 3,
+    "set-topic": 4,
+    "post-description": 5,
+    "edit-description": 5,
 };
 function inOrder(steps) {
     return [...steps].sort((a, b) => PHASE[a.kind] - PHASE[b.kind]);
@@ -272,9 +332,10 @@ async function applyStep(step, port, book) {
             return;
         }
         case "create-channel": {
-            const parent = single(book.categories.filter((category) => category.name === step.categoryName), `category "${step.categoryName}" is not there (its step failed)`);
+            const parent = categoryNamed(book, step.categoryName);
             const overwrites = step.overwrites.map((wanted) => editFor(book, wanted));
-            await port.createChannel({ name: step.name, type: step.type, parentId: parent.id, overwrites });
+            const id = await port.createChannel({ name: step.name, type: step.type, parentId: parent.id, overwrites, topic: step.topic });
+            book.created.push({ id, name: step.name, categoryName: step.categoryName });
             return;
         }
         case "correct-overwrites": {
@@ -285,7 +346,26 @@ async function applyStep(step, port, book) {
             await port.editOverwrites(step.id, mergeOverwrites(current.overwrites, wanted));
             return;
         }
+        case "set-topic":
+            await port.setTopic(step.id, step.topic);
+            return;
+        case "post-description": {
+            const channelId = step.id ?? createdIdOf(book, step.name, step.categoryName);
+            await port.postPinnedMessage(channelId, step.content);
+            return;
+        }
+        case "edit-description":
+            await port.editMessage(step.id, step.messageId, step.content);
+            return;
     }
+}
+function categoryNamed(book, name) {
+    return single(book.categories.filter((category) => category.name === name), `category "${name}" is not there (its step failed)`);
+}
+/** The id of a channel this run created in the category; a channel whose creation failed has none. */
+function createdIdOf(book, name, categoryName) {
+    const created = book.created.filter((channel) => channel.name === name && channel.categoryName === categoryName);
+    return single(created, `channel "${name}" created in this run (its creation failed, or it is not there)`).id;
 }
 function editFor(book, wanted) {
     const targetId = idOfTarget(book, wanted.target);
@@ -335,6 +415,9 @@ function single(matches, what) {
 export async function runSetup(options) {
     const { layout, homeKingdom, apply, port, secrets } = options;
     const before = await readServer(port);
+    const overlong = overlongLines(layout, homeKingdom, before);
+    if (overlong.length > 0)
+        return { report: redact(overlong.join("\n"), secrets), exitCode: 1 };
     const plan = planSetup(layout, before, homeKingdom);
     const blocked = apply && !before.botIsAdministrator;
     const real = apply && !blocked;
@@ -343,13 +426,16 @@ export async function runSetup(options) {
     // The read after the writes may fail too; the outcomes are still reported, and the ID lines are left out.
     const after = real ? await readAfterWrites(port) : before;
     const changed = plan.steps.filter((step) => !failures.some((failure) => failure.step === step));
-    const outside = plan.findings.filter((finding) => finding.kind === "outside-layout");
-    const warnings = plan.findings.filter((finding) => finding.kind !== "outside-layout");
+    const unreadCount = plan.findings.filter((finding) => finding.kind === "descriptions-unread").length;
+    const lineFindings = plan.findings.filter(isLineFinding);
+    const outside = lineFindings.filter((finding) => finding.kind === "outside-layout");
+    const warnings = lineFindings.filter((finding) => finding.kind !== "outside-layout");
     const tense = (step) => (real ? describeStep(step) : `would ${describeStep(step)}`);
     const lines = [
         ...administratorNote(before.botIsAdministrator, apply),
         ...changed.map(tense),
         ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map((finding) => describeFinding(finding, real)),
+        ...(unreadCount > 0 ? [unreadLine(unreadCount)] : []),
         ...outside.map((finding) => describeFinding(finding, real)),
         ...failures.map((failure) => `failed: ${describeStep(failure.step)}: ${failure.reason}`),
         ...(plan.steps.length === 0 ? ["Nothing to do."] : []),
@@ -361,6 +447,22 @@ export async function runSetup(options) {
         report: redact(lines.join("\n"), secrets),
         exitCode: blocked || failures.length > 0 ? 1 : 0,
     };
+}
+const MESSAGE_MAX = 2000;
+/**
+ * One line per description message longer than Discord allows. The message depends on the Kingdom number and on the
+ * server's `[TAG]` roles, so it is rendered here from the server as read (research R6), before any write.
+ */
+function overlongLines(layout, homeKingdom, server) {
+    const expanded = expandLayout(layout, homeKingdom, allianceRoleNamesOf(server));
+    return expanded.categories
+        .flatMap((category) => category.channels)
+        .flatMap((channel) => {
+        const length = channel.message === undefined ? 0 : Array.from(channel.message).length;
+        if (length <= MESSAGE_MAX)
+            return [];
+        return [`${channel.name}: its description message is ${length.toString()} characters; Discord allows ${MESSAGE_MAX.toString()}. Nothing was written.`];
+    });
 }
 /** The server as it is after a real run's writes; undefined when the read fails. */
 async function readAfterWrites(port) {
@@ -388,7 +490,20 @@ function describeStep(step) {
             return `create ${step.type} channel ${step.name} in ${step.categoryName}`;
         case "correct-overwrites":
             return `correct permissions of ${step.name}`;
+        case "set-topic":
+            return `set topic of ${step.name}`;
+        case "post-description":
+            return `post description in ${step.name}`;
+        case "edit-description":
+            return `edit description in ${step.name}`;
     }
+}
+function isLineFinding(finding) {
+    return finding.kind !== "descriptions-unread";
+}
+/** One line for all the channels whose pins Neil cannot read (a dry run without Administrator). */
+function unreadLine(count) {
+    return `Neil can't read the pinned messages of ${count.toString()} channels without Administrator; a real run checks their descriptions.`;
 }
 /** Warnings: hides-from-everyone first, the other findings after, each group in the order of the plan. */
 function warningRank(finding) {

@@ -7,7 +7,7 @@ const PERMISSION_ROLES = ["Moderator", "King"];
  * and writes nothing. The `[TAG]` roles of the server give the Alliance areas.
  */
 export function planSetup(layout, server, homeKingdom) {
-    const allianceRoleNames = [...new Set(server.roles.map((role) => role.name).filter((name) => tagOfAllianceRole(name) !== undefined))];
+    const allianceRoleNames = allianceRoleNamesOf(server);
     const expanded = expandLayout(layout, homeKingdom, allianceRoleNames);
     const plan = {
         server,
@@ -15,6 +15,8 @@ export function planSetup(layout, server, homeKingdom) {
         roleSteps: [],
         categorySteps: [],
         channelSteps: [],
+        topicSteps: [],
+        descriptionSteps: [],
         findings: [],
         claimed: new Set(),
     };
@@ -25,9 +27,19 @@ export function planSetup(layout, server, homeKingdom) {
             plan.findings.push({ kind: "outside-layout", name: channel.name });
     }
     return {
-        steps: [...plan.roleSteps, ...plan.categorySteps, ...plan.channelSteps],
+        steps: [
+            ...plan.roleSteps,
+            ...plan.categorySteps,
+            ...plan.channelSteps,
+            ...plan.topicSteps,
+            ...plan.descriptionSteps,
+        ],
         findings: plan.findings,
     };
+}
+/** The names of the server's `[TAG]` roles, which give the Alliance areas. */
+export function allianceRoleNamesOf(server) {
+    return [...new Set(server.roles.map((role) => role.name).filter((name) => tagOfAllianceRole(name) !== undefined))];
 }
 function lookup(items) {
     const [first, second] = items;
@@ -119,6 +131,37 @@ function planChannel(plan, channel, categoryName, categoryId, isAlliance) {
         return;
     }
     checkOverwrites(plan, existing, usable(plan, channel.overwrites), plan.channelSteps);
+    checkText(plan, existing, channel, categoryName);
+}
+/** The topic of a channel that exists, and Neil's description: posted when missing, edited when its text differs. */
+function checkText(plan, existing, channel, categoryName) {
+    if (channel.topic !== undefined && channel.topic !== existing.topic) {
+        plan.topicSteps.push({ kind: "set-topic", id: existing.id, name: channel.name, topic: channel.topic });
+    }
+    if (channel.message === undefined)
+        return;
+    if (!existing.pinsReadable) {
+        plan.findings.push({ kind: "descriptions-unread", name: channel.name });
+        return;
+    }
+    if (existing.description === undefined) {
+        plan.descriptionSteps.push({
+            kind: "post-description",
+            name: channel.name,
+            categoryName,
+            id: existing.id,
+            content: channel.message,
+        });
+    }
+    else if (existing.description.text !== channel.message) {
+        plan.descriptionSteps.push({
+            kind: "edit-description",
+            id: existing.id,
+            name: channel.name,
+            messageId: existing.description.messageId,
+            content: channel.message,
+        });
+    }
 }
 function createChannel(plan, channel, categoryName) {
     const overwrites = usable(plan, channel.overwrites);
@@ -130,11 +173,16 @@ function createChannel(plan, channel, categoryName) {
             type: "text",
             overwrites,
             fallbackFrom: channel.type,
+            topic: channel.topic,
         });
         plan.findings.push({ kind: "fallback-to-text", name: channel.name, from: channel.type });
-        return;
     }
-    plan.channelSteps.push({ kind: "create-channel", name: channel.name, categoryName, type: channel.type, overwrites });
+    else {
+        plan.channelSteps.push({ kind: "create-channel", name: channel.name, categoryName, type: channel.type, overwrites, topic: channel.topic });
+    }
+    if (channel.message !== undefined) {
+        plan.descriptionSteps.push({ kind: "post-description", name: channel.name, categoryName, id: undefined, content: channel.message });
+    }
 }
 /** Without Community a forum or an announcement channel is planned as text, so an existing text channel stands for it. */
 function typeMatches(actual, expected, hasCommunity) {
