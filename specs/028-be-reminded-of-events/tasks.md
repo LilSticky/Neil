@@ -13,8 +13,8 @@ Tasks in one phase run in order unless marked [P].
 
 - [x] T004 [US1] Creator check in `src/domain/events.ts`: an Alliance Event needs a creator Linked as that Alliance's R4 or R5 or an Officer; a Kingdom Event needs an Officer; no creator is refused (FR-002a, plan D3)
 - [x] T005 [US1] Invitation card and mention chunks in `src/discord/event-texts.ts`: name, `<t:…:F>` and `<t:…:R>`, links from the description as guides (at most 10), a link to the Discord event; chunks of 80 mentions with `allowedMentions.users` exact; no links gives no guides (FR-004, plan D8)
-- [ ] T006 [US1] On a created Event in `src/discord/events.ts`: place it (`#event-announcements` or the Alliance's `alliance-chat`), mention `Events` or `[TAG]` holders less Event Invitations Off, post once (`invited_at`), log; an unknown tag or refused creator posts nothing and logs (US1 AS1–AS7, FR-003, FR-005, FR-013)
-- [ ] T007 [US1] At startup, fetch the Events still ahead and invite those not yet invited; an edit or restart never posts a second invitation; a failed post logs and breaks nothing (FR-001, US1 AS5, edge cases)
+- [x] T006 [US1] On a created Event in `src/discord/events.ts`: place it (`#event-announcements` or the Alliance's `alliance-chat`), mention `Events` or `[TAG]` holders less Event Invitations Off, post once (`invited_at`), log; an unknown tag or refused creator posts nothing and logs (US1 AS1–AS7, FR-003, FR-005, FR-013)
+- [x] T007 [US1] At startup, fetch the Events still ahead and invite those not yet invited; an edit or restart never posts a second invitation; a failed post logs and breaks nothing (FR-001, US1 AS5, edge cases)
 
 ## Phase C: US2, Interested Members are reminded (P1)
 
