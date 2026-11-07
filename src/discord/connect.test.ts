@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ChannelType, Events, PermissionFlagsBits } from "discord.js";
+import { ChannelType, Events, GuildScheduledEventStatus, PermissionFlagsBits } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { todaysQuota, utcDayOf, type RequestPurpose } from "../domain/daily-quota.js";
 import { ONBOARDING_ROLE_NAME } from "../domain/onboarding-role.js";
@@ -15,12 +15,13 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
+import { EventStore } from "../storage/event-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { createPreferenceStore, type PreferenceStore } from "../storage/preference-store.js";
-import { FakeConnectGuild } from "./__fakes__/connect-guild.js";
+import { FakeConnectGuild, type ConnectScheduledEvent } from "./__fakes__/connect-guild.js";
 import { FakeClient } from "./__fakes__/discord-client.js";
 import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
@@ -38,6 +39,8 @@ vi.mock("discord.js", async (importOriginal) => {
 const GUILD_ID = "123456789012345678";
 const ONBOARDING_CHANNEL_ID = "1000000000000000001";
 const LOG_CHANNEL_ID = "1000000000000000002";
+const ANNOUNCEMENTS_CHANNEL_ID = "1000000000000000005";
+const EVENT_ID = "800000000000000001";
 const MODERATOR_ROLE_ID = "1000000000000000003";
 const KING_ROLE_ID = "1000000000000000004";
 const ALICE = "111111111111111111";
@@ -205,6 +208,7 @@ describe("connect", () => {
   let applied: AppliedStore;
   let interviews: InterviewStore;
   let dailySync: DailySyncStore;
+  let events: EventStore;
   let reaper: ReaperStore;
   let preferences: PreferenceStore;
   let bootyAlerts: BootyAlertsStore;
@@ -218,6 +222,7 @@ describe("connect", () => {
     applied = new AppliedStore(db);
     interviews = new InterviewStore(db, INTERVIEW_TIMEOUT_MS);
     dailySync = new DailySyncStore(db);
+    events = new EventStore(db);
     reaper = new ReaperStore(db);
     preferences = createPreferenceStore(db);
     bootyAlerts = new BootyAlertsStore(db);
@@ -286,6 +291,7 @@ describe("connect", () => {
       homeKingdom: HOME_KINGDOM,
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       dailySync,
+      events,
       reaper,
       preferences,
       bootyAlerts,
@@ -803,6 +809,109 @@ describe("connect", () => {
 
     expect(gameApi.lookups.filter((lookup) => lookup.purpose === "sync")).toHaveLength(1);
     expect(guild.messagesIn(LOG_CHANNEL_ID).join("\n")).toMatch(/Daily Sync/);
+  });
+
+  describe("the Event invitations and reminders", () => {
+    /** A scheduled event as discord.js gives it, in the served guild, starting after the test's clock. */
+    function discordEvent(overrides: Partial<ConnectScheduledEvent> = {}): ConnectScheduledEvent {
+      return {
+        id: EVENT_ID,
+        guildId: GUILD_ID,
+        name: "Hive move",
+        scheduledStartTimestamp: Date.parse("2026-11-20T18:00:00Z"),
+        description: null,
+        status: GuildScheduledEventStatus.Scheduled,
+        creatorId: ALICE,
+        ...overrides,
+      };
+    }
+
+    /**
+     * The served guild with #event-announcements, and Alice as an Officer (a Moderator), so a Kingdom Event she creates may
+     * be invited. Connect is given the Moderator role's id from the guild, not the configured one.
+     */
+    function eventGuild(): { guild: FakeConnectGuild; officerRoleIds: readonly [string, string] } {
+      const guild = serverWith(SERVER_PERMISSIONS);
+      guild.addChannel(ANNOUNCEMENTS_CHANNEL_ID, { type: ChannelType.GuildText, name: "event-announcements" });
+      const moderator = guild.defineRole("Moderator");
+      guild.join(ALICE, ["Moderator"]);
+      FakeClient.served = guild;
+      recordDailySyncRunToday();
+      return { guild, officerRoleIds: [moderator.id, KING_ROLE_ID] };
+    }
+
+    /** Emits a Discord event on the client connect created. */
+    function emitDiscord(event: string, ...args: readonly unknown[]): void {
+      const client = FakeClient.latest;
+      if (client === undefined) throw new Error("connect created no client");
+      client.emit(event, ...args);
+    }
+
+    test("invites a new Event to #event-announcements when Discord reports it created", async () => {
+      const { guild, officerRoleIds } = eventGuild();
+      connection = await connect(TOKEN, { ...connectOptions(), officerRoleIds });
+
+      emitDiscord(Events.GuildScheduledEventCreate, discordEvent());
+
+      await vi.waitFor(() => {
+        expect(guild.messagesIn(ANNOUNCEMENTS_CHANNEL_ID)).toHaveLength(1);
+      });
+    });
+
+    test("invites an edited Event that has no invitation yet, when Discord reports the edit", async () => {
+      const { guild, officerRoleIds } = eventGuild();
+      connection = await connect(TOKEN, { ...connectOptions(), officerRoleIds });
+
+      emitDiscord(Events.GuildScheduledEventUpdate, null, discordEvent({ name: "Hive move, later" }));
+
+      await vi.waitFor(() => {
+        expect(guild.messagesIn(ANNOUNCEMENTS_CHANNEL_ID)).toHaveLength(1);
+      });
+    });
+
+    test("invites the Events still ahead at startup, when Neil starts", async () => {
+      const { guild, officerRoleIds } = eventGuild();
+      guild.setScheduledEvents([discordEvent()]);
+
+      connection = await connect(TOKEN, { ...connectOptions(), officerRoleIds });
+
+      await vi.waitFor(() => {
+        expect(guild.messagesIn(ANNOUNCEMENTS_CHANNEL_ID)).toHaveLength(1);
+      });
+    });
+
+    test("forgets an Event's rows when Discord reports it deleted", async () => {
+      const { officerRoleIds } = eventGuild();
+      events.recordFirstSeen(EVENT_ID, NOW.toISOString());
+      connection = await connect(TOKEN, { ...connectOptions(), officerRoleIds });
+
+      emitDiscord(Events.GuildScheduledEventDelete, discordEvent());
+
+      await vi.waitFor(() => {
+        expect(events.findEvent(EVENT_ID)).toBeUndefined();
+      });
+    });
+
+    test("lists the scheduled events once a minute, and not once Neil has disconnected", async () => {
+      const { guild, officerRoleIds } = eventGuild();
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      try {
+        connection = await connect(TOKEN, { ...connectOptions(), officerRoleIds });
+        await vi.waitFor(() => {
+          expect(guild.scheduledListings).toBe(1);
+        });
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(guild.scheduledListings).toBe(2);
+
+        await connection.disconnect();
+        connection = undefined;
+        await vi.advanceTimersByTimeAsync(5 * 60_000);
+        expect(guild.scheduledListings).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe("/reaper", () => {

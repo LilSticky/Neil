@@ -45,6 +45,9 @@ export interface EventReminders {
 
 const MINUTE_MS = 60_000;
 
+/** How often the reminders are ticked: once a minute, as the Event Reminders are due to the minute. */
+export const REMINDER_TICK_MS = MINUTE_MS;
+
 /** The key of an owner's Event Kinds: "kingdom" for the Home Kingdom, or the Alliance's tag. */
 function kindOwnerOf(owner: EventOwner): EventKindOwner {
   return owner.kind === "kingdom" ? "kingdom" : owner.tag;

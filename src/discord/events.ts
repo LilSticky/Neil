@@ -48,6 +48,14 @@ export function guildIdOf(scheduledEvent: unknown): string | undefined {
   return guild.success ? guild.data.guildId : undefined;
 }
 
+const scheduledEventIdSchema = z.object({ id: snowflake });
+
+/** The id of a scheduled event, or undefined when it has none Neil can read. Never throws. */
+export function eventIdOf(scheduledEvent: unknown): string | undefined {
+  const id = scheduledEventIdSchema.safeParse(scheduledEvent);
+  return id.success ? id.data.id : undefined;
+}
+
 const EVENT_STATUS: Record<GuildScheduledEventStatus, EventStatus> = {
   [GuildScheduledEventStatus.Scheduled]: "scheduled",
   [GuildScheduledEventStatus.Active]: "active",

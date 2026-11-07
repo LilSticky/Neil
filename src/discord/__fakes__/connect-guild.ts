@@ -1,7 +1,33 @@
+import { GuildScheduledEventStatus } from "discord.js";
 import { BOT_MEMBER_ID, FakeGuild, type FakeChannel, type FakeChannelOptions } from "./guild.js";
 
 /** Discord's code for a user who is not a member of the guild. */
 const UNKNOWN_MEMBER = 10007;
+
+/** A scheduled event as discord.js caches it: the fields Neil reads, and the guild it belongs to. */
+export interface ConnectScheduledEvent {
+  readonly id: string;
+  readonly guildId: string;
+  readonly name: string;
+  readonly scheduledStartTimestamp: number | null;
+  readonly description: string | null;
+  readonly status: GuildScheduledEventStatus;
+  readonly creatorId: string | null;
+}
+
+/** A user who marked a scheduled event Interested, as fetchSubscribers gives them; the Member only when asked for. */
+export interface ConnectSubscriber {
+  readonly guildScheduledEventId: string;
+  readonly user: { readonly id: string };
+  readonly member: FakeConnectMember | null;
+}
+
+/** One request for the subscribers of an event, as the code made it: the page size and the id it reads after. */
+export interface ConnectSubscriberRequest {
+  readonly eventId: string;
+  readonly limit: number | undefined;
+  readonly after: string | undefined;
+}
 
 /** A role of the guild as discord.js exposes it to the name and roles: id, name, managed flag, permissions and position. */
 export interface ConnectRole {
@@ -80,6 +106,64 @@ export class FakeConnectGuild {
 
   /** The presences discord.js caches, by Member id: Discord reports the status of every Member it sends, offline ones too. */
   readonly presences = { cache: this.presenceStore };
+
+  private readonly scheduledStore = new Map<string, ConnectScheduledEvent>();
+  private readonly interestedStore = new Map<string, string[]>();
+  private readonly subscriberRequestLog: ConnectSubscriberRequest[] = [];
+  private scheduledListingCount = 0;
+
+  /**
+   * The scheduled events of the guild. `fetch` lists them all, as discord.js does; `fetchSubscribers` pages the users who
+   * marked an event Interested by id, `limit` at a time (100 by default), from the id given as `after`.
+   */
+  readonly scheduledEvents = {
+    fetch: (): Promise<Map<string, ConnectScheduledEvent>> => {
+      this.scheduledListingCount += 1;
+      return Promise.resolve(new Map(this.scheduledStore));
+    },
+    fetchSubscribers: (
+      eventId: string,
+      options: { readonly limit?: number; readonly withMember?: boolean; readonly after?: string } = {},
+    ): Promise<Map<string, ConnectSubscriber>> => {
+      this.subscriberRequestLog.push({ eventId, limit: options.limit, after: options.after });
+      const limit = options.limit ?? 100;
+      const after = options.after ?? "";
+      const ids = (this.interestedStore.get(eventId) ?? []).filter((id) => id > after).sort().slice(0, limit);
+      return Promise.resolve(
+        new Map(
+          ids.map((id) => [
+            id,
+            {
+              guildScheduledEventId: eventId,
+              user: { id },
+              member: options.withMember === true ? (this.joined.get(id) ?? null) : null,
+            },
+          ]),
+        ),
+      );
+    },
+  };
+
+  /** Sets the scheduled events Discord lists for the guild. */
+  setScheduledEvents(events: readonly ConnectScheduledEvent[]): void {
+    this.scheduledStore.clear();
+    for (const event of events) this.scheduledStore.set(event.id, event);
+  }
+
+  /** Sets the users who marked the scheduled event Interested, in any order, as Discord has them (a user who left may be listed). */
+  setInterested(eventId: string, userIds: readonly string[]): void {
+    this.interestedStore.set(eventId, [...userIds]);
+  }
+
+  /** How many times the code listed the scheduled events of the guild. */
+  get scheduledListings(): number {
+    return this.scheduledListingCount;
+  }
+
+  /** Every request for the subscribers of an event, in order. */
+  get subscriberRequests(): readonly ConnectSubscriberRequest[] {
+    return this.subscriberRequestLog;
+  }
 
   /** The roles of the guild: the cache, and creation as the name and roles asks for it. */
   readonly roles = {

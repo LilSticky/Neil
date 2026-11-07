@@ -79,12 +79,16 @@ function handlers() {
     booty: vi.fn(() => Promise.resolve()),
     bootyAlerts: vi.fn(() => Promise.resolve()),
     bootyAlertsAutocomplete: vi.fn(() => Promise.resolve()),
+    eventKinds: vi.fn(() => Promise.resolve()),
     bootyButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
     memberLeft: vi.fn(() => Promise.resolve()),
     memberOnline: vi.fn(() => Promise.resolve()),
+    scheduledEventCreated: vi.fn(() => Promise.resolve()),
+    scheduledEventUpdated: vi.fn(() => Promise.resolve()),
+    scheduledEventDeleted: vi.fn(() => Promise.resolve()),
     interview: vi.fn(() => Promise.resolve()),
     interviewButton: vi.fn(() => Promise.resolve()),
     interviewModal: vi.fn(() => Promise.resolve()),
@@ -266,6 +270,19 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, interaction as never);
 
     expect(routed.booty).toHaveBeenCalledWith(interaction);
+    expect(routed.bootyAlerts).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /event-kinds to the event kinds handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("event-kinds");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.eventKinds).toHaveBeenCalledWith(interaction);
     expect(routed.bootyAlerts).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
@@ -570,6 +587,58 @@ describe("createClient", () => {
     expect(routed.interviewButton).not.toHaveBeenCalled();
     expect(routed.rankButton).not.toHaveBeenCalled();
     expect(routed.linkButton).not.toHaveBeenCalled();
+  });
+});
+
+/** A scheduled event as discord.js gives it to the client: its id and guild, and the fields Neil reads. */
+function scheduledEventIn(guildId: string) {
+  return {
+    id: "800000000000000001",
+    guildId,
+    name: "Hive move",
+    scheduledStartTimestamp: Date.parse("2026-11-20T18:00:00Z"),
+    description: null,
+    status: 1,
+    creatorId: "111111111111111111",
+  };
+}
+
+describe("a scheduled event's change", () => {
+  test("a scheduled event created in the served guild is handed to the scheduledEventCreated handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const scheduledEvent = scheduledEventIn(GUILD_ID);
+
+    client.emit(Events.GuildScheduledEventCreate, scheduledEvent as never);
+
+    expect(routed.scheduledEventCreated).toHaveBeenCalledWith(scheduledEvent);
+    expect(routed.scheduledEventUpdated).not.toHaveBeenCalled();
+    expect(routed.scheduledEventDeleted).not.toHaveBeenCalled();
+    expect(routed.memberJoined).not.toHaveBeenCalled();
+  });
+
+  test("an edited scheduled event is handed to the scheduledEventUpdated handler with its new state, and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const after = { ...scheduledEventIn(GUILD_ID), name: "Hive move, later" };
+
+    client.emit(Events.GuildScheduledEventUpdate, null as never, after as never);
+
+    expect(routed.scheduledEventUpdated).toHaveBeenCalledWith(after);
+    expect(routed.scheduledEventCreated).not.toHaveBeenCalled();
+    expect(routed.scheduledEventDeleted).not.toHaveBeenCalled();
+  });
+
+  test("a deleted scheduled event is handed to the scheduledEventDeleted handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const scheduledEvent = scheduledEventIn(GUILD_ID);
+
+    client.emit(Events.GuildScheduledEventDelete, scheduledEvent as never);
+
+    expect(routed.scheduledEventDeleted).toHaveBeenCalledWith(scheduledEvent);
+    expect(routed.scheduledEventCreated).not.toHaveBeenCalled();
+    expect(routed.scheduledEventUpdated).not.toHaveBeenCalled();
   });
 });
 
