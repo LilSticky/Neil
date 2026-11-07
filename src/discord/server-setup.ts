@@ -8,6 +8,7 @@ import {
   BOT_TARGET,
   EVERYONE_TARGET,
   expandLayout,
+  translatedDescription,
   type ChannelType,
   type LayoutCategory,
   type LayoutChannel,
@@ -199,10 +200,12 @@ export function parseLayout(text: string): ServerLayout {
     return {
       name: category.name,
       seenBy: [...category.seenBy],
-      channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames)),
+      channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames, translations)),
     };
   });
-  const allianceChannels = raw.allianceArea.channels.map((channel) => checkChannel("allianceArea", channel, known, channelNames));
+  const allianceChannels = raw.allianceArea.channels.map((channel) =>
+    checkChannel("allianceArea", channel, known, channelNames, translations),
+  );
 
   return {
     roles: [...raw.roles],
@@ -232,7 +235,19 @@ function descriptionOf(place: string, value: string | undefined): string {
   if (value.length === 0 || value.length > DESCRIPTION_MAX) {
     throw new Error(`${place}: description must be 1–1024 characters, not ${value.length.toString()}`);
   }
+  if (value !== value.trim()) throw new Error(`${place}: description must not start or end with spaces or line breaks`);
   return value;
+}
+
+/** A translated channel's copies carry the description with their credit; the longest of them must fit the limit. */
+function checkTranslatedLength(place: string, description: string, translations: readonly string[]): void {
+  const longest = translations.reduce(
+    (max, language) => Math.max(max, translatedDescription(description, language).length),
+    0,
+  );
+  if (longest > DESCRIPTION_MAX) {
+    throw new Error(`${place}: the translated description is ${longest.toString()} characters; 1024 at most`);
+  }
 }
 
 function parseJson(text: string): unknown {
@@ -249,7 +264,13 @@ function checkTarget(known: ReadonlySet<string>, place: string, target: string):
   if (!known.has(target)) throw new Error(`${place}: "${target}" is no listed role, external role, @everyone or Neil`);
 }
 
-function checkChannel(container: string, raw: RawChannel, known: ReadonlySet<string>, names: Map<string, string>): LayoutChannel {
+function checkChannel(
+  container: string,
+  raw: RawChannel,
+  known: ReadonlySet<string>,
+  names: Map<string, string>,
+  translations: readonly string[],
+): LayoutChannel {
   const place = `${container}, channel "${raw.name}"`;
   const type = channelTypeOf(raw.type);
   if (type === undefined) throw new Error(`${place}: type "${raw.type}" is not text, voice, forum or announcement`);
@@ -265,6 +286,7 @@ function checkChannel(container: string, raw: RawChannel, known: ReadonlySet<str
   names.set(raw.name, place);
 
   const description = descriptionOf(place, raw.description);
+  if (raw.translated === true) checkTranslatedLength(place, description, translations);
   for (const target of raw.seenBy ?? []) checkTarget(known, place, target);
   const overwrites = raw.overwrites === undefined ? undefined : checkOverwrites(place, raw.overwrites, known);
 

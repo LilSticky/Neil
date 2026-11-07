@@ -80,7 +80,7 @@ None: the slice works in slice 020's modules.
   `PUT /channels/{id}/messages/pins/{message}`, then deletes the type 6 notice that references it; editing is
   `PATCH /channels/{id}/messages/{message}`.
 - [x] T014 [US2] Green: `SetupRest` gains `put` and `delete`; implement in `src/discord/setup-server-rest.ts`.
-- [ ] T015 [US2] Review: `bot-reviewer` on the adapter and setup changes; fixes via `implementer`.
+- [x] T015 [US2] Review: `bot-reviewer` on the adapter and setup changes; fixes via `implementer`.
 
 ## Phase 5: User Story 3 - The rules are already there (P2)
 

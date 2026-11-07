@@ -256,6 +256,33 @@ describe("createRestSetupServer deletes the pin notice Discord writes for the pi
   });
 });
 
+describe("createRestSetupServer removes a posted message whose pin fails, and rethrows the pin's error", () => {
+  test("deletes the just-posted message and rejects with the original error", async () => {
+    const rest = fakeRest({ post: { [Routes.channelMessages(CHANNEL_ID)]: { id: MESSAGE_ID } } });
+    const pinError = new Error("Missing Permissions");
+    rest.put.mockRejectedValueOnce(pinError);
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await expect(server.postPinnedMessage(CHANNEL_ID, "📌 **#general**")).rejects.toBe(pinError);
+    expect(routesOf(rest.delete)).toEqual([Routes.channelMessage(CHANNEL_ID, MESSAGE_ID)]);
+  });
+});
+
+describe("createRestSetupServer keeps a pinned message when its pin notice cannot be deleted", () => {
+  test("resolves with the message id when deleting the pin notice rejects", async () => {
+    const rest = fakeRest({
+      post: { [Routes.channelMessages(CHANNEL_ID)]: { id: MESSAGE_ID } },
+      get: {
+        [Routes.channelMessages(CHANNEL_ID)]: [{ id: NOTICE_ID, type: 6, message_reference: { message_id: MESSAGE_ID } }],
+      },
+    });
+    rest.delete.mockRejectedValueOnce(new Error("Unknown Message"));
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await expect(server.postPinnedMessage(CHANNEL_ID, "📌 **#general**")).resolves.toBe(MESSAGE_ID);
+  });
+});
+
 describe("createRestSetupServer edits a message in place", () => {
   test("patches the message with the content, and allowed_mentions parse empty", async () => {
     const rest = fakeRest();

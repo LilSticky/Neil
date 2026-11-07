@@ -83,6 +83,11 @@ const KING_ROLE = "King";
 const TRANSLATION_BOT_ROLE = "Interaction Bot";
 const LANGUAGES_CATEGORY = "Languages";
 
+/** The description of a translated copy: the original's text, then the credit to the translation bot (slice 029). */
+export function translatedDescription(description: string, language: string): string {
+  return `${description} Translated into ${language} by ${TRANSLATION_BOT_ROLE}.`;
+}
+
 const VIEW: Permission = "ViewChannel";
 const SEND: Permission = "SendMessages";
 const POSTING: Permission[] = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"];
@@ -106,7 +111,7 @@ export function expandLayout(layout: ServerLayout, homeKingdom: number, alliance
           ...channel,
           name: `${channel.name}-${language.toLowerCase()}`,
           seenBy: [language],
-          description: `${channel.description} Translated into ${language} by ${TRANSLATION_BOT_ROLE}.`,
+          description: translatedDescription(channel.description, language),
         },
         categorySeenBy,
         expansion,

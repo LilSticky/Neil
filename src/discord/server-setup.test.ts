@@ -414,6 +414,29 @@ describe("parseLayout descriptions, code of conduct and translations", () => {
     expect(message).toContain("alliance-chat");
   });
 
+  test("refuses a translated channel whose description with the longest translation's credit is over 1024 characters, naming the channel", () => {
+    const longestCredit = " Translated into Russian by Interaction Bot.";
+    const text = describedLayoutFile(
+      { name: "kvk-announcements", type: "announcement", description: "x".repeat(1025 - longestCredit.length), mode: "only-king-posts", translated: true },
+      { languages: ["English", "French", "Russian"], translations: ["French", "Russian"] },
+    );
+
+    const message = refusal(text);
+
+    expect(message).toContain("Hangout");
+    expect(message).toContain("kvk-announcements");
+  });
+
+  test.each([
+    { label: "a leading space", description: " Talk about anything." },
+    { label: "a trailing line break", description: "Talk about anything.\n" },
+  ])("refuses a description with $label, naming the channel", ({ description }) => {
+    const message = refusal(describedLayoutFile({ name: "general", type: "text", description }));
+
+    expect(message).toContain("general");
+    expect(message).toMatch(/spaces or line breaks/);
+  });
+
   test("accepts translations that are listed languages and returns them on the parsed layout", () => {
     const text = describedLayoutFile({ name: "general", type: "text", description: DESCRIPTION }, { translations: ["Russian"] });
 
@@ -1060,6 +1083,36 @@ describe("the shipped server-layout.json", () => {
     for (const channel of channels) {
       expect(channel.description.trim()).not.toBe("");
     }
+  });
+
+  describe("the shipped layout's messages", () => {
+    const shipped = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const allChannels = shipped.categories.flatMap((category) => category.channels);
+
+    function shippedMessageOf(name: string): string {
+      const channel = allChannels.find((candidate) => candidate.name === name);
+      if (channel === undefined) throw new Error(`no shipped channel named ${name}`);
+      if (channel.message === undefined) throw new Error(`shipped channel ${name} has no message`);
+      return channel.message;
+    }
+
+    test("rules carries the Code of Conduct and stays under 2000 characters", () => {
+      const message = shippedMessageOf("rules");
+      expect(message).toContain("Code of Conduct");
+      expect(message.length).toBeLessThanOrEqual(2000);
+    });
+
+    test("guest-rules carries the Code of Conduct and stays under 2000 characters", () => {
+      const message = shippedMessageOf("guest-rules");
+      expect(message).toContain("Code of Conduct");
+      expect(message.length).toBeLessThanOrEqual(2000);
+    });
+
+    test("every message in the shipped expansion is at most 2000 characters", () => {
+      const lengths = allChannels.flatMap((channel) => (channel.message === undefined ? [] : [channel.message.length]));
+      expect(lengths.length).toBeGreaterThan(0);
+      expect(Math.max(...lengths)).toBeLessThanOrEqual(2000);
+    });
   });
 });
 

@@ -99,6 +99,15 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       deny: overwrite.deny.toString(),
     }));
 
+  /** Deletes a message on a best-effort basis: a refusal is swallowed, the message stays, and the caller goes on. */
+  const deleteQuietly = async (route: string): Promise<void> => {
+    try {
+      await rest.delete(route);
+    } catch {
+      // The message stays where it is; nothing the setup can do about it now.
+    }
+  };
+
   /**
    * Deletes the type 6 notice Discord writes when a message is pinned; the notice references the pinned message. The pin is
    * already in place, so a reply that is not a message list leaves the notice where it is rather than failing the post.
@@ -110,7 +119,7 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       (message) => message.type === PIN_NOTICE_TYPE && message.message_reference?.message_id === messageId,
     );
     for (const notice of notices) {
-      await rest.delete(Routes.channelMessage(channelId, notice.id));
+      await deleteQuietly(Routes.channelMessage(channelId, notice.id));
     }
   };
 
@@ -192,7 +201,13 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
     async postPinnedMessage(channelId, content) {
       const body = { content, allowed_mentions: { parse: [] } };
       const messageId = idResponse.parse(await rest.post(Routes.channelMessages(channelId), { body })).id;
-      await rest.put(Routes.channelMessagesPin(channelId, messageId));
+      try {
+        await rest.put(Routes.channelMessagesPin(channelId, messageId));
+      } catch (error) {
+        // An unpinned message would be a stray post: take it back down, then report why the pin failed.
+        await deleteQuietly(Routes.channelMessage(channelId, messageId));
+        throw error;
+      }
       await deletePinNotice(channelId, messageId);
       return messageId;
     },
