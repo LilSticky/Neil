@@ -37,6 +37,9 @@ file first if you want other names or fewer languages.
 
 It also sets each channel's topic and pins Neil's description in it, with the code of conduct in `#rules` and `#guest-rules`. A dry run without Administrator can't read the pins of hidden channels and says so; the real run checks them.
 
+Each forum gets its tags, its default reaction and Neil's pinned "How to post" post, so Discord's getting-started
+checklist in the forum has nothing left to do.
+
 Running it twice is safe. Without Community, announcement channels become plain text channels, with the same permissions.
 
 If Interaction Bot isn't on your server yet, invite it and run the script again, so it gets its allow.

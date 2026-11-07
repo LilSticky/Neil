@@ -7,6 +7,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 030, Set up the forums ([specs](../specs/030-set-up-the-forums/), issue [#87](https://github.com/LilSticky/Neil/issues/87)): the setup script finishes each forum: its tags, its default reaction, @everyone's Send Messages deny (what Discord's "Set recommended permissions" step sets, measured on the test server) and one pinned "How to post in #<forum>" post by Neil, kept in step on later runs. The user's decisions (2026-11-07): tags per forum, reactions 📚 🤝 ⚔️, the how-to texts as drafted. Manual check: [TEST-RUN.md](TEST-RUN.md) §6x.
+
 Slice 025, Onboarding in steps ([specs](../specs/025-onboarding-in-steps/), issue
 [#73](https://github.com/LilSticky/Neil/issues/73)): after the Link, the Interview thread shows the Preferences as four steps (Languages, Interests, Region, Experience) with Skip or Next, Back and Done, and `/channels` starts the same steps privately. The Interview speaks as the alliance hall's Liaison. The Server Layout gains `#news` (seen by everyone), `#suggestions`, and a recruitment channel per Region in place of slice 029's two (the user's decisions). No migration, no new command.
 Merged to `main` with T001–T018 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6w, T020) needs the deploy and an emptied test server, so Definition of Done 2 is open.

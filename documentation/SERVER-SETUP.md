@@ -146,6 +146,21 @@ Voice channels get the message only, as their first message in the chat, unpinne
 get the topic only. Change a text under `description` or `codeOfConduct` in
 `server-layout.json` and run the script again: it edits Neil's message rather than posting a second one.
 
+**Forums.** Each forum's `forum` block in `server-layout.json` holds its tags, its default reaction and the text of
+Neil's how-to post (what belongs there, an example title, a template). The script gives the forum those tags and that
+reaction, denies @everyone Send Messages (Discord's "recommended permissions"), and opens one post by Neil, "How to post
+in #<forum>", pinned to the top. Later runs add missing tags, change the reaction and edit Neil's post in place. A tag the
+file no longer names is reported and left alone, since posts may carry it; remove it by hand. Discord pins one post per
+forum: if another post is pinned, Neil's stays unpinned and the script says so.
+
+| Forum | Tags | Reaction |
+|-------|------|----------|
+| `guides` | Beginner, Events, PvP, Heroes, Economy, Alliance Duel, KvK | 📚 |
+| `nap-forum` | Question, Proposal, Agreement, Violation | 🤝 |
+| `pvp-tactics` | Rally, Defense, Scouting, Troops, Lessons learned | ⚔️ |
+| `ad-tactics` | Plan, Schedule, Points, Lessons learned | ⚔️ |
+| `kvk-tactics` | Plan, Squads, Targets, Defense, Lessons learned | ⚔️ |
+
 **Special cases**
 
 - **Only King posts** (announcements): set these on the channel itself. A role's ✅ beats the ❌ on @everyone, so the role

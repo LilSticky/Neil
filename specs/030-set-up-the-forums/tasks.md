@@ -85,7 +85,7 @@ Covered by US1's how-to post and permissions; checked by hand in TEST-RUN §6x.
 
 ## Phase 6: Polish
 
-- [ ] T016 Docs: SERVER-SETUP.md (forums: tags, reaction, how-to post, changed in the layout file), STARTUP-GUIDE.md,
+- [x] T016 Docs: SERVER-SETUP.md (forums: tags, reaction, how-to post, changed in the layout file), STARTUP-GUIDE.md,
   TEST-RUN.md §6x (quickstart.md "Manual"), STATUS.md, ROADMAP.md row 030; Dictionary terms proposed to the user.
 - [ ] T017 Review: `bot-reviewer` on the diff; `spec-auditor` against spec.md.
 - [ ] T018 Manual: TEST-RUN §6x on the test server.
