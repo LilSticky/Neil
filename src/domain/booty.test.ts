@@ -172,8 +172,12 @@ describe("isBootyOnline", () => {
     expect(isBootyOnline({ online: true, lastOnlineAt: undefined }, false)).toBe(true);
   });
 
-  test("is offline when the game's online flag says offline and Discord shows offline", () => {
-    expect(isBootyOnline({ online: false, lastOnlineAt: undefined }, false)).toBe(false);
+  test("is offline when the game's online flag says offline, a Last Online is given and Discord shows offline", () => {
+    expect(isBootyOnline({ online: false, lastOnlineAt: LAST_SEEN }, false)).toBe(false);
+  });
+
+  test("a Player without a Last Online is online now, even when the online flag says offline", () => {
+    expect(isBootyOnline({ online: false, lastOnlineAt: undefined }, false)).toBe(true);
   });
 
   test("with no online flag, is online when no Last Online is given", () => {

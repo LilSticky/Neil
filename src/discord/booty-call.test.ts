@@ -394,8 +394,9 @@ describe("/booty and its Booty Call", () => {
 
     test.each<[string, BootyMode, RosterState, Presence, boolean]>([
       ["a roster row online: true is online, even when Discord says offline", "online", { online: true }, "offline", true],
-      ["a roster row online: false is offline with no Last Online, even when Discord says offline", "online", { online: false }, "offline", false],
-      ["a roster row online: false is offline with no Last Online, but Discord dnd counts as online", "online", { online: false }, "dnd", true],
+      ["a roster row without a Last Online is online now, even with online: false and Discord offline", "online", { online: false }, "offline", true],
+      ["a roster row online: false with a Last Online is offline, when Discord says offline", "online", { online: false, lastOnlineAt: NOW }, "offline", false],
+      ["a roster row online: false with a Last Online is offline, but Discord dnd counts as online", "online", { online: false, lastOnlineAt: NOW }, "dnd", true],
       ["no roster flag and a Last Online is offline, even when Discord says offline", "online", { lastOnlineAt: NOW }, "offline", false],
       ["no roster flag and a Last Online is offline, but Discord idle counts as online", "online", { lastOnlineAt: NOW }, "idle", true],
       ["no roster flag and a Last Online is offline, so an Only when offline Member is mentioned", "offline", { lastOnlineAt: NOW }, "offline", true],

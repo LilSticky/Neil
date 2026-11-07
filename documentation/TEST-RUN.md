@@ -378,6 +378,25 @@ Branch `027-see-what-neil-can-do`. New command: `/help`. Before: run `npm run co
 | 6t.2 | `/help` as an Officer | The same list, then the Officer commands | | |
 | 6t.3 | Read `/player`, `/rank` and `/reaper closest` in the list | Required options as `<name>`, optional ones as `[name]`; each `/reaper` subcommand on its own line | | |
 
+## 6u. Call out a booty (slice 026, collected 2026-11-07)
+
+Branch `026-call-out-a-booty`. New commands: `/booty`, `/booty-alerts`. Migration 14. Before: run `npm run commands:register`, and run the setup script so Neil may post in `alliance-chat`, with Administrator off Neil's role afterwards. You need two Linked Members of one Alliance: A and B.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6u.1 | As A, `/booty-alerts` | Private: Off | | |
+| 6u.2 | As A, `/booty-alerts mode:Always` | Private: Always, all day, UTC | | |
+| 6u.3 | As B, `/booty` in `#alliance-hall` | Refused privately | | |
+| 6u.4 | As B, `/booty` in another Alliance's `alliance-chat`, if B can see one | Refused privately | | |
+| 6u.5 | As B, `/booty` in your `alliance-chat`, then Cancel | Nothing is posted | | |
+| 6u.6 | As B, `/booty`, then wait over a minute and Confirm | It has expired; nothing is posted | | |
+| 6u.7 | As B, `/booty`, then Confirm | The card appears with Administrator off Neil's role; A is mentioned and gets a notification; B isn't mentioned; one line in `#neil-log` with a count, no names | | |
+| 6u.8 | Within a minute, as A, `/booty` | Refused privately, with a link to the card | | |
+| 6u.9 | As A, `/booty-alerts mode:Only when offline`, stay online; after a minute, as B, call again | The card appears; A isn't mentioned | | |
+| 6u.10 | Close Discord as A and leave the game, wait over 10 minutes; as B, call again | A is mentioned | | |
+| 6u.11 | As A, set `from` and `to` to exclude the time now, with `time-zone` your city; as B, call again | A isn't mentioned | | |
+| 6u.12 | As A, `/unlink`, Link again, `/booty-alerts` | Off | | |
+
 
 ## 7. Afterwards
 

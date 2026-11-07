@@ -61,8 +61,9 @@ src/discord/commands.ts, client.ts, unlink.ts, src/main.ts   wiring
 - **Roster**: an uncharged Player lookup of the caller's uid, purpose `lookup`. The answer's `alliance_members` is the whole Alliance
   roster. The client kept only uid and rank, so it now also reads `online` and `last_online_at` and gives them as an optional
   `roster` on the Player, as `shielded` is optional. This needs no Kingdom, so it works for Guests too, and no second request.
-- **Online**: the game's `online` flag when it gives one; with no flag, a missing Last Online means online (the dictionary: a Player
-  without one is online now). Discord presence that is not offline counts as online too.
+- **Online**: `lastSeen` from `src/domain/alliance-overview.ts`, the rule the cards and the Alliance Overview use: `online` is true, or
+  there is no Last Online (the user's decision in slice 012: a Player without one is online now, whatever the flag says). Discord
+  presence that is not offline counts as online too.
 - **Fallback**: on a failed lookup, or an answer with no roster, the Alliance is the holders of the `[TAG]` role, and Discord alone
   decides who is online. The `lookup` purpose stops at the Quota Reserve, which also lands here.
 - **Mentions**: in the message content, since embeds do not ping, with `allowedMentions.users` set to exactly those Members. Chunks of

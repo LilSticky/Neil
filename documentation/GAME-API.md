@@ -63,7 +63,8 @@ no approximate (fuzzy) name search in the API; Neil matches Known Alliances itse
   `leader_id` is read since slice 005 as the Alliance leader's uid, leniently (a number or a digit string;
   nullish means no leader).
 - **`alliance_members[]`**: the player's whole alliance roster, same fields as below, including
-  `rank_label`. The player's own rank is their row in it.
+  `rank_label`. The player's own rank is their row in it. Since slice 026 Neil also reads `online` and
+  `last_online_at` here, so a Booty Call learns who is online with one request.
 - `ranks`: `{}` in the sample; **not the alliance rank**. Ignore it.
 - `history[]`: earlier observations (nick, power, alliance, coordinates, `change_flags`)
 - Image paths are relative (`/static/…`) to the tracker's site.
