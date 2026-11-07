@@ -439,7 +439,7 @@ Branch `028-be-reminded-of-events`. New commands: `/event-kinds`, `/event-invita
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 6x.1 | Dry run of the setup script | `would allow CreateEvents on R4` (and R5, Moderator, King) the first time; nothing after `--apply` | | |
+| 6x.1 | Dry run of the setup script | `would allow CreateEvents on R4` and on R5 the first time; for Moderator and King, which sit above Neil, a line saying to allow CreateEvents on them by hand. After `--apply` and doing that by hand: nothing to do, and the run ends without failures | | |
 | 6x.2 | As the Officer, create an event "Test round" starting in 40 minutes, location **Somewhere Else**, a link in the description | Within a minute one card in `#event-announcements`: the name, the start in your own time, the link as a guide, a link to the event; `Events` holders mentioned; one line in `#neil-log` | | |
 | 6x.3 | Edit the event's description | No second card | | |
 | 6x.4 | As B, click **Interested** on it | 30 minutes before the start, a reminder in `#event-announcements` mentioning B only | | |

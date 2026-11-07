@@ -2364,6 +2364,19 @@ describe("the shipped server-layout.json for Create Events and Event announcemen
 });
 
 describe("runSetup gives CreateEvents to the roles rolePermissions names (FR-014, plan D10)", () => {
+  test("leaves a role above Neil's to be set by hand: no edit, a by-hand line, and the run succeeds", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4", { position: 99 });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    const { report, exitCode } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
+
+    expect(server.writes).toEqual([]);
+    expect(report).not.toMatch(/allow CreateEvents on R4/);
+    expect(lines(report)).toContain("R4 is above Neil's role: allow CreateEvents on it by hand, in Server Settings > Roles");
+    expect(exitCode).toBe(0);
+  });
+
   test("says would allow CreateEvents on R4 on a dry run, and writes nothing", async () => {
     const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
     server.defineRole("R4");
