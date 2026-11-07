@@ -94,12 +94,20 @@ function handlers() {
 }
 
 describe("createClient", () => {
-  test("requests the Guilds, GuildMembers and GuildPresences intents only", () => {
+  test("requests the Guilds, GuildMembers, GuildPresences and GuildScheduledEvents intents only", () => {
     const client = createClient(handlers(), { guildId: GUILD_ID });
 
-    expect(new IntentsBitField(client.options.intents).toArray()).toEqual(["Guilds", "GuildMembers", "GuildPresences"]);
+    expect(new IntentsBitField(client.options.intents).toArray()).toEqual([
+      "Guilds",
+      "GuildMembers",
+      "GuildPresences",
+      "GuildScheduledEvents",
+    ]);
     expect(client.options.intents.bitfield).toBe(
-      GatewayIntentBits.Guilds | GatewayIntentBits.GuildMembers | GatewayIntentBits.GuildPresences,
+      GatewayIntentBits.Guilds |
+        GatewayIntentBits.GuildMembers |
+        GatewayIntentBits.GuildPresences |
+        GatewayIntentBits.GuildScheduledEvents,
     );
   });
 

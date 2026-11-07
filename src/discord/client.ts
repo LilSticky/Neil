@@ -327,12 +327,17 @@ async function onlineMembersOf(
   return members;
 }
 
-/** A discord.js client with the Guilds, GuildMembers and GuildPresences intents that routes each event to its handler. */
+/** A discord.js client with the Guilds, GuildMembers, GuildPresences and GuildScheduledEvents intents that routes each event to its handler. */
 export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
   const logError = options.logError ?? console.error;
   // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.GuildMembers,
+      GatewayIntentBits.GuildPresences,
+      GatewayIntentBits.GuildScheduledEvents,
+    ],
     partials: [Partials.GuildMember, Partials.User],
   });
   // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
