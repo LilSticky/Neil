@@ -149,6 +149,15 @@
           "type": "text",
           "description": "Welcome to the Kingdom! Start here to find your way around.",
           "mode": "read-only"
+        },
+        {
+          "name": "news",
+          "type": "text",
+          "mode": "read-only",
+          "description": "News for the whole game, followed from the official server. Read only.",
+          "seenBy": [
+            "@everyone"
+          ]
         }
       ]
     },
@@ -196,6 +205,11 @@
           "name": "alliance-hall",
           "type": "text",
           "description": "Ask Neil things here: /player, /alliance, /channels, /help and more."
+        },
+        {
+          "name": "suggestions",
+          "type": "text",
+          "description": "Ideas for the server, the Kingdom or Neil: post one per message."
         },
         {
           "name": "off-topic",
@@ -475,14 +489,24 @@
       ],
       "channels": [
         {
-          "name": "looking-for-alliance",
+          "name": "recruitment",
           "type": "text",
-          "description": "Players looking for an Alliance: say who you are, your Might and your Language."
+          "description": "Recruitment for the whole Kingdom: Players looking for an Alliance, and Alliances looking for Players."
         },
         {
-          "name": "looking-for-players",
+          "name": "recruitment-americas",
           "type": "text",
-          "description": "Alliances looking for Players: post your tag, your Join Requirements and what you offer."
+          "description": "Recruitment for Players and Alliances in the Americas time zones."
+        },
+        {
+          "name": "recruitment-europe-africa",
+          "type": "text",
+          "description": "Recruitment for Players and Alliances in the Europe and Africa time zones."
+        },
+        {
+          "name": "recruitment-asia-oceania",
+          "type": "text",
+          "description": "Recruitment for Players and Alliances in the Asia and Oceania time zones."
         }
       ]
     }

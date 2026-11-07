@@ -60,18 +60,25 @@ Check: `/ping` answers.
 An Alliance's role, for example `[NML]`, appears with its first Linked Member. Then run step 3 again: the script builds an area
 for every `[TAG]` role, seen by that role only, and lets Neil post in its `alliance-chat` for Booty Calls. The same goes for each new Alliance.
 
-## 7. Set the commands
+## 7. Follow the official news
+
+`#news` shows the game-wide news from the official Last Asylum: Plague server, for everyone on your server. Your own Kingdom's news
+goes in the Home Kingdom announcements. Neil can't set this up, so do it by hand: on the official
+server, open its announcement channel, press **Follow**, and choose your server and `#news`. You need **Manage Webhooks** on your
+server. Members can't post in `#news`, but followed messages still arrive.
+
+## 8. Set the commands
 
 Set **Integrations** as in [SERVER-SETUP.md §5](SERVER-SETUP.md#5-commands). This stays manual, because Discord needs an
 admin's own login for it. Add `#onboarding` for `/interview` when you turn off **All Channels**, or newcomers lose it.
 
-## 8. Test it
+## 9. Test it
 
 With an account that isn't an Administrator:
 
-1. Join. Only `#onboarding` is visible, and a private thread opens in it.
+1. Join. Only `#onboarding` and `#news` are visible, and a private thread opens in `#onboarding`.
 2. Give the uid and confirm. The nickname and roles appear, **Doctor** among them. The thread stays
    until you press **Done**, or until it times out, and while a Rank Approval is waiting. `Onboarding` goes when the thread closes.
 3. `#neil-log` shows the Link.
-4. **View Server As Role**: **Doctor** alone shows the Guest area only; **Doctor** plus `#<Home Kingdom>` shows the rest.
+4. **View Server As Role**: **Doctor** alone shows the Guest area and `#news` only; **Doctor** plus `#<Home Kingdom>` shows the rest.
 5. `/unlink` yourself in `#alliance-hall`. The roles and nickname go, and `Onboarding` comes back.

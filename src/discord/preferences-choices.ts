@@ -10,6 +10,7 @@ import {
   type ExperienceKey,
   type GameLanguageCode,
   type InterestKey,
+  type PreferenceStep,
   type Preferences,
   type RegionKey,
 } from "../domain/preferences.js";
@@ -27,11 +28,12 @@ import {
   guestChannelsReply,
   notLinkedReply,
   notYoursReply,
+  parsePreferenceGoCustomId,
   parsePreferencesCustomId,
+  preferenceStepMessage,
   preferencesFailedReply,
   preferencesLogLine,
-  preferencesMessage,
-  savedMessage,
+  finishedMessage,
   type PreferenceQuestion,
   type PreferencesMessage,
 } from "./preferences-texts.js";
@@ -100,10 +102,26 @@ export function createPreferenceChoices(deps: PreferenceChoicesDeps): Preference
   };
 }
 
+/** What a press on the Preferences message asks for. */
+type PressAction =
+  | { readonly kind: "done" }
+  | { readonly kind: "show"; readonly step: PreferenceStep }
+  | { readonly kind: "change"; readonly question: SelectQuestion };
+
+/** Reads a press's custom id: whose Preferences it is and what it asks for; undefined when it is none of the Preferences message's. */
+function targetOf(customId: string): { readonly memberId: MemberId; readonly action: PressAction } | undefined {
+  const go = parsePreferenceGoCustomId(customId);
+  if (go !== undefined) return { memberId: go.memberId, action: { kind: "show", step: go.step } };
+  const select = parsePreferencesCustomId(customId);
+  if (select === undefined) return undefined;
+  if (select.question === "done") return { memberId: select.memberId, action: { kind: "done" } };
+  return { memberId: select.memberId, action: { kind: "change", question: select.question } };
+}
+
 async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress): Promise<void> {
-  const parsed = parsePreferencesCustomId(press.customId);
-  if (parsed === undefined) throw new Error(`the custom id ${press.customId} is not one of the Preferences message`);
-  const { question, memberId } = parsed;
+  const target = targetOf(press.customId);
+  if (target === undefined) throw new Error(`the custom id ${press.customId} is not one of the Preferences message`);
+  const { memberId, action } = target;
   if (memberId !== press.user.id) {
     await press.reply(notYoursReply());
     return;
@@ -113,7 +131,7 @@ async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress):
     await press.reply(notLinkedReply());
     return;
   }
-  if (question === "done") {
+  if (action.kind === "done") {
     await finish(deps, press, memberId);
     return;
   }
@@ -121,7 +139,22 @@ async function handlePress(deps: PreferenceChoicesDeps, press: PreferencePress):
     await press.reply(guestChannelsReply());
     return;
   }
-  await change(deps, press, { memberId, rank: link.allianceRank, question });
+  if (action.kind === "show") {
+    await show(deps, press, { memberId, step: action.step, rank: link.allianceRank });
+    return;
+  }
+  await change(deps, press, { memberId, rank: link.allianceRank, question: action.question });
+}
+
+/** A step button: shows that step from the stored answers. Nothing is saved, applied or logged. */
+async function show(
+  deps: PreferenceChoicesDeps,
+  press: PreferencePress,
+  target: { readonly memberId: MemberId; readonly step: PreferenceStep; readonly rank: RankOnLink },
+): Promise<void> {
+  const { memberId, step, rank } = target;
+  const preferences = deps.preferences.get(memberId);
+  await press.update(stepMessageFor(deps, memberId, step, preferences, allianceRankOf(rank)));
 }
 
 /** /channels: a Linked Member gets their Preferences message, privately, and nothing changes. */
@@ -136,7 +169,7 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
     await command.reply(guestChannelsReply());
     return;
   }
-  const message = messageFor(deps, memberId, deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
+  const message = stepMessageFor(deps, memberId, "languages", deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
   await command.reply({ ...message, flags: MessageFlags.Ephemeral });
 }
 
@@ -146,7 +179,7 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
  * off just before the thread goes, since that closes the Interview.
  */
 async function finish(deps: PreferenceChoicesDeps, press: PreferencePress, memberId: MemberId): Promise<void> {
-  await press.update(savedMessage());
+  await press.update(finishedMessage(deps.preferences.get(memberId).experience, deps.guidesForumId));
   const prompt = deps.preferences.prompt(memberId);
   if (prompt === undefined) return;
   if (deps.rankApprovals.pendingFor(memberId) === undefined) {
@@ -186,7 +219,7 @@ async function replyFailed(deps: PreferenceChoicesDeps, press: PreferencePress):
   }
 }
 
-/** A select change: saves the answer, answers the press with the new Preferences, then applies the roles and logs. */
+/** A select change: saves the answer, re-renders the same step with the new Preferences, then applies the roles and logs. */
 async function change(
   deps: PreferenceChoicesDeps,
   press: PreferencePress,
@@ -210,20 +243,22 @@ async function change(
       break;
   }
   const preferences: Preferences = deps.preferences.get(memberId);
-  await press.update(messageFor(deps, memberId, preferences, alliance));
+  await press.update(stepMessageFor(deps, memberId, question, preferences, alliance));
   await deps.roles.apply(memberId);
   await deps.channels.log(preferencesLogLine(memberId, preferences));
 }
 
-/** The Preferences message as the presses and /channels show it; the Member's playing language is not looked up here. */
-function messageFor(
+/** One step of the Preferences, as the presses and /channels show it; the Member's playing language is not looked up here. */
+function stepMessageFor(
   deps: PreferenceChoicesDeps,
   memberId: MemberId,
+  step: PreferenceStep,
   preferences: Preferences,
   rank: AllianceRank | undefined,
 ): PreferencesMessage {
-  return preferencesMessage({
+  return preferenceStepMessage({
     memberId,
+    step,
     preferences,
     rank,
     playerLanguage: undefined,

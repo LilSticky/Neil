@@ -12,23 +12,28 @@ import {
   EXPERIENCES,
   GAME_LANGUAGES,
   INTERESTS,
+  PREFERENCE_STEPS,
   REGIONS,
   interestOptions,
+  nextStep,
   preselectedLanguage,
+  previousStep,
   type ExperienceKey,
   type GameLanguageCode,
+  type InterestKey,
+  type PreferenceStep,
   type Preferences,
 } from "../domain/preferences.js";
 import type { AllianceRank } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { somethingWentWrongReply, type Message, type PrivateReply } from "./interview-texts.js";
 
-/** The questions of the Preferences message: one select menu each, and the Done button. */
+/** The questions of the Preferences messages: a select menu each for the four steps, and the Done button. */
 const PREFERENCE_QUESTIONS = ["languages", "region", "interests", "experience", "done"] as const;
 /** One of the Preferences message's questions. */
 export type PreferenceQuestion = (typeof PREFERENCE_QUESTIONS)[number];
 
-/** The Preferences message: four select menus, then the Done button. */
+/** A Preference step message: its select menu, then its buttons. */
 export interface PreferencesMessage extends Message {
   readonly components: APIActionRowComponent<APIStringSelectComponent | APIButtonComponentWithCustomId>[];
 }
@@ -93,18 +98,9 @@ export function preferencesFailedReply(): PrivateReply {
   return somethingWentWrongReply();
 }
 
-/** The Preferences message once Done is pressed: a saved text, with no menus left. */
+/** The message that replaces the last step once Done is pressed: a saved text, with no menus left. */
 export interface SavedMessage extends Message {
   readonly components: never[];
-}
-
-/** The message that replaces the Preferences message when Done is pressed. */
-export function savedMessage(): SavedMessage {
-  return {
-    content: "Your choices are saved. Run /channels any time to change them.",
-    components: [],
-    allowedMentions: noMentions(),
-  };
 }
 
 /** The private message to a Member after an Officer Link: their Preferences are chosen with /channels. */
@@ -169,25 +165,71 @@ function selectMenu(
   };
 }
 
-/** The Preferences message: a menu for Languages, Region, Interests and Experience, then Done, with the guides line. */
-export function preferencesMessage(options: {
-  readonly memberId: MemberId;
-  readonly preferences: Preferences;
-  readonly rank: AllianceRank | undefined;
-  readonly playerLanguage: string | undefined;
-  readonly guidesForumId: string | undefined;
-}): PreferencesMessage {
-  const { memberId, preferences, rank, playerLanguage, guidesForumId } = options;
-  const languages = shownLanguages(preferences, playerLanguage);
-  const interests = interestOptions(rank);
-  const guides = guidesLine(preferences.experience, guidesForumId);
-  const intro = "Choose what you play and what you're here for. Each choice gives its role at once; press Done when you're finished.";
+const PREFERENCE_GO_CUSTOM_ID = /^pref:go:([a-z]+):(\d{17,20})$/;
 
-  return {
-    content: sentences(intro, guides ?? ""),
-    components: [
-      selectMenu(
-        "languages",
+/** The custom id of a button that shows a step: pref:go:{step}:{memberId}. */
+export function preferenceGoCustomId(step: PreferenceStep, memberId: MemberId): string {
+  return `${PREFERENCES_PREFIX}go:${step}:${memberId}`;
+}
+
+/** Reads a step button's custom id; undefined when it is not one, or names no step. */
+export function parsePreferenceGoCustomId(
+  customId: string,
+): { readonly step: PreferenceStep; readonly memberId: MemberId } | undefined {
+  const match = PREFERENCE_GO_CUSTOM_ID.exec(customId);
+  if (match === null) return undefined;
+  const step = PREFERENCE_STEPS.find((candidate) => candidate === match[1]);
+  if (step === undefined) return undefined;
+  return { step, memberId: match[2] ?? "" };
+}
+
+/** What each Interest shows, as its menu option says it: at most 100 characters. */
+const INTEREST_EXPLANATIONS: Readonly<Record<InterestKey, string>> = {
+  pvp: "Fights: chat, voice, intel and tactics.",
+  events: "Event chat, announcements, help and the guides forum.",
+  recruitment: "Recruiting Players to our Alliances: a general channel and one for each Region.",
+  "off-topic": "Off-topic chat and memes.",
+  nap: "Closed talks on non-aggression pacts between Alliances.",
+};
+
+/** The heading and explanation of each step. */
+const STEP_TEXTS: Readonly<Record<PreferenceStep, { readonly heading: string; readonly body: string }>> = {
+  languages: {
+    heading: "🗣️ **Step 1 of 4: Languages**",
+    body:
+      "A few quick questions, and the alliance hall will show you the channels that suit you. Each answer counts at once, and you can skip anything.\n" +
+      "Which languages do you speak? Each one opens that language's chat.",
+  },
+  interests: {
+    heading: "🎯 **Step 2 of 4: Interests**",
+    body:
+      "What brings you to the hall? Each Interest opens its channels.\n" +
+      "PvP or Events also shows Alliance Duel and Kingdom vs Kingdom.",
+  },
+  region: {
+    heading: "🌍 **Step 3 of 4: Region (optional)**",
+    body: "Where do you play from? It gives you a role, so others can see your part of the world.",
+  },
+  experience: {
+    heading: "📖 **Step 4 of 4: Experience (optional)**",
+    body:
+      "How well do you know the game? New Members are pointed to the guides, and Veterans are invited to write them.\n" +
+      "Press Done when you're finished. You can change your answers any time with /channels.",
+  },
+};
+
+/** The one menu of a step, showing the stored answers as chosen. */
+function stepMenu(
+  step: PreferenceStep,
+  memberId: MemberId,
+  languages: ReadonlySet<GameLanguageCode>,
+  preferences: Preferences,
+  rank: AllianceRank | undefined,
+): APIActionRowComponent<APIStringSelectComponent> {
+  switch (step) {
+    case "languages":
+      return selectMenu(
+        step,
         memberId,
         GAME_LANGUAGES.map((language) => ({
           label: language.roleName,
@@ -195,9 +237,24 @@ export function preferencesMessage(options: {
           default: languages.has(language.code),
         })),
         GAME_LANGUAGES.length,
-      ),
-      selectMenu(
-        "region",
+      );
+    case "interests": {
+      const interests = interestOptions(rank);
+      return selectMenu(
+        step,
+        memberId,
+        interests.map((interest) => ({
+          label: interest.roleName,
+          value: interest.key,
+          description: INTEREST_EXPLANATIONS[interest.key],
+          default: preferences.interests.has(interest.key),
+        })),
+        interests.length,
+      );
+    }
+    case "region":
+      return selectMenu(
+        step,
         memberId,
         REGIONS.map((region) => ({
           label: region.roleName,
@@ -205,19 +262,10 @@ export function preferencesMessage(options: {
           default: preferences.region === region.key,
         })),
         1,
-      ),
-      selectMenu(
-        "interests",
-        memberId,
-        interests.map((interest) => ({
-          label: interest.roleName,
-          value: interest.key,
-          default: preferences.interests.has(interest.key),
-        })),
-        interests.length,
-      ),
-      selectMenu(
-        "experience",
+      );
+    case "experience":
+      return selectMenu(
+        step,
         memberId,
         EXPERIENCES.map((experience) => ({
           label: experience.roleName,
@@ -225,19 +273,74 @@ export function preferencesMessage(options: {
           default: preferences.experience === experience.key,
         })),
         1,
-      ),
+      );
+  }
+}
+
+/** Whether the step's question has an answer, which turns its Skip button into Next. */
+function isAnswered(step: PreferenceStep, languages: ReadonlySet<GameLanguageCode>, preferences: Preferences): boolean {
+  switch (step) {
+    case "languages":
+      return languages.size > 0;
+    case "interests":
+      return preferences.interests.size > 0;
+    case "region":
+      return preferences.region !== undefined;
+    case "experience":
+      return preferences.experience !== undefined;
+  }
+}
+
+function stepButton(label: string, style: ButtonStyle.Primary | ButtonStyle.Secondary, customId: string): APIButtonComponentWithCustomId {
+  return { type: ComponentType.Button, style, label, custom_id: customId };
+}
+
+/** The buttons of a step: Back unless it is the first, then Skip or Next, or Done on the last. */
+function stepButtons(step: PreferenceStep, memberId: MemberId, answered: boolean): APIButtonComponentWithCustomId[] {
+  const before = previousStep(step);
+  const after = nextStep(step);
+  const back = before === undefined ? [] : [stepButton("Back", ButtonStyle.Secondary, preferenceGoCustomId(before, memberId))];
+  const forward =
+    after === undefined
+      ? stepButton("Done", ButtonStyle.Primary, preferencesCustomId("done", memberId))
+      : stepButton(answered ? "Next" : "Skip", ButtonStyle.Primary, preferenceGoCustomId(after, memberId));
+  return [...back, forward];
+}
+
+/** One Preference step: its heading and explanation, one menu, and its buttons. Experience adds the guides line. */
+export function preferenceStepMessage(options: {
+  readonly memberId: MemberId;
+  readonly step: PreferenceStep;
+  readonly preferences: Preferences;
+  readonly rank: AllianceRank | undefined;
+  readonly playerLanguage: string | undefined;
+  readonly guidesForumId: string | undefined;
+}): PreferencesMessage {
+  const { memberId, step, preferences, rank, playerLanguage, guidesForumId } = options;
+  const languages = shownLanguages(preferences, playerLanguage);
+  const { heading, body } = STEP_TEXTS[step];
+  const guides = step === "experience" ? guidesLine(preferences.experience, guidesForumId) : undefined;
+  return {
+    content: [heading, body, ...(guides === undefined ? [] : [guides])].join("\n"),
+    components: [
+      stepMenu(step, memberId, languages, preferences, rank),
       {
         type: ComponentType.ActionRow,
-        components: [
-          {
-            type: ComponentType.Button,
-            style: ButtonStyle.Primary,
-            label: "Done",
-            custom_id: preferencesCustomId("done", memberId),
-          },
-        ],
+        components: stepButtons(step, memberId, isAnswered(step, languages, preferences)),
       },
     ],
+    allowedMentions: noMentions(),
+  };
+}
+
+/** The message that replaces the last step when Done is pressed: what is saved, /channels, and the guides line. */
+export function finishedMessage(experience: ExperienceKey | undefined, guidesForumId: string | undefined): SavedMessage {
+  return {
+    content: sentences(
+      "✅ All set! Your choices are saved. Run /channels any time to change them.",
+      guidesLine(experience, guidesForumId) ?? "",
+    ),
+    components: [],
     allowedMentions: noMentions(),
   };
 }

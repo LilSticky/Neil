@@ -113,7 +113,8 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Onboarding | `#onboarding` | Onboarding, Moderator, King, `R5` | 🔴 |
 | Officers | `#neil-log`, Moderator channel | Moderator, King | 🔴 for the log; 🟡 for the Moderator channel |
 | Basic information | `#rules` (with the code of conduct), `#welcome` (read only) | Kingdom | 🟡 |
-| Hangout | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#general`, voice, `#alliance-hall` (commands) | Kingdom | 🟡 |
+| | `#news` (read only; game-wide news, follows the official server) | everyone | 🟡 |
+| Hangout | Home Kingdom announcements (only King posts; news of this server only), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#general`, voice, `#alliance-hall` (commands), `#suggestions` | Kingdom | 🟡 |
 | | off-topic, memes | Off-topic | 🟡 |
 | Guest area | guest rules (read only, with the Guest code of conduct), text, voice | Doctor | 🟡 |
 | NaP | closed discussion | NaP discussions, King | 🟡 |
@@ -129,7 +130,7 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 | Kingdom vs Kingdom | chat, voice, tactics forum, intel, and five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
 | | KvK announcements (only King posts; Interaction Bot translates) | Kingdom | 🟡 |
 | | a translated copy of the KvK announcements per translation language | that language's Preference Role | 🟡 |
-| Recruitment | Players looking for an Alliance, Alliances looking for Players | Recruitment | 🟡 |
+| Recruitment | general recruitment, and one text channel per Region (Americas, Europe/Africa, Asia/Oceania) | Recruitment | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
 
 The translation languages are Russian, French, Italian and German; change them under `translations` in `server-layout.json`.

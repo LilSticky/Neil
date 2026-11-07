@@ -7,6 +7,7 @@ import {
   type ExperienceKey,
   type GameLanguageCode,
   type InterestKey,
+  type PreferenceStep,
   type Preferences,
   type RegionKey,
 } from "../domain/preferences.js";
@@ -20,14 +21,16 @@ import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboard
 import type { PreferenceRoles } from "./preferences.js";
 import { createPreferenceChoices } from "./preferences-choices.js";
 import {
+  finishedMessage,
   guestChannelsReply,
   guidesLine,
   notLinkedReply,
   notYoursReply,
+  preferenceGoCustomId,
+  preferenceStepMessage,
   preferencesCustomId,
   preferencesFailedReply,
   preferencesLogLine,
-  preferencesMessage,
   type PreferenceQuestion,
 } from "./preferences-texts.js";
 
@@ -264,7 +267,9 @@ function setUp() {
     new FakePress(trace, preferencesCustomId(question, ALICE), { id: userId }, values);
   const doneOf = (userId: MemberId = ALICE): FakePress =>
     new FakePress(trace, preferencesCustomId("done", ALICE), { id: userId });
-  return { trace, store, roles, links, applied, channels, onboardingRole, logError, choices, linkAlice, selectOf, doneOf };
+  const goOf = (step: PreferenceStep, userId: MemberId = ALICE): FakePress =>
+    new FakePress(trace, preferenceGoCustomId(step, ALICE), { id: userId });
+  return { trace, store, roles, links, applied, channels, onboardingRole, logError, choices, linkAlice, selectOf, doneOf, goOf };
 }
 
 describe("a select change", () => {
@@ -345,7 +350,7 @@ describe("a select change", () => {
     expect(channels.logs).toEqual([preferencesLogLine(ALICE, preferencesWith({ languages: languages("en") }))]);
   });
 
-  test("updates the message to the new Preferences", async () => {
+  test("re-renders the same step with the new answer, not the four-menu message", async () => {
     const { linkAlice, selectOf, choices } = setUp();
     linkAlice();
     const press = selectOf("languages", ["en"]);
@@ -353,9 +358,29 @@ describe("a select change", () => {
     await choices.press(press);
 
     expect(press.updates).toEqual([
-      preferencesMessage({
+      preferenceStepMessage({
         memberId: ALICE,
+        step: "languages",
         preferences: preferencesWith({ languages: languages("en") }),
+        rank: "R3",
+        playerLanguage: undefined,
+        guidesForumId: GUIDES_FORUM,
+      }),
+    ]);
+  });
+
+  test("re-renders the Interests step when an Interest is picked there", async () => {
+    const { linkAlice, selectOf, choices } = setUp();
+    linkAlice();
+    const press = selectOf("interests", ["pvp"]);
+
+    await choices.press(press);
+
+    expect(press.updates).toEqual([
+      preferenceStepMessage({
+        memberId: ALICE,
+        step: "interests",
+        preferences: preferencesWith({ interests: interests("pvp") }),
         rank: "R3",
         playerLanguage: undefined,
         guidesForumId: GUIDES_FORUM,
@@ -381,6 +406,43 @@ describe("a select change", () => {
     await choices.press(press);
 
     expect(press.updates[0]?.content).toContain(guidesLine("new", GUIDES_FORUM));
+  });
+});
+
+describe("a go press", () => {
+  test("shows that step built from the stored answers", async () => {
+    const { store, linkAlice, goOf, choices } = setUp();
+    linkAlice(R3);
+    const preferences = preferencesWith({ languages: languages("de"), interests: interests("pvp") });
+    store.set(ALICE, preferences);
+    const press = goOf("region");
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([]);
+    expect(press.updates).toEqual([
+      preferenceStepMessage({
+        memberId: ALICE,
+        step: "region",
+        preferences,
+        rank: "R3",
+        playerLanguage: undefined,
+        guidesForumId: GUIDES_FORUM,
+      }),
+    ]);
+  });
+
+  test("changes nothing: no save, no Preference Role change, no log line", async () => {
+    const { store, roles, channels, linkAlice, goOf, choices, trace } = setUp();
+    linkAlice(R3);
+    store.set(ALICE, preferencesWith({ languages: languages("de") }));
+
+    await choices.press(goOf("interests"));
+
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual(["press.update"]);
   });
 });
 
@@ -473,7 +535,51 @@ describe("a Member who is not Linked", () => {
   });
 });
 
+describe("a go press by a Guest, or by a Member who is not Linked", () => {
+  test("a known Guest's go press gets the Guest refusal, and shows no step and changes nothing", async () => {
+    const { store, roles, channels, applied, linkAlice, goOf, choices, trace } = setUp();
+    linkAlice(R3);
+    applied.record(ALICE, ["#12", "NML"]);
+    const press = goOf("region");
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([guestChannelsReply()]);
+    expect(press.updates).toEqual([]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual([]);
+  });
+
+  test("a Member who is not Linked and presses a go button gets the not-linked reply, and shows no step and changes nothing", async () => {
+    const { store, roles, channels, goOf, choices, trace } = setUp();
+    const press = goOf("interests");
+
+    await choices.press(press);
+
+    expect(press.replies).toEqual([notLinkedReply()]);
+    expect(press.updates).toEqual([]);
+    expect(store.writes).toEqual([]);
+    expect(roles.applied).toEqual([]);
+    expect(channels.logs).toEqual([]);
+    expect(trace).toEqual([]);
+  });
+});
+
 describe("Done", () => {
+  test("answers with the finishing message: /channels and the guides line for the stored Experience, no menus", async () => {
+    const { store, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.setExperience(ALICE, "new");
+    store.openPrompt(ALICE, ALICE_THREAD);
+    const done = doneOf();
+
+    await choices.press(done);
+
+    expect(done.updates).toEqual([finishedMessage("new", GUIDES_FORUM)]);
+  });
+
   test("closes the open prompt and deletes its thread", async () => {
     const { store, channels, linkAlice, doneOf, choices } = setUp();
     linkAlice();
@@ -622,8 +728,9 @@ describe("/channels", () => {
 
     expect(command.replies).toEqual([
       {
-        ...preferencesMessage({
+        ...preferenceStepMessage({
           memberId: ALICE,
+          step: "languages",
           preferences,
           rank: "R4",
           playerLanguage: undefined,
@@ -671,8 +778,9 @@ describe("/channels for a Guest, or for a Member the Applied State does not plac
 
     expect(command.replies).toEqual([
       {
-        ...preferencesMessage({
+        ...preferenceStepMessage({
           memberId: ALICE,
+          step: "languages",
           preferences: EMPTY_PREFERENCES,
           rank: "R3",
           playerLanguage: undefined,
@@ -693,8 +801,9 @@ describe("/channels for a Guest, or for a Member the Applied State does not plac
 
     expect(command.replies).toEqual([
       {
-        ...preferencesMessage({
+        ...preferenceStepMessage({
           memberId: ALICE,
+          step: "languages",
           preferences: EMPTY_PREFERENCES,
           rank: "R3",
           playerLanguage: undefined,

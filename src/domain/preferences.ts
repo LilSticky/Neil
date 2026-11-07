@@ -99,6 +99,21 @@ export const EXPERIENCES: readonly Experience[] = [
   { key: "veteran", roleName: "Veteran" },
 ];
 
+/** The Preference steps, in the order Neil asks them: Languages and Interests matter most. */
+export const PREFERENCE_STEPS = ["languages", "interests", "region", "experience"] as const;
+/** One question of the Preferences, asked on its own. */
+export type PreferenceStep = (typeof PREFERENCE_STEPS)[number];
+
+/** The step after this one; undefined after the last. */
+export function nextStep(step: PreferenceStep): PreferenceStep | undefined {
+  return PREFERENCE_STEPS[PREFERENCE_STEPS.indexOf(step) + 1];
+}
+
+/** The step before this one; undefined before the first. */
+export function previousStep(step: PreferenceStep): PreferenceStep | undefined {
+  return PREFERENCE_STEPS[PREFERENCE_STEPS.indexOf(step) - 1];
+}
+
 /** A Member's Preferences: any number of Languages and Interests, at most one Region and one Experience. */
 export interface Preferences {
   readonly languages: ReadonlySet<GameLanguageCode>;

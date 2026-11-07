@@ -887,6 +887,43 @@ describe("the shipped server-layout.json", () => {
     expect(() => shippedLayout()).not.toThrow();
   });
 
+  test("holds the standard channels: logs, moderators, suggestions, news and the Kingdom's announcements", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const namesIn = (category: string) => groupNamed(expanded, category).channels.map((channel) => channel.name);
+
+    expect(namesIn("Officers")).toEqual(expect.arrayContaining(["neil-log", "moderators"]));
+    expect(namesIn("Basic information")).toContain("news");
+    expect(namesIn("Hangout")).toContain("suggestions");
+  });
+
+  test("opens news to everyone on the server, read-only, so only what is followed appears there", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const news = groupNamed(expanded, "Basic information").channels.find((channel) => channel.name === "news");
+    const everyone = news?.overwrites.find((overwrite) => overwrite.target === "@everyone");
+
+    expect(everyone?.allow).toContain("ViewChannel");
+    expect(everyone?.deny).toContain("SendMessages");
+  });
+
+  test("keeps rules for the Home Kingdom", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const rules = groupNamed(expanded, "Basic information").channels.find((channel) => channel.name === "rules");
+
+    expect(rules?.overwrites.find((overwrite) => overwrite.target === "@everyone")?.deny).toContain("ViewChannel");
+  });
+
+  test("holds a general recruitment channel and one per Region, seen by Recruitment", () => {
+    const recruitment = groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Recruitment");
+
+    expect(recruitment.channels.map((channel) => channel.name)).toEqual([
+      "recruitment",
+      "recruitment-americas",
+      "recruitment-europe-africa",
+      "recruitment-asia-oceania",
+    ]);
+    expect(viewersOf(recruitment)).toEqual(["Recruitment"]);
+  });
+
   test("holds a language channel for every Game Language, seen by its role", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
     const languages = groupNamed(expanded, "Languages");
@@ -1022,7 +1059,7 @@ describe("the shipped server-layout.json", () => {
 
     expect(categoryViewers(hangout)).toContain(KINGDOM_ROLE);
     expect(hangout.channels.map((channel) => channel.name).sort()).toEqual(
-      ["home-kingdom-announcements", "gift-codes", "general", "Hangout voice", "alliance-hall", "off-topic", "memes"].sort(),
+      ["home-kingdom-announcements", "gift-codes", "general", "Hangout voice", "alliance-hall", "suggestions", "off-topic", "memes"].sort(),
     );
   });
 
@@ -1030,13 +1067,6 @@ describe("the shipped server-layout.json", () => {
     for (const name of ["off-topic", "memes"]) {
       expect(channelViewers(channelNamed(name))).toEqual(["Off-topic"]);
     }
-  });
-
-  test("holds looking-for-alliance and looking-for-players in Recruitment, and no recruitment channel", () => {
-    const names = groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Recruitment").channels.map((channel) => channel.name);
-
-    expect(names.slice().sort()).toEqual(["looking-for-alliance", "looking-for-players"]);
-    expect(names).not.toContain("recruitment");
   });
 
   test("holds a Coaching voice channel in Events", () => {
