@@ -35,6 +35,8 @@ file first if you want other names or fewer languages.
 3. `npm run server:setup -- --apply` does the work. It prints the IDs for step 5 and what is left by hand.
 4. 🔴 **Take Administrator off Neil's role straight away.** While Neil holds it, a leaked token controls your whole server.
 
+It also sets each channel's topic and pins Neil's description in it, with the code of conduct in `#rules` and `#guest-rules`. A dry run without Administrator can't read the pins of hidden channels and says so; the real run checks them.
+
 Running it twice is safe. Without Community, forums and announcement channels become plain text channels, with the same permissions.
 
 If Interaction Bot isn't on your server yet, invite it and run the script again, so it gets its allow.

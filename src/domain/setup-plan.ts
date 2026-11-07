@@ -31,6 +31,12 @@ export interface ServerChannel {
   kind: "category" | ChannelType;
   parentId: string | undefined;
   overwrites: ServerOverwrite[];
+  /** The topic, undefined when the channel has none (and for categories). */
+  topic: string | undefined;
+  /** Neil's pinned description: the oldest pin by Neil that starts with 📌; undefined when there is none. */
+  description: { messageId: string; text: string } | undefined;
+  /** false when Discord refused the read of the pins, so the description is unknown. */
+  pinsReadable: boolean;
 }
 
 /** The server as read by the adapter: what the plan needs and nothing it could change. */
@@ -54,6 +60,7 @@ export type SetupStep =
       type: ChannelType;
       overwrites: WantedOverwrite[];
       fallbackFrom?: "forum" | "announcement";
+      topic: string | undefined;
     }
   | {
       kind: "correct-overwrites";
@@ -61,7 +68,11 @@ export type SetupStep =
       name: string;
       hidesFromEveryone: boolean;
       overwrites: WantedOverwrite[];
-    };
+    }
+  | { kind: "set-topic"; id: string; name: string; topic: string }
+  /** A channel that has no Neil description yet; `id` is undefined for a channel the plan creates. */
+  | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string }
+  | { kind: "edit-description"; id: string; name: string; messageId: string; content: string };
 
 export type SetupFinding =
   | { kind: "outside-layout"; name: string }
@@ -73,7 +84,9 @@ export type SetupFinding =
   | { kind: "role-has-permissions"; name: string }
   | { kind: "role-above-neil"; name: string }
   | { kind: "fallback-to-text"; name: string; from: "forum" | "announcement" }
-  | { kind: "hides-from-everyone"; name: string };
+  | { kind: "hides-from-everyone"; name: string }
+  /** The pins of a channel could not be read, so its description is neither posted nor edited. */
+  | { kind: "descriptions-unread"; name: string };
 
 export interface SetupPlan {
   steps: SetupStep[];
@@ -88,6 +101,8 @@ interface Plan {
   readonly roleSteps: SetupStep[];
   readonly categorySteps: SetupStep[];
   readonly channelSteps: SetupStep[];
+  readonly topicSteps: SetupStep[];
+  readonly descriptionSteps: SetupStep[];
   readonly findings: SetupFinding[];
   /** Server channels and categories the layout accounts for; any other is outside the layout. */
   readonly claimed: Set<string>;
@@ -101,7 +116,7 @@ const PERMISSION_ROLES = ["Moderator", "King"];
  * and writes nothing. The `[TAG]` roles of the server give the Alliance areas.
  */
 export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom: number): SetupPlan {
-  const allianceRoleNames = [...new Set(server.roles.map((role) => role.name).filter((name) => tagOfAllianceRole(name) !== undefined))];
+  const allianceRoleNames = allianceRoleNamesOf(server);
   const expanded = expandLayout(layout, homeKingdom, allianceRoleNames);
   const plan: Plan = {
     server,
@@ -109,6 +124,8 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
     roleSteps: [],
     categorySteps: [],
     channelSteps: [],
+    topicSteps: [],
+    descriptionSteps: [],
     findings: [],
     claimed: new Set(),
   };
@@ -120,9 +137,20 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
   }
 
   return {
-    steps: [...plan.roleSteps, ...plan.categorySteps, ...plan.channelSteps],
+    steps: [
+      ...plan.roleSteps,
+      ...plan.categorySteps,
+      ...plan.channelSteps,
+      ...plan.topicSteps,
+      ...plan.descriptionSteps,
+    ],
     findings: plan.findings,
   };
+}
+
+/** The names of the server's `[TAG]` roles, which give the Alliance areas. */
+export function allianceRoleNamesOf(server: ServerState): string[] {
+  return [...new Set(server.roles.map((role) => role.name).filter((name) => tagOfAllianceRole(name) !== undefined))];
 }
 
 function lookup<T>(items: readonly T[]): Lookup<T> {
@@ -214,6 +242,36 @@ function planChannel(
     return;
   }
   checkOverwrites(plan, existing, usable(plan, channel.overwrites), plan.channelSteps);
+  checkText(plan, existing, channel, categoryName);
+}
+
+/** The topic of a channel that exists, and Neil's description: posted when missing, edited when its text differs. */
+function checkText(plan: Plan, existing: ServerChannel, channel: ExpandedChannel, categoryName: string): void {
+  if (channel.topic !== undefined && channel.topic !== existing.topic) {
+    plan.topicSteps.push({ kind: "set-topic", id: existing.id, name: channel.name, topic: channel.topic });
+  }
+  if (channel.message === undefined) return;
+  if (!existing.pinsReadable) {
+    plan.findings.push({ kind: "descriptions-unread", name: channel.name });
+    return;
+  }
+  if (existing.description === undefined) {
+    plan.descriptionSteps.push({
+      kind: "post-description",
+      name: channel.name,
+      categoryName,
+      id: existing.id,
+      content: channel.message,
+    });
+  } else if (existing.description.text !== channel.message) {
+    plan.descriptionSteps.push({
+      kind: "edit-description",
+      id: existing.id,
+      name: channel.name,
+      messageId: existing.description.messageId,
+      content: channel.message,
+    });
+  }
 }
 
 function createChannel(plan: Plan, channel: ExpandedChannel, categoryName: string): void {
@@ -226,11 +284,15 @@ function createChannel(plan: Plan, channel: ExpandedChannel, categoryName: strin
       type: "text",
       overwrites,
       fallbackFrom: channel.type,
+      topic: channel.topic,
     });
     plan.findings.push({ kind: "fallback-to-text", name: channel.name, from: channel.type });
-    return;
+  } else {
+    plan.channelSteps.push({ kind: "create-channel", name: channel.name, categoryName, type: channel.type, overwrites, topic: channel.topic });
   }
-  plan.channelSteps.push({ kind: "create-channel", name: channel.name, categoryName, type: channel.type, overwrites });
+  if (channel.message !== undefined) {
+    plan.descriptionSteps.push({ kind: "post-description", name: channel.name, categoryName, id: undefined, content: channel.message });
+  }
 }
 
 /** Without Community a forum or an announcement channel is planned as text, so an existing text channel stands for it. */

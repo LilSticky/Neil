@@ -4,6 +4,7 @@ import type {
   GuildInfo,
   OverwriteEdit,
   SetupChannelInfo,
+  SetupPinInfo,
   SetupRoleInfo,
   SetupServer,
 } from "../server-setup.js";
@@ -33,6 +34,12 @@ export type SetupWrite =
 
 export type SetupWriteOp = SetupWrite["op"];
 
+/** A write that sets a topic or a pinned description, in the order it was attempted. */
+export type ChannelWrite =
+  | { readonly op: "set-topic"; readonly channelId: string; readonly topic: string }
+  | { readonly op: "post-pinned-message"; readonly channelId: string; readonly content: string }
+  | { readonly op: "edit-message"; readonly channelId: string; readonly messageId: string; readonly content: string };
+
 /** A role the fake guild holds: the options a test may give when defining it. */
 export interface DefineRoleOptions {
   readonly permissions?: bigint;
@@ -47,6 +54,14 @@ export interface DefineChannelOptions {
   readonly kind: "category" | ChannelType;
   readonly parentId?: string;
   readonly overwrites?: readonly OverwriteEdit[];
+  /** The channel's topic; left out when the channel has none. */
+  readonly topic?: string;
+}
+
+/** A pinned message a test seeds into a channel: its author and its content. */
+export interface DefinePinOptions {
+  readonly authorId: string;
+  readonly content: string;
 }
 
 /**
@@ -56,6 +71,10 @@ export interface DefineChannelOptions {
 export class FakeSetupServer implements SetupServer {
   /** Every write attempt, in order, failed ones included. */
   readonly writes: SetupWrite[] = [];
+  /** The topic and pinned-message writes, in order. */
+  readonly channelWrites: ChannelWrite[] = [];
+  /** Every write attempt of any kind, in order, as `<op> <name>` (the channel's or role's name); failed ones included. */
+  readonly sequence: string[] = [];
 
   readonly guildId: string;
   readonly botUserId: string;
@@ -63,8 +82,10 @@ export class FakeSetupServer implements SetupServer {
   private readonly guildFeatures: readonly string[];
   private readonly roles: SetupRoleInfo[] = [];
   private readonly channels: SetupChannelInfo[] = [];
+  private readonly pins = new Map<string, SetupPinInfo[]>();
   private readonly botRoleIds: string[] = [];
   private readonly failures = new Map<string, Error>();
+  private readonly refusedPinReads = new Set<string>();
   private nextNumber = 1;
 
   constructor(
@@ -122,8 +143,18 @@ export class FakeSetupServer implements SetupServer {
       kind: options.kind,
       parentId: options.parentId,
       overwrites: [...(options.overwrites ?? [])],
+      topic: options.topic,
     });
     return id;
+  }
+
+  /** Seeds a pinned message into a channel, as the newest pin so far, and returns its id. Seed the oldest first. */
+  definePin(channelId: string, pin: DefinePinOptions): string {
+    const messageId = this.newId();
+    const pins = this.pins.get(channelId) ?? [];
+    pins.push({ messageId, authorId: pin.authorId, content: pin.content });
+    this.pins.set(channelId, pins);
+    return messageId;
   }
 
   /** Makes every attempt of this write fail with `error`: `name` is the role, category or channel name (of the channel, for an edit). */
@@ -162,6 +193,7 @@ export class FakeSetupServer implements SetupServer {
 
   createRole(name: string): Promise<string> {
     this.writes.push({ op: "create-role", name });
+    this.sequence.push(`create-role ${name}`);
     const failure = this.failures.get(`create-role:${name}`);
     if (failure !== undefined) return Promise.reject(failure);
     const id = this.newId();
@@ -171,10 +203,11 @@ export class FakeSetupServer implements SetupServer {
 
   createCategory(name: string, overwrites: readonly OverwriteEdit[]): Promise<string> {
     this.writes.push({ op: "create-category", name, overwrites: [...overwrites] });
+    this.sequence.push(`create-category ${name}`);
     const failure = this.failures.get(`create-category:${name}`);
     if (failure !== undefined) return Promise.reject(failure);
     const id = this.newId();
-    this.channels.push({ id, name, kind: "category", parentId: undefined, overwrites: [...overwrites] });
+    this.channels.push({ id, name, kind: "category", parentId: undefined, overwrites: [...overwrites], topic: undefined });
     return Promise.resolve(id);
   }
 
@@ -183,6 +216,7 @@ export class FakeSetupServer implements SetupServer {
     readonly type: ChannelType;
     readonly parentId: string;
     readonly overwrites: readonly OverwriteEdit[];
+    readonly topic: string | undefined;
   }): Promise<string> {
     this.writes.push({
       op: "create-channel",
@@ -191,6 +225,7 @@ export class FakeSetupServer implements SetupServer {
       parentId: channel.parentId,
       overwrites: [...channel.overwrites],
     });
+    this.sequence.push(`create-channel ${channel.name}`);
     const failure = this.failures.get(`create-channel:${channel.name}`);
     if (failure !== undefined) return Promise.reject(failure);
     const id = this.newId();
@@ -200,18 +235,61 @@ export class FakeSetupServer implements SetupServer {
       kind: channel.type,
       parentId: channel.parentId,
       overwrites: [...channel.overwrites],
+      topic: channel.topic,
     });
     return Promise.resolve(id);
   }
 
   editOverwrites(channelId: string, overwrites: readonly OverwriteEdit[]): Promise<void> {
     this.writes.push({ op: "edit-overwrites", channelId, overwrites: [...overwrites] });
-    const name = this.channels.find((channel) => channel.id === channelId)?.name ?? channelId;
+    const name = this.nameOf(channelId);
+    this.sequence.push(`edit-overwrites ${name}`);
     const failure = this.failures.get(`edit-overwrites:${name}`);
     if (failure !== undefined) return Promise.reject(failure);
     const channel = this.channels.find((candidate) => candidate.id === channelId);
     if (channel !== undefined) channel.overwrites = [...overwrites];
     return Promise.resolve();
+  }
+
+  setTopic(channelId: string, topic: string): Promise<void> {
+    this.channelWrites.push({ op: "set-topic", channelId, topic });
+    this.sequence.push(`set-topic ${this.nameOf(channelId)}`);
+    const channel = this.channels.find((candidate) => candidate.id === channelId);
+    if (channel !== undefined) channel.topic = topic;
+    return Promise.resolve();
+  }
+
+  /** Makes the pin read of this channel answer undefined, as Discord's 403 does for a channel Neil cannot see. */
+  refusePinReads(name: string): void {
+    this.refusedPinReads.add(name);
+  }
+
+  /** The pins newest first, as Discord lists them; undefined for a channel whose pin read is refused. */
+  readPins(channelId: string): Promise<readonly SetupPinInfo[] | undefined> {
+    if (this.refusedPinReads.has(this.nameOf(channelId))) return Promise.resolve(undefined);
+    return Promise.resolve((this.pins.get(channelId) ?? []).map((pin) => ({ ...pin })).reverse());
+  }
+
+  postPinnedMessage(channelId: string, content: string): Promise<string> {
+    this.channelWrites.push({ op: "post-pinned-message", channelId, content });
+    this.sequence.push(`post-pinned-message ${this.nameOf(channelId)}`);
+    const messageId = this.newId();
+    const pins = this.pins.get(channelId) ?? [];
+    pins.push({ messageId, authorId: this.botUserId, content });
+    this.pins.set(channelId, pins);
+    return Promise.resolve(messageId);
+  }
+
+  editMessage(channelId: string, messageId: string, content: string): Promise<void> {
+    this.channelWrites.push({ op: "edit-message", channelId, messageId, content });
+    this.sequence.push(`edit-message ${this.nameOf(channelId)}`);
+    const pin = (this.pins.get(channelId) ?? []).find((candidate) => candidate.messageId === messageId);
+    if (pin !== undefined) pin.content = content;
+    return Promise.resolve();
+  }
+
+  private nameOf(channelId: string): string {
+    return this.channels.find((channel) => channel.id === channelId)?.name ?? channelId;
   }
 
   private newId(): string {

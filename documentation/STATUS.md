@@ -7,6 +7,10 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 029, Rework the Server Layout ([specs](../specs/029-rework-the-server-layout/), issue [#80](https://github.com/LilSticky/Neil/issues/80)): the setup script's layout after its first real run on the empty test server. No Guest or AD announcements; one Hangout category replaces Home Kingdom and Off-topic; Recruitment has `looking-for-alliance` and `looking-for-players`; Events has `Coaching voice`; KvK and NaP get translated announcement copies. Every channel gets a topic and a pinned description from Neil, and `#rules` and `#guest-rules` get a code of conduct.
+The user's decisions (2026-11-07): translated copies only for Russian, French, Italian and German, seen by their Language role; every announcement reaches the whole Home Kingdom; descriptions as topic plus pinned message; the merged category is named Hangout, with off-topic and memes opt-in; the code of conduct is approved as drafted; regional recruitment is dropped.
+Merged to `main`. **Merged red:** the manual run on the emptied test server ([TEST-RUN.md](TEST-RUN.md) §6v) needs the user, so Definition of Done 2 is open. TEST-RUN 6q.1–6q.4 passed on 2026-11-07.
+
 Slice 026, Call out a booty ([specs](../specs/026-call-out-a-booty/), issue
 [#75](https://github.com/LilSticky/Neil/issues/75)): `/booty` in an Alliance's `alliance-chat` asks for a private Confirm, then posts a card that mentions the Members whose Booty Alerts match. `/booty-alerts` records them: Off by default, Always, Only when online or Only when offline, with a daily window and a city time zone. Online means on Discord or in the game. One Booty Call per Alliance per minute (the user's decisions). Migration 14, ADR 13.
 Merged to `main` with T001–T018 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6u, T019) needs the deploy, so Definition of Done 2 is open. The real Discord adapters have only been tested with fakes.
@@ -70,9 +74,9 @@ to `main` and deployed; the manual check ([TEST-RUN.md](TEST-RUN.md) §6i, task 
 
 Earlier: slices 001–012 are done; their manual checks were run by the user on 2026-11-03. Slice 005's T033 and T034 are closed too: their findings were checked against the code on 2026-11-04.
 
-**Next step:** the user runs TEST-RUN.md §6q on the test server. Slice 025 ([#73](https://github.com/LilSticky/Neil/issues/73)) is in progress in another session.
+**Next step:** the user empties the test server again, then follows the setup guide ([STARTUP-GUIDE.md](STARTUP-GUIDE.md)): dry run, Administrator, `--apply`, Administrator off, place the roles, put the new IDs in `.env` and on Wispbyte, `npm run commands:register`, start Neil, then TEST-RUN.md §6v. Slice 025 ([#73](https://github.com/LilSticky/Neil/issues/73)) is in progress in another session.
 
-For the user, still open: deploy slices 020, 021 and 022 and let one Daily Sync run before the setup script's real run, delete the `Trading` role, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n, §6o, §6p, §6q, §6r, §6s and §6t. For slice 026: `npm run commands:register`, the setup script again so Neil may post in `alliance-chat`, then TEST-RUN.md §6u.
+For the user, still open: deploy slices 020, 021 and 022 and let one Daily Sync run before the setup script's real run, delete the `Trading` role, the channel setup ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md)), then TEST-RUN.md §6i, §6j, §6k, §6l, §6m, §6n, §6o, §6p, §6r, §6s, §6t and §6u. §6q.1–6q.4 passed on 2026-11-07; the rest of §6q is replaced by §6v. For slice 026: `npm run commands:register`, the setup script again so Neil may post in `alliance-chat`, then TEST-RUN.md §6u.
 Slices 015 and 018 are live on Wispbyte: on 2026-11-05 the user switched on Presence Intent, Linked the Members there, restarted and registered the commands.
 Neil isn't live yet and the test server is empty: no backwards compatibility until the user announces the release (the user's word, 2026-11-06).
 Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
@@ -85,7 +89,7 @@ Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 - Whether forums and announcement channels really need Community is unverified; without it the script makes plain text channels.
 - `npm run test` can time out at 5 seconds in unrelated tests when two runs overlap; alone it is green (seen in slice 022).
 - Until slice 021 is deployed and one Daily Sync has run, Guests can hold Preference Roles, so don't gate channels on them.
-- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r), slice 024 (T009, §6s), slice 027 (T008, §6t), slice 026 (T019, §6u).
+- Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r), slice 024 (T009, §6s), slice 027 (T008, §6t), slice 026 (T019, §6u), slice 029 (§6v; §6q.1–6q.4 passed on 2026-11-07).
 - Slice 016: at Unlink, a Preferences thread that cannot be deleted is only logged and stays (review.md, second pass).
 - Slice 014: Neil cannot see shields (`shielding` always 0); `/reaper closest` says so in every answer.
 - Until the channel permissions are set, newcomers still see every channel (the role is given, but nothing hides the rest).

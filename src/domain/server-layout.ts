@@ -1,3 +1,4 @@
+import { describeChannel } from "./channel-description.js";
 import { tagOfAllianceRole } from "./managed-roles.js";
 
 export type Permission =
@@ -19,6 +20,10 @@ export interface OverwriteSpec {
 export interface LayoutChannel {
   name: string;
   type: ChannelType;
+  /** What the channel is for, 1 to 1024 characters; Neil pins it (slice 029). */
+  description: string;
+  /** The rules a Member accepts to see the channel; copied from code-of-conduct.md (slice 029). */
+  codeOfConduct?: string[];
   mode?: "read-only" | "only-king-posts";
   translated?: boolean;
   seenBy?: string[];
@@ -36,6 +41,7 @@ export interface ServerLayout {
   roles: string[];
   externalRoles: string[];
   languages: string[];
+  translations: string[];
   categories: LayoutCategory[];
   allianceArea: { channels: LayoutChannel[] };
 }
@@ -51,6 +57,10 @@ export interface ExpandedChannel {
   name: string;
   type: ChannelType;
   overwrites: WantedOverwrite[];
+  /** The description, undefined for voice (slice 029). */
+  topic: string | undefined;
+  /** The description message, undefined for forums (slice 029). */
+  message: string | undefined;
 }
 
 export interface ExpandedCategory {
@@ -73,6 +83,11 @@ const KING_ROLE = "King";
 const TRANSLATION_BOT_ROLE = "Interaction Bot";
 const LANGUAGES_CATEGORY = "Languages";
 
+/** The description of a translated copy: the original's text, then the credit to the translation bot (slice 029). */
+export function translatedDescription(description: string, language: string): string {
+  return `${description} Translated into ${language} by ${TRANSLATION_BOT_ROLE}.`;
+}
+
 const VIEW: Permission = "ViewChannel";
 const SEND: Permission = "SendMessages";
 const POSTING: Permission[] = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"];
@@ -86,10 +101,28 @@ type Grants = Map<string, Map<Permission, Grant>>;
  */
 export function expandLayout(layout: ServerLayout, homeKingdom: number, allianceRoles: readonly string[]): ExpandedLayout {
   const resolve = (target: string): string => (target === KINGDOM_PLACEHOLDER ? `#${homeKingdom.toString()}` : target);
+  const expansion: Expansion = { resolve, hidden: new Set([BOT_TARGET, ...layout.externalRoles]) };
+  const expandWithCopies = (channel: LayoutChannel, categorySeenBy: readonly string[]): ExpandedChannel[] => {
+    const original = expandChannel(channel, categorySeenBy, expansion);
+    if (channel.translated !== true) return [original];
+    const copies = layout.translations.map((language) =>
+      expandChannel(
+        {
+          ...channel,
+          name: `${channel.name}-${language.toLowerCase()}`,
+          seenBy: [language],
+          description: translatedDescription(channel.description, language),
+        },
+        categorySeenBy,
+        expansion,
+      ),
+    );
+    return [original, ...copies];
+  };
   const expand = (name: string, seenBy: readonly string[], channels: readonly LayoutChannel[]): ExpandedCategory => ({
     name,
     overwrites: toOverwrites(categoryGrants(seenBy.map(resolve))),
-    channels: channels.map((channel) => expandChannel(channel, seenBy.map(resolve), resolve)),
+    channels: channels.flatMap((channel) => expandWithCopies(channel, seenBy.map(resolve))),
   });
 
   const categories = layout.categories.map((category) => expand(category.name, category.seenBy, category.channels));
@@ -98,7 +131,12 @@ export function expandLayout(layout: ServerLayout, homeKingdom: number, alliance
       expand(
         LANGUAGES_CATEGORY,
         [],
-        layout.languages.map((language) => ({ name: `${language.toLowerCase()}-chat`, type: "text", seenBy: [language] })),
+        layout.languages.map((language) => ({
+          name: `${language.toLowerCase()}-chat`,
+          type: "text",
+          description: `Chat in ${language}.`,
+          seenBy: [language],
+        })),
       ),
     );
   }
@@ -121,7 +159,14 @@ function categoryGrants(seenBy: readonly string[]): Grants {
   return grants;
 }
 
-function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[], resolve: (target: string) => string): ExpandedChannel {
+/** What a channel is expanded with: the placeholder resolution and the targets Neil never names as seers. */
+interface Expansion {
+  resolve: (target: string) => string;
+  hidden: ReadonlySet<string>;
+}
+
+function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[], expansion: Expansion): ExpandedChannel {
+  const { resolve } = expansion;
   const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
   const grants = categoryGrants(seenBy);
   if (channel.mode === "read-only") {
@@ -136,7 +181,8 @@ function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[]
     grant(grants, resolve(target), spec.allow, "allow");
     grant(grants, resolve(target), spec.deny, "deny");
   }
-  return { name: channel.name, type: channel.type, overwrites: toOverwrites(grants) };
+  const overwrites = toOverwrites(grants);
+  return { name: channel.name, type: channel.type, overwrites, ...describeChannel(channel, overwrites, expansion.hidden) };
 }
 
 function grant(grants: Grants, target: string, permissions: readonly Permission[], how: Grant): void {

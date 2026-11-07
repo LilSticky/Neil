@@ -37,6 +37,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 024 | Keep the thread until it closes | a Member see their Interview thread and answer their Preferences until it closes ([#66](https://github.com/LilSticky/Neil/issues/66)) | Onboarding Role | when the role comes off, startup sweep | merged; manual check open (TEST-RUN.md §6s) |
 | 026 | Call out a booty | a Member alert their Alliance to a Booty, and each Member choose when they are mentioned ([#75](https://github.com/LilSticky/Neil/issues/75)) | Booty, Booty Call, Booty Alerts | `/booty`, `/booty-alerts` | merged; manual check open (TEST-RUN.md §6u) |
 | 027 | See what Neil can do | a Member see each command they can use, how to write it and what it is for ([#76](https://github.com/LilSticky/Neil/issues/76)) | | `/help`, built from the command definitions | merged; manual check open (TEST-RUN.md §6t) |
+| 029 | Rework the Server Layout | a Member see what each channel is for and who sees it, in a reworked layout (one Hangout, two Recruitment channels, coaching voice, translated KvK and NaP announcements, a code of conduct in the rules) [#80](https://github.com/LilSticky/Neil/issues/80) | Server Layout, Hangout | setup script, `server-layout.json` | merged; manual check open (TEST-RUN.md §6v) |
 
 ## Later (unordered)
 
