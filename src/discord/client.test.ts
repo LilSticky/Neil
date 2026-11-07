@@ -64,6 +64,7 @@ function handlers() {
     allianceAutocomplete: vi.fn(() => Promise.resolve()),
     quota: vi.fn(() => Promise.resolve()),
     usage: vi.fn(() => Promise.resolve()),
+    help: vi.fn(() => Promise.resolve()),
     channels: vi.fn(() => Promise.resolve()),
     unlink: vi.fn(() => Promise.resolve()),
     rank: vi.fn(() => Promise.resolve()),

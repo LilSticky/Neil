@@ -278,10 +278,24 @@ describe("commands", () => {
     expect(reaper?.default_member_permissions ?? null).toBeNull();
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper and /usage", () => {
+  test("hold /help, open to every Member, guild only, without options, described as showing the commands you can use and what they are for", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "help",
+        description: "Show the commands you can use and what they are for",
+        type: ApplicationCommandType.ChatInput,
+        options: [],
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage and /help", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "channels",
+      "help",
       "interview",
       "link",
       "ping",

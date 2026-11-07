@@ -95,6 +95,8 @@ import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
 import { handleUsage, type UsageInteraction } from "./usage.js";
 import { usageLine } from "./usage-texts.js";
+import { commands } from "./commands.js";
+import { handleHelp } from "./help.js";
 
 /** The Game API client as connect uses it: the lookups and the Daily Quota figures. */
 export type GameApi = LookupApi & Pick<GameApiClient, "quotaToday">;
@@ -115,6 +117,8 @@ export interface CommandHandlers {
   readonly quota: (interaction: QuotaCommandInteraction) => Promise<void>;
   /** The /usage command: the caller's Game API requests today, privately. */
   readonly usage: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /help command: the commands the caller can use and what they are for, privately. */
+  readonly help: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /channels command: a Linked Member sees their Preferences message, privately, and changes nothing. */
   readonly channels: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button or string select menu of a pick list, whose custom id starts with `pick:`. */
@@ -351,6 +355,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
           break;
         case "usage":
           void handlers.usage(interaction);
+          break;
+        case "help":
+          void handlers.help(interaction);
           break;
         case "channels":
           void handlers.channels(interaction);
@@ -911,6 +918,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           now,
           logError,
         }),
+      help: (interaction) =>
+        handleHelp(
+          {
+            memberRoleIds: () => memberRoleIds(interaction.member),
+            reply: (reply) => interaction.reply(reply),
+          },
+          { commands, officerRoleIds: options.officerRoleIds, logError },
+        ),
       memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
       memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
       memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
