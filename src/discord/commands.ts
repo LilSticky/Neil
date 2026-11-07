@@ -120,6 +120,18 @@ export const bootyAlerts = new SlashCommandBuilder()
       .setAutocomplete(true),
   );
 
+export const eventInvitations = new SlashCommandBuilder()
+  .setName("event-invitations")
+  .setDescription("Choose whether Event Invitations mention you, on or off")
+  .setContexts(InteractionContextType.Guild)
+  .addStringOption((option) =>
+    option
+      .setName("invitations")
+      .setDescription("On or off; without it, shows your current choice")
+      .setRequired(false)
+      .addChoices({ name: "On", value: "on" }, { name: "Off", value: "off" }),
+  );
+
 /** The list an /event-kinds option picks: the kingdom's, or the Alliance's. */
 const listChoice = (option: SlashCommandStringOption): SlashCommandStringOption =>
   option
@@ -282,5 +294,6 @@ export const commands = [
   help.toJSON(),
   booty.toJSON(),
   bootyAlerts.toJSON(),
+  eventInvitations.toJSON(),
   eventKinds.toJSON(),
 ];

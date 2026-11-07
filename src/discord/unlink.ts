@@ -2,6 +2,7 @@ import { DiscordAPIError, RESTJSONErrorCodes, type BaseMessageOptions } from "di
 import { cancel, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { AppliedState, AppliedStore } from "../storage/applied-store.js";
 import type { BootyAlertsStore } from "../storage/booty-alerts-store.js";
+import type { EventStore } from "../storage/event-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import { applyNameAndRoles } from "./member-roles.js";
 import type { ServerMembers } from "./name-and-roles.js";
@@ -43,6 +44,8 @@ export interface UnlinkDeps {
   readonly preferenceRoles: Pick<PreferenceRoles, "forget">;
   /** Deletes the Booty Alerts of a Member whose Link ends, so they do not outlive the Link. */
   readonly bootyAlerts: Pick<BootyAlertsStore, "forget">;
+  /** Forgets a Member's Event Invitations Off when their Link ends, so the choice does not outlive the Link. */
+  readonly events: Pick<EventStore, "forgetMember">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -68,6 +71,9 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   // The Booty Alerts store is synchronous, so its forget runs through attempt, which logs a failure the same way.
   attempt(deps, memberId, "forgetting the Booty Alerts", () => {
     deps.bootyAlerts.forget(memberId);
+  });
+  attempt(deps, memberId, "forgetting the Event Invitations Off", () => {
+    deps.events.forgetMember(memberId);
   });
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {

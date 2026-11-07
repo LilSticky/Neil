@@ -348,6 +348,30 @@ describe("commands", () => {
     );
   });
 
+  test("hold /event-invitations, open to every Member, guild only, with the optional option invitations (On or Off), described as choosing whether Event Invitations mention you", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "event-invitations",
+        description: "Choose whether Event Invitations mention you, on or off",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "invitations",
+            description: "On or off; without it, shows your current choice",
+            required: false,
+            choices: [
+              { name: "On", value: "on" },
+              { name: "Off", value: "off" },
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
   test("hold /event-kinds, open to every Member (Alliance R4 and R5 use it too), guild only, with subcommands add (name, before-start, signup-deadline, before-signup, list), remove (name, list) and list (list), where list is kingdom or alliance", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
@@ -402,12 +426,13 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts and /event-kinds", () => {
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations and /event-kinds", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "booty",
       "booty-alerts",
       "channels",
+      "event-invitations",
       "event-kinds",
       "help",
       "interview",

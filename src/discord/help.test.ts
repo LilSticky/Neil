@@ -93,6 +93,15 @@ describe("handleHelp for a Member", () => {
     expect(textOf(embed)).toContain("`/event-kinds list [list]`");
   });
 
+  test("lists /event-invitations with its usage in the Member commands, since every Linked Member may switch invitations", async () => {
+    const interaction = new FakeHelpInteraction([MEMBER_ROLE_ID]);
+
+    await handleHelp(interaction, contextWith());
+
+    const embed = interaction.replies[0]?.embeds?.[0] as APIEmbed | undefined;
+    expect(textOf(embed)).toContain("`/event-invitations [invitations]` — Choose whether Event Invitations mention you, on or off");
+  });
+
   test("gives the Member list to a member with no roles at all, such as a Guest or an unlinked Member", async () => {
     const interaction = new FakeHelpInteraction([]);
 

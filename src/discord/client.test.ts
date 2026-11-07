@@ -79,6 +79,7 @@ function handlers() {
     booty: vi.fn(() => Promise.resolve()),
     bootyAlerts: vi.fn(() => Promise.resolve()),
     bootyAlertsAutocomplete: vi.fn(() => Promise.resolve()),
+    eventInvitations: vi.fn(() => Promise.resolve()),
     eventKinds: vi.fn(() => Promise.resolve()),
     bootyButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
@@ -270,6 +271,20 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, interaction as never);
 
     expect(routed.booty).toHaveBeenCalledWith(interaction);
+    expect(routed.bootyAlerts).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /event-invitations to the event invitations handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("event-invitations");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.eventInvitations).toHaveBeenCalledWith(interaction);
+    expect(routed.eventKinds).not.toHaveBeenCalled();
     expect(routed.bootyAlerts).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();

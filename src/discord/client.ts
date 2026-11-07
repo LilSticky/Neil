@@ -37,6 +37,7 @@ import type { EventStore } from "../storage/event-store.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
+import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
 import { handleEventKinds, type EventKindsInteraction } from "./event-kinds.js";
 import { createEventInvitations, eventIdOf, type EventInvitations } from "./events.js";
 import {
@@ -164,6 +165,8 @@ export interface CommandHandlers {
   readonly booty: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /booty-alerts command: a Member chooses their Booty Alerts, privately. */
   readonly bootyAlerts: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /event-invitations command: a Linked Member shows or switches their Event Invitations, privately. */
+  readonly eventInvitations: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /event-kinds command: the Event Kinds of the kingdom or an Alliance, privately. */
   readonly eventKinds: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** An autocomplete request of /booty-alerts, for its time-zone option. */
@@ -447,6 +450,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
           break;
         case "booty-alerts":
           void handlers.bootyAlerts(interaction);
+          break;
+        case "event-invitations":
+          void handlers.eventInvitations(interaction);
           break;
         case "event-kinds":
           void handlers.eventKinds(interaction);
@@ -947,6 +953,15 @@ function eventKindsLike(command: ChatInputCommandInteraction): EventKindsInterac
   };
 }
 
+/** The discord.js /event-invitations command as the Event Invitations read it: the caller by id, the option and the private reply. */
+function eventInvitationsLike(command: ChatInputCommandInteraction): EventInvitationsInteraction {
+  return {
+    user: { id: command.user.id },
+    options: { getString: (name) => command.options.getString(name) },
+    reply: (reply) => command.reply(reply),
+  };
+}
+
 /** The discord.js /booty-alerts command as the Booty Alerts reads it: the caller and the options, and the private reply. */
 function bootyAlertsLike(command: ChatInputCommandInteraction): BootyAlertsInteraction {
   return {
@@ -1091,6 +1106,12 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         answer("/booty", { logError }, async () => {
           const { bootyCalls } = await services;
           await bootyCalls.onCommand(bootyCommandLike(interaction));
+        }),
+      eventInvitations: (interaction) =>
+        handleEventInvitations(eventInvitationsLike(interaction), {
+          links: options.links,
+          events: options.events,
+          logError,
         }),
       eventKinds: (interaction) =>
         handleEventKinds(eventKindsLike(interaction), {
@@ -1271,6 +1292,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       doctorRole,
       preferenceRoles,
       bootyAlerts: options.bootyAlerts,
+      events: options.events,
       now,
       sendPrivateMessage,
       officerRoles,

@@ -33,8 +33,8 @@ Tasks in one phase run in order unless marked [P].
 
 ## Phase E: US4, A Member switches invitations off (P3)
 
-- [ ] T015 [US4] `/event-invitations [invitations:on|off]` in `src/discord/event-invitations.ts`: any Linked Member, private, shows the choice without the option; registered in `commands.ts` and `/help` (FR-011, US4 AS1–AS2)
-- [ ] T016 [US4] Unlink forgets Event Invitations Off in `src/discord/unlink.ts` (FR-011, US4 AS3, plan D11)
+- [x] T015 [US4] `/event-invitations [invitations:on|off]` in `src/discord/event-invitations.ts`: any Linked Member, private, shows the choice without the option; registered in `commands.ts` and `/help` (FR-011, US4 AS1–AS2)
+- [x] T016 [US4] Unlink forgets Event Invitations Off in `src/discord/unlink.ts` (FR-011, US4 AS3, plan D11)
 
 ## Phase F: Server Layout
 
