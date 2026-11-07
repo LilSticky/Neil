@@ -43,7 +43,7 @@ Tasks in one phase run in order unless marked [P].
 
 ## Phase G: Finish
 
-- [ ] T019 ADR 14 in `documentation/adr/`: the `GuildScheduledEvents` intent and the stored data (Event Invitations Off, sent reminders)
+- [x] T019 ADR 14 in `documentation/adr/`: the `GuildScheduledEvents` intent and the stored data (Event Invitations Off, sent reminders)
 - [ ] T020 `bot-reviewer` pass, findings in `review.md`
 - [ ] T021 `spec-auditor` pass, findings in `audit.md`
 - [ ] T022 Docs: STATUS, ROADMAP, SERVER-SETUP (Create Events, where Neil can see events), TEST-RUN.md §6x
