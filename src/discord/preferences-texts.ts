@@ -28,12 +28,12 @@ import type { AllianceRank } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { somethingWentWrongReply, type Message, type PrivateReply } from "./interview-texts.js";
 
-/** The questions of the Preferences message: one select menu each, and the Done button. */
+/** The questions of the Preferences messages: a select menu each for the four steps, and the Done button. */
 const PREFERENCE_QUESTIONS = ["languages", "region", "interests", "experience", "done"] as const;
 /** One of the Preferences message's questions. */
 export type PreferenceQuestion = (typeof PREFERENCE_QUESTIONS)[number];
 
-/** The Preferences message: four select menus, then the Done button. */
+/** A Preference step message: its select menu, then its buttons. */
 export interface PreferencesMessage extends Message {
   readonly components: APIActionRowComponent<APIStringSelectComponent | APIButtonComponentWithCustomId>[];
 }
@@ -98,18 +98,9 @@ export function preferencesFailedReply(): PrivateReply {
   return somethingWentWrongReply();
 }
 
-/** The Preferences message once Done is pressed: a saved text, with no menus left. */
+/** The message that replaces the last step once Done is pressed: a saved text, with no menus left. */
 export interface SavedMessage extends Message {
   readonly components: never[];
-}
-
-/** The message that replaces the Preferences message when Done is pressed. */
-export function savedMessage(): SavedMessage {
-  return {
-    content: "Your choices are saved. Run /channels any time to change them.",
-    components: [],
-    allowedMentions: noMentions(),
-  };
 }
 
 /** The private message to a Member after an Officer Link: their Preferences are chosen with /channels. */
@@ -171,79 +162,6 @@ function selectMenu(
         max_values: maxValues,
       },
     ],
-  };
-}
-
-/** The Preferences message: a menu for Languages, Region, Interests and Experience, then Done, with the guides line. */
-export function preferencesMessage(options: {
-  readonly memberId: MemberId;
-  readonly preferences: Preferences;
-  readonly rank: AllianceRank | undefined;
-  readonly playerLanguage: string | undefined;
-  readonly guidesForumId: string | undefined;
-}): PreferencesMessage {
-  const { memberId, preferences, rank, playerLanguage, guidesForumId } = options;
-  const languages = shownLanguages(preferences, playerLanguage);
-  const interests = interestOptions(rank);
-  const guides = guidesLine(preferences.experience, guidesForumId);
-  const intro = "Choose what you play and what you're here for. Each choice gives its role at once; press Done when you're finished.";
-
-  return {
-    content: sentences(intro, guides ?? ""),
-    components: [
-      selectMenu(
-        "languages",
-        memberId,
-        GAME_LANGUAGES.map((language) => ({
-          label: language.roleName,
-          value: language.code,
-          default: languages.has(language.code),
-        })),
-        GAME_LANGUAGES.length,
-      ),
-      selectMenu(
-        "region",
-        memberId,
-        REGIONS.map((region) => ({
-          label: region.roleName,
-          value: region.key,
-          default: preferences.region === region.key,
-        })),
-        1,
-      ),
-      selectMenu(
-        "interests",
-        memberId,
-        interests.map((interest) => ({
-          label: interest.roleName,
-          value: interest.key,
-          default: preferences.interests.has(interest.key),
-        })),
-        interests.length,
-      ),
-      selectMenu(
-        "experience",
-        memberId,
-        EXPERIENCES.map((experience) => ({
-          label: experience.roleName,
-          value: experience.key,
-          default: preferences.experience === experience.key,
-        })),
-        1,
-      ),
-      {
-        type: ComponentType.ActionRow,
-        components: [
-          {
-            type: ComponentType.Button,
-            style: ButtonStyle.Primary,
-            label: "Done",
-            custom_id: preferencesCustomId("done", memberId),
-          },
-        ],
-      },
-    ],
-    allowedMentions: noMentions(),
   };
 }
 

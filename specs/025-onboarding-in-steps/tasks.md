@@ -26,7 +26,7 @@
 
 ## Phase C: Finish
 
-- [ ] T017 `bot-reviewer` pass, findings in `review.md`
+- [x] T017 `bot-reviewer` pass, findings in `review.md`
 - [ ] T018 `spec-auditor` pass, findings in `audit.md`
 - [ ] T019 TEST-RUN.md section for the manual check, STATUS and ROADMAP
 - [ ] T020 Manual check on the test server, by the user (needs the deploy)

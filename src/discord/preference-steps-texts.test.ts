@@ -1,6 +1,16 @@
 import { ComponentType, type APIButtonComponentWithCustomId, type APIStringSelectComponent } from "discord.js";
 import { describe, expect, test } from "vitest";
-import { EMPTY_PREFERENCES, PREFERENCE_STEPS, type PreferenceStep, type Preferences } from "../domain/preferences.js";
+import {
+  EMPTY_PREFERENCES,
+  GAME_LANGUAGES,
+  PREFERENCE_STEPS,
+  type ExperienceKey,
+  type GameLanguageCode,
+  type InterestKey,
+  type PreferenceStep,
+  type Preferences,
+  type RegionKey,
+} from "../domain/preferences.js";
 import {
   finishedMessage,
   parsePreferenceGoCustomId,
@@ -13,18 +23,52 @@ const MEMBER = "111111111111111111";
 const DISCORD_MESSAGE_MAX = 2000;
 const OPTION_DESCRIPTION_MAX = 100;
 
-function stepOf(step: PreferenceStep, preferences: Preferences = EMPTY_PREFERENCES, rank?: "R4" | "R5") {
-  return preferenceStepMessage({ memberId: MEMBER, step, preferences, rank, playerLanguage: undefined, guidesForumId: "222" });
+type StepOverrides = Partial<Omit<Parameters<typeof preferenceStepMessage>[0], "memberId" | "step">>;
+
+function preferencesWith(overrides: {
+  readonly languages?: readonly GameLanguageCode[];
+  readonly region?: RegionKey;
+  readonly interests?: readonly InterestKey[];
+  readonly experience?: ExperienceKey;
+}): Preferences {
+  return {
+    languages: new Set<GameLanguageCode>(overrides.languages ?? []),
+    region: overrides.region,
+    interests: new Set<InterestKey>(overrides.interests ?? []),
+    experience: overrides.experience,
+  };
 }
 
-function menusOf(step: PreferenceStep, preferences?: Preferences, rank?: "R4" | "R5"): APIStringSelectComponent[] {
-  return stepOf(step, preferences, rank)
+function stepOf(step: PreferenceStep, overrides: StepOverrides = {}) {
+  return preferenceStepMessage({
+    memberId: MEMBER,
+    step,
+    preferences: EMPTY_PREFERENCES,
+    rank: undefined,
+    playerLanguage: undefined,
+    guidesForumId: "222",
+    ...overrides,
+  });
+}
+
+function menusOf(step: PreferenceStep, overrides: StepOverrides = {}): APIStringSelectComponent[] {
+  return stepOf(step, overrides)
     .components.flatMap((row) => row.components)
     .filter((component): component is APIStringSelectComponent => component.type === ComponentType.StringSelect);
 }
 
-function buttonsOf(step: PreferenceStep, preferences?: Preferences): APIButtonComponentWithCustomId[] {
-  return stepOf(step, preferences)
+function menuOf(step: PreferenceStep, overrides: StepOverrides = {}): APIStringSelectComponent {
+  const [menu] = menusOf(step, overrides);
+  if (menu === undefined) throw new Error(`the ${step} step has no menu`);
+  return menu;
+}
+
+function defaultValues(menu: APIStringSelectComponent): string[] {
+  return menu.options.filter((option) => option.default === true).map((option) => option.value);
+}
+
+function buttonsOf(step: PreferenceStep, overrides: StepOverrides = {}): APIButtonComponentWithCustomId[] {
+  return stepOf(step, overrides)
     .components.flatMap((row) => row.components)
     .filter((component): component is APIButtonComponentWithCustomId => component.type === ComponentType.Button);
 }
@@ -62,6 +106,10 @@ describe("a Preference step", () => {
     }
   });
 
+  test.each(PREFERENCE_STEPS)("%s has a menu whose custom id carries the Member's id", (step) => {
+    expect(menuOf(step).custom_id).toBe(preferencesCustomId(step, MEMBER));
+  });
+
   test("Languages explains what the steps are for and that they can be skipped", () => {
     expect(stepOf("languages").content).toContain("you can skip anything");
   });
@@ -81,7 +129,7 @@ describe("a Preference step", () => {
   });
 
   test("Interests offers NaP discussions to an R4 only", () => {
-    const values = (rank?: "R4" | "R5") => menusOf("interests", undefined, rank)[0]?.options.map((option) => option.value);
+    const values = (rank?: "R4" | "R5") => menusOf("interests", { rank })[0]?.options.map((option) => option.value);
 
     expect(values("R4")).toContain("nap");
     expect(values("R5")).not.toContain("nap");
@@ -95,15 +143,120 @@ describe("a Preference step", () => {
   test("shows the stored answers as chosen", () => {
     const preferences: Preferences = { ...EMPTY_PREFERENCES, region: "americas" };
 
-    expect(menusOf("region", preferences)[0]?.options.find((option) => option.default)?.value).toBe("americas");
+    expect(menusOf("region", { preferences })[0]?.options.find((option) => option.default)?.value).toBe("americas");
   });
 
   test("Experience gives the guides line once it is answered", () => {
-    expect(stepOf("experience", { ...EMPTY_PREFERENCES, experience: "veteran" }).content).toContain("<#222>");
+    expect(stepOf("experience", { preferences: preferencesWith({ experience: "veteran" }) }).content).toContain("<#222>");
   });
 
   test("Experience says what Done does", () => {
     expect(stepOf("experience").content).toContain("/channels");
+  });
+});
+
+describe("the menus of a Preference step", () => {
+  test("the Languages menu offers every Game Language by code, labelled with its role name, up to all of them", () => {
+    const languages = menuOf("languages");
+
+    expect(languages.min_values).toBe(0);
+    expect(languages.max_values).toBe(GAME_LANGUAGES.length);
+    expect(languages.options.map((option) => ({ value: option.value, label: option.label }))).toEqual(
+      GAME_LANGUAGES.map((language) => ({ value: language.code, label: language.roleName })),
+    );
+  });
+
+  test("the Region menu offers the three Regions by key, one at most", () => {
+    const region = menuOf("region");
+
+    expect(region.min_values).toBe(0);
+    expect(region.max_values).toBe(1);
+    expect(region.options.map((option) => ({ value: option.value, label: option.label }))).toEqual([
+      { value: "americas", label: "Americas" },
+      { value: "europe-africa", label: "Europe/Africa" },
+      { value: "asia-oceania", label: "Asia/Oceania" },
+    ]);
+  });
+
+  test("the Experience menu offers New, Intermediate and Veteran, one at most", () => {
+    const experience = menuOf("experience");
+
+    expect(experience.min_values).toBe(0);
+    expect(experience.max_values).toBe(1);
+    expect(experience.options.map((option) => ({ value: option.value, label: option.label }))).toEqual([
+      { value: "new", label: "New" },
+      { value: "intermediate", label: "Intermediate" },
+      { value: "veteran", label: "Veteran" },
+    ]);
+  });
+
+  test("the Interests menu for no rank, R1, R3, R5 and unknown ranks has the four Interests, up to four", () => {
+    for (const rank of [undefined, "R1", "R3", "R5", "unknown"] as const) {
+      const interests = menuOf("interests", { rank });
+
+      expect(interests.min_values).toBe(0);
+      expect(interests.max_values).toBe(4);
+      expect(interests.options.map((option) => option.value)).toEqual(["pvp", "events", "recruitment", "off-topic"]);
+    }
+  });
+
+  test("the Interests menu for R4 adds NaP discussions, labelled with its role name", () => {
+    const interests = menuOf("interests", { rank: "R4" });
+
+    expect(interests.max_values).toBe(5);
+    expect(interests.options.map((option) => ({ value: option.value, label: option.label }))).toEqual([
+      { value: "pvp", label: "PvP" },
+      { value: "events", label: "Events" },
+      { value: "recruitment", label: "Recruitment" },
+      { value: "off-topic", label: "Off-topic" },
+      { value: "nap", label: "NaP discussions" },
+    ]);
+  });
+});
+
+describe("the defaults of a Preference step", () => {
+  test("the stored answers are the options marked as chosen, on each step", () => {
+    const preferences = preferencesWith({
+      languages: ["it", "en"],
+      region: "europe-africa",
+      interests: ["pvp", "events"],
+      experience: "veteran",
+    });
+
+    expect(defaultValues(menuOf("languages", { preferences })).sort()).toEqual(["en", "it"]);
+    expect(defaultValues(menuOf("region", { preferences }))).toEqual(["europe-africa"]);
+    expect(defaultValues(menuOf("interests", { preferences, rank: "R4" })).sort()).toEqual(["events", "pvp"]);
+    expect(defaultValues(menuOf("experience", { preferences }))).toEqual(["veteran"]);
+  });
+
+  test("with nothing stored, the Language menu preselects the Player's language, matching a regional code by its first part", () => {
+    expect(defaultValues(menuOf("languages", { playerLanguage: "zh-TW" }))).toEqual(["zh"]);
+  });
+
+  test("the Player's language is preselected on the Language step only", () => {
+    for (const step of ["region", "interests", "experience"] as const) {
+      expect(defaultValues(menuOf(step, { playerLanguage: "zh-TW" }))).toEqual([]);
+    }
+  });
+
+  test("a Player language outside the Game Languages preselects nothing", () => {
+    expect(defaultValues(menuOf("languages", { playerLanguage: "sv" }))).toEqual([]);
+  });
+
+  test("a stored Language wins over the Player's language", () => {
+    const languages = menuOf("languages", {
+      preferences: preferencesWith({ languages: ["it"] }),
+      playerLanguage: "ja",
+    });
+
+    expect(defaultValues(languages)).toEqual(["it"]);
+  });
+
+  test("the Player's language is not preselected once another Preference is stored", () => {
+    const preferences = preferencesWith({ region: "americas" });
+
+    expect(defaultValues(menuOf("languages", { preferences, playerLanguage: "ja" }))).toEqual([]);
+    expect(defaultValues(menuOf("region", { preferences, playerLanguage: "ja" }))).toEqual(["americas"]);
   });
 });
 
@@ -115,7 +268,7 @@ describe("the buttons of a Preference step", () => {
   });
 
   test("an answered step offers Next to the next step", () => {
-    const answered = buttonsOf("region", { ...EMPTY_PREFERENCES, region: "americas" });
+    const answered = buttonsOf("region", { preferences: preferencesWith({ region: "americas" }) });
 
     expect(answered.find((button) => button.label === "Next")?.custom_id).toBe(preferenceGoCustomId("experience", MEMBER));
     expect(answered.find((button) => button.label === "Skip")).toBeUndefined();
