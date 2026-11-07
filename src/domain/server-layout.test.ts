@@ -390,7 +390,7 @@ describe("expandLayout: topic and description message", () => {
     });
 
     test("a forum's topic is its description", () => {
-      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum." }], "forum");
+      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } }], "forum");
       expect(forum.topic).toBe("A forum.");
     });
 
@@ -466,7 +466,7 @@ describe("expandLayout: topic and description message", () => {
     });
 
     test("a forum has no message", () => {
-      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum." }], "forum");
+      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } }], "forum");
       expect(forum.message).toBeUndefined();
     });
   });
@@ -513,8 +513,8 @@ describe("expandLayout: what a seer may do, by channel type", () => {
         seenBy: ["PvP"],
         channels: [
           { name: "Typed voice", type: "voice", description: "A test channel." },
-          { name: "typed-forum", type: "forum", description: "A test channel." },
-          { name: "read-forum", type: "forum", description: "A test channel.", mode: "read-only", overwrites: { R5: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } } },
+          { name: "typed-forum", type: "forum", description: "A test channel.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } },
+          { name: "read-forum", type: "forum", description: "A test channel.", mode: "read-only", overwrites: { R5: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } }, forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } },
         ],
       },
     ],

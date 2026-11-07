@@ -14,14 +14,14 @@ None: the slice works in slice 020/029's modules.
 
 ## Phase 2: Foundational (the forum block)
 
-- [ ] T001 Red: in `src/discord/server-setup.test.ts`, `parseLayout` accepts on a `type: "forum"` channel a `forum` block
+- [x] T001 Red: in `src/discord/server-setup.test.ts`, `parseLayout` accepts on a `type: "forum"` channel a `forum` block
   `{ tags: string[], reaction: string, howTo: { belongs: string, exampleTitle: string, template: string[] } }` and refuses,
   naming the category and channel: a forum without `forum`; a `forum` block on a non-forum channel; `tags` empty or more
   than 20 ("1–20 entries"); a tag empty, over 20 characters or with outer whitespace ("each 1–20 characters, no outer
   whitespace"); a tag named twice, case-insensitive; a `reaction` that is not one emoji ("one Extended_Pictographic code
   point, optional U+FE0F": accept 📚, 🤝, ⚔️; refuse "", "ab", "📚📚"); `belongs` outside 1–500 characters; `exampleTitle`
   outside 1–100 characters; `template` outside 1–10 lines or a line outside 1–100 characters.
-- [ ] T002 Green: `ForumSetup` type and `LayoutChannel.forum?` in `src/domain/server-layout.ts`; zod schema and checks in
+- [x] T002 Green: `ForumSetup` type and `LayoutChannel.forum?` in `src/domain/server-layout.ts`; zod schema and checks in
   `src/discord/server-setup.ts`. Give every forum in the test layouts of `src/domain/*.test.ts` and
   `src/discord/server-setup.test.ts` a valid forum block.
 
@@ -32,11 +32,11 @@ pinned how-to post; a second run plans nothing.
 
 **Independent Test**: plan and apply against `FakeSetupServer` from empty; the second plan is empty.
 
-- [ ] T003 [P] [US1] Red: in `src/domain/forum-how-to.test.ts` (new), `forumHowTo(name, forum)` returns title
+- [x] T003 [P] [US1] Red: in `src/domain/forum-how-to.test.ts` (new), `forumHowTo(name, forum)` returns title
   `How to post in #<name>` and the content of data-model.md "How-to Post" exactly: 📌 heading line, `belongs`, blank line,
   Title line with the example title in quotes, Tags line with the tags joined by ", ", Body line, the template lines each
   followed by ":" inside a ``` code block, blank line, the closing line with the reaction.
-- [ ] T004 [US1] Green: `src/domain/forum-how-to.ts`.
+- [x] T004 [US1] Green: `src/domain/forum-how-to.ts`.
 - [ ] T005 [US1] Red: in `src/domain/server-layout.test.ts`, the expansion of a forum: its @everyone overwrite denies
   `ViewChannel` and `SendMessages`; its `forum` carries `tags`, `reaction` and `howTo` (from `forumHowTo`). A text
   channel's @everyone overwrite still denies only `ViewChannel`.

@@ -19,6 +19,13 @@ export interface OverwriteSpec {
   deny: Permission[];
 }
 
+/** What a forum needs to be set up: its tags, the reaction Neil suggests, and the how-to post Neil pins (slice 030). */
+export interface ForumSetup {
+  tags: string[];
+  reaction: string;
+  howTo: { belongs: string; exampleTitle: string; template: string[] };
+}
+
 export interface LayoutChannel {
   name: string;
   type: ChannelType;
@@ -30,6 +37,8 @@ export interface LayoutChannel {
   translated?: boolean;
   seenBy?: string[];
   overwrites?: Record<string, OverwriteSpec>;
+  /** Required on a forum, and only there (slice 030). */
+  forum?: ForumSetup;
 }
 
 export interface LayoutCategory {

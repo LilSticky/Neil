@@ -94,6 +94,7 @@ const layout: ServerLayout = {
           type: "forum",
           description: "A test channel.",
           seenBy: ["R5"],
+          forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } },
         },
         {
           name: "kvk-announcements",

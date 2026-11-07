@@ -10,6 +10,7 @@ import {
   expandLayout,
   translatedDescription,
   type ChannelType,
+  type ForumSetup,
   type LayoutCategory,
   type LayoutChannel,
   type OverwriteSpec,
@@ -156,6 +157,16 @@ const overwriteSchema = z.strictObject({
   deny: z.array(z.string()).default([]),
 });
 // The description is required, but checked by hand (descriptionOf) so that a refusal names the category and channel.
+// The forum block is required on a forum and refused elsewhere, and its values are checked by hand (checkForum).
+const forumSchema = z.strictObject({
+  tags: z.array(z.string()),
+  reaction: z.string(),
+  howTo: z.strictObject({
+    belongs: z.string(),
+    exampleTitle: z.string(),
+    template: z.array(z.string()),
+  }),
+});
 const channelSchema = z.strictObject({
   name: z.string(),
   type: z.string(),
@@ -165,6 +176,7 @@ const channelSchema = z.strictObject({
   translated: z.boolean().optional(),
   seenBy: z.array(z.string()).optional(),
   overwrites: z.record(z.string(), overwriteSchema).optional(),
+  forum: forumSchema.optional(),
 });
 const categorySchema = z.strictObject({
   name: z.string(),
@@ -180,6 +192,7 @@ const layoutSchema = z.strictObject({
   allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
 });
 type RawChannel = z.infer<typeof channelSchema>;
+type RawForum = z.infer<typeof forumSchema>;
 
 /**
  * Reads the layout file (data-model.md, Rules checked on load). The shape is checked by zod; the values by hand, so each
@@ -295,6 +308,7 @@ function checkChannel(
   if (raw.translated === true) checkTranslatedLength(place, description, translations);
   for (const target of raw.seenBy ?? []) checkTarget(known, place, target);
   const overwrites = raw.overwrites === undefined ? undefined : checkOverwrites(place, raw.overwrites, known);
+  const forum = checkForum(place, type, raw.forum);
 
   const channel: LayoutChannel = { name: raw.name, type, description };
   if (raw.codeOfConduct !== undefined) channel.codeOfConduct = [...raw.codeOfConduct];
@@ -302,7 +316,69 @@ function checkChannel(
   if (raw.translated !== undefined) channel.translated = raw.translated;
   if (raw.seenBy !== undefined) channel.seenBy = [...raw.seenBy];
   if (overwrites !== undefined) channel.overwrites = overwrites;
+  if (forum !== undefined) channel.forum = forum;
   return channel;
+}
+
+const REACTION = /^\p{Extended_Pictographic}️?$/u;
+const TAGS_MAX = 20;
+const TAG_MAX = 20;
+const BELONGS_MAX = 500;
+const EXAMPLE_TITLE_MAX = 100;
+const TEMPLATE_MAX = 10;
+const TEMPLATE_LINE_MAX = 100;
+
+/** A forum has its forum block and no other channel does (slice 030); the block's values are checked here. */
+function checkForum(place: string, type: ChannelType, raw: RawForum | undefined): ForumSetup | undefined {
+  if (type !== "forum") {
+    if (raw !== undefined) throw new Error(`${place}: only a forum has a forum block`);
+    return undefined;
+  }
+  if (raw === undefined) throw new Error(`${place}: a forum needs its forum block (tags, reaction, howTo)`);
+  return {
+    tags: checkTags(place, raw.tags),
+    reaction: checkReaction(place, raw.reaction),
+    howTo: checkHowTo(place, raw.howTo),
+  };
+}
+
+function checkTags(place: string, tags: readonly string[]): string[] {
+  if (tags.length < 1 || tags.length > TAGS_MAX) {
+    throw new Error(`${place}: forum tags must be 1–${TAGS_MAX.toString()} entries, not ${tags.length.toString()}`);
+  }
+  const seen = new Set<string>();
+  for (const tag of tags) {
+    checkLength(place, `tag "${tag}"`, tag, TAG_MAX);
+    if (tag !== tag.trim()) throw new Error(`${place}: tag "${tag}" must not start or end with spaces`);
+    const key = tag.toLowerCase();
+    if (seen.has(key)) throw new Error(`${place}: tag "${tag}" is named twice`);
+    seen.add(key);
+  }
+  return [...tags];
+}
+
+function checkReaction(place: string, reaction: string): string {
+  if (!REACTION.test(reaction)) {
+    throw new Error(`${place}: reaction must be one emoji: one Extended_Pictographic code point, optionally followed by U+FE0F`);
+  }
+  return reaction;
+}
+
+function checkHowTo(place: string, howTo: RawForum["howTo"]): ForumSetup["howTo"] {
+  checkLength(place, "forum belongs", howTo.belongs, BELONGS_MAX);
+  checkLength(place, "forum example title", howTo.exampleTitle, EXAMPLE_TITLE_MAX);
+  if (howTo.template.length < 1 || howTo.template.length > TEMPLATE_MAX) {
+    throw new Error(`${place}: forum template must be 1–${TEMPLATE_MAX.toString()} lines, not ${howTo.template.length.toString()}`);
+  }
+  for (const line of howTo.template) checkLength(place, `template line "${line}"`, line, TEMPLATE_LINE_MAX);
+  return { belongs: howTo.belongs, exampleTitle: howTo.exampleTitle, template: [...howTo.template] };
+}
+
+/** A text of 1 to `max` characters. */
+function checkLength(place: string, what: string, value: string, max: number): void {
+  if (value.length < 1 || value.length > max) {
+    throw new Error(`${place}: ${what} must be 1–${max.toString()} characters, not ${value.length.toString()}`);
+  }
 }
 
 function checkOverwrites(

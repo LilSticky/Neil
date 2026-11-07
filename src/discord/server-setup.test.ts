@@ -200,7 +200,7 @@ describe("parseLayout", () => {
             { name: "onboarding", type: "text", description: "A test channel.", overwrites: { Neil: { allow: ["ViewChannel"], deny: [] } } },
           ],
         },
-        { name: "PvP", seenBy: ["PvP"], channels: [{ name: "tactics", type: "forum", description: "A test channel.", seenBy: ["R5"] }] },
+        { name: "PvP", seenBy: ["PvP"], channels: [{ name: "tactics", type: "forum", description: "A test channel.", seenBy: ["R5"], forum: forumBlock() }] },
       ],
     });
 
@@ -476,6 +476,118 @@ describe("parseLayout descriptions, code of conduct and translations", () => {
     );
 
     expect(message).toContain("Russian");
+  });
+});
+
+const FORUM_HOW_TO = {
+  belongs: "One battle plan, trick or lesson per post.",
+  exampleTitle: "Rally timing against #412",
+  template: ["Situation", "What we did", "What worked", "What didn't"],
+};
+
+/** A forum block that follows every rule; `overrides` replace its keys. */
+function forumBlock(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { tags: ["Rally", "Defense"], reaction: "⚔️", howTo: FORUM_HOW_TO, ...overrides };
+}
+
+/** A layout file with one forum in the Hangout; an undefined block is left out of the file. */
+function forumFile(forum: Record<string, unknown> | undefined): string {
+  return describedLayoutFile({ name: "tactics", type: "forum", description: DESCRIPTION, forum });
+}
+
+describe("parseLayout forum setup", () => {
+  test("accepts a forum with its forum block and returns the block on the parsed channel", () => {
+    const layout = parseLayout(forumFile(forumBlock()));
+
+    expect(channelNamed(layout, "tactics").forum).toEqual({ tags: ["Rally", "Defense"], reaction: "⚔️", howTo: FORUM_HOW_TO });
+  });
+
+  test("refuses a forum without its forum block, naming the category and the channel", () => {
+    const message = refusal(forumFile(undefined));
+
+    expect(message).toContain("Hangout");
+    expect(message).toContain("tactics");
+  });
+
+  test("refuses a forum block on a text channel, naming the category and the channel", () => {
+    const message = refusal(describedLayoutFile({ name: "general", type: "text", description: DESCRIPTION, forum: forumBlock() }));
+
+    expect(message).toContain("Hangout");
+    expect(message).toContain("general");
+  });
+
+  test("refuses a forum with no tags, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ tags: [] })))).toContain("tactics");
+  });
+
+  test("refuses more than 20 tags, naming the channel", () => {
+    const tags = Array.from({ length: 21 }, (_, index) => `Tag ${index.toString()}`);
+
+    expect(refusal(forumFile(forumBlock({ tags })))).toContain("tactics");
+  });
+
+  test("accepts 20 tags of 20 characters each", () => {
+    const tags = Array.from({ length: 20 }, (_, index) => `${index.toString().padStart(2, "0")}${"x".repeat(18)}`);
+
+    expect(() => parseLayout(forumFile(forumBlock({ tags })))).not.toThrow();
+  });
+
+  test("refuses an empty tag, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ tags: ["Rally", ""] })))).toContain("tactics");
+  });
+
+  test("refuses a tag over 20 characters, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ tags: ["x".repeat(21)] })))).toContain("tactics");
+  });
+
+  test("refuses a tag with outer whitespace, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ tags: [" Rally"] })))).toContain("tactics");
+  });
+
+  test("refuses a tag named twice regardless of case, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ tags: ["Rally", "rally"] })))).toContain("tactics");
+  });
+
+  test.each(["📚", "🤝", "⚔️"])("accepts %s as the reaction", (reaction) => {
+    expect(() => parseLayout(forumFile(forumBlock({ reaction })))).not.toThrow();
+  });
+
+  test.each(["", "ab", "📚📚"])("refuses %j as the reaction, naming the channel", (reaction) => {
+    expect(refusal(forumFile(forumBlock({ reaction })))).toContain("tactics");
+  });
+
+  test("refuses an empty belongs, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, belongs: "" } })))).toContain("tactics");
+  });
+
+  test("refuses a belongs over 500 characters, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, belongs: "x".repeat(501) } })))).toContain("tactics");
+  });
+
+  test("refuses an empty example title, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, exampleTitle: "" } })))).toContain("tactics");
+  });
+
+  test("refuses an example title over 100 characters, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, exampleTitle: "x".repeat(101) } })))).toContain("tactics");
+  });
+
+  test("refuses a template without lines, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, template: [] } })))).toContain("tactics");
+  });
+
+  test("refuses a template of more than 10 lines, naming the channel", () => {
+    const template = Array.from({ length: 11 }, (_, index) => `Line ${index.toString()}`);
+
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, template } })))).toContain("tactics");
+  });
+
+  test("refuses an empty template line, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, template: ["Steps", ""] } })))).toContain("tactics");
+  });
+
+  test("refuses a template line over 100 characters, naming the channel", () => {
+    expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, template: ["x".repeat(101)] } })))).toContain("tactics");
   });
 });
 
@@ -1163,7 +1275,7 @@ const SMALL_LAYOUT: ServerLayout = {
       seenBy: [KINGDOM_ROLE],
       channels: [
         { name: "general", type: "text", description: "A test channel.", seenBy: ["R5"] },
-        { name: "tactics", type: "forum", description: "A test channel.", seenBy: ["R5"] },
+        { name: "tactics", type: "forum", description: "A test channel.", seenBy: ["R5"], forum: { tags: ["Rally"], reaction: "⚔️", howTo: FORUM_HOW_TO } },
         { name: "news", type: "announcement", description: "A test channel.", mode: "only-king-posts" },
       ],
     },
@@ -1506,7 +1618,7 @@ const DESCRIBED_LAYOUT: ServerLayout = {
     {
       name: "Tactics",
       seenBy: [KINGDOM_ROLE],
-      channels: [{ name: "tactics", type: "forum", description: "Tactics for the Kingdom." }],
+      channels: [{ name: "tactics", type: "forum", description: "Tactics for the Kingdom.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: FORUM_HOW_TO } }],
     },
   ],
   allianceArea: { channels: [] },
