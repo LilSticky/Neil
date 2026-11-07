@@ -24,6 +24,8 @@ Tasks in one phase run in order unless marked [P].
 - [x] T011 [US2] The one-minute tick in `src/discord/events.ts`: fetch subscribers, mention only Linked Members who may take part (no Guests for a Kingdom Event, Alliance role for an Alliance Event), Event Invitations Off ignored, nobody Interested posts nothing, record sent, log (FR-007, US2 AS1–AS8, plan D2)
 - [x] T012 [US2] Moved start, cancel and delete: reminders follow the new start without repeats; a deleted Event's rows go (FR-012, US2 AS7–AS8)
 
+- [ ] T024 [US1] Wire it in `src/discord/client.ts` and `src/main.ts`: the scheduled-event create, update and delete handlers, the startup catch-up, the one-minute tick (stopped on shutdown, as the sweeper), and the real `EventInvitationServer` over discord.js (holders, roles, channels, posts, `#neil-log`, `fetchSubscribers`) (FR-001, plan D1, D2, D5)
+
 ## Phase D: US3, Leaders set their Event Kinds (P2)
 
 - [ ] T013 [US3] `/event-kinds add|remove|list` in `src/discord/event-kinds.ts` and its texts: R4 or R5 for their Alliance, Officers for the kingdom, `list` option for both, private answers, refusals keep what was recorded, `add` replaces the same name, at most 25 (FR-009, US3 AS1–AS3, AS6, plan D9)
