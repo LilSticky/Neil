@@ -5,6 +5,7 @@ export interface DescribedChannel {
   name: string;
   type: ChannelType;
   description: string;
+  codeOfConduct?: readonly string[];
 }
 
 /** The topic is set on the channel; the message is pinned in it (slice 029, data-model.md "Description message"). */
@@ -34,6 +35,7 @@ export function describeChannel(
 
   const lines = [`📌 **#${channel.name}**`, channel.description, "", `👀 Seen by: ${seers.join(", ")}`];
   if (channel.type !== "voice") lines.push(`✍️ Posts: ${posters.length > 0 ? posters.join(", ") : NO_POSTS}`);
+  if (channel.codeOfConduct !== undefined && channel.codeOfConduct.length > 0) lines.push("", ...channel.codeOfConduct);
   return { topic, message: lines.join("\n") };
 }
 

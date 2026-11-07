@@ -26,7 +26,10 @@
  *   function expandLayout(layout: ServerLayout, homeKingdom: number, allianceRoles: readonly string[]): ExpandedLayout;
  *     // homeKingdom 330 is the role "#330"; allianceRoles are the "[TAG]" role names on the server
  */
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
+import { parseLayout } from "../discord/server-setup.js";
 import {
   expandLayout,
   type ExpandedCategory,
@@ -485,5 +488,49 @@ describe("expandLayout: topic and description message", () => {
         "📌 **#kvk-announcements-german**\nA test channel. Translated into German by Interaction Bot.\n\n👀 Seen by: German, King\n✍️ Posts: King, Interaction Bot",
       );
     });
+  });
+
+  describe("code of conduct in the message", () => {
+    test("a channel with a code of conduct appends its lines after a blank line, joined by line breaks", () => {
+      const general = hangoutChannel(
+        [{ name: "general", type: "text", description: "A test channel.", codeOfConduct: ["line 1", "", "line 2"] }],
+        "general",
+      );
+      expect(general.message).toBe("📌 **#general**\nA test channel.\n\n👀 Seen by: #330\n✍️ Posts: #330\n\nline 1\n\nline 2");
+    });
+  });
+});
+
+describe("expandLayout: the shipped layout's messages", () => {
+  const shipped = expandLayout(
+    parseLayout(readFileSync(fileURLToPath(new URL("../../server-layout.json", import.meta.url)), "utf8")),
+    HOME_KINGDOM,
+    [],
+  );
+  const allChannels = shipped.categories.flatMap((category) => category.channels);
+
+  function shippedMessageOf(name: string): string {
+    const channel = allChannels.find((candidate) => candidate.name === name);
+    if (channel === undefined) throw new Error(`no shipped channel named ${name}`);
+    if (channel.message === undefined) throw new Error(`shipped channel ${name} has no message`);
+    return channel.message;
+  }
+
+  test("rules carries the Code of Conduct and stays under 2000 characters", () => {
+    const message = shippedMessageOf("rules");
+    expect(message).toContain("Code of Conduct");
+    expect(message.length).toBeLessThanOrEqual(2000);
+  });
+
+  test("guest-rules carries the Code of Conduct and stays under 2000 characters", () => {
+    const message = shippedMessageOf("guest-rules");
+    expect(message).toContain("Code of Conduct");
+    expect(message.length).toBeLessThanOrEqual(2000);
+  });
+
+  test("every message in the shipped expansion is at most 2000 characters", () => {
+    const lengths = allChannels.flatMap((channel) => (channel.message === undefined ? [] : [channel.message.length]));
+    expect(lengths.length).toBeGreaterThan(0);
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(2000);
   });
 });
