@@ -21,6 +21,8 @@
 - Q: When does the Sign-up close? → A: at a fixed offset per Event Kind before the start.
 - Q: What are the guides? → A: the links the creator writes into the Discord event's description.
 - Q: Guests? → A: no Event Reminders for Kingdom Events. Event Invitations Off is forgotten at Unlink.
+- Q: Should Neil check who created an Event, since Discord's Create Events right covers the whole server? → A: yes. An Alliance Event needs a creator Linked as that Alliance's R4 or R5, or an Officer; a Kingdom Event needs an Officer. Otherwise Neil posts nothing and logs it.
+- Q: What happens to a reminder that was due while Neil was off? → A: it is sent once, late, if the Event hasn't started; dropped if it has.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -40,6 +42,7 @@ An Officer creates a Discord scheduled event "AD round 3". Neil posts an Event I
 4. **Given** an Event whose tag matches no Alliance on the server, **When** Neil sees it, **Then** it posts no Event Invitation and writes a log line naming the event.
 5. **Given** an Event Invitation was already posted for an Event, **When** Neil sees the Event again (an edit, a restart), **Then** it posts no second invitation.
 6. **Given** nobody to mention, **When** the Event Invitation is posted, **Then** it is posted without mentions.
+7. **Given** "[XYZ] Hive move" created by a Member who is neither R4 or R5 of XYZ nor an Officer, or a Kingdom Event created by someone who is not an Officer, **When** Neil sees it, **Then** it posts no Event Invitation and no reminders, and writes a log line naming the event and its creator.
 
 ---
 
@@ -113,6 +116,7 @@ A Member who doesn't want to be mentioned in every Event Invitation switches the
 
 - **FR-001**: Neil MUST notice Discord scheduled events created, changed, cancelled or deleted on the server, and at startup read those still ahead.
 - **FR-002**: Neil MUST treat an event whose name starts with an Alliance tag in brackets as that Alliance's Alliance Event, and any other as a Kingdom Event.
+- **FR-002a**: Neil MUST act on an Alliance Event only if its creator is Linked as that Alliance's R4 or R5 or is an Officer, and on a Kingdom Event only if its creator is an Officer; otherwise it posts nothing for it and writes a log line.
 - **FR-003**: Neil MUST post exactly one Event Invitation per Event: Kingdom Events in `#event-announcements`, Alliance Events in that Alliance's `alliance-chat`.
 - **FR-004**: The Event Invitation MUST show the name, the start in each reader's own time, the links from the description as guides, and a link to the Discord event.
 - **FR-005**: The Event Invitation MUST mention, one by one, each Member who may take part (holders of `Events` for a Kingdom Event, holders of the Alliance role for an Alliance Event) unless they have Event Invitations Off.
@@ -143,7 +147,7 @@ A Member who doesn't want to be mentioned in every Event Invitation switches the
 
 ## Assumptions
 
-- Discord's own Create Events right decides who may create Events; Neil does not check the creator's rank.
+- Discord's Create Events right decides who can create a Discord event at all; Neil then checks the creator (FR-002a).
 - Limits: at most 3 lead times before the start and 3 before the Sign-up Deadline per kind, each between 1 minute and 7 days, and at most 25 kinds per list.
 - The commands are `/event-kinds` (Officers and R4/R5) and `/event-invitations` (any Linked Member). Names are confirmed in the plan.
 - Neil keeps a small record per Event (which invitation and reminders are sent) and the Event Kinds and choices: one migration.
