@@ -130,6 +130,17 @@ describe("createClient", () => {
     expect(routed.player).not.toHaveBeenCalled();
   });
 
+  test("hands /help to the help handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("help");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.help).toHaveBeenCalledWith(interaction);
+    expect(routed.ping).not.toHaveBeenCalled();
+  });
+
   test("hands /player to the player handler and nothing else", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });

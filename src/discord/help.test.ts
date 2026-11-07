@@ -112,6 +112,30 @@ describe("handleHelp for an Officer", () => {
   });
 });
 
+describe("handleHelp when the answer cannot be built", () => {
+  test("logs the failure and still answers privately", async () => {
+    const replies: InteractionReplyOptions[] = [];
+    const interaction = {
+      memberRoleIds: (): readonly string[] => {
+        throw new Error("no roles");
+      },
+      reply: (options: InteractionReplyOptions) => {
+        replies.push(options);
+        return Promise.resolve(undefined);
+      },
+    } satisfies HelpInteraction;
+    const logged: string[] = [];
+
+    await handleHelp(interaction, contextWith(logged));
+
+    expect(logged).toEqual([expect.stringContaining("no roles")]);
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.content).toContain("tell an Officer");
+    expect(replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+    expect(replies[0]?.allowedMentions).toEqual(NO_MENTIONS);
+  });
+});
+
 describe("handleHelp when the reply fails", () => {
   test("logs the failure and resolves instead of throwing", async () => {
     const interaction = {
