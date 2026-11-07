@@ -106,6 +106,10 @@ Neil can't change the nickname of a Member whose highest role is above Neil's. T
 Every category denies **@everyone** View Channel. The table says which role is allowed to see it. Set permissions on the
 category and keep channels synced, unless the row says otherwise. `Kingdom` means `#<Home Kingdom>`.
 
+**Each channel grants what its roles need there**, whatever @everyone holds on the server: the roles that see a text or
+announcement channel get View Channel, Read Message History and Send Messages ✅; in a forum also Send Messages in
+Threads; in a voice channel View Channel, Connect and Speak ✅. So no role needs server-wide permissions.
+
 **Guests see only the Guest area.** The server holds tactical plans, so everything else is for the Home Kingdom.
 
 | Category | Channels | Seen by | Status |
@@ -146,11 +150,12 @@ get the topic only. Change a text under `description` or `codeOfConduct` in
 
 - **Only King posts** (announcements): set these on the channel itself. A role's ✅ beats the ❌ on @everyone, so the role
   that sees the channel needs its own ❌ on Send Messages, Send Messages in Threads, Create Public Threads and Create
-  Private Threads. **King** gets View Channel and Send Messages ✅.
+  Private Threads. **King** gets View Channel, Send Messages and Read Message History ✅.
 - **Interaction Bot** needs View Channel and Send Messages ✅ on the announcement channels it translates and on their copies. Bots hold no
   Doctor or Kingdom role, so without this allow it stops.
-- **Read only** (`#rules`, `#welcome`, guest rules): the role that sees the channel gets Send Messages ❌.
-- **Guides forum**: **Events** View Channel ✅; **Veteran** Create Posts and Send Messages in Threads ✅; **Moderator** and
+- **Read only** (`#rules`, `#welcome`, `#news`, guest rules, the guides forum): the role that sees the channel reads the
+  history but gets the same four ❌ as above.
+- **Guides forum**: **Events** View Channel and Read Message History ✅; **Veteran** Create Posts and Send Messages in Threads ✅; **Moderator** and
   **King** Manage Threads ✅, which is what makes it moderated. A Veteran writes there only when they hold Events too.
 - **No Community on your server?** Forums work without it; announcement channels need it. Use plain text channels for
   announcements instead; the permissions above stay the same.
@@ -179,7 +184,7 @@ or No (a person must do it).
 | Server Members Intent and Presence Intent (Developer Portal) | Neil can't log in | No |
 | Manage Roles and Manage Nicknames on Neil | All name and role changes; one line in the log | No |
 | Neil in `#onboarding`: View Channel, Send Messages in Threads, Create Private Threads, Manage Threads | Neil won't start | Yes* |
-| Neil in `#neil-log`: View Channel, Send Messages | Neil won't start | Yes* |
+| Neil in `#neil-log`: View Channel, Send Messages, Read Message History | Neil won't start | Yes* |
 | Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed | Yes* |
 | Read Message History for Neil and Use Application Commands for Members, in `#onboarding` (they usually come from @everyone defaults; don't deny them) | Interview edits; `/interview` | Yes* |
 | Onboarding in `#onboarding`: View Channel, Send Messages, Send Messages in Threads | Onboarding Interview | Yes* |

@@ -689,7 +689,7 @@ describe("planSetup: overwrites of existing channels", () => {
       serverWithHangout([
         channel("general", "text", "Hangout", [
           everyoneOverwrite(),
-          roleOverwrite("#330", ["ViewChannel"]),
+          roleOverwrite("#330", ["ViewChannel", "ReadMessageHistory", "SendMessages"]),
         ]),
       ]),
       HOME_KINGDOM,
@@ -707,19 +707,13 @@ describe("planSetup: overwrites of existing channels", () => {
       ]),
       HOME_KINGDOM,
     );
-    expect(plan.steps).toContainEqual(
-      expect.objectContaining({
-        kind: "correct-overwrites",
-        name: "general",
-        overwrites: expect.arrayContaining([
-          expect.objectContaining({
-            target: "#330",
-            allow: ["ViewChannel"],
-            deny: [],
-          }),
-        ]) as unknown,
-      }),
+    const kingdom = correctionFor(plan, "general")?.find(
+      (overwrite) => overwrite.target === "#330",
     );
+    expect(new Set(kingdom?.allow)).toEqual(
+      new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]),
+    );
+    expect(kingdom?.deny).toEqual([]);
   });
 
   test("a missing named deny gets a correction", () => {
@@ -728,19 +722,21 @@ describe("planSetup: overwrites of existing channels", () => {
       serverWithHangout([
         channel("rules", "text", "Hangout", [
           everyoneOverwrite(),
-          roleOverwrite("#330", ["ViewChannel"]),
+          roleOverwrite("#330", ["ViewChannel", "ReadMessageHistory"]),
         ]),
       ]),
       HOME_KINGDOM,
     );
-    expect(plan.steps).toContainEqual(
-      expect.objectContaining({
-        kind: "correct-overwrites",
-        name: "rules",
-        overwrites: expect.arrayContaining([
-          expect.objectContaining({ target: "#330", deny: ["SendMessages"] }),
-        ]) as unknown,
-      }),
+    const kingdom = correctionFor(plan, "rules")?.find(
+      (overwrite) => overwrite.target === "#330",
+    );
+    expect(new Set(kingdom?.deny)).toEqual(
+      new Set([
+        "SendMessages",
+        "SendMessagesInThreads",
+        "CreatePublicThreads",
+        "CreatePrivateThreads",
+      ]),
     );
   });
 
@@ -750,7 +746,12 @@ describe("planSetup: overwrites of existing channels", () => {
       serverWithHangout([
         channel("general", "text", "Hangout", [
           everyoneOverwrite(),
-          roleOverwrite("#330", ["ViewChannel", "SendMessages"]),
+          roleOverwrite("#330", [
+            "ViewChannel",
+            "ReadMessageHistory",
+            "SendMessages",
+            "EmbedLinks",
+          ]),
         ]),
       ]),
       HOME_KINGDOM,
@@ -782,7 +783,7 @@ describe("planSetup: overwrites of existing channels", () => {
       serverWithHangout([
         channel("general", "text", "Hangout", [
           everyoneOverwrite(),
-          roleOverwrite("#330", ["ViewChannel"]),
+          roleOverwrite("#330", ["ViewChannel", "ReadMessageHistory", "SendMessages"]),
           { targetId: "member-x", allow: ["ViewChannel"], deny: [] },
         ]),
       ]),
