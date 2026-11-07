@@ -38,6 +38,7 @@ export type SetupWriteOp = SetupWrite["op"];
 export type ChannelWrite =
   | { readonly op: "set-topic"; readonly channelId: string; readonly topic: string }
   | { readonly op: "post-pinned-message"; readonly channelId: string; readonly content: string }
+  | { readonly op: "post-message"; readonly channelId: string; readonly content: string }
   | { readonly op: "edit-message"; readonly channelId: string; readonly messageId: string; readonly content: string };
 
 /** A role the fake guild holds: the options a test may give when defining it. */
@@ -273,10 +274,29 @@ export class FakeSetupServer implements SetupServer {
   postPinnedMessage(channelId: string, content: string): Promise<string> {
     this.channelWrites.push({ op: "post-pinned-message", channelId, content });
     this.sequence.push(`post-pinned-message ${this.nameOf(channelId)}`);
+    if (this.channels.find((channel) => channel.id === channelId)?.kind === "voice") {
+      return Promise.reject(new Error("This message cannot be pinned in this channel"));
+    }
     const messageId = this.newId();
     const pins = this.pins.get(channelId) ?? [];
     pins.push({ messageId, authorId: this.botUserId, content });
     this.pins.set(channelId, pins);
+    return Promise.resolve(messageId);
+  }
+
+  /** A voice channel's messages, oldest first: Neil's unpinned descriptions, kept with the pins. */
+  readOldestMessages(channelId: string): Promise<readonly SetupPinInfo[] | undefined> {
+    if (this.refusedPinReads.has(this.nameOf(channelId))) return Promise.resolve(undefined);
+    return Promise.resolve((this.pins.get(channelId) ?? []).map((pin) => ({ ...pin })));
+  }
+
+  postMessage(channelId: string, content: string): Promise<string> {
+    this.channelWrites.push({ op: "post-message", channelId, content });
+    this.sequence.push(`post-message ${this.nameOf(channelId)}`);
+    const messageId = this.newId();
+    const messages = this.pins.get(channelId) ?? [];
+    messages.push({ messageId, authorId: this.botUserId, content });
+    this.pins.set(channelId, messages);
     return Promise.resolve(messageId);
   }
 

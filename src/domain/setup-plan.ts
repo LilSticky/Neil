@@ -71,7 +71,8 @@ export type SetupStep =
     }
   | { kind: "set-topic"; id: string; name: string; topic: string }
   /** A channel that has no Neil description yet; `id` is undefined for a channel the plan creates. */
-  | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string }
+  /** `pinned` is false in a voice channel, where Discord can't pin: there the description is its first message. */
+  | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string; pinned: boolean }
   | { kind: "edit-description"; id: string; name: string; messageId: string; content: string };
 
 export type SetupFinding =
@@ -262,6 +263,7 @@ function checkText(plan: Plan, existing: ServerChannel, channel: ExpandedChannel
       categoryName,
       id: existing.id,
       content: channel.message,
+      pinned: channel.type !== "voice",
     });
   } else if (existing.description.text !== channel.message) {
     plan.descriptionSteps.push({
@@ -291,7 +293,14 @@ function createChannel(plan: Plan, channel: ExpandedChannel, categoryName: strin
     plan.channelSteps.push({ kind: "create-channel", name: channel.name, categoryName, type: channel.type, overwrites, topic: channel.topic });
   }
   if (channel.message !== undefined) {
-    plan.descriptionSteps.push({ kind: "post-description", name: channel.name, categoryName, id: undefined, content: channel.message });
+    plan.descriptionSteps.push({
+      kind: "post-description",
+      name: channel.name,
+      categoryName,
+      id: undefined,
+      content: channel.message,
+      pinned: channel.type !== "voice",
+    });
   }
 }
 

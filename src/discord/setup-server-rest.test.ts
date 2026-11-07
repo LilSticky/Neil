@@ -295,3 +295,48 @@ describe("createRestSetupServer edits a message in place", () => {
     });
   });
 });
+
+describe("createRestSetupServer reads the oldest messages of a channel", () => {
+  test("asks for the messages after id 0 and returns them oldest first, with id, author and content", async () => {
+    const rest = fakeRest({
+      get: {
+        [Routes.channelMessages(CHANNEL_ID)]: [
+          { id: OTHER_MESSAGE_ID, type: 0, content: "hello", author: { id: OTHER_MEMBER_ID } },
+          { id: MESSAGE_ID, type: 0, content: "📌 **#Hangout voice**", author: { id: BOT_USER_ID } },
+        ],
+      },
+    });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const messages = await server.readOldestMessages(CHANNEL_ID);
+
+    expect(rest.get).toHaveBeenCalledWith(`${Routes.channelMessages(CHANNEL_ID)}?after=0&limit=50`);
+    expect(messages).toEqual([
+      { messageId: MESSAGE_ID, authorId: BOT_USER_ID, content: "📌 **#Hangout voice**" },
+      { messageId: OTHER_MESSAGE_ID, authorId: OTHER_MEMBER_ID, content: "hello" },
+    ]);
+  });
+
+  test("resolves to undefined when the read is refused with status 403 (Missing Access)", async () => {
+    const rest = fakeRest();
+    rest.get.mockRejectedValueOnce(Object.assign(new Error("Missing Access"), { status: 403, code: 50001 }));
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    expect(await server.readOldestMessages(CHANNEL_ID)).toBeUndefined();
+  });
+});
+
+describe("createRestSetupServer posts an unpinned description", () => {
+  test("posts the content with allowed_mentions parse empty, pins nothing, and returns the id of the new message", async () => {
+    const rest = fakeRest({ post: { [Routes.channelMessages(CHANNEL_ID)]: { id: MESSAGE_ID } } });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const messageId = await server.postMessage(CHANNEL_ID, "📌 **#Hangout voice**");
+
+    expect(rest.post).toHaveBeenCalledWith(Routes.channelMessages(CHANNEL_ID), {
+      body: { content: "📌 **#Hangout voice**", allowed_mentions: { parse: [] } },
+    });
+    expect(rest.put).not.toHaveBeenCalled();
+    expect(messageId).toBe(MESSAGE_ID);
+  });
+});

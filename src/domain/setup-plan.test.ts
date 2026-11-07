@@ -1180,3 +1180,13 @@ describe("planSetup: topics and descriptions of existing channels", () => {
     ]);
   });
 });
+
+describe("planSetup: where a description is pinned", () => {
+  test("a voice channel's description is posted unpinned, since Discord can't pin there; a text channel's is pinned", () => {
+    const plan = planSetup(layout, server({ roles: [role("[ABC]")] }), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "alliance-voice", pinned: false }));
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "alliance-chat", pinned: true }));
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "general", pinned: true }));
+  });
+});
