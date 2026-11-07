@@ -341,7 +341,7 @@ On the test server, with its token and ID in `.env`. Neil needs a role there fir
 | 6q.6 | Take Administrator off, drag Moderator and King above Neil, set the printed IDs, start Neil | Neil starts | |
 | 6q.7 | **View Server As Role** | **Onboarding** sees `#onboarding` only; **Doctor** alone sees the Guest area only | |
 | 6q.8 | A Linked Member with a plain `NML` role, after the Daily Sync | The same role, named `[NML]`, still held | |
-| 6q.9 | With Community on, if you can | Forums and announcement channels are created as such | |
+| 6q.9 | With Community on, if you can | Announcement channels are created as such | |
 | 6q.10 | Look at `#gift-codes` with an R3, an R4 and a Guest | The R3 reads only; the R4 can post; the Guest doesn't see it | |
 | 6q.11 | **Follow** the official server's announcement channel into `#gift-codes` | Its next post arrives in `#gift-codes` | |
 
@@ -414,6 +414,7 @@ ID and `HOME_KINGDOM` in `.env`.
 | 6v.7 | **View Server As Role** `#330` and `German` | `kvk-announcements-german` and `nap-announcements-german` visible, no other translated copy | |
 | 6v.8 | Change one channel's `description` in `server-layout.json`, run with `--apply` | That channel's topic and pinned message change; no second message | |
 | 6v.9 | Delete Neil's pinned message in one channel, run with `--apply` | It is posted and pinned again | |
+| 6v.10 | Without Community, look at `guides`, `nap-forum` and the three tactics channels | Real forums, each with its topic as the post guidelines; announcement channels are text | |
 
 ## 7. Afterwards
 

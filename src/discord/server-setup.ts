@@ -127,7 +127,7 @@ const LAST_LINE = "Now take Administrator off Neil's role.";
 const BY_HAND = [
   "Still by hand, in Server Settings > Integrations > Neil: allow Moderator and King on /quota, /rank and /link, and limit commands to their channels (SERVER-SETUP.md section 5).",
   "Still by hand, in the Developer Portal > Bot: switch on Server Members Intent and Presence Intent.",
-  "Still by hand, if you want real forums and announcement channels: switch on Community in Server Settings, then run this again.",
+  "Still by hand, if you want real announcement channels: switch on Community in Server Settings, then run this again.",
   "Still by hand, in Server Settings > Roles: Neil's role above every role it gives, and below Moderator and King.",
 ];
 /** The IDs the owner copies into the settings: setting name, and the role or channel it names. */

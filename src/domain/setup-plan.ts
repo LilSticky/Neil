@@ -59,7 +59,7 @@ export type SetupStep =
       categoryName: string;
       type: ChannelType;
       overwrites: WantedOverwrite[];
-      fallbackFrom?: "forum" | "announcement";
+      fallbackFrom?: "announcement";
       topic: string | undefined;
     }
   | {
@@ -83,7 +83,7 @@ export type SetupFinding =
   | { kind: "external-role-missing"; name: string }
   | { kind: "role-has-permissions"; name: string }
   | { kind: "role-above-neil"; name: string }
-  | { kind: "fallback-to-text"; name: string; from: "forum" | "announcement" }
+  | { kind: "fallback-to-text"; name: string; from: "announcement" }
   | { kind: "hides-from-everyone"; name: string }
   /** The pins of a channel could not be read, so its description is neither posted nor edited. */
   | { kind: "descriptions-unread"; name: string };
@@ -276,7 +276,7 @@ function checkText(plan: Plan, existing: ServerChannel, channel: ExpandedChannel
 
 function createChannel(plan: Plan, channel: ExpandedChannel, categoryName: string): void {
   const overwrites = usable(plan, channel.overwrites);
-  if (!plan.server.hasCommunity && (channel.type === "forum" || channel.type === "announcement")) {
+  if (!plan.server.hasCommunity && channel.type === "announcement") {
     plan.channelSteps.push({
       kind: "create-channel",
       name: channel.name,
@@ -295,10 +295,10 @@ function createChannel(plan: Plan, channel: ExpandedChannel, categoryName: strin
   }
 }
 
-/** Without Community a forum or an announcement channel is planned as text, so an existing text channel stands for it. */
+/** Without Community an announcement channel is planned as text, so an existing text channel stands for it. Forums need no Community. */
 function typeMatches(actual: "category" | ChannelType, expected: ChannelType, hasCommunity: boolean): boolean {
   if (actual === expected) return true;
-  return !hasCommunity && actual === "text" && (expected === "forum" || expected === "announcement");
+  return !hasCommunity && actual === "text" && expected === "announcement";
 }
 
 /**

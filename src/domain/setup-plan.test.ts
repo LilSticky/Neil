@@ -18,7 +18,7 @@
  *     | { kind: "create-role"; name: string }
  *     | { kind: "create-category"; name: string; overwrites: WantedOverwrite[] }
  *     | { kind: "create-channel"; name: string; categoryName: string; type: ChannelType;
- *         overwrites: WantedOverwrite[]; fallbackFrom?: "forum" | "announcement"; topic: string | undefined }
+ *         overwrites: WantedOverwrite[]; fallbackFrom?: "announcement"; topic: string | undefined }
  *     | { kind: "correct-overwrites"; id: string; name: string; hidesFromEveryone: boolean; overwrites: WantedOverwrite[] }
  *     | { kind: "set-topic"; id: string; name: string; topic: string }
  *     | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string }
@@ -34,7 +34,7 @@
  *     | { kind: "external-role-missing"; name: string }
  *     | { kind: "role-has-permissions"; name: string }
  *     | { kind: "role-above-neil"; name: string }
- *     | { kind: "fallback-to-text"; name: string; from: "forum" | "announcement" }
+ *     | { kind: "fallback-to-text"; name: string; from: "announcement" }
  *     | { kind: "hides-from-everyone"; name: string };
  *   interface SetupPlan { steps: SetupStep[]; findings: SetupFinding[] }
  *   function planSetup(layout: ServerLayout, server: ServerState, homeKingdom: number): SetupPlan;
@@ -622,106 +622,64 @@ describe("planSetup: categories and channels", () => {
 });
 
 describe("planSetup: Community fallback", () => {
-  test("without Community a forum is created as a plain text channel, noting what it replaces", () => {
-    const plan = planSetup(
-      layout,
-      server({ hasCommunity: false }),
-      HOME_KINGDOM,
-    );
-    expect(plan.steps).toContainEqual(
-      expect.objectContaining({
-        kind: "create-channel",
-        name: "tactics",
-        type: "text",
-        fallbackFrom: "forum",
-      }),
-    );
-  });
-
-  test("without Community the fallback to text is reported", () => {
-    const plan = planSetup(
-      layout,
-      server({ hasCommunity: false }),
-      HOME_KINGDOM,
-    );
-    expect(plan.findings).toContainEqual(
-      expect.objectContaining({
-        kind: "fallback-to-text",
-        name: "tactics",
-        from: "forum",
-      }),
-    );
-  });
-
-  test("without Community a forum created as text gets its topic but no description message", () => {
+  test("without Community a forum is still created as a forum, with its topic and no description message", () => {
     const plan = planSetup(layout, server({ hasCommunity: false }), HOME_KINGDOM);
 
-    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "create-channel", name: "tactics", topic: "A test channel." }));
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({ kind: "create-channel", name: "tactics", type: "forum", topic: "A test channel." }),
+    );
+    expect(plan.steps).not.toContainEqual(expect.objectContaining({ fallbackFrom: "forum" }));
+    expect(plan.findings).not.toContainEqual(expect.objectContaining({ kind: "fallback-to-text", name: "tactics" }));
     expect(plan.steps).not.toContainEqual(expect.objectContaining({ kind: "post-description", name: "tactics" }));
   });
 
-  test("without Community an announcement created as text gets its topic and its description message", () => {
+  test("without Community an announcement is created as text, noting what it replaces, with its topic and its description message", () => {
     const plan = planSetup(layout, server({ hasCommunity: false }), HOME_KINGDOM);
 
     expect(plan.steps).toContainEqual(
       expect.objectContaining({ kind: "create-channel", name: "kvk-announcements", type: "text", fallbackFrom: "announcement" }),
     );
+    expect(plan.findings).toContainEqual(
+      expect.objectContaining({ kind: "fallback-to-text", name: "kvk-announcements", from: "announcement" }),
+    );
     expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "kvk-announcements" }));
   });
 
-  test("with Community a forum is created as a forum, with no fallback", () => {
-    const plan = planSetup(
-      layout,
-      server({ hasCommunity: true }),
-      HOME_KINGDOM,
-    );
+  test("with Community an announcement is created as an announcement, with no fallback", () => {
+    const plan = planSetup(layout, server({ hasCommunity: true }), HOME_KINGDOM);
+
     expect(plan.steps).toContainEqual(
-      expect.objectContaining({
-        kind: "create-channel",
-        name: "tactics",
-        type: "forum",
-      }),
+      expect.objectContaining({ kind: "create-channel", name: "kvk-announcements", type: "announcement" }),
     );
-    expect(plan.steps).not.toContainEqual(
-      expect.objectContaining({ fallbackFrom: "forum" }),
-    );
+    expect(plan.steps).not.toContainEqual(expect.objectContaining({ fallbackFrom: "announcement" }));
   });
 
-  test("without Community an existing text channel counts as the forum: no create and no wrong-type", () => {
+  test("without Community an existing text channel counts as the announcement channel: no create and no wrong-type", () => {
     const plan = planSetup(
       layout,
-      {
-        ...serverWithHangout([channel("tactics", "text", "Hangout")]),
-        hasCommunity: false,
-      },
+      { ...serverWithHangout([channel("kvk-announcements", "text", "Hangout")]), hasCommunity: false },
       HOME_KINGDOM,
     );
-    expect(plan.steps).not.toContainEqual(
-      expect.objectContaining({ kind: "create-channel", name: "tactics" }),
-    );
-    expect(plan.findings).not.toContainEqual(
-      expect.objectContaining({ kind: "wrong-type", name: "tactics" }),
-    );
+
+    expect(plan.steps).not.toContainEqual(expect.objectContaining({ kind: "create-channel", name: "kvk-announcements" }));
+    expect(plan.findings).not.toContainEqual(expect.objectContaining({ kind: "wrong-type", name: "kvk-announcements" }));
   });
 
-  test("with Community an existing text channel for a forum is reported as wrong-type and not created", () => {
-    const plan = planSetup(
-      layout,
-      serverWithHangout([channel("tactics", "text", "Hangout")]),
-      HOME_KINGDOM,
-    );
-    expect(plan.steps).not.toContainEqual(
-      expect.objectContaining({ kind: "create-channel", name: "tactics" }),
-    );
-    expect(plan.findings).toContainEqual(
-      expect.objectContaining({
-        kind: "wrong-type",
-        name: "tactics",
-        expected: "forum",
-        actual: "text",
-      }),
-    );
-  });
+  test.each([{ hasCommunity: true }, { hasCommunity: false }])(
+    "an existing text channel for a forum is reported as wrong-type and not created (hasCommunity $hasCommunity)",
+    ({ hasCommunity }) => {
+      const plan = planSetup(
+        layout,
+        { ...serverWithHangout([channel("tactics", "text", "Hangout")]), hasCommunity },
+        HOME_KINGDOM,
+      );
+
+      expect(plan.steps).not.toContainEqual(expect.objectContaining({ kind: "create-channel", name: "tactics" }));
+      expect(plan.findings).toContainEqual(
+        expect.objectContaining({ kind: "wrong-type", name: "tactics", expected: "forum", actual: "text" }),
+      );
+    },
+  );
 });
 
 describe("planSetup: overwrites of existing channels", () => {
