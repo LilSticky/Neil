@@ -46,3 +46,26 @@ export function parseLeadTimes(text: string): LeadTimesResult {
   }
   return { ok: true, value: minutes };
 }
+
+/** What a reminder is about: the start of the Event, or its Sign-up Deadline. */
+export type ReminderTarget = "start" | "signup";
+
+/** A reminder already sent for one Event: its target and how many minutes before that target it went out. */
+export interface SentReminder {
+  readonly target: ReminderTarget;
+  readonly leadMinutes: number;
+}
+
+/** Who keeps an Event Kind: "kingdom" for the Home Kingdom, or an Alliance's tag. */
+export type EventKindOwner = string;
+
+/**
+ * An Event Kind: a name matched in an Event's name, the lead times (minutes) of its start reminders, and its Sign-up
+ * Deadline as minutes before the start (undefined when it has none, and then it has no Sign-up reminders).
+ */
+export interface EventKind {
+  readonly name: string;
+  readonly beforeStart: readonly number[];
+  readonly signupOffsetMinutes: number | undefined;
+  readonly beforeSignup: readonly number[];
+}

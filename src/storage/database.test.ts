@@ -35,6 +35,7 @@ describe("openDatabase", () => {
       { version: 12 },
       { version: 13 },
       { version: 14 },
+      { version: 15 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -61,6 +62,7 @@ describe("openDatabase", () => {
       { version: 12 },
       { version: 13 },
       { version: 14 },
+      { version: 15 },
     ]);
     db.close();
   });
@@ -70,7 +72,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 14");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 15");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -190,6 +192,7 @@ describe("openDatabase", () => {
       { version: 12 },
       { version: 13 },
       { version: 14 },
+      { version: 15 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -417,6 +420,7 @@ describe("openDatabase", () => {
         { version: 12 },
         { version: 13 },
         { version: 14 },
+        { version: 15 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -454,6 +458,7 @@ describe("openDatabase", () => {
         { version: 12 },
         { version: 13 },
         { version: 14 },
+        { version: 15 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -494,6 +499,7 @@ describe("openDatabase", () => {
         { version: 12 },
         { version: 13 },
         { version: 14 },
+        { version: 15 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -534,6 +540,7 @@ describe("openDatabase", () => {
         { version: 12 },
         { version: 13 },
         { version: 14 },
+        { version: 15 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -614,6 +621,7 @@ describe("openDatabase", () => {
       { version: 12 },
       { version: 13 },
       { version: 14 },
+      { version: 15 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),
@@ -715,6 +723,7 @@ describe("openDatabase", () => {
         { version: 12 },
         { version: 13 },
         { version: 14 },
+        { version: 15 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -760,12 +769,55 @@ describe("openDatabase", () => {
         { version: 12 },
         { version: 13 },
         { version: 14 },
+        { version: 15 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
       ]);
       expect(db.prepare("SELECT uid, name, kingdom, reason, added_by FROM reaper").all()).toEqual([
         { uid: "145563254786", name: "Vex", kingdom: 330, reason: "Looted the Alliance", added_by: "888888888888888888" },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("migration 15 creates the Event tables", () => {
+    const db = openDatabase(dataDir);
+    try {
+      expect(
+        db
+          .prepare(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('events', 'event_reminders_sent', 'event_kinds', 'event_invitations_off') ORDER BY name",
+          )
+          .all(),
+      ).toEqual([
+        { name: "event_invitations_off" },
+        { name: "event_kinds" },
+        { name: "event_reminders_sent" },
+        { name: "events" },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 14 database to 15 and keeps its Booty Alerts", () => {
+    const legacy = new DatabaseSync(join(dataDir, "neil.db"));
+    legacy.exec(readFileSync(join(import.meta.dirname, "__fixtures__", "schema-v14.sql"), "utf8"));
+    legacy
+      .prepare("INSERT INTO booty_alerts (member_id, mode, window_start, window_end, time_zone) VALUES (?, ?, ?, ?, ?)")
+      .run("member-1", "offline", 480, 1380, "Europe/Lisbon");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT version FROM schema_migrations WHERE version >= 14 ORDER BY version").all()).toEqual([
+        { version: 14 },
+        { version: 15 },
+      ]);
+      expect(db.prepare("SELECT member_id, mode, window_start, window_end, time_zone FROM booty_alerts").all()).toEqual([
+        { member_id: "member-1", mode: "offline", window_start: 480, window_end: 1380, time_zone: "Europe/Lisbon" },
       ]);
     } finally {
       db.close();

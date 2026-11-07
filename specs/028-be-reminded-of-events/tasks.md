@@ -6,7 +6,7 @@ Tasks in one phase run in order unless marked [P].
 ## Phase A: Foundation
 
 - [x] T001 [P] Event rules in `src/domain/events.ts`: an Alliance tag from `[TAG] …` in the name (FR-002); lead-time parsing of `24h, 1h, 10m` or `2d`, at most 3 per list, each from 1 minute to 7 days (plan D9)
-- [ ] T002 [P] Migration 15 in `src/storage/database.ts` and `src/storage/event-store.ts`: `events` (`event_id` PK, `first_seen_at`, `invited_at` null), `event_reminders_sent` (PK `event_id`, `target` `start`/`signup`, `lead_minutes`; cascade), `event_kinds` (`owner` `kingdom` or a tag, `name` unique per owner ignoring case, `before_start` JSON, `signup_offset_minutes` null, `before_signup` JSON; at most 25 per owner), `event_invitations_off` (`member_id` PK)
+- [x] T002 [P] Migration 15 in `src/storage/database.ts` and `src/storage/event-store.ts`: `events` (`event_id` PK, `first_seen_at`, `invited_at` null), `event_reminders_sent` (PK `event_id`, `target` `start`/`signup`, `lead_minutes`; cascade), `event_kinds` (`owner` `kingdom` or a tag, `name` unique per owner ignoring case, `before_start` JSON, `signup_offset_minutes` null, `before_signup` JSON; at most 25 per owner), `event_invitations_off` (`member_id` PK)
 - [ ] T003 `GuildScheduledEvents` intent, and the Event as Neil reads it (id, name, start, description, status, creator) validated at the boundary in `src/discord/events.ts` (FR-001, plan D1)
 
 ## Phase B: US1, Members are invited to a new Event (P1)

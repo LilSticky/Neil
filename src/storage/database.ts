@@ -161,6 +161,32 @@ const migrations: readonly string[] = [
      window_end INTEGER NOT NULL,
      time_zone TEXT NOT NULL
    )`,
+  // Migration 15: Events, their Event Reminders and Event Kinds, and who turned Event Invitations off (slice 028). An
+  // Event is kept from the first time Neil sees it; a reminder row goes with its Event. An Event Kind's name is unique
+  // per owner ignoring case; the store keeps at most 25 per owner.
+  `CREATE TABLE events (
+     event_id TEXT PRIMARY KEY CHECK (event_id <> '' AND event_id NOT GLOB '*[^0-9]*'),
+     first_seen_at TEXT NOT NULL,
+     invited_at TEXT
+   );
+   CREATE TABLE event_reminders_sent (
+     event_id TEXT NOT NULL REFERENCES events (event_id) ON DELETE CASCADE,
+     target TEXT NOT NULL CHECK (target IN ('start', 'signup')),
+     lead_minutes INTEGER NOT NULL CHECK (lead_minutes >= 1),
+     PRIMARY KEY (event_id, target, lead_minutes)
+   );
+   CREATE TABLE event_kinds (
+     id INTEGER PRIMARY KEY,
+     owner TEXT NOT NULL CHECK (owner <> ''),
+     name TEXT NOT NULL COLLATE NOCASE CHECK (name <> ''),
+     before_start TEXT NOT NULL,
+     signup_offset_minutes INTEGER CHECK (signup_offset_minutes IS NULL OR signup_offset_minutes >= 1),
+     before_signup TEXT NOT NULL,
+     UNIQUE (owner, name)
+   );
+   CREATE TABLE event_invitations_off (
+     member_id TEXT PRIMARY KEY CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*')
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
