@@ -1,6 +1,6 @@
 import { tagOfAllianceRole } from "./managed-roles.js";
-import { BOT_TARGET, EVERYONE_TARGET, expandLayout, } from "./server-layout.js";
-/** Roles of the layout that may hold permissions without a finding: Moderator and King. */
+import { BOT_TARGET, EVERYONE_TARGET, expandLayout, ROLE_PERMISSION_BITS, } from "./server-layout.js";
+/** Roles of the layout that may hold any permission without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
 /**
  * The steps and findings that make a server match the layout (data-model.md, Setup plan). Reads nothing but its arguments
@@ -18,9 +18,11 @@ export function planSetup(layout, server, homeKingdom) {
         topicSteps: [],
         descriptionSteps: [],
         findings: [],
+        rolePermissions: layout.rolePermissions ?? {},
         claimed: new Set(),
     };
     planRoles(plan, expanded);
+    planRolePermissions(plan, layout.rolePermissions ?? {});
     planCategories(plan, expanded, allianceRoleNames);
     for (const channel of server.channels) {
         if (!plan.claimed.has(channel.id))
@@ -69,11 +71,31 @@ function planRoles(plan, layout) {
             plan.findings.push({ kind: "duplicate-name", name });
     }
 }
+/** Each role permission a listed role lacks. Only missing ones are planned: nothing is removed, and a role not there yet lacks all. */
+function planRolePermissions(plan, rolePermissions) {
+    for (const [name, permissions] of Object.entries(rolePermissions)) {
+        const found = lookup(plan.server.roles.filter((role) => role.name === name));
+        if (found.kind === "many")
+            continue;
+        const held = found.kind === "one" ? (found.item.rolePermissions ?? []) : [];
+        for (const permission of new Set(permissions)) {
+            if (!held.includes(permission))
+                plan.roleSteps.push({ kind: "allow-permission", name, permission });
+        }
+    }
+}
+/** A listed role may hold the bits its rolePermissions grant; any other bit it holds is a finding, unless Moderator or King. */
 function reviewRole(plan, role) {
-    if (role.hasPermissions && !PERMISSION_ROLES.includes(role.name))
+    const granted = grantedBitsOf(plan.rolePermissions[role.name] ?? []);
+    const beyond = role.permissions & ~granted;
+    const exempt = PERMISSION_ROLES.includes(role.name);
+    if (beyond !== 0n && !exempt)
         plan.findings.push({ kind: "role-has-permissions", name: role.name });
     if (role.position >= plan.server.botTopPosition)
         plan.findings.push({ kind: "role-above-neil", name: role.name });
+}
+function grantedBitsOf(permissions) {
+    return permissions.reduce((bits, name) => bits | ROLE_PERMISSION_BITS[name], 0n);
 }
 function planCategories(plan, layout, allianceRoleNames) {
     for (const category of layout.categories) {

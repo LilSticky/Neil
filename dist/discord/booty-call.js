@@ -4,8 +4,7 @@ import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { localMinuteOf } from "./booty-time.js";
 import { bootyCallMessages } from "./booty-texts.js";
 import { CARD_COLOR, escapeText } from "./lookup-cards.js";
-/** The Discord limit on mentioned users per message is 100; 80 keeps each message under that and under 2,000 characters. */
-const MENTIONS_PER_MESSAGE = 80;
+import { chunksOf, MENTIONS_PER_MESSAGE, mentionsMessage, mentionText } from "./mentions.js";
 const ALLIANCE_CHAT = "alliance-chat";
 const CONFIRM_ID = /^booty:confirm:(\d+):(\d+)$/;
 const CANCEL_ID = /^booty:cancel:(\d+)$/;
@@ -276,19 +275,6 @@ function cardMessage(callerName, roleName, mentioned) {
     const line = bootyCallMessages.callLine(escapeText(callerName), escapeText(roleName));
     const content = mentioned.length === 0 ? line : `${line} ${mentionText(mentioned)}`;
     return { content, embeds: [embed], allowedMentions: { parse: [], users: [...mentioned] } };
-}
-/** A follow-up message of mentions only, for the Members beyond the first chunk. */
-function mentionsMessage(mentioned) {
-    return { content: mentionText(mentioned), allowedMentions: { parse: [], users: [...mentioned] } };
-}
-function mentionText(mentioned) {
-    return mentioned.map((memberId) => `<@${memberId}>`).join(" ");
-}
-function chunksOf(items, size) {
-    const chunks = [];
-    for (let start = 0; start < items.length; start += size)
-        chunks.push(items.slice(start, start + size));
-    return chunks;
 }
 function errorMessage(error) {
     return error instanceof Error ? error.message : String(error);

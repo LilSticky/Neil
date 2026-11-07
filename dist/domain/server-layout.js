@@ -1,5 +1,9 @@
 import { describeChannel } from "./channel-description.js";
 import { tagOfAllianceRole } from "./managed-roles.js";
+/** The Discord bit of each role permission the layout may give (slice 028, plan D10): CreateEvents is bit 44. */
+export const ROLE_PERMISSION_BITS = {
+    CreateEvents: 1n << 44n,
+};
 export const EVERYONE_TARGET = "@everyone";
 export const BOT_TARGET = "Neil";
 const KINGDOM_PLACEHOLDER = "#<Home Kingdom>";

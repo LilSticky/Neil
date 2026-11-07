@@ -3,6 +3,11 @@ import { z } from "zod";
 import { cameOnline } from "../domain/interview-start.js";
 import { editorOf } from "../storage/reaper-editor.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
+import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
+import { eventServerOf } from "./event-server.js";
+import { handleEventInvitations } from "./event-invitations.js";
+import { handleEventKinds } from "./event-kinds.js";
+import { createEventInvitations, eventIdOf } from "./events.js";
 import { createBootyCalls, } from "./booty-call.js";
 import { handleBootyAlerts } from "./booty.js";
 import { handleTimeZoneAutocomplete } from "./booty-time.js";
@@ -130,12 +135,17 @@ async function onlineMembersOf(guild, logError, isStopping) {
     }
     return members;
 }
-/** A discord.js client with the Guilds, GuildMembers and GuildPresences intents that routes each event to its handler. */
+/** A discord.js client with the Guilds, GuildMembers, GuildPresences and GuildScheduledEvents intents that routes each event to its handler. */
 export function createClient(handlers, options) {
     const logError = options.logError ?? console.error;
     // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
     const client = new Client({
-        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildPresences],
+        intents: [
+            GatewayIntentBits.Guilds,
+            GatewayIntentBits.GuildMembers,
+            GatewayIntentBits.GuildPresences,
+            GatewayIntentBits.GuildScheduledEvents,
+        ],
         partials: [Partials.GuildMember, Partials.User],
     });
     // Without a listener, an emitted error would crash the process; discord.js reconnects by itself.
@@ -157,6 +167,22 @@ export function createClient(handlers, options) {
         if (member.guild.id !== options.guildId)
             return;
         void handlers.memberLeft({ id: member.id, username: member.user.username });
+    });
+    // The scheduled events of the served guild only: created, edited (the new state is handed on) and deleted.
+    client.on(Events.GuildScheduledEventCreate, (scheduledEvent) => {
+        if (scheduledEvent.guildId !== options.guildId)
+            return;
+        void handlers.scheduledEventCreated(scheduledEvent);
+    });
+    client.on(Events.GuildScheduledEventUpdate, (_before, scheduledEvent) => {
+        if (scheduledEvent.guildId !== options.guildId)
+            return;
+        void handlers.scheduledEventUpdated(scheduledEvent);
+    });
+    client.on(Events.GuildScheduledEventDelete, (scheduledEvent) => {
+        if (scheduledEvent.guildId !== options.guildId)
+            return;
+        void handlers.scheduledEventDeleted(scheduledEvent);
     });
     // A Member who was offline and now is not comes online; the status itself is not logged or kept (ADR 11).
     client.on(Events.PresenceUpdate, (before, after) => {
@@ -217,6 +243,12 @@ export function createClient(handlers, options) {
                     break;
                 case "booty-alerts":
                     void handlers.bootyAlerts(interaction);
+                    break;
+                case "event-invitations":
+                    void handlers.eventInvitations(interaction);
+                    break;
+                case "event-kinds":
+                    void handlers.eventKinds(interaction);
                     break;
             }
             return;
@@ -641,6 +673,28 @@ function bootyButtonLike(button) {
         },
     };
 }
+/** The discord.js /event-kinds command as the Event Kinds read it: the caller and their roles by id and name, and the options. */
+function eventKindsLike(command) {
+    return {
+        user: { id: command.user.id },
+        options: {
+            getSubcommand: () => command.options.getSubcommand(),
+            getString: (name) => command.options.getString(name),
+        },
+        memberRoles: () => command.member instanceof GuildMember
+            ? [...command.member.roles.cache.values()].map((role) => ({ id: role.id, name: role.name }))
+            : [],
+        reply: (reply) => command.reply(reply),
+    };
+}
+/** The discord.js /event-invitations command as the Event Invitations read it: the caller by id, the option and the private reply. */
+function eventInvitationsLike(command) {
+    return {
+        user: { id: command.user.id },
+        options: { getString: (name) => command.options.getString(name) },
+        reply: (reply) => command.reply(reply),
+    };
+}
 /** The discord.js /booty-alerts command as the Booty Alerts reads it: the caller and the options, and the private reply. */
 function bootyAlertsLike(command) {
     return {
@@ -770,6 +824,17 @@ export async function connect(token, options) {
             const { bootyCalls } = await services;
             await bootyCalls.onCommand(bootyCommandLike(interaction));
         }),
+        eventInvitations: (interaction) => handleEventInvitations(eventInvitationsLike(interaction), {
+            links: options.links,
+            events: options.events,
+            logError,
+        }),
+        eventKinds: (interaction) => handleEventKinds(eventKindsLike(interaction), {
+            links: options.links,
+            events: options.events,
+            officerRoleIds: options.officerRoleIds,
+            logError,
+        }),
         bootyAlerts: (interaction) => handleBootyAlerts(bootyAlertsLike(interaction), {
             links: options.links,
             bootyAlerts: options.bootyAlerts,
@@ -804,6 +869,13 @@ export async function connect(token, options) {
         memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
         memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
         memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
+        scheduledEventCreated: (scheduledEvent) => answer("the scheduled event created", { logError }, async () => (await services).eventInvitations.onCreated(scheduledEvent)),
+        scheduledEventUpdated: (scheduledEvent) => answer("the scheduled event updated", { logError }, async () => (await services).eventInvitations.onUpdated(scheduledEvent)),
+        scheduledEventDeleted: (scheduledEvent) => answer("the scheduled event deleted", { logError }, async () => {
+            const eventId = eventIdOf(scheduledEvent);
+            if (eventId !== undefined)
+                (await services).eventReminders.onDeleted(eventId);
+        }),
         interview: async (interaction) => (await services).interviews.onCommand(commandLike(interaction)),
         unlink: async (interaction) => (await services).corrections.unlink(correctionLike(interaction)),
         rank: async (interaction) => (await services).corrections.rank(correctionLike(interaction)),
@@ -824,6 +896,7 @@ export async function connect(token, options) {
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
     // apply); both are stopped again on disconnect.
     let stopSweeper = () => undefined;
+    let stopEventReminders = () => undefined;
     let stopDailySync = () => Promise.resolve();
     // The startup check of the Interviews of the Members online, while it runs: disconnect waits for it before the client
     // (and the database after it) goes.
@@ -910,6 +983,7 @@ export async function connect(token, options) {
             doctorRole,
             preferenceRoles,
             bootyAlerts: options.bootyAlerts,
+            events: options.events,
             now,
             sendPrivateMessage,
             officerRoles,
@@ -1023,9 +1097,30 @@ export async function connect(token, options) {
             editorOf: editorOfMember,
             homeKingdom: options.homeKingdom,
         };
+        // The Event invitations and reminders read the server through one adapter, and log to #neil-log like the rest.
+        const eventServer = eventServerOf(guild, { log: (message) => channels.log(message) });
+        const eventInvitations = createEventInvitations({
+            events: options.events,
+            links: options.links,
+            server: eventServer,
+            officerRoleIds: options.officerRoleIds,
+            now,
+            logError,
+        });
+        const eventReminders = createEventReminders({
+            events: options.events,
+            links: options.links,
+            applied: options.applied,
+            homeKingdom: options.homeKingdom,
+            server: eventServer,
+            now,
+            logError,
+        });
         openServices({
             interviews,
             rankApprovals,
+            eventInvitations,
+            eventReminders,
             corrections,
             preferenceChoices,
             bootyCalls,
@@ -1109,10 +1204,26 @@ export async function connect(token, options) {
                 clearInterval(timer);
             };
         });
+        // The Events ahead are invited at startup; the reminders are ticked once a minute, until disconnect stops them.
+        void eventInvitations.onStartup();
+        // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
+        let reminderTickRunning = false;
+        const reminderTimer = setInterval(() => {
+            if (reminderTickRunning)
+                return;
+            reminderTickRunning = true;
+            void eventReminders.tick().finally(() => {
+                reminderTickRunning = false;
+            });
+        }, REMINDER_TICK_MS);
+        stopEventReminders = () => {
+            clearInterval(reminderTimer);
+        };
     }
     catch (error) {
         disconnecting = true;
         stopSweeper();
+        stopEventReminders();
         await stopDailySync();
         await startupInterviews;
         await client.destroy();
@@ -1122,6 +1233,7 @@ export async function connect(token, options) {
         disconnect: async () => {
             disconnecting = true;
             stopSweeper();
+            stopEventReminders();
             // A run in progress ends before its next request and is awaited, so its record and summary are made before logout.
             await stopDailySync();
             // The Interview check stops before its next Member, and is awaited, so its log line is made before logout.

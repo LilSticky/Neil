@@ -77,6 +77,7 @@ export async function start(deps) {
             dailySync: store.dailySync,
             reaper: store.reaper,
             bootyAlerts: store.bootyAlerts,
+            events: store.events,
             preferences: store.preferences,
             guidesForumId: config.guidesForumId,
             syncHourUtc: config.syncHourUtc,

@@ -86,6 +86,39 @@ export const bootyAlerts = new SlashCommandBuilder()
     .setDescription("Your time zone, e.g. Europe/Lisbon")
     .setRequired(false)
     .setAutocomplete(true));
+export const eventInvitations = new SlashCommandBuilder()
+    .setName("event-invitations")
+    .setDescription("Choose whether Event Invitations mention you, on or off")
+    .setContexts(InteractionContextType.Guild)
+    .addStringOption((option) => option
+    .setName("invitations")
+    .setDescription("On or off; without it, shows your current choice")
+    .setRequired(false)
+    .addChoices({ name: "On", value: "on" }, { name: "Off", value: "off" }));
+/** The list an /event-kinds option picks: the kingdom's, or the Alliance's. */
+const listChoice = (option) => option
+    .setName("list")
+    .setDescription("Kingdom for the Home Kingdom's list (Officers), Alliance for your Alliance's (R4 and R5)")
+    .setRequired(false)
+    .addChoices({ name: "Kingdom", value: "kingdom" }, { name: "Alliance", value: "alliance" });
+export const eventKinds = new SlashCommandBuilder()
+    .setName("event-kinds")
+    .setDescription("Choose the Event Kinds that remind Members of Events (R4, R5 or Officers)")
+    .setContexts(InteractionContextType.Guild)
+    .addSubcommand((sub) => sub
+    .setName("add")
+    .setDescription("Add an Event Kind, or replace the one of the same name")
+    .addStringOption((option) => option.setName("name").setDescription("The name matched in an Event's name, e.g. Hive move").setRequired(true).setMaxLength(40))
+    .addStringOption((option) => option.setName("before-start").setDescription("Reminders before the start, up to 3, e.g. 24h, 1h, 10m").setRequired(true))
+    .addStringOption((option) => option.setName("signup-deadline").setDescription("The Sign-up Deadline, one time before the start, e.g. 2h").setRequired(false))
+    .addStringOption((option) => option.setName("before-signup").setDescription("Reminders before the Sign-up Deadline, up to 3, e.g. 1h").setRequired(false))
+    .addStringOption(listChoice))
+    .addSubcommand((sub) => sub
+    .setName("remove")
+    .setDescription("Remove an Event Kind by its name")
+    .addStringOption((option) => option.setName("name").setDescription("The name of the Event Kind").setRequired(true).setMaxLength(40))
+    .addStringOption(listChoice))
+    .addSubcommand((sub) => sub.setName("list").setDescription("Show the Event Kinds, with their lead times").addStringOption(listChoice));
 export const help = new SlashCommandBuilder()
     .setName("help")
     .setDescription("Show the commands you can use and what they are for")
@@ -168,5 +201,7 @@ export const commands = [
     help.toJSON(),
     booty.toJSON(),
     bootyAlerts.toJSON(),
+    eventInvitations.toJSON(),
+    eventKinds.toJSON(),
 ];
 //# sourceMappingURL=commands.js.map

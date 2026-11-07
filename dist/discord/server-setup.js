@@ -4,7 +4,7 @@ import { PermissionFlagsBits } from "discord.js";
 import { z } from "zod";
 import { redact } from "../startup.js";
 import { PIN_MARK } from "../domain/channel-description.js";
-import { BOT_TARGET, EVERYONE_TARGET, expandLayout, translatedDescription, } from "../domain/server-layout.js";
+import { BOT_TARGET, EVERYONE_TARGET, ROLE_PERMISSION_BITS, expandLayout, translatedDescription, } from "../domain/server-layout.js";
 import { allianceRoleNamesOf, planSetup, } from "../domain/setup-plan.js";
 const ROLE_OVERWRITE = 0;
 const MEMBER_OVERWRITE = 1;
@@ -22,6 +22,7 @@ const PERMISSION_BITS = {
     Speak: PermissionFlagsBits.Speak,
 };
 const PERMISSIONS = Object.keys(PERMISSION_BITS).filter(isPermission);
+const ROLE_PERMISSIONS = Object.keys(ROLE_PERMISSION_BITS).filter(isRolePermission);
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 const LOWERCASE_NO_SPACES = /^[a-z0-9_-]+$/;
 const LAST_LINE = "Now take Administrator off Neil's role.";
@@ -41,6 +42,9 @@ const ID_SETTINGS = [
 ];
 function isPermission(name) {
     return Object.hasOwn(PERMISSION_BITS, name);
+}
+function isRolePermission(name) {
+    return Object.hasOwn(ROLE_PERMISSION_BITS, name);
 }
 // ---- The layout file -------------------------------------------------------------------------------------------------
 const overwriteSchema = z.strictObject({
@@ -70,6 +74,7 @@ const layoutSchema = z.strictObject({
     translations: z.array(z.string()),
     categories: z.array(categorySchema),
     allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
+    rolePermissions: z.record(z.string(), z.array(z.string())).optional(),
 });
 /**
  * Reads the layout file (data-model.md, Rules checked on load). The shape is checked by zod; the values by hand, so each
@@ -101,7 +106,7 @@ export function parseLayout(text) {
         };
     });
     const allianceChannels = raw.allianceArea.channels.map((channel) => checkChannel("allianceArea", channel, known, channelNames, translations));
-    return {
+    const layout = {
         roles: [...raw.roles],
         externalRoles: [...raw.externalRoles],
         languages: [...raw.languages],
@@ -109,6 +114,23 @@ export function parseLayout(text) {
         categories,
         allianceArea: { channels: allianceChannels },
     };
+    if (raw.rolePermissions !== undefined)
+        layout.rolePermissions = checkRolePermissions(raw.rolePermissions, raw.roles);
+    return layout;
+}
+/** Each named role is a listed role, and each permission a known one (slice 028, plan D10). */
+function checkRolePermissions(raw, roles) {
+    const result = {};
+    for (const [role, names] of Object.entries(raw)) {
+        if (!roles.includes(role))
+            throw new Error(`rolePermissions: "${role}" is no listed role`);
+        result[role] = names.map((name) => {
+            if (!isRolePermission(name))
+                throw new Error(`rolePermissions, role "${role}": "${name}" is not a known permission`);
+            return name;
+        });
+    }
+    return result;
 }
 /** Each translation is a listed language, once (data-model.md, Rules checked on load). */
 function checkTranslations(translations, languages) {
@@ -269,9 +291,10 @@ function toServerRole(role) {
     return {
         id: role.id,
         name: role.name,
-        hasPermissions: role.permissions !== 0n,
+        permissions: role.permissions,
         managed: role.managed,
         position: role.position,
+        rolePermissions: rolePermissionNamesOf(role.permissions),
     };
 }
 function hasAdministrator(role) {
@@ -287,6 +310,10 @@ function permissionNamesOf(bits) {
 }
 function bitsOf(names) {
     return names.reduce((bits, name) => bits | PERMISSION_BITS[name], 0n);
+}
+/** The role permission names whose bits are set; bits the domain does not name are left out. */
+function rolePermissionNamesOf(bits) {
+    return ROLE_PERMISSIONS.filter((name) => (bits & ROLE_PERMISSION_BITS[name]) !== 0n);
 }
 /**
  * Applies a plan: roles, then categories, then channels, then corrected overwrites. A failed write is recorded and the rest
@@ -311,7 +338,7 @@ async function readBook(port) {
     return {
         everyoneId: guild.id,
         botUserId: bot.userId,
-        roles: roles.map((role) => ({ id: role.id, name: role.name })),
+        roles: roles.map((role) => ({ id: role.id, name: role.name, permissions: role.permissions })),
         categories: channels
             .filter((channel) => channel.kind === "category")
             .map((channel) => ({ id: channel.id, name: channel.name })),
@@ -321,6 +348,8 @@ async function readBook(port) {
 }
 const PHASE = {
     "create-role": 0,
+    // Planned after the create-role steps of the same roles, so a stable sort keeps it behind them.
+    "allow-permission": 0,
     "create-category": 1,
     "create-channel": 2,
     "correct-overwrites": 3,
@@ -335,7 +364,14 @@ async function applyStep(step, port, book) {
     switch (step.kind) {
         case "create-role": {
             const id = await port.createRole(step.name);
-            book.roles.push({ id, name: step.name });
+            book.roles.push({ id, name: step.name, permissions: 0n });
+            return;
+        }
+        case "allow-permission": {
+            const role = single(book.roles.filter((candidate) => candidate.name === step.name), `role "${step.name}"`);
+            const permissions = role.permissions | ROLE_PERMISSION_BITS[step.permission];
+            await port.editRolePermissions(role.id, permissions);
+            role.permissions = permissions;
             return;
         }
         case "create-category": {
@@ -508,6 +544,8 @@ function describeStep(step) {
             return `correct permissions of ${step.name}`;
         case "set-topic":
             return `set topic of ${step.name}`;
+        case "allow-permission":
+            return `allow ${step.permission} on ${step.name}`;
         case "post-description":
             return `post description in ${step.name}`;
         case "edit-description":

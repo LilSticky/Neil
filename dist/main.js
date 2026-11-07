@@ -10,6 +10,7 @@ import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
 import { DailySyncStore } from "./storage/daily-sync-store.js";
+import { EventStore } from "./storage/event-store.js";
 import { InterviewStore } from "./storage/interview-store.js";
 import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
@@ -42,6 +43,7 @@ await start({
             dailySync: new DailySyncStore(db),
             reaper: new ReaperStore(db),
             bootyAlerts: new BootyAlertsStore(db),
+            events: new EventStore(db),
             preferences: createPreferenceStore(db, (line) => {
                 console.error(line);
             }),
