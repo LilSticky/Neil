@@ -165,7 +165,7 @@ function checkText(plan, existing, channel, categoryName) {
 }
 function createChannel(plan, channel, categoryName) {
     const overwrites = usable(plan, channel.overwrites);
-    if (!plan.server.hasCommunity && (channel.type === "forum" || channel.type === "announcement")) {
+    if (!plan.server.hasCommunity && channel.type === "announcement") {
         plan.channelSteps.push({
             kind: "create-channel",
             name: channel.name,
@@ -184,11 +184,11 @@ function createChannel(plan, channel, categoryName) {
         plan.descriptionSteps.push({ kind: "post-description", name: channel.name, categoryName, id: undefined, content: channel.message });
     }
 }
-/** Without Community a forum or an announcement channel is planned as text, so an existing text channel stands for it. */
+/** Without Community an announcement channel is planned as text, so an existing text channel stands for it. Forums need no Community. */
 function typeMatches(actual, expected, hasCommunity) {
     if (actual === expected)
         return true;
-    return !hasCommunity && actual === "text" && (expected === "forum" || expected === "announcement");
+    return !hasCommunity && actual === "text" && expected === "announcement";
 }
 /**
  * Compares the wanted overwrites with those of an existing channel or category. Named permissions missing from the
