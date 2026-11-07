@@ -20,8 +20,8 @@
 - [x] T011 [US2] Finishing message: `/channels` and the guides line, no menus (FR-007)
 - [x] T012 [US3] `/channels` answers privately with the Languages step (FR-009)
 - [x] T013 [US3] Guests and Members who are not Linked are refused on go presses too (FR-011)
-- [ ] T014 [US1] At the Link the thread stays open and shows the Languages step; Done or the timeout closes it, and a pending Rank Approval still keeps it (FR-008, FR-010)
-- [ ] T015 [US1] A Guest at the Link gets no steps and the thread closes as today; an Officer Link gets the `/channels` note (edge cases)
+- [x] T014 [US1] At the Link the thread stays open and shows the Languages step; Done or the timeout closes it, and a pending Rank Approval still keeps it (FR-008, FR-010)
+- [x] T015 [US1] A Guest at the Link gets no steps and the thread closes as today; an Officer Link gets the `/channels` note (edge cases)
 - [x] T016 Every step and text fits Discord's limits (FR-015, SC-005)
 
 ## Phase C: Finish

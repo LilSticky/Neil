@@ -13,7 +13,7 @@ import { openDatabase } from "../storage/database.js";
 import { createPreferenceStore, type PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import { createPreferencesAfterLink } from "./preferences-after-link.js";
-import { preferencesMessage } from "./preferences-texts.js";
+import { preferenceStepMessage } from "./preferences-texts.js";
 
 function uidOf(digits: string): Uid {
   const parsed = parseUid(digits);
@@ -114,8 +114,9 @@ describe("createPreferencesAfterLink", () => {
     expect(channels.posts).toEqual([
       {
         threadId: THREAD,
-        message: preferencesMessage({
+        message: preferenceStepMessage({
           memberId: MEMBER,
+          step: "languages",
           preferences: { ...EMPTY_PREFERENCES, languages: new Set<GameLanguageCode>(["fr"]) },
           rank: "R4",
           playerLanguage: "fr-FR",
@@ -151,14 +152,15 @@ describe("createPreferencesAfterLink", () => {
     expect(store.prompt(MEMBER)).toBeUndefined();
   });
 
-  test("a Linked Member with no Alliance is posted the Interests without NaP discussions, as for a Member with no rank", async () => {
+  test("a Linked Member with no Alliance is posted the Languages step, as for a Member with a rank", async () => {
     await serviceWith().postAfterLink(MEMBER, THREAD, playerIn(undefined), NO_ALLIANCE);
 
     expect(channels.posts).toEqual([
       {
         threadId: THREAD,
-        message: preferencesMessage({
+        message: preferenceStepMessage({
           memberId: MEMBER,
+          step: "languages",
           preferences: EMPTY_PREFERENCES,
           rank: undefined,
           playerLanguage: undefined,

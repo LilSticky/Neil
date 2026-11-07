@@ -5,10 +5,10 @@ import type { KingdomNumber } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
-import { hasNoPreferences, preferencesMessage } from "./preferences-texts.js";
+import { hasNoPreferences, preferenceStepMessage } from "./preferences-texts.js";
 
 /**
- * The Preferences message the Interview posts in the thread after a Link. Resolves true when it is posted; false, with
+ * The Languages step the Interview posts in the thread after a Link. Resolves true when it is posted; false, with
  * nothing posted or stored, for a Player outside the Home Kingdom. Rejects when the message cannot be posted.
  */
 export interface PreferencesAfterLink {
@@ -36,8 +36,9 @@ export function createPreferencesAfterLink(deps: PreferencesAfterLinkDeps): Pref
       }
       await deps.channels.post(
         threadId,
-        preferencesMessage({
+        preferenceStepMessage({
           memberId,
+          step: "languages",
           preferences: deps.preferences.get(memberId),
           rank: allianceRankOf(rank),
           playerLanguage,
