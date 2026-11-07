@@ -15,9 +15,9 @@
 
 - [x] T003 [P] Guides: `documentation/SERVER-SETUP.md` (FR-007)
 - [x] T004 [P] Add §6t to `documentation/TEST-RUN.md`
-- [ ] T005 `bot-reviewer` pass, findings in `review.md`
-- [ ] T006 `spec-auditor` pass, findings in `audit.md`
-- [ ] T007 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
+- [x] T005 `bot-reviewer` pass, findings in `review.md`
+- [x] T006 `spec-auditor` pass, findings in `audit.md`
+- [x] T007 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
 - [ ] T008 Manual check on the test server (TEST-RUN.md §6t), which needs the deploy and `npm run commands:register`
 
 ## Dependencies
