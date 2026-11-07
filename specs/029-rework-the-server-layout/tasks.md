@@ -54,12 +54,12 @@ None: the slice works in slice 020's modules.
 
 **Independent Test**: plan, apply and report tests with `FakeSetupServer`; REST tests with the fake `SetupRest`.
 
-- [ ] T007 [US2] Red: in `src/domain/server-layout.test.ts`, each expanded channel carries `topic` (the description;
+- [x] T007 [US2] Red: in `src/domain/server-layout.test.ts`, each expanded channel carries `topic` (the description;
   undefined for voice) and `message` (undefined for forums): `📌 **#<channel>**`, the description, a blank line,
   `👀 Seen by: <targets>` (View Channel allowed, Neil and external roles left out, Kingdom role as `#<number>`), and, not for
   voice, `✍️ Posts: <posters>` (seers whose Send Messages isn't denied plus targets with Send Messages allowed) or
   `✍️ Posts: read only`. Language chats get "Chat in <Language>."; Alliance areas name their `[TAG]` role.
-- [ ] T008 [US2] Green: topic and message in `src/domain/server-layout.ts` (or `src/domain/channel-description.ts` if it
+- [x] T008 [US2] Green: topic and message in `src/domain/server-layout.ts` (or `src/domain/channel-description.ts` if it
   grows past a few functions).
 - [ ] T009 [US2] Red: in `src/domain/setup-plan.test.ts`, with `ServerChannel.topic` and `ServerChannel.description`
   (`{ messageId, text }`): a new channel's `create-channel` step carries its topic and is followed by `post-description`;
@@ -74,12 +74,12 @@ None: the slice works in slice 020's modules.
   exit 1, naming the channel. A second run on the fake after a real run reports `Nothing to do.`
 - [ ] T012 [US2] Green: `SetupServer` gains `readPinnedDescriptions`-style reads, `setTopic`, `postPinnedMessage`,
   `editMessage`, and `createChannel` takes a topic, in `src/discord/server-setup.ts` and its `FakeSetupServer`.
-- [ ] T013 [US2] Red: in `src/discord/setup-server-rest.test.ts`: the topic is in the create body and in
+- [x] T013 [US2] Red: in `src/discord/setup-server-rest.test.ts`: the topic is in the create body and in
   `PATCH /channels/{id}`; `readChannels` maps `topic`; pins come from `GET /channels/{id}/messages/pins` (`items[].message`,
   checked with zod); posting sends `allowed_mentions: { parse: [] }`, then
   `PUT /channels/{id}/messages/pins/{message}`, then deletes the type 6 notice that references it; editing is
   `PATCH /channels/{id}/messages/{message}`.
-- [ ] T014 [US2] Green: `SetupRest` gains `put` and `delete`; implement in `src/discord/setup-server-rest.ts`.
+- [x] T014 [US2] Green: `SetupRest` gains `put` and `delete`; implement in `src/discord/setup-server-rest.ts`.
 - [ ] T015 [US2] Review: `bot-reviewer` on the adapter and setup changes; fixes via `implementer`.
 
 ## Phase 5: User Story 3 - The rules are already there (P2)

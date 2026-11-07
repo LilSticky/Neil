@@ -66,6 +66,15 @@ export interface SetupChannelInfo {
   kind: "category" | ChannelType;
   parentId: string | undefined;
   overwrites: OverwriteEdit[];
+  /** The topic, or undefined when the channel has none. */
+  topic: string | undefined;
+}
+
+/** A pinned message of a channel: its id, the id of its author, and its content. */
+export interface SetupPinInfo {
+  messageId: string;
+  authorId: string;
+  content: string;
 }
 
 /** The part of a Discord server the setup uses. The REST adapter maps Discord onto it; the fake stands in for it in tests. */
@@ -81,9 +90,16 @@ export interface SetupServer {
     readonly type: ChannelType;
     readonly parentId: string;
     readonly overwrites: readonly OverwriteEdit[];
+    readonly topic?: string;
   }): Promise<string>;
   /** Writes the channel's whole overwrite list in one request. */
   editOverwrites(channelId: string, overwrites: readonly OverwriteEdit[]): Promise<void>;
+  setTopic(channelId: string, topic: string): Promise<void>;
+  /** The pinned messages of a channel. */
+  readPins(channelId: string): Promise<readonly SetupPinInfo[]>;
+  /** Posts a message with no mentions, pins it, and returns its id. */
+  postPinnedMessage(channelId: string, content: string): Promise<string>;
+  editMessage(channelId: string, messageId: string, content: string): Promise<void>;
 }
 
 export type StepOutcome = { step: SetupStep; status: "done" } | FailedOutcome;

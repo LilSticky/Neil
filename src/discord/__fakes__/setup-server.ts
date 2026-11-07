@@ -4,6 +4,7 @@ import type {
   GuildInfo,
   OverwriteEdit,
   SetupChannelInfo,
+  SetupPinInfo,
   SetupRoleInfo,
   SetupServer,
 } from "../server-setup.js";
@@ -33,6 +34,12 @@ export type SetupWrite =
 
 export type SetupWriteOp = SetupWrite["op"];
 
+/** A write that sets a topic or a pinned description, in the order it was attempted. */
+export type ChannelWrite =
+  | { readonly op: "set-topic"; readonly channelId: string; readonly topic: string }
+  | { readonly op: "post-pinned-message"; readonly channelId: string; readonly content: string }
+  | { readonly op: "edit-message"; readonly channelId: string; readonly messageId: string; readonly content: string };
+
 /** A role the fake guild holds: the options a test may give when defining it. */
 export interface DefineRoleOptions {
   readonly permissions?: bigint;
@@ -56,6 +63,8 @@ export interface DefineChannelOptions {
 export class FakeSetupServer implements SetupServer {
   /** Every write attempt, in order, failed ones included. */
   readonly writes: SetupWrite[] = [];
+  /** The topic and pinned-message writes, in order. */
+  readonly channelWrites: ChannelWrite[] = [];
 
   readonly guildId: string;
   readonly botUserId: string;
@@ -63,6 +72,7 @@ export class FakeSetupServer implements SetupServer {
   private readonly guildFeatures: readonly string[];
   private readonly roles: SetupRoleInfo[] = [];
   private readonly channels: SetupChannelInfo[] = [];
+  private readonly pins = new Map<string, SetupPinInfo[]>();
   private readonly botRoleIds: string[] = [];
   private readonly failures = new Map<string, Error>();
   private nextNumber = 1;
@@ -122,6 +132,7 @@ export class FakeSetupServer implements SetupServer {
       kind: options.kind,
       parentId: options.parentId,
       overwrites: [...(options.overwrites ?? [])],
+      topic: undefined,
     });
     return id;
   }
@@ -174,7 +185,7 @@ export class FakeSetupServer implements SetupServer {
     const failure = this.failures.get(`create-category:${name}`);
     if (failure !== undefined) return Promise.reject(failure);
     const id = this.newId();
-    this.channels.push({ id, name, kind: "category", parentId: undefined, overwrites: [...overwrites] });
+    this.channels.push({ id, name, kind: "category", parentId: undefined, overwrites: [...overwrites], topic: undefined });
     return Promise.resolve(id);
   }
 
@@ -183,6 +194,7 @@ export class FakeSetupServer implements SetupServer {
     readonly type: ChannelType;
     readonly parentId: string;
     readonly overwrites: readonly OverwriteEdit[];
+    readonly topic?: string;
   }): Promise<string> {
     this.writes.push({
       op: "create-channel",
@@ -200,6 +212,7 @@ export class FakeSetupServer implements SetupServer {
       kind: channel.type,
       parentId: channel.parentId,
       overwrites: [...channel.overwrites],
+      topic: channel.topic,
     });
     return Promise.resolve(id);
   }
@@ -211,6 +224,33 @@ export class FakeSetupServer implements SetupServer {
     if (failure !== undefined) return Promise.reject(failure);
     const channel = this.channels.find((candidate) => candidate.id === channelId);
     if (channel !== undefined) channel.overwrites = [...overwrites];
+    return Promise.resolve();
+  }
+
+  setTopic(channelId: string, topic: string): Promise<void> {
+    this.channelWrites.push({ op: "set-topic", channelId, topic });
+    const channel = this.channels.find((candidate) => candidate.id === channelId);
+    if (channel !== undefined) channel.topic = topic;
+    return Promise.resolve();
+  }
+
+  readPins(channelId: string): Promise<readonly SetupPinInfo[]> {
+    return Promise.resolve((this.pins.get(channelId) ?? []).map((pin) => ({ ...pin })));
+  }
+
+  postPinnedMessage(channelId: string, content: string): Promise<string> {
+    this.channelWrites.push({ op: "post-pinned-message", channelId, content });
+    const messageId = this.newId();
+    const pins = this.pins.get(channelId) ?? [];
+    pins.push({ messageId, authorId: this.botUserId, content });
+    this.pins.set(channelId, pins);
+    return Promise.resolve(messageId);
+  }
+
+  editMessage(channelId: string, messageId: string, content: string): Promise<void> {
+    this.channelWrites.push({ op: "edit-message", channelId, messageId, content });
+    const pin = (this.pins.get(channelId) ?? []).find((candidate) => candidate.messageId === messageId);
+    if (pin !== undefined) pin.content = content;
     return Promise.resolve();
   }
 
