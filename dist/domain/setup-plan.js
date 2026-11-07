@@ -151,6 +151,7 @@ function checkText(plan, existing, channel, categoryName) {
             categoryName,
             id: existing.id,
             content: channel.message,
+            pinned: channel.type !== "voice",
         });
     }
     else if (existing.description.text !== channel.message) {
@@ -181,7 +182,14 @@ function createChannel(plan, channel, categoryName) {
         plan.channelSteps.push({ kind: "create-channel", name: channel.name, categoryName, type: channel.type, overwrites, topic: channel.topic });
     }
     if (channel.message !== undefined) {
-        plan.descriptionSteps.push({ kind: "post-description", name: channel.name, categoryName, id: undefined, content: channel.message });
+        plan.descriptionSteps.push({
+            kind: "post-description",
+            name: channel.name,
+            categoryName,
+            id: undefined,
+            content: channel.message,
+            pinned: channel.type !== "voice",
+        });
     }
 }
 /** Without Community an announcement channel is planned as text, so an existing text channel stands for it. Forums need no Community. */

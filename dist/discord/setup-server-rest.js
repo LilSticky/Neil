@@ -51,6 +51,13 @@ const pinsResponse = z.object({
 const forbiddenResponse = z.object({ status: z.literal(403) });
 /** Discord's type 6 message: the notice a channel writes when a message is pinned. */
 const PIN_NOTICE_TYPE = 6;
+const oldestMessagesResponse = z.array(z.object({
+    id: z.string(),
+    content: z.string(),
+    author: z.object({ id: z.string() }),
+}));
+/** How many of a channel's oldest messages are read to find Neil's unpinned description. */
+const OLDEST_MESSAGES = 50;
 const messagesResponse = z.array(z.object({
     id: z.string(),
     type: z.number().int(),
@@ -184,6 +191,25 @@ export function createRestSetupServer(rest, guildId) {
             }
             await deletePinNotice(channelId, messageId);
             return messageId;
+        },
+        async readOldestMessages(channelId) {
+            let response;
+            try {
+                response = await rest.get(`${Routes.channelMessages(channelId)}?after=0&limit=${String(OLDEST_MESSAGES)}`);
+            }
+            catch (error) {
+                if (forbiddenResponse.safeParse(error).success)
+                    return undefined;
+                throw error;
+            }
+            return oldestMessagesResponse
+                .parse(response)
+                .map((message) => ({ messageId: message.id, authorId: message.author.id, content: message.content }))
+                .sort((a, b) => (BigInt(a.messageId) < BigInt(b.messageId) ? -1 : 1));
+        },
+        async postMessage(channelId, content) {
+            const body = { content, allowed_mentions: { parse: [] } };
+            return idResponse.parse(await rest.post(Routes.channelMessages(channelId), { body })).id;
         },
         async editMessage(channelId, messageId, content) {
             await rest.patch(Routes.channelMessage(channelId, messageId), {
