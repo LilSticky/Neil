@@ -1539,10 +1539,11 @@ function serverWithStaleDescriptions(options: { botPermissions?: bigint } = {}):
   return server;
 }
 
-/** The pinned-message posts written to a channel, in order. */
-function postsIn(server: FakeSetupServer, channel: string): Extract<ChannelWrite, { op: "post-pinned-message" }>[] {
+/** The description posts written to a channel, pinned or not (voice can't pin), in order. */
+function postsIn(server: FakeSetupServer, channel: string): Extract<ChannelWrite, { op: "post-pinned-message" | "post-message" }>[] {
   return server.channelWrites.filter(
-    (write): write is Extract<ChannelWrite, { op: "post-pinned-message" }> => write.op === "post-pinned-message" && write.channelId === channel,
+    (write): write is Extract<ChannelWrite, { op: "post-pinned-message" | "post-message" }> =>
+      (write.op === "post-pinned-message" || write.op === "post-message") && write.channelId === channel,
   );
 }
 
@@ -1637,7 +1638,9 @@ describe("runSetup creates topics and descriptions on an empty server", () => {
       const posts = postsIn(server, id);
       expect(posts).toHaveLength(1);
       expect(posts[0]?.content.startsWith(`${PIN} **#${name}**`)).toBe(true);
-      expect(server.sequence.indexOf(`post-pinned-message ${name}`)).toBeGreaterThan(server.sequence.indexOf(`create-channel ${name}`));
+      const op = name === "lounge" ? "post-message" : "post-pinned-message";
+      expect(posts[0]?.op).toBe(op);
+      expect(server.sequence.indexOf(`${op} ${name}`)).toBeGreaterThan(server.sequence.indexOf(`create-channel ${name}`));
     }
     const tacticsId = channelId(server, "tactics");
     expect(server.channelWrites.some((write) => write.op === "post-pinned-message" && write.channelId === tacticsId)).toBe(false);
@@ -1798,5 +1801,38 @@ describe("a dry run without Administrator reads no pins where Discord refuses th
     expect(exitCode).toBe(0);
     expect(server.writes).toHaveLength(0);
     expect(server.channelWrites).toHaveLength(0);
+  });
+});
+
+describe("a voice channel's description", () => {
+  test("is posted unpinned, as Discord can't pin in voice, and found again on the next run", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    server.defineRole("[ABC]", { position: 2 });
+
+    const outcomes = await applySetup(await planFor(SMALL_LAYOUT, server), server);
+
+    expect(outcomes.filter((outcome) => outcome.status === "failed")).toEqual([]);
+    const voiceId = server.findChannel("alliance-voice")?.id;
+    expect(server.channelWrites).toContainEqual(expect.objectContaining({ op: "post-message", channelId: voiceId }));
+    expect(server.channelWrites).not.toContainEqual(expect.objectContaining({ op: "post-pinned-message", channelId: voiceId }));
+    expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
+  });
+
+  test("is edited in place when its text changes, with no second message", async () => {
+    const server = new FakeSetupServer({ features: COMMUNITY, botPermissions: ADMINISTRATOR });
+    server.defineRole("[ABC]", { position: 2 });
+    await applySetup(await planFor(SMALL_LAYOUT, server), server);
+    const changed: ServerLayout = {
+      ...SMALL_LAYOUT,
+      allianceArea: {
+        channels: SMALL_LAYOUT.allianceArea.channels.map((channel) =>
+          channel.type === "voice" ? { ...channel, description: "Talk it through." } : channel,
+        ),
+      },
+    };
+
+    const plan = await planFor(changed, server);
+
+    expect(plan.steps.map((step) => `${step.kind} ${step.name}`)).toEqual(["edit-description alliance-voice"]);
   });
 });

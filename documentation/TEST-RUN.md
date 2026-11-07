@@ -409,7 +409,7 @@ ID and `HOME_KINGDOM` in `.env`.
 | 6v.2 | Give Neil's role Administrator, `npm run server:setup -- --apply` | The layout appears; every text channel has a topic and one pinned message from Neil, with no "pinned a message" notice below it | |
 | 6v.3 | Run it again, then take Administrator off | `Nothing to do.` | |
 | 6v.4 | Open `#rules` and `#guest-rules` | The code of conduct is there, below the description | |
-| 6v.5 | Open `Coaching voice`'s chat | Neil's description is pinned | |
+| 6v.5 | Open `Coaching voice`'s chat | Neil's description is the first message, unpinned (Discord can't pin in voice) | |
 | 6v.6 | **View Server As Role** `#330` alone | `kvk-announcements` and `event-announcements` visible, no other KvK or Events channel; no `off-topic` or `memes` in Hangout | |
 | 6v.7 | **View Server As Role** `#330` and `German` | `kvk-announcements-german` and `nap-announcements-german` visible, no other translated copy | |
 | 6v.8 | Change one channel's `description` in `server-layout.json`, run with `--apply` | That channel's topic and pinned message change; no second message | |

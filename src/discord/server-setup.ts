@@ -103,6 +103,10 @@ export interface SetupServer {
   readPins(channelId: string): Promise<readonly SetupPinInfo[] | undefined>;
   /** Posts a message with no mentions, pins it, and returns its id. */
   postPinnedMessage(channelId: string, content: string): Promise<string>;
+  /** The oldest messages of a channel, oldest first; undefined when Discord refuses the read. Voice channels can't pin. */
+  readOldestMessages(channelId: string): Promise<readonly SetupPinInfo[] | undefined>;
+  /** Posts a message with no mentions, unpinned, and returns its id: the description of a voice channel. */
+  postMessage(channelId: string, content: string): Promise<string>;
   editMessage(channelId: string, messageId: string, content: string): Promise<void>;
 }
 
@@ -347,10 +351,12 @@ export async function readServer(port: SetupServer): Promise<ServerState> {
   };
 }
 
-/** A channel as the plan needs it. Pins are read only where a description can be: text, announcement and voice channels. */
+/**
+ * A channel as the plan needs it. Neil's description is read only where one can be: from the pins of a text or
+ * announcement channel, and from the oldest messages of a voice channel, where Discord can't pin.
+ */
 async function readChannel(port: SetupServer, channel: SetupChannelInfo, botUserId: string): Promise<ServerChannel> {
-  const describable = channel.kind !== "category" && channel.kind !== "forum";
-  const pins = describable ? await port.readPins(channel.id) : [];
+  const pins = await describingMessagesOf(port, channel);
   return {
     id: channel.id,
     name: channel.name,
@@ -367,7 +373,15 @@ async function readChannel(port: SetupServer, channel: SetupChannelInfo, botUser
   };
 }
 
-/** Neil's description: the oldest pin by Neil's user whose text starts with the pin mark. Discord lists pins newest first. */
+/** The messages that may hold Neil's description, newest first; none for a category or forum. */
+async function describingMessagesOf(port: SetupServer, channel: SetupChannelInfo): Promise<readonly SetupPinInfo[] | undefined> {
+  if (channel.kind === "category" || channel.kind === "forum") return [];
+  if (channel.kind !== "voice") return port.readPins(channel.id);
+  const oldest = await port.readOldestMessages(channel.id);
+  return oldest === undefined ? undefined : [...oldest].reverse();
+}
+
+/** Neil's description: the oldest message by Neil's user whose text starts with the pin mark, from a newest-first list. */
 function neilDescriptionOf(pins: readonly SetupPinInfo[], botUserId: string): ServerChannel["description"] {
   const oldest = pins.filter((pin) => pin.authorId === botUserId && pin.content.startsWith(PIN_MARK)).at(-1);
   return oldest === undefined ? undefined : { messageId: oldest.messageId, text: oldest.content };
@@ -492,7 +506,8 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
       return;
     case "post-description": {
       const channelId = step.id ?? createdIdOf(book, step.name, step.categoryName);
-      await port.postPinnedMessage(channelId, step.content);
+      if (step.pinned) await port.postPinnedMessage(channelId, step.content);
+      else await port.postMessage(channelId, step.content);
       return;
     }
     case "edit-description":

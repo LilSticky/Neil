@@ -138,7 +138,8 @@ Every announcement reaches the whole Kingdom, whichever category it sits in.
 
 **Channel descriptions.** Every channel says what it is for: the script sets the topic and pins one message from Neil
 with the description, who sees the channel and who posts there. `#rules` and `#guest-rules` add a code of conduct below it.
-Voice channels get the message only, forums the topic only. Change a text under `description` or `codeOfConduct` in
+Voice channels get the message only, as their first message in the chat, unpinned (Discord can't pin there); forums
+get the topic only. Change a text under `description` or `codeOfConduct` in
 `server-layout.json` and run the script again: it edits Neil's message rather than posting a second one.
 
 **Special cases**
