@@ -196,8 +196,8 @@ discovery.
 * Not In-game Proof: a Member who says "that's me" still gives the uid, which must be that Player's
 
 ## Onboarding Role
-* The Discord role a Member holds while they are not Linked; it lets them see and write in `#onboarding`
-* Neil gives it when a Member joins and when a Member still on the server is Unlinked, removes it at Link, and puts every Member right at startup
+* The Discord role a Member holds while they are not Linked, and after the Link until their Interview thread closes; it lets them see and write in `#onboarding`
+* Neil gives it when a Member joins and when a Member still on the server is Unlinked, removes it when a Linked Member's Interview thread closes, and puts every Member right at startup
 * Not a Managed Role; Neil creates it without permissions on first use
 
 ## Doctor Role

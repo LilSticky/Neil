@@ -33,7 +33,7 @@ nickname and roles matching the game.
 | **Preferences** | Neil | After the Link, one message in the Interview thread with four menus (Languages, Region, Interests, Experience) and a **Done** button. Each choice gives a Preference Role, which shows the matching channels. `/channels` shows the same menus later, privately. |
 | **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance role (`[NML]`), Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |
 | **Daily Sync** | Neil | Once a day (03:00 UTC by default) Neil re-reads the game and updates nicknames and roles. |
-| **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the Server Layout) lets them see only `#onboarding`. |
+| **Keep newcomers in onboarding** | Neil | Members who aren't Linked hold the `Onboarding` role, which (with the Server Layout) lets them see only `#onboarding`. After the Link they keep it until their Interview thread closes, so they can finish their Preferences there. |
 | **Doctor Role** | Neil | Every Linked Member, Guests included, holds the `Doctor` role. It shows the Guest area. |
 | **Rank Approval** | the Alliance's R5, or an Officer | When the game lists no rank for a new Home Kingdom Member, Neil asks their Alliance's R5 in a private thread to confirm it. Guests aren't asked about; an Officer can still use `/rank`. |
 | **Say goodbye** | Neil | A Linked Member who leaves the server is Unlinked, and the Officers are told in the log. |

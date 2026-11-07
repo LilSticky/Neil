@@ -355,6 +355,19 @@ Branch `023-no-rank-approval-for-guests`. No new commands.
 | 6r.2 | `/rank` that Member as an Officer, with R4 | The nickname shows `\|R4`; no `R4` role | | |
 | 6r.3 | Link a test account in the Home Kingdom whose rank the game doesn't list | The Rank Approval is asked, as before | | |
 
+## 6s. Keep the thread until it closes (slice 024, collected 2026-11-06)
+
+Branch `024-keep-the-thread-until-it-closes`. No new commands. Hide `#onboarding` from @everyone first. Where 6i and 6l.3 expect `Onboarding` to go at the Link, it now goes when the thread closes.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6s.1 | Link a test account in the Home Kingdom | `Doctor` and the roles given, `Onboarding` kept; the thread and the Preferences message stay visible | | |
+| 6s.2 | Press **Done** | The thread is deleted and `Onboarding` goes | | |
+| 6s.3 | Link another test account and touch nothing | At the Interview timeout, the thread is deleted and `Onboarding` goes | | |
+| 6s.4 | Link a Guest | The thread is deleted and `Onboarding` goes, at once | | |
+| 6s.5 | Link a test account whose rank the game doesn't list, press **Done**, then approve the rank | After **Done** the thread and `Onboarding` stay; at the approval both go | | |
+| 6s.6 | Restart Neil during 6s.1, before **Done** | `Onboarding` stays | | |
+
 ## 6t. See what Neil can do (slice 027, collected 2026-11-07)
 
 Branch `027-see-what-neil-can-do`. New command: `/help`. Before: run `npm run commands:register`.
@@ -364,6 +377,7 @@ Branch `027-see-what-neil-can-do`. New command: `/help`. Before: run `npm run co
 | 6t.1 | `/help` as a Member | A private list of commands with usage and purpose; no `/quota`, `/rank` or `/link` | | |
 | 6t.2 | `/help` as an Officer | The same list, then the Officer commands | | |
 | 6t.3 | Read `/player`, `/rank` and `/reaper closest` in the list | Required options as `<name>`, optional ones as `[name]`; each `/reaper` subcommand on its own line | | |
+
 
 ## 7. Afterwards
 

@@ -68,11 +68,8 @@ admin's own login for it. Add `#onboarding` for `/interview` when you turn off *
 With an account that isn't an Administrator:
 
 1. Join. Only `#onboarding` is visible, and a private thread opens in it.
-2. Give the uid and confirm. The nickname and roles appear, **Doctor** among them, and `Onboarding` goes. The thread stays
-   until you press **Done**, or until it times out, and while a Rank Approval is waiting.
+2. Give the uid and confirm. The nickname and roles appear, **Doctor** among them. The thread stays
+   until you press **Done**, or until it times out, and while a Rank Approval is waiting. `Onboarding` goes when the thread closes.
 3. `#neil-log` shows the Link.
 4. **View Server As Role**: **Doctor** alone shows the Guest area only; **Doctor** plus `#<Home Kingdom>` shows the rest.
 5. `/unlink` yourself in `#alliance-hall`. The roles and nickname go, and `Onboarding` comes back.
-
-**Check at step 2:** does the Member still see the Preferences message? Once `Onboarding` is gone they can't view
-`#onboarding`, and this has not been tested yet. If it's gone, they use `/channels` in `#alliance-hall`, and report it.

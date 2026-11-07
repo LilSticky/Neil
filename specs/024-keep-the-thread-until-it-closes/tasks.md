@@ -9,13 +9,13 @@
 **Independent Test**: after an Interview Link with the Preferences message posted, the Member holds both roles; Done takes the Onboarding Role off and deletes the thread.
 
 - [ ] T001 [US1] Tests for scenarios 1 to 8: `src/domain/onboarding-role.test.ts`, `src/discord/onboarding-role.test.ts`, `src/discord/interview.test.ts`, `src/discord/corrections.test.ts`, `src/discord/rank-approval.test.ts`, `src/discord/preferences-choices.test.ts`, `src/discord/interview-sweeper.test.ts` (FR-001 to FR-004)
-- [ ] T002 [US1] Make them green, per plan.md's decisions, with the wiring in `src/discord/client.ts` (FR-001 to FR-004)
+- [x] T002 [US1] Make them green, per plan.md's decisions, with the wiring in `src/discord/client.ts` (FR-001 to FR-004)
 
 ## Phase 2: Polish
 
-- [ ] T003 Dictionary: Onboarding Role in `documentation/DICTIONARY.md`, as the user decided (FR-005)
-- [ ] T004 [P] Guides: `documentation/SERVER-SETUP.md`, `documentation/STARTUP-GUIDE.md` (FR-005)
-- [ ] T005 [P] Add §6s to `documentation/TEST-RUN.md`, naming the rows it replaces
+- [x] T003 Dictionary: Onboarding Role in `documentation/DICTIONARY.md`, as the user decided (FR-005)
+- [x] T004 [P] Guides: `documentation/SERVER-SETUP.md`, `documentation/STARTUP-GUIDE.md` (FR-005)
+- [x] T005 [P] Add §6s to `documentation/TEST-RUN.md`, naming the rows it replaces
 - [ ] T006 `bot-reviewer` pass, findings in `review.md`
 - [ ] T007 `spec-auditor` pass, findings in `audit.md`
 - [ ] T008 Update `documentation/STATUS.md` and `documentation/ROADMAP.md`
