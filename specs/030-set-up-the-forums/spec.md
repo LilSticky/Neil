@@ -34,6 +34,7 @@ Not live yet: no backwards compatibility.
 - Q: Which permissions are missing? → A: whatever Discord's "Set recommended permissions" step sets, for all five forums.
   Measured on the test server's `pvp-tactics`: the step adds **Send Messages (Create Posts) ❌ for @everyone** and nothing
   else.
+- Q: The how-to texts? → A: the draft in [how-to-posts.md](how-to-posts.md), as written.
 
 ## User Scenarios & Testing *(mandatory)*
 
