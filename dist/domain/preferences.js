@@ -38,6 +38,16 @@ export const EXPERIENCES = [
     { key: "intermediate", roleName: "Intermediate" },
     { key: "veteran", roleName: "Veteran" },
 ];
+/** The Preference steps, in the order Neil asks them: Languages and Interests matter most. */
+export const PREFERENCE_STEPS = ["languages", "interests", "region", "experience"];
+/** The step after this one; undefined after the last. */
+export function nextStep(step) {
+    return PREFERENCE_STEPS[PREFERENCE_STEPS.indexOf(step) + 1];
+}
+/** The step before this one; undefined before the first. */
+export function previousStep(step) {
+    return PREFERENCE_STEPS[PREFERENCE_STEPS.indexOf(step) - 1];
+}
 /** Preferences with nothing chosen. */
 export const EMPTY_PREFERENCES = {
     languages: new Set(),

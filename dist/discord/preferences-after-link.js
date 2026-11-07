@@ -1,5 +1,5 @@
 import { allianceRankOf, preselectedLanguage } from "../domain/preferences.js";
-import { hasNoPreferences, preferencesMessage } from "./preferences-texts.js";
+import { hasNoPreferences, preferenceStepMessage } from "./preferences-texts.js";
 export function createPreferencesAfterLink(deps) {
     return {
         async postAfterLink(memberId, threadId, player, rank) {
@@ -13,8 +13,9 @@ export function createPreferencesAfterLink(deps) {
                 if (preselected !== undefined)
                     deps.preferences.setLanguages(memberId, new Set([preselected.code]));
             }
-            await deps.channels.post(threadId, preferencesMessage({
+            await deps.channels.post(threadId, preferenceStepMessage({
                 memberId,
+                step: "languages",
                 preferences: deps.preferences.get(memberId),
                 rank: allianceRankOf(rank),
                 playerLanguage,

@@ -1,6 +1,6 @@
 import { MessageFlags } from "discord.js";
 import { EXPERIENCES, GAME_LANGUAGES, REGIONS, allianceRankOf, interestOptions, isKnownGuest, } from "../domain/preferences.js";
-import { guestChannelsReply, notLinkedReply, notYoursReply, parsePreferencesCustomId, preferencesFailedReply, preferencesLogLine, preferencesMessage, savedMessage, } from "./preferences-texts.js";
+import { guestChannelsReply, notLinkedReply, notYoursReply, parsePreferenceGoCustomId, parsePreferencesCustomId, preferenceStepMessage, preferencesFailedReply, preferencesLogLine, finishedMessage, } from "./preferences-texts.js";
 /** Builds the handler of the Preferences message's presses and of /channels. */
 export function createPreferenceChoices(deps) {
     return {
@@ -25,11 +25,23 @@ export function createPreferenceChoices(deps) {
         },
     };
 }
+/** Reads a press's custom id: whose Preferences it is and what it asks for; undefined when it is none of the Preferences message's. */
+function targetOf(customId) {
+    const go = parsePreferenceGoCustomId(customId);
+    if (go !== undefined)
+        return { memberId: go.memberId, action: { kind: "show", step: go.step } };
+    const select = parsePreferencesCustomId(customId);
+    if (select === undefined)
+        return undefined;
+    if (select.question === "done")
+        return { memberId: select.memberId, action: { kind: "done" } };
+    return { memberId: select.memberId, action: { kind: "change", question: select.question } };
+}
 async function handlePress(deps, press) {
-    const parsed = parsePreferencesCustomId(press.customId);
-    if (parsed === undefined)
+    const target = targetOf(press.customId);
+    if (target === undefined)
         throw new Error(`the custom id ${press.customId} is not one of the Preferences message`);
-    const { question, memberId } = parsed;
+    const { memberId, action } = target;
     if (memberId !== press.user.id) {
         await press.reply(notYoursReply());
         return;
@@ -39,7 +51,7 @@ async function handlePress(deps, press) {
         await press.reply(notLinkedReply());
         return;
     }
-    if (question === "done") {
+    if (action.kind === "done") {
         await finish(deps, press, memberId);
         return;
     }
@@ -47,7 +59,17 @@ async function handlePress(deps, press) {
         await press.reply(guestChannelsReply());
         return;
     }
-    await change(deps, press, { memberId, rank: link.allianceRank, question });
+    if (action.kind === "show") {
+        await show(deps, press, { memberId, step: action.step, rank: link.allianceRank });
+        return;
+    }
+    await change(deps, press, { memberId, rank: link.allianceRank, question: action.question });
+}
+/** A step button: shows that step from the stored answers. Nothing is saved, applied or logged. */
+async function show(deps, press, target) {
+    const { memberId, step, rank } = target;
+    const preferences = deps.preferences.get(memberId);
+    await press.update(stepMessageFor(deps, memberId, step, preferences, allianceRankOf(rank)));
 }
 /** /channels: a Linked Member gets their Preferences message, privately, and nothing changes. */
 async function answerChannels(deps, command) {
@@ -61,7 +83,7 @@ async function answerChannels(deps, command) {
         await command.reply(guestChannelsReply());
         return;
     }
-    const message = messageFor(deps, memberId, deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
+    const message = stepMessageFor(deps, memberId, "languages", deps.preferences.get(memberId), allianceRankOf(link.allianceRank));
     await command.reply({ ...message, flags: MessageFlags.Ephemeral });
 }
 /**
@@ -70,7 +92,7 @@ async function answerChannels(deps, command) {
  * off just before the thread goes, since that closes the Interview.
  */
 async function finish(deps, press, memberId) {
-    await press.update(savedMessage());
+    await press.update(finishedMessage(deps.preferences.get(memberId).experience, deps.guidesForumId));
     const prompt = deps.preferences.prompt(memberId);
     if (prompt === undefined)
         return;
@@ -109,7 +131,7 @@ async function replyFailed(deps, press) {
         deps.logError(`Answering a failed Preferences press by ${press.user.id} failed: ${reasonOf(error)}`);
     }
 }
-/** A select change: saves the answer, answers the press with the new Preferences, then applies the roles and logs. */
+/** A select change: saves the answer, re-renders the same step with the new Preferences, then applies the roles and logs. */
 async function change(deps, press, target) {
     const { memberId, rank, question } = target;
     const values = press.values ?? [];
@@ -129,14 +151,15 @@ async function change(deps, press, target) {
             break;
     }
     const preferences = deps.preferences.get(memberId);
-    await press.update(messageFor(deps, memberId, preferences, alliance));
+    await press.update(stepMessageFor(deps, memberId, question, preferences, alliance));
     await deps.roles.apply(memberId);
     await deps.channels.log(preferencesLogLine(memberId, preferences));
 }
-/** The Preferences message as the presses and /channels show it; the Member's playing language is not looked up here. */
-function messageFor(deps, memberId, preferences, rank) {
-    return preferencesMessage({
+/** One step of the Preferences, as the presses and /channels show it; the Member's playing language is not looked up here. */
+function stepMessageFor(deps, memberId, step, preferences, rank) {
+    return preferenceStepMessage({
         memberId,
+        step,
         preferences,
         rank,
         playerLanguage: undefined,

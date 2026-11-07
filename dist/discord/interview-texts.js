@@ -60,8 +60,15 @@ function giveUidMessage(content, interviewId, allowedMentions) {
 function askUid() {
     return `Tell me who you are in the game: press the button and enter your uid.\n${UID_HELP}`;
 }
+/** Neil's greeting as the alliance hall's Liaison. */
+function greeting(member) {
+    return `👋 Welcome to the alliance hall, <@${member}>! I'm Neil, the hall's Liaison.`;
+}
 function askBody(member) {
-    return `Welcome, <@${member}>! ${askUid()}`;
+    return (`${greeting(member)}\n` +
+        "Before I show you around, I need to know which Player you are. Your uid proves it. " +
+        "Once that's done, I'll set up your name and roles, and Home Kingdom Members choose their channels.\n\n" +
+        askUid());
 }
 /** The thread's name for an Interview: "Interview – {username}", cut to 100 characters. */
 export function interviewThreadName(username) {
@@ -180,7 +187,7 @@ export function playerCardText(player) {
 }
 /** The thread message with the card of a found Player and the buttons to confirm or reject it. */
 export function foundCardMessage(interviewId, player) {
-    const content = `${playerCardText(player)}\nIs this you?`;
+    const content = `${playerCardText(player)}\nIs this you? Press That's me to link this Player to your Discord account.`;
     return {
         content,
         components: [
@@ -208,7 +215,9 @@ export function foundCardMessage(interviewId, player) {
 /** The thread message that recommends the one free match: it greets the Member, and offers That's me or That's not me. */
 export function recommendationMessage(interviewId, member, player) {
     return {
-        content: `Welcome, <@${member}>! Is this you?\n${escapeText(player.name)}, Kingdom #${player.kingdom.toString()}, ${allianceCardText(player)}.`,
+        content: `${greeting(member)} Is this you?\n` +
+            `${escapeText(player.name)}, Kingdom #${player.kingdom.toString()}, ${allianceCardText(player)}.\n` +
+            "If it is, press That's me and I'll ask for your uid to prove it.",
         components: [
             {
                 type: ComponentType.ActionRow,
@@ -241,7 +250,7 @@ export function pickListMessage(interviewId, member, matches) {
         value: index.toString(),
     }));
     return {
-        content: `<@${member}>, which of these players is you?`,
+        content: `<@${member}>, which of these Players is you?\nPick yours from the list, and I'll ask for its uid to prove it.`,
         components: [
             {
                 type: ComponentType.ActionRow,
@@ -305,7 +314,7 @@ export function quotaResetMessage(interviewId, member) {
 /** The thread message when a Member is Linked: greets them by mention, names the Player, and gives the Link note. */
 export function linkedMessage(member, player) {
     return {
-        content: `Done, <@${member}>: you're linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).\n${LINK_NOTE}`,
+        content: `🎉 Done, <@${member}>: you're linked to ${escapeText(player.name)} (uid ${escapeText(player.uid)}).\nI'm setting up your name and roles now.\n${LINK_NOTE}`,
         allowedMentions: { users: [member] },
     };
 }
