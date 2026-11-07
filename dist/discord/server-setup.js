@@ -18,6 +18,8 @@ const PERMISSION_BITS = {
     ManageThreads: PermissionFlagsBits.ManageThreads,
     ReadMessageHistory: PermissionFlagsBits.ReadMessageHistory,
     EmbedLinks: PermissionFlagsBits.EmbedLinks,
+    Connect: PermissionFlagsBits.Connect,
+    Speak: PermissionFlagsBits.Speak,
 };
 const PERMISSIONS = Object.keys(PERMISSION_BITS).filter(isPermission);
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;

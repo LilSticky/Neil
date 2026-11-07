@@ -12,7 +12,18 @@ export function translatedDescription(description, language) {
 }
 const VIEW = "ViewChannel";
 const SEND = "SendMessages";
+const HISTORY = "ReadMessageHistory";
 const POSTING = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"];
+/**
+ * What a seer of each type of channel may do there, granted on the channel so it works whatever @everyone holds on the
+ * server: a read-only or only-king-posts channel drops the posting part.
+ */
+const SEER_GRANTS = {
+    text: { reading: [VIEW, HISTORY], posting: [SEND] },
+    announcement: { reading: [VIEW, HISTORY], posting: [SEND] },
+    forum: { reading: [VIEW, HISTORY], posting: [SEND, "SendMessagesInThreads"] },
+    voice: { reading: [VIEW, "Connect", "Speak"], posting: [] },
+};
 /**
  * The wanted overwrites of a layout, with placeholders replaced, categories and channels expanded (data-model.md, Expansion).
  * A channel's overwrites are its category's, with the channel's own on top, own winning per permission.
@@ -68,15 +79,16 @@ function expandChannel(channel, categorySeenBy, expansion) {
     const { resolve } = expansion;
     const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
     const grants = categoryGrants(seenBy);
-    if (channel.mode === "read-only") {
-        for (const role of seenBy)
-            grant(grants, role, [SEND], "deny");
-    }
-    if (channel.mode === "only-king-posts") {
-        for (const role of seenBy)
+    const seer = SEER_GRANTS[channel.type];
+    for (const role of seenBy) {
+        grant(grants, role, seer.reading, "allow");
+        if (channel.mode === undefined)
+            grant(grants, role, seer.posting, "allow");
+        else
             grant(grants, role, POSTING, "deny");
-        grant(grants, KING_ROLE, [VIEW, SEND], "allow");
     }
+    if (channel.mode === "only-king-posts")
+        grant(grants, KING_ROLE, [VIEW, SEND, HISTORY], "allow");
     if (channel.translated === true)
         grant(grants, TRANSLATION_BOT_ROLE, [VIEW, SEND], "allow");
     for (const [target, spec] of Object.entries(channel.overwrites ?? {})) {
