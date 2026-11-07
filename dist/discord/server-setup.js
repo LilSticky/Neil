@@ -734,6 +734,8 @@ function describeFinding(finding, real) {
             return `${finding.name} holds permissions; Neil doesn't give or take it`;
         case "role-above-neil":
             return `${finding.name} is above Neil's role; Neil can't give it`;
+        case "permission-by-hand":
+            return `${finding.name} is above Neil's role: allow ${finding.permission} on it by hand, in Server Settings > Roles`;
         case "fallback-to-text":
             return `${finding.name}: without Community it is created as text instead of ${finding.from}`;
         case "extra-tag":

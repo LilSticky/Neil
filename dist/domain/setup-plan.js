@@ -77,7 +77,10 @@ function planRoles(plan, layout) {
             plan.findings.push({ kind: "duplicate-name", name });
     }
 }
-/** Each role permission a listed role lacks. Only missing ones are planned: nothing is removed, and a role not there yet lacks all. */
+/**
+ * Each role permission a listed role lacks. Only missing ones are planned: nothing is removed, and a role not there yet lacks all.
+ * A role at or above Neil's top role can't be edited by Neil, even as Administrator, so its missing permissions are left by hand.
+ */
 function planRolePermissions(plan, rolePermissions) {
     for (const [name, permissions] of Object.entries(rolePermissions)) {
         const found = lookup(plan.server.roles.filter((role) => role.name === name));
@@ -85,8 +88,14 @@ function planRolePermissions(plan, rolePermissions) {
             continue;
         const held = found.kind === "one" ? (found.item.rolePermissions ?? []) : [];
         for (const permission of new Set(permissions)) {
-            if (!held.includes(permission))
+            if (held.includes(permission))
+                continue;
+            if (found.kind === "one" && found.item.position >= plan.server.botTopPosition) {
+                plan.findings.push({ kind: "permission-by-hand", name, permission });
+            }
+            else {
                 plan.roleSteps.push({ kind: "allow-permission", name, permission });
+            }
         }
     }
 }
