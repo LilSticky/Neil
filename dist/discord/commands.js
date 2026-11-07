@@ -60,6 +60,10 @@ export const usage = new SlashCommandBuilder()
     .setName("usage")
     .setDescription("Show your Game API requests today and your Daily Allowance")
     .setContexts(InteractionContextType.Guild);
+export const help = new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("Show the commands you can use and what they are for")
+    .setContexts(InteractionContextType.Guild);
 export const interview = new SlashCommandBuilder()
     .setName("interview")
     .setDescription("Start your Onboarding Interview")
@@ -135,5 +139,6 @@ export const commands = [
     link.toJSON(),
     reaper.toJSON(),
     usage.toJSON(),
+    help.toJSON(),
 ];
 //# sourceMappingURL=commands.js.map

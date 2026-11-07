@@ -30,6 +30,8 @@ import { reaperMessages } from "./reaper-texts.js";
 import { handleQuota } from "./quota.js";
 import { handleUsage } from "./usage.js";
 import { usageLine } from "./usage-texts.js";
+import { commands } from "./commands.js";
+import { handleHelp } from "./help.js";
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
 const PICK_PREFIX = "pick:";
 /** The custom id prefix of every Alliance Overview page button. */
@@ -183,6 +185,9 @@ export function createClient(handlers, options) {
                     break;
                 case "usage":
                     void handlers.usage(interaction);
+                    break;
+                case "help":
+                    void handlers.help(interaction);
                     break;
                 case "channels":
                     void handlers.channels(interaction);
@@ -674,6 +679,10 @@ export async function connect(token, options) {
             now,
             logError,
         }),
+        help: (interaction) => handleHelp({
+            memberRoleIds: () => memberRoleIds(interaction.member),
+            reply: (reply) => interaction.reply(reply),
+        }, { commands, officerRoleIds: options.officerRoleIds, logError }),
         memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
         memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
         memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
