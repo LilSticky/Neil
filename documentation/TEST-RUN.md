@@ -455,13 +455,16 @@ On the test server built by 6v, with the deploy not needed (the script runs loca
 
 | # | Step | Expected | Result |
 |---|------|----------|--------|
-| 6y.1 | `npm run server:setup` without Administrator | `would set tags of`, `would set reaction of`, `would correct permissions of` and `would open how-to post in` lines for the five forums, or the "can't read the posts of n forums" line | |
-| 6y.2 | Give Neil's role Administrator, `npm run server:setup -- --apply`, then run it again | The second run says `Nothing to do.` | |
-| 6y.3 | Open each of the five forums | No open step in Discord's getting-started checklist; Neil's "How to post in #…" is pinned at the top; the tags and the reaction match SERVER-SETUP.md | |
-| 6y.4 | As a Member with PvP: create a post in `pvp-tactics` with a tag | Works; the post shows ⚔️ | |
-| 6y.5 | As a Member with Events but not Veteran: open `guides` | No way to create a post; Neil's post is readable | |
-| 6y.6 | Change one forum's `howTo.belongs` in `server-layout.json`, run with `--apply` | Neil's post is edited; no second post | |
-| 6y.7 | Take Administrator off Neil's role | Done | |
+| 6y.1 | `npm run server:setup` without Administrator | `would set tags of`, `would set reaction of`, `would correct permissions of` and `would open how-to post in` lines for the five forums, or the "can't read the posts of n forums" line | ✅ 2026-11-08 |
+| 6y.2 | Give Neil's role Administrator, `npm run server:setup -- --apply`, then run it again | The second run says `Nothing to do.` | ✅ 2026-11-08 |
+| 6y.3 | Open each of the five forums | No open step in Discord's getting-started checklist; Neil's "How to post in #…" is pinned at the top; the tags and the reaction match SERVER-SETUP.md | ✅ 2026-11-08 |
+| 6y.4 | As a Member with PvP: create a post in `pvp-tactics` with a tag | Works; the post shows ⚔️ | ✅ 2026-11-08 |
+| 6y.5 | As a Member with Events but not Veteran: open `guides` | No way to create a post; Neil's post is readable | ✅ 2026-11-08 |
+| 6y.6 | Change one forum's `howTo.belongs` in `server-layout.json`, run with `--apply` | Neil's post is edited; no second post | ✅ 2026-11-08 |
+| 6y.7 | Take Administrator off Neil's role | Done | ✅ 2026-11-08 |
+
+
+6y.3 found `#guides` with "no role was allowed to post": Veteran could post but not view it without Events. Fixed in PR #92 (Intermediate and Veteran see and post on their own); a run afterwards said `Nothing to do.`
 
 ## 7. Afterwards
 
