@@ -311,6 +311,9 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
     async editOverwrites(channelId, overwrites) {
       await rest.patch(Routes.channel(channelId), { body: { permission_overwrites: encode(overwrites) } });
     },
+    async editRolePermissions(roleId, permissions) {
+      await rest.patch(Routes.guildRole(guildId, roleId), { body: { permissions: permissions.toString() } });
+    },
     async setTopic(channelId, topic) {
       await rest.patch(Routes.channel(channelId), { body: { topic } });
     },

@@ -11,6 +11,7 @@ import { approve, cancel, type Approver, type MemberId, type RankApproval } from
 import { AppliedStore } from "../storage/applied-store.js";
 import { BootyAlertsStore, type StoredBootyAlerts } from "../storage/booty-alerts-store.js";
 import { openDatabase } from "../storage/database.js";
+import { EventStore } from "../storage/event-store.js";
 import { LinkStore } from "../storage/link-store.js";
 import { FakeDoctorRole, type DoctorRoleCall } from "./__fakes__/doctor-role.js";
 import { FakeOnboardingRole } from "./__fakes__/onboarding-role.js";
@@ -173,6 +174,8 @@ interface Harness {
   readonly preferenceRoles: FakePreferenceRoles;
   /** The Booty Alerts of the Members: a real store on the test database, which Unlink forgets from. */
   readonly bootyAlerts: BootyAlertsStore;
+  /** The Event Invitations Off of the Members: a real store on the test database, which Unlink forgets from. */
+  readonly events: EventStore;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -285,6 +288,7 @@ describe("createUnlink", () => {
     const doctorRole = new FakeDoctorRole();
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
+    const events = new EventStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -294,6 +298,7 @@ describe("createUnlink", () => {
       doctorRole,
       preferenceRoles,
       bootyAlerts,
+      events,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -301,7 +306,7 @@ describe("createUnlink", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
   });
 
   afterEach(() => {
@@ -762,6 +767,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
     const doctorRole = new FakeDoctorRole();
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
+    const events = new EventStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -771,6 +777,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
       doctorRole,
       preferenceRoles,
       bootyAlerts,
+      events,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -778,7 +785,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
   });
 
   afterEach(() => {
@@ -848,6 +855,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
     const doctorRole = new FakeDoctorRole();
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
+    const events = new EventStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -857,6 +865,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
       doctorRole,
       preferenceRoles,
       bootyAlerts,
+      events,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -864,7 +873,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
   });
 
   afterEach(() => {
@@ -909,6 +918,102 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
     joinServer(h, ALICE, ["[NML]"], undefined);
     h.bootyAlerts.save(ALICE, recordedBootyAlerts());
     vi.spyOn(h.bootyAlerts, "forget").mockImplementation(() => {
+      throw new Error("database is locked");
+    });
+
+    await h.service.unlink({ id: ALICE }, BY_OFFICER);
+
+    expect(h.links.linkFor(ALICE)).toBeUndefined();
+    expect(h.channels.logs).toHaveLength(1);
+    expect(h.privateMessages.attempts).toHaveLength(1);
+    expect(h.errors).toEqual([expect.stringContaining(ALICE)]);
+  });
+});
+
+describe("createUnlink: the Event Invitations Off of the Member are forgotten", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let h: Harness;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-unlink-event-invitations-"));
+    db = openDatabase(dataDir);
+    const links = new LinkStore(db);
+    const applied = new AppliedStore(db);
+    const channels = new FakeChannels();
+    const privateMessages = new FakePrivateMessages();
+    const errors: string[] = [];
+    const members = new FakeServerMembers();
+    const guild = new FakeRolesGuild(OWNER_ID);
+    guild.defineRole("[NML]");
+    guild.defineRole("R4");
+    const onboardingRole = new FakeOnboardingRole();
+    const doctorRole = new FakeDoctorRole();
+    const preferenceRoles = new FakePreferenceRoles();
+    const bootyAlerts = new BootyAlertsStore(db);
+    const events = new EventStore(db);
+    const service = createUnlink({
+      links,
+      applied,
+      channels,
+      members,
+      onboardingRole,
+      doctorRole,
+      preferenceRoles,
+      bootyAlerts,
+      events,
+      now: () => NOW,
+      sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
+      officerRoles: OFFICERS,
+      logError: (line: string) => {
+        errors.push(line);
+      },
+    });
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test.each<[string, UnlinkReason]>([
+    ["the Member Unlinks themselves", "self"],
+    ["an Officer Unlinks the Member", BY_OFFICER],
+    ["the Member leaves the server", "left"],
+    ["the Member is found missing", "missing"],
+  ])("forgets the Event Invitations Off of the Member when %s", async (_case, reason) => {
+    linkMember(h, LEAVER_ID, LEAVER_UID);
+    h.events.setInvitationsOff(LEAVER_ID);
+
+    await h.service.unlink(LEAVER, reason);
+
+    expect(h.events.hasInvitationsOff(LEAVER_ID)).toBe(false);
+  });
+
+  test("forgets the Event Invitations Off of a Member whose Link has already ended meanwhile", async () => {
+    h.events.setInvitationsOff(LEAVER_ID);
+
+    await h.service.unlink(LEAVER, "missing");
+
+    expect(h.events.hasInvitationsOff(LEAVER_ID)).toBe(false);
+  });
+
+  test("leaves the Event Invitations Off of the other Members as they are", async () => {
+    linkMember(h, LEAVER_ID, LEAVER_UID);
+    h.events.setInvitationsOff(LEAVER_ID);
+    h.events.setInvitationsOff(ALICE);
+
+    await h.service.unlink(LEAVER, "self");
+
+    expect(h.events.hasInvitationsOff(ALICE)).toBe(true);
+  });
+
+  test("a failure to forget is logged, and the Unlink still ends the Link and logs it", async () => {
+    linkMember(h, ALICE, ALICE_UID);
+    joinServer(h, ALICE, ["[NML]"], undefined);
+    h.events.setInvitationsOff(ALICE);
+    vi.spyOn(h.events, "forgetMember").mockImplementation(() => {
       throw new Error("database is locked");
     });
 

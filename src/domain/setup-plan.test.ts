@@ -2,7 +2,8 @@
  * Contract for src/domain/setup-plan.ts (slice 020, data-model.md "Server state" and "Setup plan", research R3, R4, R6).
  * Names the implementer must export:
  *
- *   interface ServerRole { id: string; name: string; hasPermissions: boolean; managed: boolean; position: number }
+ *   interface ServerRole { id: string; name: string; permissions: bigint; managed: boolean; position: number; rolePermissions?: RolePermission[] }
+ *     // permissions: the role's Discord permission bits as Discord gives them; the bits of the layout's rolePermissions are not beyond it
  *   interface ServerOverwrite { targetId: string; allow: Permission[]; deny: Permission[] }
  *     // targetId: a role id, the guild's @everyone id (everyoneId) or a member id (botUserId for Neil)
  *   interface ServerChannel {
@@ -134,6 +135,18 @@ const layout: ServerLayout = {
   },
 };
 
+/** Discord's permission bits, as the adapter reads them off a role. */
+const ADMINISTRATOR = 1n << 3n;
+const MANAGE_ROLES = 1n << 28n;
+const CREATE_EVENTS = 1n << 44n;
+
+/** The layout with R4, which the layout grants CreateEvents through rolePermissions and nothing else. */
+const grantingLayout: ServerLayout = {
+  ...layout,
+  roles: [...layout.roles, "R4"],
+  rolePermissions: { R4: ["CreateEvents"] },
+};
+
 function server(overrides: Partial<ServerState> = {}): ServerState {
   return {
     everyoneId: EVERYONE_ID,
@@ -151,7 +164,7 @@ function role(name: string, overrides: Partial<ServerRole> = {}): ServerRole {
   return {
     id: `role-${name}`,
     name,
-    hasPermissions: false,
+    permissions: 0n,
     managed: false,
     position: 10,
     ...overrides,
@@ -377,11 +390,44 @@ describe("planSetup: roles", () => {
   test("a layout role that holds permissions is reported as role-has-permissions", () => {
     const plan = planSetup(
       layout,
-      server({ roles: [role("PvP", { hasPermissions: true })] }),
+      server({ roles: [role("PvP", { permissions: MANAGE_ROLES })] }),
       HOME_KINGDOM,
     );
     expect(plan.findings).toContainEqual(
       expect.objectContaining({ kind: "role-has-permissions", name: "PvP" }),
+    );
+  });
+
+  test("a layout role the layout grants CreateEvents, holding Administrator beyond it, is reported as role-has-permissions", () => {
+    const plan = planSetup(
+      grantingLayout,
+      server({ roles: [role("R4", { permissions: CREATE_EVENTS | ADMINISTRATOR })] }),
+      HOME_KINGDOM,
+    );
+    expect(plan.findings).toContainEqual(
+      expect.objectContaining({ kind: "role-has-permissions", name: "R4" }),
+    );
+  });
+
+  test("a layout role the layout grants CreateEvents, holding ManageRoles beyond it, is reported as role-has-permissions", () => {
+    const plan = planSetup(
+      grantingLayout,
+      server({ roles: [role("R4", { permissions: CREATE_EVENTS | MANAGE_ROLES })] }),
+      HOME_KINGDOM,
+    );
+    expect(plan.findings).toContainEqual(
+      expect.objectContaining({ kind: "role-has-permissions", name: "R4" }),
+    );
+  });
+
+  test("a layout role holding exactly the CreateEvents its layout grants is not reported as role-has-permissions", () => {
+    const plan = planSetup(
+      grantingLayout,
+      server({ roles: [role("R4", { permissions: CREATE_EVENTS })] }),
+      HOME_KINGDOM,
+    );
+    expect(plan.findings).not.toContainEqual(
+      expect.objectContaining({ kind: "role-has-permissions", name: "R4" }),
     );
   });
 
@@ -390,8 +436,8 @@ describe("planSetup: roles", () => {
       layout,
       server({
         roles: [
-          role("Moderator", { hasPermissions: true }),
-          role("King", { hasPermissions: true }),
+          role("Moderator", { permissions: ADMINISTRATOR }),
+          role("King", { permissions: ADMINISTRATOR }),
         ],
       }),
       HOME_KINGDOM,
@@ -412,7 +458,7 @@ describe("planSetup: roles", () => {
       layout,
       server({
         roles: [
-          role("Interaction Bot", { managed: true, hasPermissions: true }),
+          role("Interaction Bot", { managed: true, permissions: MANAGE_ROLES }),
         ],
       }),
       HOME_KINGDOM,

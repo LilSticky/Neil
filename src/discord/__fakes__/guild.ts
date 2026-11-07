@@ -3,13 +3,17 @@ import type { ChannelType } from "discord.js";
 /** The bot's own member id in the fakes: permission checks of a channel are for this member. */
 export const BOT_MEMBER_ID = "1000000000000000099";
 
-/** A message in a fake channel or thread: its id and its current text, which an edit replaces in place. */
+/** The guild id the fake links its messages under. */
+const FAKE_GUILD_ID = "100000000000000000";
+
+/** A message in a fake channel or thread: its id, its link and its current text, which an edit replaces in place. */
 export class FakeMessage {
   content: string;
 
   constructor(
     readonly id: string,
     content: string,
+    readonly url: string = "",
   ) {
     this.content = content;
   }
@@ -32,6 +36,10 @@ export interface FakeThreadOptions {
 export interface FakeChannelOptions {
   readonly type: ChannelType;
   readonly botPermissions?: readonly bigint[];
+  /** The channel's name, as discord.js gives it (such as `alliance-chat`). */
+  readonly name?: string;
+  /** The name of the category the channel sits in, as `channel.parent.name`; none when unset. */
+  readonly categoryName?: string;
 }
 
 /** A text channel or a thread of the fake guild; it records what the adapter did to it. */
@@ -40,6 +48,10 @@ export class FakeChannel {
   readonly sent: FakeMessage[] = [];
   /** Ids of the members added to this thread. */
   readonly memberIds = new Set<string>();
+  /** The channel's name, as discord.js gives it. */
+  name = "";
+  /** The category the channel sits in, as discord.js gives it through `parent`; null when it sits in none. */
+  parent: { readonly name: string } | null = null;
 
   /** The channel.threads manager: creating a thread registers it in the guild. */
   readonly threads = {
@@ -73,7 +85,8 @@ export class FakeChannel {
   ) {}
 
   send(options: { readonly content: string }): Promise<FakeMessage> {
-    const message = new FakeMessage(String(this.sent.length + 1), options.content);
+    const id = String(this.sent.length + 1);
+    const message = new FakeMessage(id, options.content, `https://discord.com/channels/${FAKE_GUILD_ID}/${this.id}/${id}`);
     this.sent.push(message);
     return Promise.resolve(message);
   }
@@ -106,6 +119,8 @@ export class FakeGuild {
       if (failure !== undefined) return Promise.reject(failure);
       return Promise.resolve(this.byId.get(id) ?? null);
     },
+    /** The channels and threads already known, by id, as discord.js caches them: read without a fetch. */
+    cache: this.byId as ReadonlyMap<string, FakeChannel>,
   };
 
   /** Makes fetching this channel or thread reject with the error, as Discord does for a thread it cannot find. */
@@ -115,6 +130,8 @@ export class FakeGuild {
 
   addChannel(id: string, options: FakeChannelOptions): FakeChannel {
     const channel = new FakeChannel(this, id, options.type, options.botPermissions ?? [], undefined, undefined);
+    channel.name = options.name ?? "";
+    channel.parent = options.categoryName === undefined ? null : { name: options.categoryName };
     this.byId.set(id, channel);
     return channel;
   }

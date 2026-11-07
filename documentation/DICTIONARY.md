@@ -192,6 +192,49 @@ discovery.
 * Off until the Member records otherwise; forgotten at Unlink
 * Online means online on Discord or in the game
 
+## Event
+* Something in the game, at a set start time, that Members take part in, such as Alliance Duel or a Hive move
+* Neil can't see one in the game. It knows an Event only from the Discord scheduled event that an Officer, or an Alliance's R4 or R5, created for it by hand
+* Either a Kingdom Event or an Alliance Event
+* Its guides are the links its creator writes into the Discord event's description
+
+## Kingdom Event
+* An Event for the whole Home Kingdom: its Discord event's name carries no Alliance tag in brackets
+* Its Event Invitation goes to `#event-announcements`, for holders of the `Events` role
+* A Guest gets no Event Reminders for it
+
+## Alliance Event
+* An Event for one Alliance: its Discord event's name carries that Alliance's tag in brackets, e.g. "[NML] Hive move"
+* Created by a Member Linked to the Alliance's R4 or R5, who needs Discord's Create Events right for this
+* Its Event Invitation goes to that Alliance's `alliance-chat`, for every holder of the Alliance's role
+
+## Event Kind
+* A named kind of Event, with its Reminder lead times and, if it has a Sign-up, its Sign-up Deadline offset
+* Each Alliance keeps its own list, managed by the Members Linked to its R4 or R5. The kingdom's list is managed by the Officers
+* Neil gives an Event the kind whose name appears in the Discord event's name, looking only in that Event's own list (the Alliance's or the kingdom's). With no match, one Event Reminder goes out 30 minutes before the start, and there is no Sign-up Deadline
+
+## Sign-up
+* A Player's registration in the game for an Event, which must happen before the Sign-up Deadline
+* Not Discord's "Interested": that only asks Neil for Event Reminders
+
+## Sign-up Deadline
+* When Sign-up for an Event closes: its Event Kind's fixed offset before the Event's start
+* Only Events whose Event Kind has a Sign-up have one
+
+## Event Invitation
+* Neil's single card for a new Event, posted once in the Event's channel. It shows the name, the start and the guide links, and links to the Discord event
+* Mentions each Member who may take part, one by one, except those with Event Invitations Off
+
+## Event Invitations Off
+* A Member's recorded choice to stop being mentioned in Event Invitations; until they record it, they are mentioned
+* Does not affect the Event Reminders for Events the Member marked Interested
+* Forgotten at Unlink
+
+## Event Reminder
+* One message from Neil, at one of the Event Kind's lead times before the Event's start or Sign-up Deadline. It mentions the Members who marked the Discord event Interested
+* Marking Interested is how a Member asks for reminders about that one Event. There is nothing else to opt in to
+* Each Reminder goes out at most once per Event
+
 # Onboarding
 
 ## Onboarding Interview

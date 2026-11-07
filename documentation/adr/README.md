@@ -19,3 +19,4 @@ with a new one and update both statuses here.
 | 11 | [Reading the presence of Members](0011-reading-the-presence-of-members.md) | Accepted |
 | 12 | [The setup script runs under temporary Administrator](0012-setup-script-runs-under-temporary-administrator.md) | Accepted |
 | 13 | [Personal data of Booty Alerts](0013-personal-data-of-booty-alerts.md) | Accepted |
+| 14 | [Reading scheduled events, and what Event Reminders store](0014-reading-scheduled-events.md) | Accepted |

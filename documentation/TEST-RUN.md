@@ -433,6 +433,22 @@ Branch `025-onboarding-in-steps`. No new commands, no migration. Run after 6v, o
 | 6w.9 | Press an old step button from 6w.4 after changing an answer with `/channels` | That step shows the current answers; nothing else changes | | |
 | 6w.10 | **View Server As Role** `Recruitment` and `#<Home Kingdom>` | `recruitment` and the three per-Region recruitment channels; `news` is visible even without any role | | |
 
+## 6x. Be reminded of events (slice 028, collected 2026-11-07)
+
+Branch `028-be-reminded-of-events`. New commands: `/event-kinds`, `/event-invitations`. Migration 15, a new intent (scheduled events, not privileged). Before: deploy, `npm run commands:register`, and the setup script with `--apply` (it grants Create Events and lets Neil post in `#event-announcements`). You need an Officer, an R5 of one Alliance (A) with a second Member of A (B), and a Member who is neither.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6x.1 | Dry run of the setup script | `would allow CreateEvents on R4` (and R5, Moderator, King) the first time; nothing after `--apply` | | |
+| 6x.2 | As the Officer, create an event "Test round" starting in 40 minutes, location **Somewhere Else**, a link in the description | Within a minute one card in `#event-announcements`: the name, the start in your own time, the link as a guide, a link to the event; `Events` holders mentioned; one line in `#neil-log` | | |
+| 6x.3 | Edit the event's description | No second card | | |
+| 6x.4 | As B, click **Interested** on it | 30 minutes before the start, a reminder in `#event-announcements` mentioning B only | | |
+| 6x.5 | As A's R5, `/event-kinds add name:Hive before-start:3m, 1m`, then create "[TAG] Hive move" starting in 5 minutes | `/event-kinds list` shows it; the card in A's `alliance-chat` mentions A's members | | |
+| 6x.6 | As B, click **Interested** on "[TAG] Hive move" | Reminders 3 and 1 minutes before the start, one each | | |
+| 6x.7 | As the plain Member (given Create Events by hand for this check), create "[TAG] Fake" | No card; a line in `#neil-log` with the event and its creator | | |
+| 6x.8 | As B, `/event-invitations invitations:off`, then the Officer creates another event | B isn't mentioned in its card | | |
+| 6x.9 | Move an event's start by 10 minutes, then cancel another | Reminders follow the new start without repeats; the cancelled one sends nothing | | |
+| 6x.10 | Restart Neil with an event 20 minutes ahead | No second card; its reminder still comes | | |
 ## 6y. Set up the forums (slice 030, collected 2026-11-07)
 
 On the test server built by 6v, with the deploy not needed (the script runs locally).
