@@ -36,6 +36,12 @@
     "Vietnamese",
     "Indonesian"
   ],
+  "translations": [
+    "Russian",
+    "French",
+    "Italian",
+    "German"
+  ],
   "categories": [
     {
       "name": "Onboarding",
@@ -49,6 +55,7 @@
         {
           "name": "onboarding",
           "type": "text",
+          "description": "Where newcomers meet Neil 👋 Your private Onboarding Interview opens as a thread here.",
           "overwrites": {
             "Onboarding": {
               "allow": [
@@ -94,6 +101,7 @@
         {
           "name": "neil-log",
           "type": "text",
+          "description": "Neil's log of every Link, Unlink, role and nickname change, for the Officers.",
           "overwrites": {
             "Neil": {
               "allow": [
@@ -105,7 +113,8 @@
         },
         {
           "name": "moderators",
-          "type": "text"
+          "type": "text",
+          "description": "The Officers' room: talk shop and use the Officer commands here."
         }
       ]
     },
@@ -118,17 +127,33 @@
         {
           "name": "rules",
           "type": "text",
-          "mode": "read-only"
+          "description": "The house rules of the alliance hall. Read them once, keep them always.",
+          "mode": "read-only",
+          "codeOfConduct": [
+            "📜 **Code of Conduct**",
+            "",
+            "1. **Be respectful.** No insults, harassment, hate speech or discrimination, here or in game chat.",
+            "2. **Keep it safe for work.** No NSFW, gore or shocking content.",
+            "3. **No spam.** No flooding, mass mentions, unasked ads or links to other servers.",
+            "4. **Use the right channel.** Each channel's pinned message says what it is for.",
+            "5. **Keep tactics in the Kingdom.** Don't share screenshots, plans or intel from this server outside it.",
+            "6. **No cheating, account selling or real-money trading.** It breaks the game's rules and puts your account at risk.",
+            "7. **Settle disputes calmly.** Take Alliance or NaP disagreements to your R4 or R5; don't take them public.",
+            "8. **Follow the Officers.** Moderators and the King have the last word on this server.",
+            "",
+            "Breaking these rules can mean a warning, a timeout or removal from the server. Questions? Ask a Moderator. 🤝"
+          ]
         },
         {
           "name": "welcome",
           "type": "text",
+          "description": "Welcome to the Kingdom! Start here to find your way around.",
           "mode": "read-only"
         }
       ]
     },
     {
-      "name": "Home Kingdom",
+      "name": "Hangout",
       "seenBy": [
         "#<Home Kingdom>"
       ],
@@ -136,11 +161,13 @@
         {
           "name": "home-kingdom-announcements",
           "type": "announcement",
+          "description": "News from the King for the whole Home Kingdom 📣",
           "mode": "only-king-posts"
         },
         {
           "name": "gift-codes",
           "type": "text",
+          "description": "Fresh gift codes for the game 🎁 Redeem them while they last.",
           "mode": "only-king-posts",
           "overwrites": {
             "R4": {
@@ -154,26 +181,37 @@
               ]
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "Hangout",
-      "seenBy": [
-        "#<Home Kingdom>"
-      ],
-      "channels": [
+        },
         {
           "name": "general",
-          "type": "text"
+          "type": "text",
+          "description": "The Kingdom's living room: chat about anything game-related."
         },
         {
           "name": "Hangout voice",
-          "type": "voice"
+          "type": "voice",
+          "description": "Drop in and talk with the Kingdom 🎙️"
         },
         {
           "name": "alliance-hall",
-          "type": "text"
+          "type": "text",
+          "description": "Ask Neil things here: /player, /alliance, /channels, /help and more."
+        },
+        {
+          "name": "off-topic",
+          "type": "text",
+          "description": "Anything that isn't the game: life, hobbies, the weather.",
+          "seenBy": [
+            "Off-topic"
+          ]
+        },
+        {
+          "name": "memes",
+          "type": "text",
+          "description": "Memes, jokes and screenshots worth a laugh 😄",
+          "seenBy": [
+            "Off-topic"
+          ]
         }
       ]
     },
@@ -186,20 +224,31 @@
         {
           "name": "guest-rules",
           "type": "text",
-          "mode": "read-only"
+          "description": "The rules for our guests. Please read them before you post.",
+          "mode": "read-only",
+          "codeOfConduct": [
+            "📜 **Guest Code of Conduct**",
+            "",
+            "Welcome, traveller! You're a guest of our Kingdom, so please:",
+            "",
+            "1. **Be respectful.** No insults, harassment, hate speech or discrimination.",
+            "2. **Keep it safe for work.** No NSFW, gore or shocking content.",
+            "3. **No spam or advertising.** No recruiting for other Kingdoms or servers.",
+            "4. **No trash talk or provocation.** Rivalries stay in the game.",
+            "5. **Follow the Officers.** Moderators and the King have the last word on this server.",
+            "",
+            "Breaking these rules can mean removal from the server. Questions? Ask a Moderator. 🤝"
+          ]
         },
         {
           "name": "guest-chat",
-          "type": "text"
+          "type": "text",
+          "description": "Chat with the Kingdom as a guest: diplomacy, questions, friendly hellos."
         },
         {
           "name": "Guest voice",
-          "type": "voice"
-        },
-        {
-          "name": "guest-announcements",
-          "type": "announcement",
-          "mode": "only-king-posts"
+          "type": "voice",
+          "description": "Voice channel for guests and the Kingdom 🎙️"
         }
       ]
     },
@@ -212,6 +261,7 @@
         {
           "name": "nap-discussion",
           "type": "text",
+          "description": "Closed talk about non-aggression pacts (NaP) between Alliances.",
           "seenBy": [
             "NaP discussions",
             "King"
@@ -220,6 +270,7 @@
         {
           "name": "nap-leaders",
           "type": "text",
+          "description": "The R5s' and the King's room for NaP decisions.",
           "seenBy": [
             "R5",
             "King"
@@ -228,12 +279,14 @@
         {
           "name": "nap-announcements",
           "type": "announcement",
+          "description": "NaP agreements as the King announces them 🤝",
           "mode": "only-king-posts",
           "translated": true
         },
         {
           "name": "nap-forum",
-          "type": "forum"
+          "type": "forum",
+          "description": "Questions and discussion about the NaP, one post per topic."
         }
       ]
     },
@@ -245,19 +298,23 @@
       "channels": [
         {
           "name": "pvp-chat",
-          "type": "text"
+          "type": "text",
+          "description": "Talk fights, troops and rallies."
         },
         {
           "name": "PvP voice",
-          "type": "voice"
+          "type": "voice",
+          "description": "Voice for coordinating fights ⚔️"
         },
         {
           "name": "pvp-intel",
-          "type": "text"
+          "type": "text",
+          "description": "Scout reports and enemy info. Look players up with /player, /alliance and /reaper."
         },
         {
           "name": "pvp-tactics",
-          "type": "forum"
+          "type": "forum",
+          "description": "Battle plans and lessons learned, one post per topic."
         }
       ]
     },
@@ -269,19 +326,32 @@
       "channels": [
         {
           "name": "event-chat",
-          "type": "text"
+          "type": "text",
+          "description": "Chat about the game's events."
+        },
+        {
+          "name": "Coaching voice",
+          "type": "voice",
+          "description": "Voice for coaching: learn events and strategy from experienced players 🎓"
         },
         {
           "name": "event-announcements",
-          "type": "text"
+          "type": "text",
+          "description": "Event news and schedules for the whole Kingdom 📅",
+          "seenBy": [
+            "#<Home Kingdom>"
+          ],
+          "mode": "only-king-posts"
         },
         {
           "name": "event-help",
-          "type": "text"
+          "type": "text",
+          "description": "Stuck in an event? Ask here, and someone will help."
         },
         {
           "name": "guides",
           "type": "forum",
+          "description": "Guides by our Veterans, one post per guide 📚",
           "overwrites": {
             "Veteran": {
               "allow": [
@@ -314,24 +384,23 @@
       "channels": [
         {
           "name": "ad-chat",
-          "type": "text"
+          "type": "text",
+          "description": "Chat about Alliance Duel."
         },
         {
           "name": "AD voice",
-          "type": "voice"
-        },
-        {
-          "name": "ad-announcements",
-          "type": "announcement",
-          "mode": "only-king-posts"
+          "type": "voice",
+          "description": "Voice for Alliance Duel ⚔️"
         },
         {
           "name": "ad-tactics",
-          "type": "forum"
+          "type": "forum",
+          "description": "Alliance Duel plans, one post per topic."
         },
         {
           "name": "ad-intel",
-          "type": "text"
+          "type": "text",
+          "description": "Info about the Alliances we duel."
         }
       ]
     },
@@ -344,44 +413,58 @@
       "channels": [
         {
           "name": "kvk-chat",
-          "type": "text"
+          "type": "text",
+          "description": "Chat about Kingdom vs Kingdom."
         },
         {
           "name": "KvK voice",
-          "type": "voice"
+          "type": "voice",
+          "description": "Voice for Kingdom vs Kingdom ⚔️"
         },
         {
           "name": "kvk-announcements",
           "type": "announcement",
-          "mode": "only-king-posts"
+          "description": "Kingdom vs Kingdom news from the King, for the whole Kingdom 📣",
+          "mode": "only-king-posts",
+          "seenBy": [
+            "#<Home Kingdom>"
+          ],
+          "translated": true
         },
         {
           "name": "kvk-tactics",
-          "type": "forum"
+          "type": "forum",
+          "description": "KvK plans, one post per topic."
         },
         {
           "name": "kvk-intel",
-          "type": "text"
+          "type": "text",
+          "description": "Scout reports and info about the enemy Kingdom."
         },
         {
           "name": "Vanguard",
-          "type": "voice"
+          "type": "voice",
+          "description": "KvK squad voice: Vanguard."
         },
         {
           "name": "Overwatch",
-          "type": "voice"
+          "type": "voice",
+          "description": "KvK squad voice: Overwatch."
         },
         {
           "name": "Strike Team",
-          "type": "voice"
+          "type": "voice",
+          "description": "KvK squad voice: Strike Team."
         },
         {
           "name": "Blackout",
-          "type": "voice"
+          "type": "voice",
+          "description": "KvK squad voice: Blackout."
         },
         {
           "name": "War Room",
-          "type": "voice"
+          "type": "voice",
+          "description": "KvK command voice: War Room."
         }
       ]
     },
@@ -392,24 +475,14 @@
       ],
       "channels": [
         {
-          "name": "recruitment",
-          "type": "text"
-        }
-      ]
-    },
-    {
-      "name": "Off-topic",
-      "seenBy": [
-        "Off-topic"
-      ],
-      "channels": [
-        {
-          "name": "off-topic",
-          "type": "text"
+          "name": "looking-for-alliance",
+          "type": "text",
+          "description": "Players looking for an Alliance: say who you are, your Might and your Language."
         },
         {
-          "name": "memes",
-          "type": "text"
+          "name": "looking-for-players",
+          "type": "text",
+          "description": "Alliances looking for Players: post your tag, your Join Requirements and what you offer."
         }
       ]
     }
@@ -419,6 +492,7 @@
       {
         "name": "alliance-chat",
         "type": "text",
+        "description": "Your Alliance's own chat. Booty Calls land here too 💰",
         "overwrites": {
           "Neil": {
             "allow": [
@@ -431,7 +505,8 @@
       },
       {
         "name": "alliance-voice",
-        "type": "voice"
+        "type": "voice",
+        "description": "Your Alliance's own voice channel 🎙️"
       }
     ]
   }

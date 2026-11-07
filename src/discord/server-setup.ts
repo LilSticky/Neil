@@ -129,9 +129,12 @@ const overwriteSchema = z.strictObject({
   allow: z.array(z.string()).default([]),
   deny: z.array(z.string()).default([]),
 });
+// The description is required, but checked by hand (descriptionOf) so that a refusal names the category and channel.
 const channelSchema = z.strictObject({
   name: z.string(),
   type: z.string(),
+  description: z.string().optional(),
+  codeOfConduct: z.array(z.string()).optional(),
   mode: z.string().optional(),
   translated: z.boolean().optional(),
   seenBy: z.array(z.string()).optional(),
@@ -146,6 +149,7 @@ const layoutSchema = z.strictObject({
   roles: z.array(z.string()),
   externalRoles: z.array(z.string()),
   languages: z.array(z.string()),
+  translations: z.array(z.string()),
   categories: z.array(categorySchema),
   allianceArea: z.strictObject({ channels: z.array(channelSchema) }),
 });
@@ -164,6 +168,7 @@ export function parseLayout(text: string): ServerLayout {
   }
   const raw = parsed.data;
   const known = new Set([...raw.roles, ...raw.languages, ...raw.externalRoles, EVERYONE_TARGET, BOT_TARGET]);
+  const translations = checkTranslations(raw.translations, raw.languages);
   const categoryNames = new Set<string>();
   const channelNames = new Map<string, string>();
 
@@ -184,9 +189,31 @@ export function parseLayout(text: string): ServerLayout {
     roles: [...raw.roles],
     externalRoles: [...raw.externalRoles],
     languages: [...raw.languages],
+    translations,
     categories,
     allianceArea: { channels: allianceChannels },
   };
+}
+
+/** Each translation is a listed language, once (data-model.md, Rules checked on load). */
+function checkTranslations(translations: readonly string[], languages: readonly string[]): string[] {
+  const seen = new Set<string>();
+  for (const language of translations) {
+    if (!languages.includes(language)) throw new Error(`translations: "${language}" is not one of the listed languages`);
+    if (seen.has(language)) throw new Error(`translations: "${language}" is listed twice`);
+    seen.add(language);
+  }
+  return [...translations];
+}
+
+const DESCRIPTION_MAX = 1024;
+
+function descriptionOf(place: string, value: string | undefined): string {
+  if (value === undefined) throw new Error(`${place}: description is required, 1–1024 characters`);
+  if (value.length === 0 || value.length > DESCRIPTION_MAX) {
+    throw new Error(`${place}: description must be 1–1024 characters, not ${value.length.toString()}`);
+  }
+  return value;
 }
 
 function parseJson(text: string): unknown {
@@ -218,10 +245,12 @@ function checkChannel(container: string, raw: RawChannel, known: ReadonlySet<str
   if (earlier !== undefined) throw new Error(`channel "${raw.name}" is in two places: ${earlier} and ${place}`);
   names.set(raw.name, place);
 
+  const description = descriptionOf(place, raw.description);
   for (const target of raw.seenBy ?? []) checkTarget(known, place, target);
   const overwrites = raw.overwrites === undefined ? undefined : checkOverwrites(place, raw.overwrites, known);
 
-  const channel: LayoutChannel = { name: raw.name, type };
+  const channel: LayoutChannel = { name: raw.name, type, description };
+  if (raw.codeOfConduct !== undefined) channel.codeOfConduct = [...raw.codeOfConduct];
   if (mode !== undefined) channel.mode = mode;
   if (raw.translated !== undefined) channel.translated = raw.translated;
   if (raw.seenBy !== undefined) channel.seenBy = [...raw.seenBy];

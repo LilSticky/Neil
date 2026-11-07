@@ -55,23 +55,24 @@ const layout: ServerLayout = {
   roles: ["Moderator", "King", "Onboarding", "Doctor", "R5", "#<Home Kingdom>", "PvP"],
   externalRoles: ["Interaction Bot"],
   languages: ["English", "Italian"],
+  translations: [],
   categories: [
     {
       name: "Hangout",
       seenBy: ["#<Home Kingdom>"],
       channels: [
-        { name: "general", type: "text" },
-        { name: "rules", type: "text", mode: "read-only" },
-        { name: "tactics", type: "forum", seenBy: ["R5"] },
-        { name: "kvk-announcements", type: "announcement", mode: "only-king-posts", translated: true },
-        { name: "onboarding", type: "text", overwrites: { Neil: { allow: ["ViewChannel"], deny: [] } } },
+        { name: "general", type: "text", description: "A test channel." },
+        { name: "rules", type: "text", description: "A test channel.", mode: "read-only" },
+        { name: "tactics", type: "forum", description: "A test channel.", seenBy: ["R5"] },
+        { name: "kvk-announcements", type: "announcement", description: "A test channel.", mode: "only-king-posts", translated: true },
+        { name: "onboarding", type: "text", description: "A test channel.", overwrites: { Neil: { allow: ["ViewChannel"], deny: [] } } },
       ],
     },
   ],
   allianceArea: {
     channels: [
-      { name: "alliance-chat", type: "text" },
-      { name: "alliance-voice", type: "voice" },
+      { name: "alliance-chat", type: "text", description: "A test channel." },
+      { name: "alliance-voice", type: "voice", description: "A test channel." },
     ],
   },
 };

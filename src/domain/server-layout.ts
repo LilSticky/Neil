@@ -19,6 +19,10 @@ export interface OverwriteSpec {
 export interface LayoutChannel {
   name: string;
   type: ChannelType;
+  /** What the channel is for, 1 to 1024 characters; Neil pins it (slice 029). */
+  description: string;
+  /** The rules a Member accepts to see the channel; copied from code-of-conduct.md (slice 029). */
+  codeOfConduct?: string[];
   mode?: "read-only" | "only-king-posts";
   translated?: boolean;
   seenBy?: string[];
@@ -36,6 +40,7 @@ export interface ServerLayout {
   roles: string[];
   externalRoles: string[];
   languages: string[];
+  translations: string[];
   categories: LayoutCategory[];
   allianceArea: { channels: LayoutChannel[] };
 }
@@ -46,6 +51,9 @@ export interface WantedOverwrite {
   allow: Permission[];
   deny: Permission[];
 }
+
+/** A channel as the expansion reads it: everything but the description, which the wanted overwrites do not need. */
+type ExpandableChannel = Omit<LayoutChannel, "description">;
 
 export interface ExpandedChannel {
   name: string;
@@ -86,10 +94,18 @@ type Grants = Map<string, Map<Permission, Grant>>;
  */
 export function expandLayout(layout: ServerLayout, homeKingdom: number, allianceRoles: readonly string[]): ExpandedLayout {
   const resolve = (target: string): string => (target === KINGDOM_PLACEHOLDER ? `#${homeKingdom.toString()}` : target);
-  const expand = (name: string, seenBy: readonly string[], channels: readonly LayoutChannel[]): ExpandedCategory => ({
+  const expandWithCopies = (channel: ExpandableChannel, categorySeenBy: readonly string[]): ExpandedChannel[] => {
+    const original = expandChannel(channel, categorySeenBy, resolve);
+    if (channel.translated !== true) return [original];
+    const copies = layout.translations.map((language) =>
+      expandChannel({ ...channel, name: `${channel.name}-${language.toLowerCase()}`, seenBy: [language] }, categorySeenBy, resolve),
+    );
+    return [original, ...copies];
+  };
+  const expand = (name: string, seenBy: readonly string[], channels: readonly ExpandableChannel[]): ExpandedCategory => ({
     name,
     overwrites: toOverwrites(categoryGrants(seenBy.map(resolve))),
-    channels: channels.map((channel) => expandChannel(channel, seenBy.map(resolve), resolve)),
+    channels: channels.flatMap((channel) => expandWithCopies(channel, seenBy.map(resolve))),
   });
 
   const categories = layout.categories.map((category) => expand(category.name, category.seenBy, category.channels));
@@ -121,7 +137,7 @@ function categoryGrants(seenBy: readonly string[]): Grants {
   return grants;
 }
 
-function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[], resolve: (target: string) => string): ExpandedChannel {
+function expandChannel(channel: ExpandableChannel, categorySeenBy: readonly string[], resolve: (target: string) => string): ExpandedChannel {
   const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
   const grants = categoryGrants(seenBy);
   if (channel.mode === "read-only") {

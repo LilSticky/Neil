@@ -40,24 +40,25 @@ const layout: ServerLayout = {
   roles: ["Moderator", "King", "Onboarding", "Doctor", "R5", "#<Home Kingdom>", "PvP"],
   externalRoles: ["Interaction Bot"],
   languages: ["English", "Italian"],
+  translations: [],
   categories: [
     {
       name: "Hangout",
       seenBy: ["#<Home Kingdom>"],
       channels: [
-        { name: "general", type: "text" },
-        { name: "rules", type: "text", mode: "read-only" },
-        { name: "kvk-announcements", type: "announcement", mode: "only-king-posts", translated: true },
-        { name: "closed", type: "text", seenBy: ["R5", "King"] },
-        { name: "onboarding", type: "text", overwrites: { Neil: { allow: ["ViewChannel"], deny: [] } } },
-        { name: "pvp-talk", type: "text", seenBy: ["R5", "PvP"], mode: "read-only" },
+        { name: "general", type: "text", description: "A test channel." },
+        { name: "rules", type: "text", description: "A test channel.", mode: "read-only" },
+        { name: "kvk-announcements", type: "announcement", description: "A test channel.", mode: "only-king-posts", translated: true },
+        { name: "closed", type: "text", description: "A test channel.", seenBy: ["R5", "King"] },
+        { name: "onboarding", type: "text", description: "A test channel.", overwrites: { Neil: { allow: ["ViewChannel"], deny: [] } } },
+        { name: "pvp-talk", type: "text", description: "A test channel.", seenBy: ["R5", "PvP"], mode: "read-only" },
       ],
     },
   ],
   allianceArea: {
     channels: [
-      { name: "alliance-chat", type: "text" },
-      { name: "alliance-voice", type: "voice" },
+      { name: "alliance-chat", type: "text", description: "A test channel." },
+      { name: "alliance-voice", type: "voice", description: "A test channel." },
     ],
   },
 };
@@ -168,7 +169,7 @@ describe("expandLayout: own overwrites", () => {
       name: "Hangout",
       seenBy: ["#<Home Kingdom>"],
       channels: [
-        { name: "own", type: "text", overwrites: { "#<Home Kingdom>": { allow: [], deny: ["ViewChannel"] } } },
+        { name: "own", type: "text", description: "A test channel.", overwrites: { "#<Home Kingdom>": { allow: [], deny: ["ViewChannel"] } } },
       ],
     };
     const result = expandLayout({ ...layout, categories: [withOwnDeny] }, HOME_KINGDOM, []);
@@ -186,6 +187,7 @@ describe("expandLayout: own overwrites", () => {
         {
           name: "mixed",
           type: "text",
+          description: "A test channel.",
           mode: "read-only",
           overwrites: { "#<Home Kingdom>": { allow: ["SendMessages"], deny: [] } },
         },
@@ -246,8 +248,8 @@ describe("expandLayout: Alliance areas", () => {
       ...layout,
       allianceArea: {
         channels: [
-          { name: "alliance-chat", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } } },
-          { name: "alliance-voice", type: "voice" },
+          { name: "alliance-chat", type: "text", description: "A test channel.", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } } },
+          { name: "alliance-voice", type: "voice", description: "A test channel." },
         ],
       },
     };
@@ -270,9 +272,10 @@ describe("expandLayout: Alliance areas", () => {
           {
             name: "alliance-chat",
             type: "text",
+            description: "A test channel.",
             overwrites: { Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks"], deny: [] } },
           },
-          { name: "alliance-voice", type: "voice" },
+          { name: "alliance-voice", type: "voice", description: "A test channel." },
         ],
       },
     };
@@ -285,5 +288,65 @@ describe("expandLayout: Alliance areas", () => {
   test("without a [TAG] role there is no Alliance area", () => {
     const result = expanded([]);
     expect(result.categories.map((category) => category.name).some((name) => name.startsWith("["))).toBe(false);
+  });
+});
+
+describe("expandLayout: translated copies", () => {
+  const POSTING_PERMISSIONS = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"];
+  const withTranslations: ServerLayout = {
+    ...layout,
+    languages: ["English", "German", "French"],
+    translations: ["German", "French"],
+  };
+
+  function hangoutNames(result: ExpandedLayout): string[] {
+    return categoryNamed(result, "Hangout").channels.map((channel) => channel.name);
+  }
+
+  function viewersOf(overwrites: readonly WantedOverwrite[]): string[] {
+    return overwrites
+      .filter((overwrite) => overwrite.allow.includes("ViewChannel"))
+      .map((overwrite) => overwrite.target)
+      .sort();
+  }
+
+  test("a translated channel is followed by one copy per translation, in the same category", () => {
+    const names = hangoutNames(expandLayout(withTranslations, HOME_KINGDOM, []));
+    const at = names.indexOf("kvk-announcements");
+
+    expect(at).toBeGreaterThan(-1);
+    expect(names.slice(at, at + 3)).toEqual(["kvk-announcements", "kvk-announcements-german", "kvk-announcements-french"]);
+  });
+
+  test("a copy is seen by its Language role, King (who posts) and the Interaction Bot, not by the category's seenBy roles", () => {
+    const copy = channelNamed(categoryNamed(expandLayout(withTranslations, HOME_KINGDOM, []), "Hangout"), "kvk-announcements-german");
+
+    expect(overwriteFor(copy.overwrites, "@everyone").deny).toEqual(["ViewChannel"]);
+    expect(new Set(viewersOf(copy.overwrites))).toEqual(new Set(["German", "King", "Interaction Bot"]));
+  });
+
+  test("a copy keeps the original's mode: its Language role may not post, and King may view and send", () => {
+    const copy = channelNamed(categoryNamed(expandLayout(withTranslations, HOME_KINGDOM, []), "Hangout"), "kvk-announcements-french");
+
+    expect(new Set(overwriteFor(copy.overwrites, "French").deny)).toEqual(new Set(POSTING_PERMISSIONS));
+    expect(new Set(overwriteFor(copy.overwrites, "King").allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+  });
+
+  test("the Interaction Bot may view and send in a copy", () => {
+    const copy = channelNamed(categoryNamed(expandLayout(withTranslations, HOME_KINGDOM, []), "Hangout"), "kvk-announcements-german");
+
+    expect(new Set(overwriteFor(copy.overwrites, "Interaction Bot").allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+  });
+
+  test("a channel without translated gets no copies", () => {
+    const names = hangoutNames(expandLayout(withTranslations, HOME_KINGDOM, []));
+
+    expect(names.filter((name) => name.startsWith("general"))).toEqual(["general"]);
+  });
+
+  test("empty translations gives no copies", () => {
+    const names = hangoutNames(expanded());
+
+    expect(names.filter((name) => name.startsWith("kvk-announcements-"))).toEqual([]);
   });
 });

@@ -18,7 +18,7 @@ None: the slice works in slice 020's modules.
   `codeOfConduct` (list of strings, optional) and a top-level `translations` (list of Language names); it refuses a channel
   without `description`, a `description` over 1024 characters ("required, 1–1024 characters"), and a `translations` entry
   missing from `languages` or listed twice, each naming the category and channel. Same for `allianceArea` channels.
-- [ ] T002 Green: extend the zod schemas and the checks in `src/discord/server-setup.ts` and the types in
+- [x] T002 Green: extend the zod schemas and the checks in `src/discord/server-setup.ts` and the types in
   `src/domain/server-layout.ts` (`LayoutChannel.description`, `LayoutChannel.codeOfConduct`, `ServerLayout.translations`).
   Update the test layouts in `src/discord/server-setup.test.ts` and `src/domain/*.test.ts` to carry descriptions.
 
@@ -28,12 +28,12 @@ None: the slice works in slice 020's modules.
 
 **Independent Test**: the shipped file loads, and its expansion holds exactly the reworked categories and channels.
 
-- [ ] T003 [US1] Red: in `src/domain/server-layout.test.ts`, `expandLayout` turns a `translated: true` channel into the
+- [x] T003 [US1] Red: in `src/domain/server-layout.test.ts`, `expandLayout` turns a `translated: true` channel into the
   channel plus one copy per `translations` entry, named `<channel>-<language in lower case>`, right after it in the same
   category, seen only by that Language's role (@everyone denied View Channel), with the same mode, the Interaction Bot allow,
   and the description "<description> Translated into <Language> by Interaction Bot."
-- [ ] T004 [US1] Green: copies in `expandLayout`, `src/domain/server-layout.ts`.
-- [ ] T005 [US1] Red: in the "shipped server-layout.json" tests of `src/discord/server-setup.test.ts`, replace the tests
+- [x] T004 [US1] Green: copies in `expandLayout`, `src/domain/server-layout.ts`.
+- [x] T005 [US1] Red: in the "shipped server-layout.json" tests of `src/discord/server-setup.test.ts`, replace the tests
   that name the old categories and assert: no `guest-announcements`, no `ad-announcements`; no Home Kingdom or Off-topic
   category; Hangout (seen by the Kingdom) holds `home-kingdom-announcements`, `gift-codes` (R4, R5, King post),
   `general`, `Hangout voice`, `alliance-hall`, `off-topic` and `memes`, the last two seen only by `Off-topic`; Recruitment
@@ -42,7 +42,7 @@ None: the slice works in slice 020's modules.
   role with only King posting; the Russian, French, Italian and German copies of `kvk-announcements` and
   `nap-announcements` exist, each seen by its Language role; every channel has a description; Doctor still sees only the
   Guest area.
-- [ ] T006 [US1] Green: rework `server-layout.json`: the moves and removals above, `translations`, a description for
+- [x] T006 [US1] Green: rework `server-layout.json`: the moves and removals above, `translations`, a description for
   every channel and Alliance area channel (what it is for, in Neil's Liaison voice), `codeOfConduct` for `rules` and
   `guest-rules` copied from [code-of-conduct.md](code-of-conduct.md).
 
