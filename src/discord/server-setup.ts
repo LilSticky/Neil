@@ -73,6 +73,32 @@ export interface SetupChannelInfo {
   overwrites: OverwriteEdit[];
   /** The topic, or undefined when the channel has none. */
   topic: string | undefined;
+  /** A forum's available tags; undefined for every other kind (slice 030). */
+  tags?: readonly ForumTagInfo[] | undefined;
+  /** A forum's default reaction, by emoji name; undefined when it has none, and for every other kind. */
+  reaction?: string | undefined;
+}
+
+/** A tag of a forum as Discord holds it. */
+export interface ForumTagInfo {
+  id: string;
+  name: string;
+}
+
+/** A tag to write: an existing tag by id, or a new one by name alone. */
+export interface ForumTag {
+  id?: string;
+  name: string;
+}
+
+/** A post of a forum: the thread, the id of the Member who opened it, its title and starter content, and its state. */
+export interface ForumPostInfo {
+  threadId: string;
+  ownerId: string;
+  title: string;
+  content: string;
+  archived: boolean;
+  pinned: boolean;
 }
 
 /** A pinned message of a channel: its id, the id of its author, and its content. */
@@ -109,6 +135,18 @@ export interface SetupServer {
   /** Posts a message with no mentions, unpinned, and returns its id: the description of a voice channel. */
   postMessage(channelId: string, content: string): Promise<string>;
   editMessage(channelId: string, messageId: string, content: string): Promise<void>;
+  /** Replaces the forum's whole tag list: existing tags by id, new ones by name. */
+  setForumTags(channelId: string, tags: readonly ForumTag[]): Promise<void>;
+  /** Sets the forum's default reaction by its emoji name. */
+  setForumReaction(channelId: string, emojiName: string): Promise<void>;
+  /** The posts of a forum, active and archived; undefined when Discord refuses the archived read (Neil lacks access). */
+  readForumPosts(forumId: string): Promise<readonly ForumPostInfo[] | undefined>;
+  /** Opens a post in a forum with its starter message (no mentions) and returns the thread id. */
+  openForumPost(forumId: string, title: string, content: string): Promise<string>;
+  /** Pins a post of a forum. */
+  pinForumPost(threadId: string): Promise<void>;
+  /** Renames a post and edits its starter message; unarchives it first when asked. */
+  editForumPost(threadId: string, title: string, content: string, unarchive: boolean): Promise<void>;
 }
 
 export type StepOutcome = { step: SetupStep; status: "done" } | FailedOutcome;
@@ -448,6 +486,7 @@ async function readChannel(port: SetupServer, channel: SetupChannelInfo, botUser
       allow: permissionNamesOf(overwrite.allow),
       deny: permissionNamesOf(overwrite.deny),
     })),
+    forum: undefined,
   };
 }
 
@@ -546,6 +585,11 @@ const PHASE: Record<SetupStep["kind"], number> = {
   "set-topic": 4,
   "post-description": 5,
   "edit-description": 5,
+  "set-forum-tags": 6,
+  "set-forum-reaction": 6,
+  "open-how-to": 6,
+  "edit-how-to": 6,
+  "pin-how-to": 6,
 };
 
 function inOrder(steps: readonly SetupStep[]): SetupStep[] {
@@ -591,7 +635,29 @@ async function applyStep(step: SetupStep, port: SetupServer, book: Book): Promis
     case "edit-description":
       await port.editMessage(step.id, step.messageId, step.content);
       return;
+    case "set-forum-tags":
+      await port.setForumTags(forumIdOf(book, step), step.tags);
+      return;
+    case "set-forum-reaction":
+      await port.setForumReaction(forumIdOf(book, step), step.reaction);
+      return;
+    case "open-how-to": {
+      const threadId = await port.openForumPost(forumIdOf(book, step), step.title, step.content);
+      if (step.pin) await port.pinForumPost(threadId);
+      return;
+    }
+    case "edit-how-to":
+      await port.editForumPost(step.threadId, step.title, step.content, step.unarchive);
+      return;
+    case "pin-how-to":
+      await port.pinForumPost(step.threadId);
+      return;
   }
+}
+
+/** The id of a forum a step names: its id, or for a forum the plan created, the id this run gave it. */
+function forumIdOf(book: Book, step: { id: string | undefined; name: string; categoryName: string }): string {
+  return step.id ?? createdIdOf(book, step.name, step.categoryName);
 }
 
 function categoryNamed(book: Book, name: string): { id: string; name: string } {
@@ -746,6 +812,16 @@ function describeStep(step: SetupStep): string {
       return `post description in ${step.name}`;
     case "edit-description":
       return `edit description in ${step.name}`;
+    case "set-forum-tags":
+      return `set tags of ${step.name}`;
+    case "set-forum-reaction":
+      return `set reaction of ${step.name}`;
+    case "open-how-to":
+      return `post how-to in ${step.name}`;
+    case "edit-how-to":
+      return `edit how-to in ${step.name}`;
+    case "pin-how-to":
+      return `pin how-to in ${step.name}`;
   }
 }
 
@@ -789,6 +865,12 @@ function describeFinding(finding: LineFinding, real: boolean): string {
       return `${finding.name} is above Neil's role; Neil can't give it`;
     case "fallback-to-text":
       return `${finding.name}: without Community it is created as text instead of ${finding.from}`;
+    case "extra-tag":
+      return `${finding.name} has the tag ${finding.tag}, which the layout does not name; kept`;
+    case "other-post-pinned":
+      return `${finding.name} has another pinned post; Neil's how-to post is not pinned`;
+    case "forum-posts-unread":
+      return `${finding.name}: Neil can't read its posts, so its how-to post is neither posted nor edited`;
   }
 }
 

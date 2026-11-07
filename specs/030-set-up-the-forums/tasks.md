@@ -37,16 +37,16 @@ pinned how-to post; a second run plans nothing.
   Title line with the example title in quotes, Tags line with the tags joined by ", ", Body line, the template lines each
   followed by ":" inside a ``` code block, blank line, the closing line with the reaction.
 - [x] T004 [US1] Green: `src/domain/forum-how-to.ts`.
-- [ ] T005 [US1] Red: in `src/domain/server-layout.test.ts`, the expansion of a forum: its @everyone overwrite denies
+- [x] T005 [US1] Red: in `src/domain/server-layout.test.ts`, the expansion of a forum: its @everyone overwrite denies
   `ViewChannel` and `SendMessages`; its `forum` carries `tags`, `reaction` and `howTo` (from `forumHowTo`). A text
   channel's @everyone overwrite still denies only `ViewChannel`.
-- [ ] T006 [US1] Green: `expandChannel` in `src/domain/server-layout.ts`.
-- [ ] T007 [US1] Red: in `src/domain/setup-plan.test.ts`, for a forum the plan creates: `set-forum-tags` (all layout tags
+- [x] T006 [US1] Green: `expandChannel` in `src/domain/server-layout.ts`.
+- [x] T007 [US1] Red: in `src/domain/setup-plan.test.ts`, for a forum the plan creates: `set-forum-tags` (all layout tags
   by name, no ids), `set-forum-reaction`, `open-how-to` with `pin: true`, all with `id: undefined` and the category name,
   ordered after the description steps; for an existing forum whose `forum` state matches (tags by name, reaction, Neil's
   post with equal title and content, pinned): no forum step.
-- [ ] T008 [US1] Green: `ServerChannel.forum` state, the new steps in `src/domain/setup-plan.ts` (data-model.md "Steps").
-- [ ] T009 [US1] Red: in `src/discord/setup-server-rest.test.ts`: `setForumTags` PATCHes `available_tags` (existing with
+- [x] T008 [US1] Green: `ServerChannel.forum` state, the new steps in `src/domain/setup-plan.ts` (data-model.md "Steps").
+- [x] T009 [US1] Red: in `src/discord/setup-server-rest.test.ts`: `setForumTags` PATCHes `available_tags` (existing with
   `id` and `name`, new with `name`); `setForumReaction` PATCHes `default_reaction_emoji: { emoji_id: null, emoji_name }`;
   `readForumPosts` reads `GET /guilds/{g}/threads/active` once and `GET /channels/{forum}/threads/archived/public`, and the
   starter message `GET /channels/{thread}/messages/{thread}`, returning owner id, title, content, archived and pinned
@@ -54,7 +54,7 @@ pinned how-to post; a second run plans nothing.
   and `message: { content, allowed_mentions: { parse: [] } }` and returns the thread id; `pinForumPost` PATCHes the thread
   `flags` with PINNED (1 << 1); `editForumPost` unarchives when asked, PATCHes the thread name and the starter message.
   Channel reads include `available_tags` and `default_reaction_emoji`.
-- [ ] T010 [US1] Green: `src/discord/setup-server-rest.ts`, the `SetupServer` port in `src/discord/server-setup.ts`, and
+- [x] T010 [US1] Green: `src/discord/setup-server-rest.ts`, the `SetupServer` port in `src/discord/server-setup.ts`, and
   `FakeSetupServer` (forum tags, reaction, posts with owner, archived and pinned; `refuseForumPostReads(name)`).
 - [ ] T011 [US1] Red: in `src/discord/server-setup.test.ts`: `readServer` fills `forum` for forums (Neil's post = oldest
   thread owned by Neil whose content starts with 📌; `otherPinned`; `postsReadable`); `applySetup` runs the forum steps

@@ -1,4 +1,5 @@
 import { describeChannel } from "./channel-description.js";
+import { forumHowTo, type ForumHowTo } from "./forum-how-to.js";
 import { tagOfAllianceRole } from "./managed-roles.js";
 
 export type Permission =
@@ -72,6 +73,15 @@ export interface ExpandedChannel {
   topic: string | undefined;
   /** The description message, undefined for forums (slice 029). */
   message: string | undefined;
+  /** The forum's tags, reaction and how-to post; undefined for every other type (slice 030). */
+  forum: ExpandedForum | undefined;
+}
+
+/** What a forum should carry: its tags, its default reaction and the how-to post Neil pins (slice 030). */
+export interface ExpandedForum {
+  tags: string[];
+  reaction: string;
+  howTo: ForumHowTo;
 }
 
 export interface ExpandedCategory {
@@ -193,6 +203,7 @@ function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[]
   const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
   const grants = categoryGrants(seenBy);
   const seer = SEER_GRANTS[channel.type];
+  if (channel.type === "forum") grant(grants, EVERYONE_TARGET, [SEND], "deny");
   for (const role of seenBy) {
     grant(grants, role, seer.reading, "allow");
     if (channel.mode === undefined) grant(grants, role, seer.posting, "allow");
@@ -205,7 +216,17 @@ function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[]
     grant(grants, resolve(target), spec.deny, "deny");
   }
   const overwrites = toOverwrites(grants);
-  return { name: channel.name, type: channel.type, overwrites, ...describeChannel(channel, overwrites, expansion.hidden) };
+  return {
+    name: channel.name,
+    type: channel.type,
+    overwrites,
+    ...describeChannel(channel, overwrites, expansion.hidden),
+    forum: channel.forum === undefined ? undefined : expandForum(channel.name, channel.forum),
+  };
+}
+
+function expandForum(name: string, forum: ForumSetup): ExpandedForum {
+  return { tags: [...forum.tags], reaction: forum.reaction, howTo: forumHowTo(name, forum) };
 }
 
 function grant(grants: Grants, target: string, permissions: readonly Permission[], how: Grant): void {

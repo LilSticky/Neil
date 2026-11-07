@@ -1,6 +1,8 @@
 import type { ChannelType } from "../../domain/server-layout.js";
 import type {
   BotMemberInfo,
+  ForumPostInfo,
+  ForumTag,
   GuildInfo,
   OverwriteEdit,
   SetupChannelInfo,
@@ -57,12 +59,36 @@ export interface DefineChannelOptions {
   readonly overwrites?: readonly OverwriteEdit[];
   /** The channel's topic; left out when the channel has none. */
   readonly topic?: string;
+  /** A forum's tags, by name; the fake gives each an id. Only a forum has tags. */
+  readonly tags?: readonly string[];
+  /** A forum's default reaction, by emoji name; left out when it has none. */
+  readonly reaction?: string;
 }
 
 /** A pinned message a test seeds into a channel: its author and its content. */
 export interface DefinePinOptions {
   readonly authorId: string;
   readonly content: string;
+}
+
+/** A post a test seeds into a forum: its author, title and starter content, and whether it is archived or pinned. */
+export interface DefinePostOptions {
+  readonly authorId: string;
+  readonly title: string;
+  readonly content: string;
+  readonly archived?: boolean;
+  readonly pinned?: boolean;
+}
+
+/** A post of a forum as the fake keeps it. */
+interface FakePost {
+  readonly threadId: string;
+  readonly forumId: string;
+  authorId: string;
+  title: string;
+  content: string;
+  archived: boolean;
+  pinned: boolean;
 }
 
 /**
@@ -87,6 +113,8 @@ export class FakeSetupServer implements SetupServer {
   private readonly botRoleIds: string[] = [];
   private readonly failures = new Map<string, Error>();
   private readonly refusedPinReads = new Set<string>();
+  private readonly refusedForumReads = new Set<string>();
+  private readonly posts: FakePost[] = [];
   private nextNumber = 1;
 
   constructor(
@@ -145,6 +173,9 @@ export class FakeSetupServer implements SetupServer {
       parentId: options.parentId,
       overwrites: [...(options.overwrites ?? [])],
       topic: options.topic,
+      ...(options.kind === "forum"
+        ? { tags: (options.tags ?? []).map((tagName) => ({ id: this.newId(), name: tagName })), reaction: options.reaction }
+        : {}),
     });
     return id;
   }
@@ -156,6 +187,21 @@ export class FakeSetupServer implements SetupServer {
     pins.push({ messageId, authorId: pin.authorId, content: pin.content });
     this.pins.set(channelId, pins);
     return messageId;
+  }
+
+  /** Seeds a post into a forum, and returns its thread id. */
+  definePost(forumId: string, post: DefinePostOptions): string {
+    const threadId = this.newId();
+    this.posts.push({
+      threadId,
+      forumId,
+      authorId: post.authorId,
+      title: post.title,
+      content: post.content,
+      archived: post.archived ?? false,
+      pinned: post.pinned ?? false,
+    });
+    return threadId;
   }
 
   /** Makes every attempt of this write fail with `error`: `name` is the role, category or channel name (of the channel, for an edit). */
@@ -237,6 +283,7 @@ export class FakeSetupServer implements SetupServer {
       parentId: channel.parentId,
       overwrites: [...channel.overwrites],
       topic: channel.topic,
+      ...(channel.type === "forum" ? { tags: [], reaction: undefined } : {}),
     });
     return Promise.resolve(id);
   }
@@ -306,6 +353,67 @@ export class FakeSetupServer implements SetupServer {
     const pin = (this.pins.get(channelId) ?? []).find((candidate) => candidate.messageId === messageId);
     if (pin !== undefined) pin.content = content;
     return Promise.resolve();
+  }
+
+  setForumTags(channelId: string, tags: readonly ForumTag[]): Promise<void> {
+    this.sequence.push(`set-forum-tags ${this.nameOf(channelId)}`);
+    const channel = this.channels.find((candidate) => candidate.id === channelId);
+    if (channel !== undefined) channel.tags = tags.map((tag) => ({ id: tag.id ?? this.newId(), name: tag.name }));
+    return Promise.resolve();
+  }
+
+  setForumReaction(channelId: string, emojiName: string): Promise<void> {
+    this.sequence.push(`set-forum-reaction ${this.nameOf(channelId)}`);
+    const channel = this.channels.find((candidate) => candidate.id === channelId);
+    if (channel !== undefined) channel.reaction = emojiName;
+    return Promise.resolve();
+  }
+
+  /** Makes the post reads of this forum answer undefined, as Discord's 403 does for the archived posts Neil cannot see. */
+  refuseForumPostReads(name: string): void {
+    this.refusedForumReads.add(name);
+  }
+
+  /** The posts of a forum, active and archived; undefined for a forum whose post reads are refused. */
+  readForumPosts(forumId: string): Promise<readonly ForumPostInfo[] | undefined> {
+    if (this.refusedForumReads.has(this.nameOf(forumId))) return Promise.resolve(undefined);
+    const posts = this.posts
+      .filter((post) => post.forumId === forumId)
+      .map((post) => ({
+        threadId: post.threadId,
+        ownerId: post.authorId,
+        title: post.title,
+        content: post.content,
+        archived: post.archived,
+        pinned: post.pinned,
+      }));
+    return Promise.resolve(posts);
+  }
+
+  openForumPost(forumId: string, title: string, content: string): Promise<string> {
+    this.sequence.push(`open-forum-post ${this.nameOf(forumId)}`);
+    return Promise.resolve(this.definePost(forumId, { authorId: this.botUserId, title, content }));
+  }
+
+  pinForumPost(threadId: string): Promise<void> {
+    const post = this.postOf(threadId);
+    this.sequence.push(`pin-forum-post ${this.nameOf(post?.forumId ?? threadId)}`);
+    if (post !== undefined) post.pinned = true;
+    return Promise.resolve();
+  }
+
+  editForumPost(threadId: string, title: string, content: string, unarchive: boolean): Promise<void> {
+    const post = this.postOf(threadId);
+    this.sequence.push(`edit-forum-post ${this.nameOf(post?.forumId ?? threadId)}`);
+    if (post === undefined) return Promise.resolve();
+    post.title = title;
+    post.content = content;
+    if (unarchive) post.archived = false;
+    return Promise.resolve();
+  }
+
+  private postOf(threadId: string): FakePost | undefined {
+    return this.posts.find((post) => post.threadId === threadId);
   }
 
   private nameOf(channelId: string): string {

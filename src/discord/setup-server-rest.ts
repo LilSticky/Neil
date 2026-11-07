@@ -1,9 +1,9 @@
 // The discord.js adapter behind SetupServer (slice 020, research R1): REST calls only, never a Client or the gateway.
 // Every response is checked with zod before it reaches the setup.
-import { ChannelType as DiscordChannelType, Routes } from "discord.js";
+import { ChannelFlags, ChannelType as DiscordChannelType, Routes } from "discord.js";
 import { z } from "zod";
 import type { ChannelType } from "../domain/server-layout.js";
-import type { OverwriteEdit, SetupChannelInfo, SetupServer } from "./server-setup.js";
+import type { ForumPostInfo, ForumTagInfo, OverwriteEdit, SetupChannelInfo, SetupServer } from "./server-setup.js";
 
 /**
  * The REST calls the setup makes, the part of discord.js's REST it uses. The fake in the tests stands in for it, and
@@ -48,6 +48,7 @@ const overwriteResponse = z.object({
   allow: bits,
   deny: bits,
 });
+const forumTagResponse = z.object({ id: z.string(), name: z.string() });
 const channelsResponse = z.array(
   z.object({
     id: z.string(),
@@ -56,8 +57,12 @@ const channelsResponse = z.array(
     parent_id: z.string().nullish(),
     topic: z.string().nullish(),
     permission_overwrites: z.array(overwriteResponse),
+    /** A forum's tags and default reaction; other kinds leave them out. */
+    available_tags: z.array(forumTagResponse).nullish(),
+    default_reaction_emoji: z.object({ emoji_name: z.string().nullish() }).nullish(),
   }),
 );
+type ChannelRead = z.infer<typeof channelsResponse>[number];
 const pinsResponse = z.object({
   items: z.array(
     z.object({
@@ -89,6 +94,38 @@ const messagesResponse = z.array(
     message_reference: z.object({ message_id: z.string().optional() }).nullish(),
   }),
 );
+/** A thread of the guild's active list or a forum's archived list; a list without threads is empty. */
+const threadsResponse = z.object({
+  threads: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      parent_id: z.string().nullish(),
+      owner_id: z.string(),
+      thread_metadata: z.object({ archived: z.boolean() }),
+      flags: z.number().int().default(0),
+    }),
+  ).default([]),
+});
+/** A thread's starter message: the post's content, which reads as empty when the message carries none; its id is the thread's id. */
+const starterResponse = z.object({ content: z.string().default("") });
+/** The thread flag that pins a post to the top of its forum (Discord's ChannelFlags.Pinned). */
+const PINNED_FLAG = ChannelFlags.Pinned;
+
+type ThreadRead = z.infer<typeof threadsResponse>["threads"][number];
+
+/** The threads of a thread list response, checked with zod. */
+function threadsOf(response: unknown): ThreadRead[] {
+  return threadsResponse.parse(response).threads;
+}
+
+/** A forum's tags and default reaction, as the setup reads them from the channel. */
+function forumFieldsOf(channel: ChannelRead): { tags: ForumTagInfo[]; reaction: string | undefined } {
+  return {
+    tags: (channel.available_tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
+    reaction: channel.default_reaction_emoji?.emoji_name ?? undefined,
+  };
+}
 
 /** The SetupServer of one guild, over Discord's REST API with the bot's token. */
 export function createRestSetupServer(rest: SetupRest, guildId: string): SetupServer {
@@ -132,6 +169,36 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
     }
   };
 
+  /** The guild's active threads, asked once: every forum's active posts come from this list. */
+  let activeThreads: Promise<ThreadRead[]> | undefined;
+  const activeThreadsOf = (): Promise<ThreadRead[]> => {
+    activeThreads ??= rest.get(Routes.guildActiveThreads(guildId)).then(threadsOf);
+    return activeThreads;
+  };
+
+  /** A forum's archived public posts; undefined when Discord refuses the read with 403 (Missing Access). */
+  const archivedThreadsOf = async (forumId: string): Promise<ThreadRead[] | undefined> => {
+    try {
+      return threadsOf(await rest.get(Routes.channelThreads(forumId, "public")));
+    } catch (error) {
+      if (forbiddenResponse.safeParse(error).success) return undefined;
+      throw error;
+    }
+  };
+
+  /** A forum's post as the setup reads it: its starter message is read for the content. */
+  const postOf = async (thread: ThreadRead): Promise<ForumPostInfo> => {
+    const starter = starterResponse.parse(await rest.get(Routes.channelMessage(thread.id, thread.id)));
+    return {
+      threadId: thread.id,
+      ownerId: thread.owner_id,
+      title: thread.name,
+      content: starter.content,
+      archived: thread.thread_metadata.archived,
+      pinned: (thread.flags & PINNED_FLAG) !== 0,
+    };
+  };
+
   return {
     async readGuild() {
       const guild = guildResponse.parse(await rest.get(Routes.guild(guildId)));
@@ -150,6 +217,7 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       return channels.flatMap((channel) => {
         const kind = KIND_OF_DISCORD_TYPE.get(channel.type);
         if (kind === undefined) return [];
+        const forumFields = kind === "forum" ? forumFieldsOf(channel) : {};
         return [
           {
             id: channel.id,
@@ -163,6 +231,7 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
               deny: overwrite.deny,
             })),
             topic: channel.topic ?? undefined,
+            ...forumFields,
           },
         ];
       });
@@ -239,6 +308,33 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
     },
     async editMessage(channelId, messageId, content) {
       await rest.patch(Routes.channelMessage(channelId, messageId), {
+        body: { content, allowed_mentions: { parse: [] } },
+      });
+    },
+    async setForumTags(channelId, tags) {
+      const available = tags.map((tag) => (tag.id === undefined ? { name: tag.name } : { id: tag.id, name: tag.name }));
+      await rest.patch(Routes.channel(channelId), { body: { available_tags: available } });
+    },
+    async setForumReaction(channelId, emojiName) {
+      await rest.patch(Routes.channel(channelId), { body: { default_reaction_emoji: { emoji_id: null, emoji_name: emojiName } } });
+    },
+    async readForumPosts(forumId) {
+      const active = (await activeThreadsOf()).filter((thread) => thread.parent_id === forumId);
+      const archived = await archivedThreadsOf(forumId);
+      if (archived === undefined) return undefined;
+      return Promise.all([...active, ...archived].map(postOf));
+    },
+    async openForumPost(forumId, title, content) {
+      const body = { name: title, message: { content, allowed_mentions: { parse: [] } } };
+      return idResponse.parse(await rest.post(Routes.threads(forumId), { body })).id;
+    },
+    async pinForumPost(threadId) {
+      await rest.patch(Routes.channel(threadId), { body: { flags: PINNED_FLAG } });
+    },
+    async editForumPost(threadId, title, content, unarchive) {
+      if (unarchive) await rest.patch(Routes.channel(threadId), { body: { archived: false } });
+      await rest.patch(Routes.channel(threadId), { body: { name: title } });
+      await rest.patch(Routes.channelMessage(threadId, threadId), {
         body: { content, allowed_mentions: { parse: [] } },
       });
     },

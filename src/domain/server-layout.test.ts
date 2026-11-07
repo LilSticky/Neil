@@ -32,11 +32,13 @@ import {
   type ExpandedCategory,
   type ExpandedChannel,
   type ExpandedLayout,
+  type ForumSetup,
   type LayoutCategory,
   type LayoutChannel,
   type ServerLayout,
   type WantedOverwrite,
 } from "./server-layout.js";
+import { forumHowTo } from "./forum-how-to.js";
 
 const HOME_KINGDOM = 330;
 const KINGDOM_ROLE = "#330";
@@ -536,5 +538,42 @@ describe("expandLayout: what a seer may do, by channel type", () => {
     expect(new Set(overwriteFor(forum.overwrites, "PvP").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory"]));
     expect(overwriteFor(forum.overwrites, "PvP").deny).toEqual(expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]));
     expect(overwriteFor(forum.overwrites, "R5").allow).toEqual(expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]));
+  });
+});
+
+describe("expandLayout: forums", () => {
+  const tacticsForum: ForumSetup = {
+    tags: ["Rally", "Defense"],
+    reaction: "⚔️",
+    howTo: { belongs: "One battle plan per post.", exampleTitle: "Rally timing", template: ["Situation", "What we did"] },
+  };
+
+  function expandedForum(): ExpandedChannel {
+    const forumLayout: ServerLayout = {
+      ...layout,
+      categories: [
+        {
+          name: "Hangout",
+          seenBy: ["#<Home Kingdom>"],
+          channels: [{ name: "tactics", type: "forum", description: "A test channel.", forum: tacticsForum }],
+        },
+      ],
+    };
+    return channelNamed(categoryNamed(expandLayout(forumLayout, HOME_KINGDOM, []), "Hangout"), "tactics");
+  }
+
+  test("a forum's @everyone overwrite denies View Channel and Send Messages", () => {
+    const forum = expandedForum();
+    expect(new Set(overwriteFor(forum.overwrites, "@everyone").deny)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+  });
+
+  test("a forum carries its tags, its reaction and its how-to post", () => {
+    const forum = expandedForum();
+    expect(forum.forum).toEqual({ tags: ["Rally", "Defense"], reaction: "⚔️", howTo: forumHowTo("tactics", tacticsForum) });
+  });
+
+  test("a text channel's @everyone overwrite still denies only View Channel", () => {
+    const general = channelNamed(categoryNamed(expanded(), "Hangout"), "general");
+    expect(overwriteFor(general.overwrites, "@everyone").deny).toEqual(["ViewChannel"]);
   });
 });

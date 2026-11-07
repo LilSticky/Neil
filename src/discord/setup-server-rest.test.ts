@@ -1,3 +1,23 @@
+/*
+ * Contract for src/discord/setup-server-rest.ts (slice 030, research R1, data-model.md "Server state" and "Steps"). Names the
+ * methods the SetupServer of createRestSetupServer must have, and the types they use:
+ *
+ *   interface ForumTag { id?: string; name: string }     // id: an existing tag; a new tag has none
+ *   interface ForumPostInfo {
+ *     threadId: string; ownerId: string; title: string; content: string; archived: boolean; pinned: boolean;
+ *   }
+ *     // title is the thread's name, content its starter message, archived its thread_metadata.archived, pinned flags & 2
+ *   // SetupChannelInfo of a forum (only) gains: tags: { id: string; name: string }[]; reaction: string | undefined
+ *   setForumTags(channelId: string, tags: readonly ForumTag[]): Promise<void>;   // PATCH channel available_tags
+ *   setForumReaction(channelId: string, emojiName: string): Promise<void>;      // PATCH channel default_reaction_emoji
+ *   readForumPosts(forumId: string): Promise<readonly ForumPostInfo[] | undefined>;
+ *     // active guild threads read once per server object (promise cached); archived public threads per forum;
+ *     // undefined when the archived read is refused with 403 (Missing Access)
+ *   openForumPost(forumId: string, title: string, content: string): Promise<string>;  // POST /channels/{forum}/threads, returns thread id
+ *   pinForumPost(threadId: string): Promise<void>;                               // PATCH channel flags with 1 << 1
+ *   editForumPost(threadId: string, title: string, content: string, unarchive: boolean): Promise<void>;
+ *     // unarchive: PATCH archived false first; then PATCH name; then PATCH the starter message (id = thread id)
+ */
 import { Routes } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { createRestSetupServer } from "./setup-server-rest.js";
@@ -338,5 +358,232 @@ describe("createRestSetupServer posts an unpinned description", () => {
     });
     expect(rest.put).not.toHaveBeenCalled();
     expect(messageId).toBe(MESSAGE_ID);
+  });
+});
+
+const FORUM_ID = "730000000000000000";
+const OTHER_FORUM_ID = "740000000000000000";
+const THREAD_ID = "750000000000000000";
+const ARCHIVED_THREAD_ID = "760000000000000000";
+const OTHER_FORUM_THREAD_ID = "770000000000000000";
+const TAG_ID = "780000000000000000";
+
+describe("createRestSetupServer sets the tags of a forum", () => {
+  test("patches available_tags with an existing tag by id and a new tag by name", async () => {
+    const rest = fakeRest();
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.setForumTags(FORUM_ID, [{ id: TAG_ID, name: "Rally" }, { name: "Defense" }]);
+
+    expect(rest.patch).toHaveBeenCalledWith(Routes.channel(FORUM_ID), {
+      body: { available_tags: [{ id: TAG_ID, name: "Rally" }, { name: "Defense" }] },
+    });
+  });
+});
+
+describe("createRestSetupServer sets the default reaction of a forum", () => {
+  test("patches default_reaction_emoji with the emoji name and no custom emoji id", async () => {
+    const rest = fakeRest();
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.setForumReaction(FORUM_ID, "⚔️");
+
+    expect(rest.patch).toHaveBeenCalledWith(Routes.channel(FORUM_ID), {
+      body: { default_reaction_emoji: { emoji_id: null, emoji_name: "⚔️" } },
+    });
+  });
+});
+
+describe("createRestSetupServer reads a forum's tags and default reaction", () => {
+  test("maps available_tags to id and name, and default_reaction_emoji to its emoji name", async () => {
+    const rest = fakeRest({
+      get: {
+        [Routes.guildChannels(GUILD_ID)]: [
+          {
+            id: FORUM_ID,
+            name: "tactics",
+            type: 15,
+            parent_id: null,
+            permission_overwrites: [],
+            topic: "A forum.",
+            available_tags: [{ id: TAG_ID, name: "Rally", moderated: false, emoji_id: null, emoji_name: null }],
+            default_reaction_emoji: { emoji_id: null, emoji_name: "⚔️" },
+          },
+        ],
+      },
+    });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const [forum] = await server.readChannels();
+
+    expect(forum).toEqual(expect.objectContaining({ id: FORUM_ID, kind: "forum", tags: [{ id: TAG_ID, name: "Rally" }], reaction: "⚔️" }));
+  });
+
+  test("reads a forum with no default reaction as undefined", async () => {
+    const rest = fakeRest({
+      get: {
+        [Routes.guildChannels(GUILD_ID)]: [
+          {
+            id: FORUM_ID,
+            name: "tactics",
+            type: 15,
+            parent_id: null,
+            permission_overwrites: [],
+            topic: null,
+            available_tags: [],
+            default_reaction_emoji: null,
+          },
+        ],
+      },
+    });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const [forum] = await server.readChannels();
+
+    expect(forum?.reaction).toBeUndefined();
+  });
+});
+
+/** The active and archived threads and the starter messages of one forum, as the fake answers them. */
+function forumPostsReplies(): Answers {
+  return {
+    [Routes.guildActiveThreads(GUILD_ID)]: {
+      threads: [
+        { id: THREAD_ID, name: "Rally at dawn", type: 11, parent_id: FORUM_ID, owner_id: OTHER_MEMBER_ID, thread_metadata: { archived: false }, flags: 0 },
+        { id: OTHER_FORUM_THREAD_ID, name: "Elsewhere", type: 11, parent_id: OTHER_FORUM_ID, owner_id: OTHER_MEMBER_ID, thread_metadata: { archived: false }, flags: 0 },
+      ],
+      members: [],
+    },
+    [Routes.channelThreads(FORUM_ID, "public")]: {
+      threads: [
+        { id: ARCHIVED_THREAD_ID, name: "How to post in #tactics", type: 11, parent_id: FORUM_ID, owner_id: BOT_USER_ID, thread_metadata: { archived: true }, flags: 2 },
+      ],
+      has_more: false,
+    },
+    [Routes.channelMessage(THREAD_ID, THREAD_ID)]: { id: THREAD_ID, content: "Rally at dawn, step by step.", author: { id: OTHER_MEMBER_ID } },
+    [Routes.channelMessage(ARCHIVED_THREAD_ID, ARCHIVED_THREAD_ID)]: {
+      id: ARCHIVED_THREAD_ID,
+      content: "📌 **How to post in #tactics**",
+      author: { id: BOT_USER_ID },
+    },
+  };
+}
+
+describe("createRestSetupServer reads the posts of a forum", () => {
+  test("returns each post with its owner, title, starter content, archived and pinned state", async () => {
+    const rest = fakeRest({ get: forumPostsReplies() });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const posts = await server.readForumPosts(FORUM_ID);
+
+    expect(posts).toHaveLength(2);
+    expect(posts).toEqual(
+      expect.arrayContaining([
+        {
+          threadId: THREAD_ID,
+          ownerId: OTHER_MEMBER_ID,
+          title: "Rally at dawn",
+          content: "Rally at dawn, step by step.",
+          archived: false,
+          pinned: false,
+        },
+        {
+          threadId: ARCHIVED_THREAD_ID,
+          ownerId: BOT_USER_ID,
+          title: "How to post in #tactics",
+          content: "📌 **How to post in #tactics**",
+          archived: true,
+          pinned: true,
+        },
+      ]),
+    );
+  });
+
+  test("lists only the posts of the forum asked for", async () => {
+    const rest = fakeRest({ get: forumPostsReplies() });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const posts = await server.readForumPosts(FORUM_ID);
+
+    expect(posts?.map((post) => post.threadId)).not.toContain(OTHER_FORUM_THREAD_ID);
+  });
+
+  test("reads the active threads of the guild once, however many forums are read", async () => {
+    const rest = fakeRest({ get: forumPostsReplies() });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.readForumPosts(FORUM_ID);
+    await server.readForumPosts(OTHER_FORUM_ID);
+
+    expect(routesOf(rest.get).filter((route) => route === Routes.guildActiveThreads(GUILD_ID))).toHaveLength(1);
+  });
+
+  test("resolves to undefined when the archived read is refused with status 403 (Missing Access)", async () => {
+    const rest = fakeRest();
+    const refusal = Object.assign(new Error("Missing Access"), { status: 403, code: 50001 });
+    rest.get.mockImplementation((route: string): Promise<unknown> =>
+      route === Routes.channelThreads(FORUM_ID, "public") ? Promise.reject(refusal) : Promise.resolve({ threads: [], members: [] }),
+    );
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await expect(server.readForumPosts(FORUM_ID)).resolves.toBeUndefined();
+  });
+});
+
+describe("createRestSetupServer opens a how-to post in a forum", () => {
+  test("posts the thread with its name and the message's content, no mentions, and returns the thread id", async () => {
+    const rest = fakeRest({ post: { [Routes.threads(FORUM_ID)]: { id: THREAD_ID } } });
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    const threadId = await server.openForumPost(FORUM_ID, "How to post in #tactics", "📌 **How to post in #tactics**");
+
+    expect(rest.post).toHaveBeenCalledWith(Routes.threads(FORUM_ID), {
+      body: {
+        name: "How to post in #tactics",
+        message: { content: "📌 **How to post in #tactics**", allowed_mentions: { parse: [] } },
+      },
+    });
+    expect(threadId).toBe(THREAD_ID);
+  });
+});
+
+describe("createRestSetupServer pins a forum post", () => {
+  test("patches the thread's flags with the pinned bit, 1 << 1", async () => {
+    const rest = fakeRest();
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.pinForumPost(THREAD_ID);
+
+    expect(rest.patch).toHaveBeenCalledWith(Routes.channel(THREAD_ID), { body: { flags: 1 << 1 } });
+  });
+});
+
+describe("createRestSetupServer edits a forum post", () => {
+  test("unarchives the post first when asked, then renames it, then edits its starter message", async () => {
+    const rest = fakeRest();
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.editForumPost(ARCHIVED_THREAD_ID, "Rally timing", "Rally at dawn.", true);
+
+    expect(rest.patch.mock.calls).toEqual([
+      [Routes.channel(ARCHIVED_THREAD_ID), { body: { archived: false } }],
+      [Routes.channel(ARCHIVED_THREAD_ID), { body: { name: "Rally timing" } }],
+      [
+        Routes.channelMessage(ARCHIVED_THREAD_ID, ARCHIVED_THREAD_ID),
+        { body: { content: "Rally at dawn.", allowed_mentions: { parse: [] } } },
+      ],
+    ]);
+  });
+
+  test("leaves the archived state alone when not asked to unarchive", async () => {
+    const rest = fakeRest();
+    const server = createRestSetupServer(rest, GUILD_ID);
+
+    await server.editForumPost(THREAD_ID, "Rally timing", "Rally at dawn.", false);
+
+    expect(rest.patch.mock.calls).toEqual([
+      [Routes.channel(THREAD_ID), { body: { name: "Rally timing" } }],
+      [Routes.channelMessage(THREAD_ID, THREAD_ID), { body: { content: "Rally at dawn.", allowed_mentions: { parse: [] } } }],
+    ]);
   });
 });

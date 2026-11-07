@@ -9,6 +9,12 @@
  *     id: string; name: string; kind: "category" | ChannelType; parentId: string | undefined; overwrites: ServerOverwrite[];
  *     topic: string | undefined; description: { messageId: string; text: string } | undefined;
  *     pinsReadable: boolean; // false when Discord refused the read of the pins (403 without Administrator)
+ *     forum: ForumState | undefined; // forums only (slice 030)
+ *   }
+ *   interface ForumState {
+ *     tags: { id: string; name: string }[]; reaction: string | undefined; postsReadable: boolean;
+ *     howTo: { threadId: string; title: string; content: string; archived: boolean; pinned: boolean } | undefined;
+ *     otherPinned: boolean;
  *   }
  *   interface ServerState {
  *     everyoneId: string; botUserId: string; botTopPosition: number; hasCommunity: boolean; botIsAdministrator: boolean;
@@ -22,7 +28,12 @@
  *     | { kind: "correct-overwrites"; id: string; name: string; hidesFromEveryone: boolean; overwrites: WantedOverwrite[] }
  *     | { kind: "set-topic"; id: string; name: string; topic: string }
  *     | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string }
- *     | { kind: "edit-description"; id: string; name: string; messageId: string; content: string };
+ *     | { kind: "edit-description"; id: string; name: string; messageId: string; content: string }
+ *     | { kind: "set-forum-tags"; id: string | undefined; name: string; categoryName: string; tags: { id?: string; name: string }[] }
+ *     | { kind: "set-forum-reaction"; id: string | undefined; name: string; categoryName: string; reaction: string }
+ *     | { kind: "open-how-to"; id: string | undefined; name: string; categoryName: string; title: string; content: string; pin: boolean }
+ *     | { kind: "edit-how-to"; threadId: string; name: string; title: string; content: string; unarchive: boolean }
+ *     | { kind: "pin-how-to"; threadId: string; name: string };
  *     // correct-overwrites: only the targets whose named allow or deny is missing, each with its full wanted allow and deny
  *     // steps order: roles, categories, channels (with overwrites), then set-topic, then post/edit-description
  *   type SetupFinding =
@@ -47,12 +58,15 @@ import {
   expandLayout,
   type ChannelType,
   type ExpandedChannel,
+  type ForumSetup,
   type Permission,
   type ServerLayout,
   type WantedOverwrite,
 } from "./server-layout.js";
+import { forumHowTo } from "./forum-how-to.js";
 import {
   planSetup,
+  type ForumState,
   type ServerChannel,
   type ServerOverwrite,
   type ServerRole,
@@ -161,6 +175,7 @@ function category(
     topic: undefined,
     description: undefined,
     pinsReadable: true,
+    forum: undefined,
   };
 }
 
@@ -181,6 +196,7 @@ function channel(
     topic: undefined,
     description: undefined,
     pinsReadable: true,
+    forum: kind === "forum" ? emptyForum() : undefined,
   };
 }
 
@@ -207,6 +223,37 @@ function described(
       ? undefined
       : { messageId: `pin-${existing.name}`, text };
   return { ...existing, topic, description };
+}
+
+/** A forum with no tags, no reaction and no how-to post yet, and no other pinned post. */
+function emptyForum(): ForumState {
+  return { tags: [], reaction: undefined, postsReadable: true, howTo: undefined, otherPinned: false };
+}
+
+function withForum(existing: ServerChannel, forum: ForumState): ServerChannel {
+  return { ...existing, forum };
+}
+
+/** The forum block of the layout with this channel name. */
+function layoutForum(name: string): ForumSetup {
+  const found = layout.categories
+    .flatMap((category) => category.channels)
+    .find((candidate) => candidate.name === name)?.forum;
+  if (found === undefined) throw new Error(`the layout has no forum ${name}`);
+  return found;
+}
+
+/** The state of a forum whose tags, reaction and Neil's pinned how-to post are as the layout wants them. */
+function matchingForum(name: string): ForumState {
+  const wanted = layoutForum(name);
+  const howTo = forumHowTo(name, wanted);
+  return {
+    tags: wanted.tags.map((tag) => ({ id: `tag-${tag}`, name: tag })),
+    reaction: wanted.reaction,
+    postsReadable: true,
+    howTo: { threadId: `post-${name}`, title: howTo.title, content: howTo.content, archived: false, pinned: true },
+    otherPinned: false,
+  };
 }
 
 function everyoneOverwrite(
@@ -259,7 +306,8 @@ function fittingServer(): ServerState {
         toServer(expandedChannel.overwrites),
       );
       const text = expandedChannel.message;
-      channels.push(described(existing, expandedChannel.topic, text));
+      const withText = described(existing, expandedChannel.topic, text);
+      channels.push(expandedChannel.type === "forum" ? withForum(withText, matchingForum(expandedChannel.name)) : withText);
     }
   }
   return server({ roles, channels });
@@ -1158,22 +1206,27 @@ describe("planSetup: topics and descriptions of existing channels", () => {
     );
   });
 
-  test("topic and description steps come after every other step, and set-topic steps before description steps", () => {
+  test("topic, description and forum steps come after every other step, and set-topic steps before description steps", () => {
     const plan = planSetup(
       layout,
       serverWithHangout([channel("general", "text", "Hangout")]),
       HOME_KINGDOM,
     );
-    const isTopicOrDescription = (kind: string): boolean =>
+    const isTail = (kind: string): boolean =>
       kind === "set-topic" ||
       kind === "post-description" ||
-      kind === "edit-description";
+      kind === "edit-description" ||
+      kind === "set-forum-tags" ||
+      kind === "set-forum-reaction" ||
+      kind === "open-how-to" ||
+      kind === "edit-how-to" ||
+      kind === "pin-how-to";
     const kinds = plan.steps.map((step) => step.kind);
-    const tail = kinds.filter(isTopicOrDescription);
+    const tail = kinds.filter(isTail);
     expect(tail).toContain("set-topic");
     expect(tail).toContain("post-description");
     expect(kinds).toEqual([
-      ...kinds.filter((kind) => !isTopicOrDescription(kind)),
+      ...kinds.filter((kind) => !isTail(kind)),
       ...tail,
     ]);
     expect(tail).toEqual([
@@ -1190,5 +1243,87 @@ describe("planSetup: where a description is pinned", () => {
     expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "alliance-voice", pinned: false }));
     expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "alliance-chat", pinned: true }));
     expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "post-description", name: "general", pinned: true }));
+  });
+});
+
+describe("planSetup: forums the plan creates", () => {
+  test("a new forum gets a set-forum-tags step with the layout's tags by name and no ids", () => {
+    const plan = planSetup(layout, server(), HOME_KINGDOM);
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "set-forum-tags",
+        id: undefined,
+        name: "tactics",
+        categoryName: "Hangout",
+        tags: [{ name: "Rally" }],
+      }),
+    );
+  });
+
+  test("the tags of a new forum keep the order the layout gives them", () => {
+    const scouting: ServerLayout = {
+      ...layout,
+      categories: layout.categories.map((category) => ({
+        ...category,
+        channels: category.channels.map((candidate) =>
+          candidate.name === "tactics" ? { ...candidate, forum: { ...layoutForum("tactics"), tags: ["Scouting", "Rally"] } } : candidate,
+        ),
+      })),
+    };
+    const plan = planSetup(scouting, server(), HOME_KINGDOM);
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({ kind: "set-forum-tags", name: "tactics", tags: [{ name: "Scouting" }, { name: "Rally" }] }),
+    );
+  });
+
+  test("a new forum gets a set-forum-reaction step with the layout's reaction", () => {
+    const plan = planSetup(layout, server(), HOME_KINGDOM);
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "set-forum-reaction",
+        id: undefined,
+        name: "tactics",
+        categoryName: "Hangout",
+        reaction: "⚔️",
+      }),
+    );
+  });
+
+  test("a new forum gets an open-how-to step with Neil's how-to post, to be pinned", () => {
+    const plan = planSetup(layout, server(), HOME_KINGDOM);
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({
+        kind: "open-how-to",
+        id: undefined,
+        name: "tactics",
+        categoryName: "Hangout",
+        title: "How to post in #tactics",
+        content: forumHowTo("tactics", layoutForum("tactics")).content,
+        pin: true,
+      }),
+    );
+  });
+
+  test("the forum steps of a new forum come after the description steps", () => {
+    const plan = planSetup(layout, server(), HOME_KINGDOM);
+    const kinds = plan.steps.map((step) => step.kind);
+    expect(kinds.indexOf("set-forum-tags")).toBeGreaterThan(kinds.lastIndexOf("post-description"));
+    expect(kinds.indexOf("open-how-to")).toBeGreaterThan(kinds.lastIndexOf("post-description"));
+  });
+});
+
+describe("planSetup: an existing forum whose state matches", () => {
+  test("gets no forum step when its tags, reaction and pinned how-to post are as the layout wants", () => {
+    const existing = withForum(described(channel("tactics", "forum", "Hangout"), "A test channel.", undefined), matchingForum("tactics"));
+    const plan = planSetup(layout, serverWithHangout([existing]), HOME_KINGDOM);
+    const forumSteps = plan.steps.filter(
+      (step) =>
+        step.kind === "set-forum-tags" ||
+        step.kind === "set-forum-reaction" ||
+        step.kind === "open-how-to" ||
+        step.kind === "edit-how-to" ||
+        step.kind === "pin-how-to",
+    );
+    expect(forumSteps).toEqual([]);
   });
 });

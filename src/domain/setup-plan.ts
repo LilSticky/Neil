@@ -5,6 +5,7 @@ import {
   expandLayout,
   type ChannelType,
   type ExpandedChannel,
+  type ExpandedForum,
   type ExpandedLayout,
   type Permission,
   type ServerLayout,
@@ -37,6 +38,22 @@ export interface ServerChannel {
   description: { messageId: string; text: string } | undefined;
   /** false when Discord refused the read of the pins, so the description is unknown. */
   pinsReadable: boolean;
+  /** A forum's state; undefined for every other kind, and for a forum whose state was not read. */
+  forum: ForumState | undefined;
+}
+
+/** What the server holds of a forum beyond its channel: tags, reaction and posts (slice 030, data-model.md). */
+export interface ForumState {
+  /** The forum's available tags. */
+  tags: { id: string; name: string }[];
+  /** The default reaction's emoji name; undefined when none is set. */
+  reaction: string | undefined;
+  /** false when Discord refused the read of the forum's posts, so Neil's how-to post is unknown. */
+  postsReadable: boolean;
+  /** Neil's how-to post: the oldest post by Neil whose starter starts with 📌; undefined when there is none. */
+  howTo: { threadId: string; title: string; content: string; archived: boolean; pinned: boolean } | undefined;
+  /** Whether another post of the forum is pinned. */
+  otherPinned: boolean;
 }
 
 /** The server as read by the adapter: what the plan needs and nothing it could change. */
@@ -73,7 +90,22 @@ export type SetupStep =
   /** A channel that has no Neil description yet; `id` is undefined for a channel the plan creates. */
   /** `pinned` is false in a voice channel, where Discord can't pin: there the description is its first message. */
   | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string; pinned: boolean }
-  | { kind: "edit-description"; id: string; name: string; messageId: string; content: string };
+  | { kind: "edit-description"; id: string; name: string; messageId: string; content: string }
+  /** A forum's tags: the whole list, present tags with their ids in layout order, then the new ones, then the extras. */
+  | { kind: "set-forum-tags"; id: string | undefined; name: string; categoryName: string; tags: { id?: string; name: string }[] }
+  | { kind: "set-forum-reaction"; id: string | undefined; name: string; categoryName: string; reaction: string }
+  /** Neil's how-to post; `pin` is false when another post of the forum is pinned. */
+  | {
+      kind: "open-how-to";
+      id: string | undefined;
+      name: string;
+      categoryName: string;
+      title: string;
+      content: string;
+      pin: boolean;
+    }
+  | { kind: "edit-how-to"; threadId: string; name: string; title: string; content: string; unarchive: boolean }
+  | { kind: "pin-how-to"; threadId: string; name: string };
 
 export type SetupFinding =
   | { kind: "outside-layout"; name: string }
@@ -87,7 +119,13 @@ export type SetupFinding =
   | { kind: "fallback-to-text"; name: string; from: "announcement" }
   | { kind: "hides-from-everyone"; name: string }
   /** The pins of a channel could not be read, so its description is neither posted nor edited. */
-  | { kind: "descriptions-unread"; name: string };
+  | { kind: "descriptions-unread"; name: string }
+  /** A tag the layout does not name; kept. */
+  | { kind: "extra-tag"; name: string; tag: string }
+  /** Another post is pinned, so Neil's how-to post is not pinned. */
+  | { kind: "other-post-pinned"; name: string }
+  /** The posts of a forum could not be read, so its how-to post is neither posted nor edited. */
+  | { kind: "forum-posts-unread"; name: string };
 
 export interface SetupPlan {
   steps: SetupStep[];
@@ -104,6 +142,7 @@ interface Plan {
   readonly channelSteps: SetupStep[];
   readonly topicSteps: SetupStep[];
   readonly descriptionSteps: SetupStep[];
+  readonly forumSteps: SetupStep[];
   readonly findings: SetupFinding[];
   /** Server channels and categories the layout accounts for; any other is outside the layout. */
   readonly claimed: Set<string>;
@@ -111,6 +150,8 @@ interface Plan {
 
 /** Roles of the layout that may hold permissions without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
+/** The state of a forum the plan creates: no tags, no reaction and no posts. */
+const NO_FORUM_STATE: ForumState = { tags: [], reaction: undefined, postsReadable: true, howTo: undefined, otherPinned: false };
 
 /**
  * The steps and findings that make a server match the layout (data-model.md, Setup plan). Reads nothing but its arguments
@@ -127,6 +168,7 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
     channelSteps: [],
     topicSteps: [],
     descriptionSteps: [],
+    forumSteps: [],
     findings: [],
     claimed: new Set(),
   };
@@ -144,6 +186,7 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
       ...plan.channelSteps,
       ...plan.topicSteps,
       ...plan.descriptionSteps,
+      ...plan.forumSteps,
     ],
     findings: plan.findings,
   };
@@ -244,6 +287,7 @@ function planChannel(
   }
   checkOverwrites(plan, existing, usable(plan, channel.overwrites), plan.channelSteps);
   checkText(plan, existing, channel, categoryName);
+  if (channel.forum !== undefined) planForumState(plan, channel.forum, channel.name, categoryName, existing.id, existing.forum);
 }
 
 /** The topic of a channel that exists, and Neil's description: posted when missing, edited when its text differs. */
@@ -302,6 +346,71 @@ function createChannel(plan: Plan, channel: ExpandedChannel, categoryName: strin
       pinned: channel.type !== "voice",
     });
   }
+  if (channel.forum !== undefined) planForumState(plan, channel.forum, channel.name, categoryName, undefined, NO_FORUM_STATE);
+}
+
+/**
+ * The steps that bring a forum's tags, reaction and how-to post in step with the layout (data-model.md, Steps). `id` is
+ * undefined for a forum the plan creates. A forum whose state was not read gets no steps.
+ */
+function planForumState(
+  plan: Plan,
+  wanted: ExpandedForum,
+  name: string,
+  categoryName: string,
+  id: string | undefined,
+  state: ForumState | undefined,
+): void {
+  if (state === undefined) return;
+  planForumTags(plan, wanted, name, categoryName, id, state);
+  if (state.reaction !== wanted.reaction) {
+    plan.forumSteps.push({ kind: "set-forum-reaction", id, name, categoryName, reaction: wanted.reaction });
+  }
+  planHowTo(plan, wanted, name, categoryName, id, state);
+}
+
+/** Missing tags give one step with the whole list: the layout's tags in its order, then the extras, which stay. */
+function planForumTags(
+  plan: Plan,
+  wanted: ExpandedForum,
+  name: string,
+  categoryName: string,
+  id: string | undefined,
+  state: ForumState,
+): void {
+  const missing = wanted.tags.filter((tag) => !state.tags.some((existing) => existing.name === tag));
+  const present = wanted.tags.flatMap((tag) => state.tags.filter((existing) => existing.name === tag));
+  const extras = state.tags.filter((existing) => !wanted.tags.includes(existing.name));
+  for (const extra of extras) plan.findings.push({ kind: "extra-tag", name, tag: extra.name });
+  if (missing.length === 0) return;
+  const tags = [...present, ...missing.map((tag) => ({ name: tag })), ...extras];
+  plan.forumSteps.push({ kind: "set-forum-tags", id, name, categoryName, tags });
+}
+
+/** Neil's how-to post: opened when missing, edited when its text differs, pinned when unpinned and no other post is. */
+function planHowTo(
+  plan: Plan,
+  wanted: ExpandedForum,
+  name: string,
+  categoryName: string,
+  id: string | undefined,
+  state: ForumState,
+): void {
+  if (!state.postsReadable) {
+    plan.findings.push({ kind: "forum-posts-unread", name });
+    return;
+  }
+  const { title, content } = wanted.howTo;
+  const howTo = state.howTo;
+  if (state.otherPinned && (howTo === undefined || !howTo.pinned)) plan.findings.push({ kind: "other-post-pinned", name });
+  if (howTo === undefined) {
+    plan.forumSteps.push({ kind: "open-how-to", id, name, categoryName, title, content, pin: !state.otherPinned });
+    return;
+  }
+  if (howTo.title !== title || howTo.content !== content) {
+    plan.forumSteps.push({ kind: "edit-how-to", threadId: howTo.threadId, name, title, content, unarchive: howTo.archived });
+  }
+  if (!howTo.pinned && !state.otherPinned) plan.forumSteps.push({ kind: "pin-how-to", threadId: howTo.threadId, name });
 }
 
 /** Without Community an announcement channel is planned as text, so an existing text channel stands for it. Forums need no Community. */
