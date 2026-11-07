@@ -1,4 +1,5 @@
 import {
+  ChannelType,
   Client,
   Events,
   type AutocompleteInteraction,
@@ -13,6 +14,7 @@ import {
   type ModalSubmitInteraction,
   type Role,
   type StringSelectMenuInteraction,
+  type User,
 } from "discord.js";
 import { z } from "zod";
 import type { BuildInfo } from "../build-info.js";
@@ -33,6 +35,16 @@ import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import {
+  createBootyCalls,
+  type BootyCalls,
+  type BootyCallButton,
+  type BootyCallCommand,
+  type BootyCallServer,
+  type BootyChannel,
+} from "./booty-call.js";
+import { handleBootyAlerts, type BootyAlertsInteraction } from "./booty.js";
+import { handleTimeZoneAutocomplete } from "./booty-time.js";
+import {
   createInterviews,
   type ButtonInteractionLike,
   type CommandLike,
@@ -44,7 +56,12 @@ import {
 } from "./interview.js";
 import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
-import { checkChannels, createOnboardingChannels, type ChannelProblem } from "./onboarding-channels.js";
+import {
+  checkChannels,
+  createOnboardingChannels,
+  type ChannelProblem,
+  type OnboardingChannels,
+} from "./onboarding-channels.js";
 import { createDoctorRole } from "./doctor-role.js";
 import { listEveryMember } from "./member-listing.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
@@ -138,6 +155,14 @@ export interface CommandHandlers {
   readonly reaperPage: (button: ButtonInteraction) => Promise<void>;
   /** A button whose custom id starts with `overview:`, the page buttons of an Alliance Overview. */
   readonly overview: (press: ButtonInteraction) => Promise<void>;
+  /** The /booty command: a Linked holder of an Alliance role asks for a Booty Call, privately, to confirm. */
+  readonly booty: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /booty-alerts command: a Member chooses their Booty Alerts, privately. */
+  readonly bootyAlerts: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** An autocomplete request of /booty-alerts, for its time-zone option. */
+  readonly bootyAlertsAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
+  /** A button whose custom id starts with `booty:`, the Confirm and Cancel buttons of a Booty Call. */
+  readonly bootyButton: (button: ButtonInteraction) => Promise<void>;
   /** A guild member joined the server; the Interview may start for them. */
   readonly memberJoined: (member: JoinedMember) => Promise<void>;
   /** A guild member came online; the Interview may start for them. */
@@ -181,6 +206,8 @@ interface Services {
   };
   /** The Preferences message's presses and /channels. */
   readonly preferenceChoices: PreferenceChoices;
+  /** /booty and the Booty Call buttons. */
+  readonly bootyCalls: BootyCalls;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -189,6 +216,8 @@ const PICK_PREFIX = "pick:";
 const OVERVIEW_PREFIX = "overview:";
 /** The custom id prefix of every paged /reaper answer button. */
 const REAPER_PREFIX = "reaper:";
+/** The custom id prefix of every Booty Call button. */
+const BOOTY_PREFIX = "booty:";
 /** The custom id prefix of every Onboarding Interview button and modal. */
 const INTERVIEW_PREFIX = "interview:";
 /** The custom id prefix of every Rank Approval button. */
@@ -378,12 +407,19 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "reaper":
           routeReaper(handlers, interaction, logError);
           break;
+        case "booty":
+          void handlers.booty(interaction);
+          break;
+        case "booty-alerts":
+          void handlers.bootyAlerts(interaction);
+          break;
       }
       return;
     }
     if (interaction.isAutocomplete()) {
       if (interaction.commandName === "alliance") void handlers.allianceAutocomplete(interaction);
       if (interaction.commandName === "reaper") void handlers.reaperAutocomplete(interaction);
+      if (interaction.commandName === "booty-alerts") void handlers.bootyAlertsAutocomplete(interaction);
       return;
     }
     if (interaction.isModalSubmit()) {
@@ -403,6 +439,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.overview(interaction);
       } else if (interaction.customId.startsWith(REAPER_PREFIX)) {
         void handlers.reaperPage(interaction);
+      } else if (interaction.customId.startsWith(BOOTY_PREFIX)) {
+        void handlers.bootyButton(interaction);
       } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
         void handlers.preferencesPress(interaction);
       }
@@ -557,6 +595,14 @@ async function reportServerPermissions(
   }
 }
 
+/** Every Member of the guild, listed over REST page by page (see listEveryMember), never by the gateway. */
+function everyMemberOf(guild: Guild): Promise<GuildMember[]> {
+  return listEveryMember(async (after, limit) => {
+    const page = await guild.members.list(after === undefined ? { limit } : { after, limit });
+    return [...page.values()];
+  });
+}
+
 /** The members of the guild for the name and roles; undefined for a user who is not on the guild. */
 function serverMembersOf(guild: Guild): ServerMembers {
   return {
@@ -567,10 +613,7 @@ function serverMembersOf(guild: Guild): ServerMembers {
       return { guild: rolesGuildOf(guild, me.roles.highest.position), member: rolesMemberOf(member) };
     },
     all: async () => {
-      const members = await listEveryMember(async (after, limit) => {
-        const page = await guild.members.list(after === undefined ? { limit } : { after, limit });
-        return [...page.values()];
-      });
+      const members = await everyMemberOf(guild);
       const me = guild.members.me ?? (await guild.members.fetchMe());
       const botTopRolePosition = me.roles.highest.position;
       return members.map((member) => ({
@@ -794,6 +837,89 @@ function modalLike(modal: ModalSubmitInteraction): ModalInteractionLike {
   };
 }
 
+/** A guild text channel as a Booty Call reads it: its id, its name and the name of its category; any other channel is not one. */
+const guildTextChannelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.literal(ChannelType.GuildText),
+  parent: z.object({ name: z.string() }).nullish(),
+});
+
+function bootyChannelOf(channel: unknown): BootyChannel | undefined {
+  const parsed = guildTextChannelSchema.safeParse(channel);
+  if (!parsed.success) return undefined;
+  return { id: parsed.data.id, name: parsed.data.name, categoryName: parsed.data.parent?.name };
+}
+
+/** The caller of a Booty Call: the server display name when the interaction gives a guild member, else the username. */
+function bootyCallerOf(user: User, member: unknown): { readonly id: string; readonly displayName: string } {
+  return { id: user.id, displayName: member instanceof GuildMember ? member.displayName : user.username };
+}
+
+/** The discord.js /booty command as a Booty Call reads it: the caller, the channel, and the private reply. */
+function bootyCommandLike(command: ChatInputCommandInteraction): BootyCallCommand {
+  return {
+    user: bootyCallerOf(command.user, command.member),
+    channel: bootyChannelOf(command.channel),
+    reply: async (options) => {
+      await command.reply(options);
+    },
+  };
+}
+
+/** The discord.js Booty Call button press as a Booty Call reads it; see buttonLike for why each method is passed on. */
+function bootyButtonLike(button: ButtonInteraction): BootyCallButton {
+  return {
+    customId: button.customId,
+    user: bootyCallerOf(button.user, button.member),
+    channel: bootyChannelOf(button.channel),
+    reply: async (options) => {
+      await button.reply(options);
+    },
+    update: async (options) => {
+      await button.update(options);
+    },
+    editReply: async (options) => {
+      await button.editReply(options);
+    },
+  };
+}
+
+/** The discord.js /booty-alerts command as the Booty Alerts reads it: the caller and the options, and the private reply. */
+function bootyAlertsLike(command: ChatInputCommandInteraction): BootyAlertsInteraction {
+  return {
+    user: command.user,
+    options: { getString: (name) => command.options.getString(name) },
+    reply: async (options) => {
+      await command.reply(options);
+    },
+  };
+}
+
+/**
+ * The Discord server as a Booty Call uses it: the holders of an Alliance role by its name (from the REST member listing),
+ * presences from the cache only, posts to a channel and the log. A channel that is not a guild text channel cannot be posted to.
+ */
+function bootyServerOf(guild: Guild, channels: OnboardingChannels): BootyCallServer {
+  return {
+    holdersOf: async (roleName) => {
+      const members = await everyMemberOf(guild);
+      return members
+        .filter((member) => [...member.roles.cache.values()].some((role) => role.name === roleName))
+        .map((member) => member.id);
+    },
+    presenceOf: (memberId) => Promise.resolve(presenceStatusOf(guild.presences.cache.get(memberId)?.status)),
+    post: async (channelId, message) => {
+      const channel = await guild.channels.fetch(channelId);
+      if (channel?.type !== ChannelType.GuildText) throw new Error(`The channel ${channelId} is not a guild text channel.`);
+      const sent = await channel.send(message);
+      return sent.url;
+    },
+    // Mentions are off in the log: a line names a Member by id, and must not ping them.
+    log: (line) => channels.log({ content: line, allowedMentions: { parse: [] } }),
+  };
+}
+
 /** Resolves once the client is ready; a client that is already ready resolves at once. */
 function whenReady(client: Client): Promise<void> {
   if (client.isReady()) return Promise.resolve();
@@ -899,6 +1025,24 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
       overview: (press) =>
         handleOverview(pickLike(press), { gameApi: options.gameApi, pickSessions, now, logError, ...lookupRoles }),
+      booty: async (interaction) =>
+        answer("/booty", { logError }, async () => {
+          const { bootyCalls } = await services;
+          await bootyCalls.onCommand(bootyCommandLike(interaction));
+        }),
+      bootyAlerts: (interaction) =>
+        handleBootyAlerts(bootyAlertsLike(interaction), {
+          links: options.links,
+          bootyAlerts: options.bootyAlerts,
+          logError,
+        }),
+      bootyAlertsAutocomplete: (interaction) =>
+        answer("/booty-alerts autocomplete", { logError }, () => handleTimeZoneAutocomplete(interaction)),
+      bootyButton: async (button) =>
+        answer("booty button", { logError }, async () => {
+          const { bootyCalls } = await services;
+          await bootyCalls.onButton(bootyButtonLike(button));
+        }),
       quota: (interaction) =>
         handleQuota(
           {
@@ -975,6 +1119,15 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    // /booty: the Game API is asked only through the uncharged lookup, the roles and presences come from the server.
+    const bootyCalls = createBootyCalls({
+      links: options.links,
+      bootyAlerts: options.bootyAlerts,
+      game: options.gameApi,
+      server: bootyServerOf(guild, channels),
+      now,
+      logError,
+    });
     // One Onboarding Role service and one Doctor Role service, for every path that gives or takes the roles off.
     const onboardingRole = createOnboardingRole({
       members: serverMembersOf(guild),
@@ -1165,6 +1318,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       rankApprovals,
       corrections,
       preferenceChoices,
+      bootyCalls,
       reaperAdd: (interaction) =>
         handleReaperAdd(interaction, {
           ...reaperWrites,

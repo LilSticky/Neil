@@ -61,6 +61,24 @@ export function isBootyMatch(bootyAlerts: BootyAlerts, presence: MemberPresence)
   }
 }
 
+/** The game's reading of a Member on the roster: its online flag and its Last Online, each undefined when not given. */
+export interface GamePresence {
+  readonly online: boolean | undefined;
+  readonly lastOnlineAt: Date | undefined;
+}
+
+/**
+ * Whether a Member counts as online for a Booty Call: Discord shows them not offline, or the game does. With no online
+ * flag, the game counts the Member online unless a Last Online is known (a Player without one is online now). Without
+ * any game reading, Discord alone decides.
+ */
+export function isBootyOnline(game: GamePresence | undefined, discordOnline: boolean): boolean {
+  if (discordOnline) return true;
+  if (game === undefined) return false;
+  if (game.online !== undefined) return game.online;
+  return game.lastOnlineAt === undefined;
+}
+
 export function isConfirmationExpired(requestedAt: number, now: number): boolean {
   return now - requestedAt >= ONE_MINUTE_MS;
 }

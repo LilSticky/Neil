@@ -58,10 +58,13 @@ src/discord/commands.ts, client.ts, unlink.ts, src/main.ts   wiring
   and the caller must be Linked and hold that role. This needs no Game API request, so a refusal costs nothing.
 - **Confirmation**: private Confirm and Cancel buttons. The custom id holds the caller and the time it was issued, so expiry needs
   no stored state, and a restart does not lose it.
-- **Roster**: an uncharged Player lookup of the caller's uid. It returns the whole Alliance roster with `online` and
-  `last_online_at`, and needs no Kingdom, so it works for Guests too.
-- **Online**: on the roster, `online` is true or Last Online is missing (the dictionary: a Player without one is online now); or Discord presence is not offline.
-- **Fallback**: on a failed lookup the Alliance is the holders of the `[TAG]` role, and Discord alone decides who is online.
+- **Roster**: an uncharged Player lookup of the caller's uid, purpose `lookup`. The answer's `alliance_members` is the whole Alliance
+  roster. The client kept only uid and rank, so it now also reads `online` and `last_online_at` and gives them as an optional
+  `roster` on the Player, as `shielded` is optional. This needs no Kingdom, so it works for Guests too, and no second request.
+- **Online**: the game's `online` flag when it gives one; with no flag, a missing Last Online means online (the dictionary: a Player
+  without one is online now). Discord presence that is not offline counts as online too.
+- **Fallback**: on a failed lookup, or an answer with no roster, the Alliance is the holders of the `[TAG]` role, and Discord alone
+  decides who is online. The `lookup` purpose stops at the Quota Reserve, which also lands here.
 - **Mentions**: in the message content, since embeds do not ping, with `allowedMentions.users` set to exactly those Members. Chunks of
   80 stay under both the 100-user and the 2,000-character limit. The first chunk rides on the card.
 - **Cooldown**: claimed in memory before the first `await` of the press, which also settles two Members confirming at once. It is

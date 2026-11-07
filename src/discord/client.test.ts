@@ -76,6 +76,10 @@ function handlers() {
     reaperRemove: vi.fn(() => Promise.resolve()),
     reaperAutocomplete: vi.fn(() => Promise.resolve()),
     reaperPage: vi.fn(() => Promise.resolve()),
+    booty: vi.fn(() => Promise.resolve()),
+    bootyAlerts: vi.fn(() => Promise.resolve()),
+    bootyAlertsAutocomplete: vi.fn(() => Promise.resolve()),
+    bootyButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
@@ -244,6 +248,59 @@ describe("createClient", () => {
     expect(routed.pick).not.toHaveBeenCalled();
     expect(routed.overview).not.toHaveBeenCalled();
     expect(routed.interviewButton).not.toHaveBeenCalled();
+  });
+
+  test("hands /booty to the booty handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("booty");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.booty).toHaveBeenCalledWith(interaction);
+    expect(routed.bootyAlerts).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /booty-alerts to the booty alerts handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("booty-alerts");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.bootyAlerts).toHaveBeenCalledWith(interaction);
+    expect(routed.booty).not.toHaveBeenCalled();
+    expect(routed.quota).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands an autocomplete request of /booty-alerts to the booty alerts autocomplete handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = autocomplete("booty-alerts");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.bootyAlertsAutocomplete).toHaveBeenCalledWith(interaction);
+    expect(routed.allianceAutocomplete).not.toHaveBeenCalled();
+    expect(routed.reaperAutocomplete).not.toHaveBeenCalled();
+    expect(routed.bootyAlerts).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with booty: to the booty button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "booty:7:1783425600000");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.bootyButton).toHaveBeenCalledWith(interaction);
+    expect(routed.reaperPage).not.toHaveBeenCalled();
+    expect(routed.overview).not.toHaveBeenCalled();
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
   });
 
   test("hands /quota to the quota handler and nothing else", () => {

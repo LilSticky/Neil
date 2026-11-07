@@ -15,7 +15,7 @@
 
 **Independent Test**: recorded Booty Alerts are shown again by `/booty-alerts`, and decide whether the Member matches.
 
-- [ ] T005 [US2] `/booty-alerts` in `src/discord/booty.ts`, `src/discord/booty-texts.ts`, `src/discord/commands.ts`: options per contracts, private answer, options left out keep what is recorded, invalid input refused (FR-009, scenarios 1 and 5)
+- [x] T005 [US2] `/booty-alerts` in `src/discord/booty.ts`, `src/discord/booty-texts.ts`, `src/discord/commands.ts`: options per contracts, private answer, options left out keep what is recorded, invalid input refused (FR-009, scenarios 1 and 5)
 - [x] T006 [US2] Time zones in `src/discord/booty-time.ts`: autocomplete from `Intl.supportedValuesOf("timeZone")`, local minute with `Intl.DateTimeFormat`, daylight saving covered (scenarios 2 to 4)
 - [x] T007 [US2] Forget Booty Alerts at Unlink in `src/discord/unlink.ts` (FR-011, scenario 6)
 
@@ -23,12 +23,12 @@
 
 **Independent Test**: with one opted-in Member and one who is not, a confirmed Booty Call posts one card that mentions only the first.
 
-- [ ] T008 [US1] `/booty` checks in `src/discord/booty.ts`: `alliance-chat`, category an Alliance role, caller Linked and holding it; private refusals (FR-001, scenarios 5 and 6)
-- [ ] T009 [US1] Confirmation in `src/discord/booty.ts`, `src/discord/booty-texts.ts`: buttons per contracts, Cancel, expiry after one minute, a press by another Member refused (FR-002, scenarios 1, 2 and 4)
-- [ ] T010 [US1] Who is alerted in `src/discord/booty.ts`: one uncharged Player lookup of the caller, roster matched to Links, online from the game or Discord, caller left out (FR-004, FR-005, FR-006)
-- [ ] T011 [US1] Fallback when the Game API can't answer: Alliance role holders, Discord alone (FR-007)
-- [ ] T012 [US1] Card and mentions in `src/discord/booty.ts`, `src/discord/booty-texts.ts`: card once, mentions in content in chunks of 80, `allowedMentions.users` exact, no mentions when nobody matches, log line (FR-003, FR-012, scenarios 3 and 8)
-- [ ] T013 [US1] Cooldown in `src/discord/booty.ts`: claimed before the first await, released if the post fails, later callers pointed to the card (FR-008, scenario 7)
+- [x] T008 [US1] `/booty` checks in `src/discord/booty-call.ts`: `alliance-chat`, category an Alliance role, caller Linked and holding it; private refusals (FR-001, scenarios 5 and 6)
+- [x] T009 [US1] Confirmation in `src/discord/booty-call.ts`, `src/discord/booty-texts.ts`: buttons per contracts, Cancel, expiry after one minute, a press by another Member refused (FR-002, scenarios 1, 2 and 4)
+- [x] T010 [US1] Who is alerted in `src/discord/booty-call.ts`: one uncharged Player lookup of the caller, roster matched to Links, online from the game or Discord, caller left out (FR-004, FR-005, FR-006)
+- [x] T011 [US1] Fallback when the Game API can't answer: Alliance role holders, Discord alone (FR-007)
+- [x] T012 [US1] Card and mentions in `src/discord/booty-call.ts`, `src/discord/booty-texts.ts`: card once, mentions in content in chunks of 80, `allowedMentions.users` exact, no mentions when nobody matches, log line (FR-003, FR-012, scenarios 3 and 8)
+- [x] T013 [US1] Cooldown in `src/discord/booty-call.ts`: claimed before the first await, released if the post fails, later callers pointed to the card (FR-008, scenario 7)
 - [ ] T014 [US1] Wiring in `src/discord/client.ts`, `src/main.ts`: commands, autocomplete, `booty:` buttons; check Neil may post in `alliance-chat` in `src/domain/server-layout.ts`
 
 ## Phase 4: Polish

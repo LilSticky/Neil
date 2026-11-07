@@ -17,6 +17,7 @@ import type {
   Player,
   PlayerDetails,
   RosterEntry,
+  RosterPresence,
 } from "../domain/player.js";
 import { MAX_ATTEMPTS, retryDelay } from "../domain/retry.js";
 import type { AllowanceKeeper, LookupCaller } from "./allowance-keeper.js";
@@ -393,6 +394,7 @@ export class GameApiClient {
       might: body.power,
       sanctuaryLevel: body.lv,
       details: playerDetailsFrom(body),
+      ...rosterOf(body),
     };
 
     if (body.aid === null || body.aid === 0) {
@@ -721,6 +723,20 @@ function playerDetailsFrom(body: PlayerBody): PlayerDetails {
     avatarPath: body.avatar_url,
     kingdomBadgePath: body.server_badge_url,
   };
+}
+
+/**
+ * The Alliance roster a Player's 200 body gives: each row's uid and online reading. A row whose uid is not a uid is left
+ * out; a body with no `alliance_members` gives no roster at all.
+ */
+function rosterOf(body: PlayerBody): { readonly roster?: readonly RosterPresence[] } {
+  if (body.alliance_members === undefined || body.alliance_members === null) return {};
+  const roster = body.alliance_members.flatMap((row): RosterPresence[] => {
+    const uid = parseUid(row.uid);
+    if (!uid.ok) return [];
+    return [{ uid: uid.value, online: row.online ?? undefined, lastOnlineAt: dateFromSeconds(row.last_online_at) }];
+  });
+  return { roster };
 }
 
 /** A Player is shielded when `shielding` is a non-zero number; 0 means not shielded and an unreadable value is unknown. */

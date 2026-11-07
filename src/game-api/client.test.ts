@@ -46,6 +46,13 @@ const RECORDED_PLAYER_DETAILS: PlayerDetails = {
   shielded: false,
 };
 
+/** The roster of the recorded player-in-alliance.json: its three rows, each with uid, online flag and Last Online (slice 026, T010). */
+const RECORDED_ROSTER = [
+  { uid: "179060285441", online: false, lastOnlineAt: new Date(1793285439 * 1000) },
+  { uid: "93159425", online: false, lastOnlineAt: new Date(1793191591 * 1000) },
+  { uid: "145563254785", online: false, lastOnlineAt: new Date(1793154302 * 1000) },
+];
+
 /** The Alliance details of the recorded alliance.json (slice 012, T001). */
 const RECORDED_ALLIANCE_DETAILS: AllianceDetails = {
   level: 4,
@@ -235,6 +242,7 @@ describe("GameApiClient.getPlayer result", () => {
         alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
         details: RECORDED_PLAYER_DETAILS,
+        roster: RECORDED_ROSTER,
       },
       fetchedAt: FIXED_NOW,
     });
@@ -272,6 +280,7 @@ describe("GameApiClient.getPlayer result", () => {
         alliance: undefined,
         allianceRank: undefined,
         details: RECORDED_PLAYER_DETAILS,
+        roster: [],
       },
       fetchedAt: FIXED_NOW,
     });
@@ -290,6 +299,64 @@ describe("GameApiClient.getPlayer result", () => {
       kind: "found",
       value: { alliance: { tag: "NML", name: "No Man's Land" }, allianceRank: "unknown" },
     });
+  });
+
+  test("a roster row's uid, online flag and Last Online time are read into the Player's roster", async () => {
+    const body = {
+      ...playerInAlliance,
+      alliance_members: playerInAlliance.alliance_members.map((row, index) => (index === 0 ? { ...row, online: true } : row)),
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result).toMatchObject({
+      kind: "found",
+      value: {
+        roster: [
+          { uid: "179060285441", online: true, lastOnlineAt: new Date(1793285439 * 1000) },
+          { uid: "93159425", online: false, lastOnlineAt: new Date(1793191591 * 1000) },
+          { uid: "145563254785", online: false, lastOnlineAt: new Date(1793154302 * 1000) },
+        ],
+      },
+    });
+  });
+
+  test("a roster row with unreadable online data or no Last Online still reads, with those undefined, and the Player's rank still works", async () => {
+    const body = {
+      ...playerInAlliance,
+      alliance_members: playerInAlliance.alliance_members.map((row, index) => {
+        if (index === 0) return { ...row, online: "yes", last_online_at: "soon" };
+        if (index === 1) return { uid: row.uid, rank_label: row.rank_label };
+        return row;
+      }),
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result.kind).toBe("found");
+    const player = result.kind === "found" ? result.value : undefined;
+    expect(player?.allianceRank).toBe("R5");
+    expect(player?.roster).toHaveLength(3);
+    expect(player?.roster?.[0]).toEqual({ uid: "179060285441", online: undefined, lastOnlineAt: undefined });
+    expect(player?.roster?.[1]).toEqual({ uid: "93159425", online: undefined, lastOnlineAt: undefined });
+    expect(player?.roster?.[2]).toEqual(RECORDED_ROSTER[2]);
+  });
+
+  test.each([
+    ["is missing", undefined],
+    ["is null", null],
+  ])("an answer whose alliance_members %s gives the Player no roster", async (_label, members) => {
+    const body = { ...playerInAlliance, alliance_members: members };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result.kind).toBe("found");
+    const player = result.kind === "found" ? result.value : undefined;
+    expect(player).toBeDefined();
+    expect(player?.roster).toBeUndefined();
   });
 
   test("a 404 is not-found", async () => {
@@ -1387,6 +1454,7 @@ describe("GameApiClient.findPlayer result", () => {
         alliance: { tag: "NML", name: "No Man's Land", leaderUid: "145563254785" },
         allianceRank: "R5",
         details: RECORDED_PLAYER_DETAILS,
+        roster: RECORDED_ROSTER,
       },
       fetchedAt: FIXED_NOW,
     });
