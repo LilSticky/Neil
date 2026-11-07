@@ -122,8 +122,8 @@ both channels.
 - A channel that exists already but is outside the layout: no text is set, it is only reported, as today.
 - Voice channels have no topic: they get the pinned message only.
 - Forums hold posts, not messages: they get the topic (shown as post guidelines) only.
-- Without Community, forums and announcement channels become text channels: they get topic and message like any text
-  channel.
+- Without Community, an announcement channel becomes a text channel and gets topic and message like any text channel; a
+  forum created as text keeps the forum's treatment, the topic only.
 - Alliance areas (`[TAG]`): their channels get a description too, naming the Alliance.
 
 ## Requirements *(mandatory)*

@@ -112,31 +112,42 @@ category and keep channels synced, unless the row says otherwise. `Kingdom` mean
 |----------|----------|---------|--------|
 | Onboarding | `#onboarding` | Onboarding, Moderator, King, `R5` | 🔴 |
 | Officers | `#neil-log`, Moderator channel | Moderator, King | 🔴 for the log; 🟡 for the Moderator channel |
-| Basic information | `#rules`, `#welcome` (read only) | Kingdom | 🟡 |
-| Home Kingdom | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server) and your other Home Kingdom channels | Kingdom | 🟡 |
-| Hangout | `#general`, voice, `#alliance-hall` (commands) | Kingdom | 🟡 |
-| Guest area | guest rules (read only), text, voice, announcements for everyone (only King posts) | Doctor | 🟡 |
+| Basic information | `#rules` (with the code of conduct), `#welcome` (read only) | Kingdom | 🟡 |
+| Hangout | Home Kingdom announcements (only King posts), `#gift-codes` (only `R4`, `R5` and King post, or a Follow from the game's official server), `#general`, voice, `#alliance-hall` (commands) | Kingdom | 🟡 |
+| | off-topic, memes | Off-topic | 🟡 |
+| Guest area | guest rules (read only, with the Guest code of conduct), text, voice | Doctor | 🟡 |
 | NaP | closed discussion | NaP discussions, King | 🟡 |
 | | closed leaders' channel | `R5`, King | 🟡 |
 | | NaP announcements (only King posts; Interaction Bot translates) | Kingdom | 🟡 |
+| | a translated copy of the NaP announcements per translation language | that language's Preference Role | 🟡 |
 | | NaP forum | Kingdom | 🟡 |
 | Languages | one general chat per language you name | that language's Preference Role | 🟡 |
 | PvP | chat, voice, intel (Members use `/player`, `/alliance`, `/reaper` here), tactics forum | PvP | 🟡 |
-| Events | event chat, event announcements, ask for help, guides forum | Events | 🟡 |
-| Alliance Duel | chat, voice, announcements (only King posts), tactics forum, intel | PvP, Events | 🟡 |
-| Kingdom vs Kingdom | the same, plus five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
-| Recruitment | one text channel | Recruitment | 🟡 |
-| Off-topic | off-topic, memes | Off-topic | 🟡 |
+| Events | event chat, coaching voice, ask for help, guides forum | Events | 🟡 |
+| | event announcements (only King posts) | Kingdom | 🟡 |
+| Alliance Duel | chat, voice, tactics forum, intel | PvP, Events | 🟡 |
+| Kingdom vs Kingdom | chat, voice, tactics forum, intel, and five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
+| | KvK announcements (only King posts; Interaction Bot translates) | Kingdom | 🟡 |
+| | a translated copy of the KvK announcements per translation language | that language's Preference Role | 🟡 |
+| Recruitment | Players looking for an Alliance, Alliances looking for Players | Recruitment | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
+
+The translation languages are Russian, French, Italian and German; change them under `translations` in `server-layout.json`.
+Every announcement reaches the whole Kingdom, whichever category it sits in.
+
+**Channel descriptions.** Every channel says what it is for: the script sets the topic and pins one message from Neil
+with the description, who sees the channel and who posts there. `#rules` and `#guest-rules` add a code of conduct below it.
+Voice channels get the message only, forums the topic only. Change a text under `description` or `codeOfConduct` in
+`server-layout.json` and run the script again: it edits Neil's message rather than posting a second one.
 
 **Special cases**
 
 - **Only King posts** (announcements): set these on the channel itself. A role's ✅ beats the ❌ on @everyone, so the role
   that sees the channel needs its own ❌ on Send Messages, Send Messages in Threads, Create Public Threads and Create
   Private Threads. **King** gets View Channel and Send Messages ✅.
-- **Interaction Bot** needs View Channel and Send Messages ✅ on the announcement channels it translates. Bots hold no
+- **Interaction Bot** needs View Channel and Send Messages ✅ on the announcement channels it translates and on their copies. Bots hold no
   Doctor or Kingdom role, so without this allow it stops.
-- **Read only** (Basic information, guest rules): the role that sees the channel gets Send Messages ❌.
+- **Read only** (`#rules`, `#welcome`, guest rules): the role that sees the channel gets Send Messages ❌.
 - **Guides forum**: **Events** View Channel ✅; **Veteran** Create Posts and Send Messages in Threads ✅; **Moderator** and
   **King** Manage Threads ✅, which is what makes it moderated. A Veteran writes there only when they hold Events too.
 - **No Community on your server?** Forums and announcement channels may need it. Use plain text channels instead; the
