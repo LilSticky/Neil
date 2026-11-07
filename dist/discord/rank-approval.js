@@ -48,10 +48,14 @@ async function pressRankButton(deps, button) {
 export function keepsApprovalThread(preferences, approval) {
     return preferences.prompt(approval.linkedMemberId)?.threadId === approval.threadId;
 }
-/** Deletes the approval's thread, unless the Member's Preferences message is still open in it. */
+/**
+ * Deletes the approval's thread, unless the Member's Preferences message is still open in it. The Onboarding Role is taken
+ * off just before the deletion, since the thread closes the Interview.
+ */
 async function deleteApprovalThread(deps, approval) {
     if (keepsApprovalThread(deps.preferences, approval))
         return;
+    await deps.onboardingRole.takeOff(approval.linkedMemberId);
     await deps.channels.deleteThread(approval.threadId);
 }
 /** Gives the Member their name and roles with the approved rank; a failure is logged, the approval stands. */

@@ -114,6 +114,7 @@ export function handleRank(interaction, deps) {
         if (settled !== undefined) {
             const approval = { threadId: settled.threadId, linkedMemberId: memberId };
             if (!keepsApprovalThread(deps.preferences, approval)) {
+                await deps.onboardingRole.takeOff(memberId);
                 await answer("the deletion of an Interview thread", { logError: deps.logError }, () => deps.channels.deleteThread(approval.threadId));
             }
         }
@@ -225,14 +226,14 @@ async function confirmLink(button, pending, deps) {
     await finishOfficerLink(deps, pending, latest.threadId, link, outcome.rankApproval);
 }
 /**
- * The Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither role. The stored
- * Officer Link is logged with its Officer, and its name and roles applied. A pending Rank Approval is asked in the thread,
- * which says the Link is stored; otherwise the thread is deleted. A failed name and roles step is logged; the Link stands.
+ * The Doctor Role is given, so the Member is never in neither role. The stored Officer Link is logged with its Officer, and
+ * its name and roles applied. A pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the
+ * thread is deleted, and the Onboarding Role is taken off just before that. A failed name and roles step is logged; the
+ * Link stands.
  */
 async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
     const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
     await deps.doctorRole.give(pending.memberId);
-    await deps.onboardingRole.takeOff(pending.memberId);
     if (pendingApproval !== undefined) {
         await deps.channels.post(threadId, linkedMessage(pending.memberId, pending.player));
     }
@@ -250,6 +251,7 @@ async function finishOfficerLink(deps, pending, threadId, link, rankApproval) {
     }
     if (pendingApproval !== undefined)
         return deps.rankApprovals.announce(pendingApproval, pending.player);
+    await deps.onboardingRole.takeOff(pending.memberId);
     await deps.channels.deleteThread(threadId);
 }
 //# sourceMappingURL=corrections.js.map

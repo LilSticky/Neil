@@ -66,15 +66,18 @@ async function answerChannels(deps, command) {
 }
 /**
  * Done: the message is answered first, then the thread goes, unless a Rank Approval waits, and only then the prompt closes:
- * a thread that cannot be deleted leaves the prompt open, so that the next sweep retries it.
+ * a thread that cannot be deleted leaves the prompt open, so that the next sweep retries it. The Onboarding Role is taken
+ * off just before the thread goes, since that closes the Interview.
  */
 async function finish(deps, press, memberId) {
     await press.update(savedMessage());
     const prompt = deps.preferences.prompt(memberId);
     if (prompt === undefined)
         return;
-    if (deps.rankApprovals.pendingFor(memberId) === undefined)
+    if (deps.rankApprovals.pendingFor(memberId) === undefined) {
+        await deps.onboardingRole.takeOff(memberId);
         await deps.channels.deleteThread(prompt.threadId);
+    }
     deps.preferences.closePrompt(memberId);
 }
 /** The press as the handler sees it, and whether it has been answered: a reply or an update, once made, counts. */

@@ -6,6 +6,7 @@ export function createOnboardingRole(deps) {
     return createLinkStateRole(deps, {
         name: ONBOARDING_ROLE_NAME,
         wants: wantsOnboardingRole,
+        threadOpen: (memberId) => deps.preferences.prompt(memberId) !== undefined || deps.links.pendingFor(memberId) !== undefined,
         startupLogLine: onboardingRoleStartupLogLine,
         skippedLogLine: onboardingRoleSkippedLogLine,
     });

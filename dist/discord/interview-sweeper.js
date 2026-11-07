@@ -111,10 +111,15 @@ async function closeExpiredPreferences(deps, now) {
         await guarded(deps, `Closing the Preferences message of Member ${prompt.memberId}`, () => closeExpiredPreference(deps, prompt));
     }
 }
-/** The thread goes first: when its deletion fails the prompt stays open, and the next sweep retries it. */
+/**
+ * The Onboarding Role is taken off, then the thread goes: when its deletion fails the prompt stays open, and the next sweep
+ * retries it; taking the role off again changes nothing.
+ */
 async function closeExpiredPreference(deps, prompt) {
-    if (deps.links.pendingFor(prompt.memberId) === undefined)
+    if (deps.links.pendingFor(prompt.memberId) === undefined) {
+        await deps.onboardingRole.takeOff(prompt.memberId);
         await deps.channels.deleteThread(prompt.threadId);
+    }
     deps.preferences.closePrompt(prompt.memberId);
 }
 async function guarded(deps, label, work) {

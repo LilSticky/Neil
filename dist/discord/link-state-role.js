@@ -58,11 +58,11 @@ async function sweep(deps, spec) {
         const memberId = server.member.id;
         try {
             const holds = server.member.roles.some((role) => role.name === spec.name && !deps.officerRoleIds.includes(role.id));
-            const step = planRoleStep(holds, spec.wants({ bot: false, linked: deps.links.linkFor(memberId) !== undefined }));
+            const step = planRoleStep(holds, spec.wants(stateOf(deps, spec, memberId)));
             if (step === "give") {
-                // Checked again just before the give: a Member whose Link changed after the listing must not get the role it no
-                // longer wants.
-                if (!spec.wants({ bot: false, linked: deps.links.linkFor(memberId) !== undefined }))
+                // Checked again just before the give: a Member whose Link or thread changed after the listing must not get the role
+                // it no longer wants.
+                if (!spec.wants(stateOf(deps, spec, memberId)))
                     continue;
                 const skip = await changeAndLog(deps, spec, memberId, server, giveNamedRole);
                 counts[skip === undefined ? "given" : "skipped"] += 1;
@@ -77,6 +77,14 @@ async function sweep(deps, spec) {
         }
     }
     await logCounts(deps, spec, counts);
+}
+/** The state a Member is in, as the role's rule reads it. */
+function stateOf(deps, spec, memberId) {
+    return {
+        bot: false,
+        linked: deps.links.linkFor(memberId) !== undefined,
+        threadOpen: spec.threadOpen?.(memberId) ?? false,
+    };
 }
 /** Posts the summary line when anything was given, taken off or skipped. A refused line is logged; the sweep stands. */
 async function logCounts(deps, spec, counts) {
