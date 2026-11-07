@@ -150,8 +150,8 @@ Voice channels get the message only, forums the topic only. Change a text under 
 - **Read only** (`#rules`, `#welcome`, guest rules): the role that sees the channel gets Send Messages ❌.
 - **Guides forum**: **Events** View Channel ✅; **Veteran** Create Posts and Send Messages in Threads ✅; **Moderator** and
   **King** Manage Threads ✅, which is what makes it moderated. A Veteran writes there only when they hold Events too.
-- **No Community on your server?** Forums and announcement channels may need it. Use plain text channels instead; the
-  permissions above stay the same.
+- **No Community on your server?** Forums work without it; announcement channels need it. Use plain text channels for
+  announcements instead; the permissions above stay the same.
 - **Guest area, no commands:** nothing to set here. Section 5 limits every command to other channels, and Guests see none of them.
 
 ---

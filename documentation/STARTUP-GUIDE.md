@@ -10,7 +10,7 @@ here. On a server that already has Members, use [MIGRATION-GUIDE.md](MIGRATION-G
 
 - Two people's work: the **server owner** (Discord) and **whoever runs Neil** (hosting, [HOSTING.md](HOSTING.md)). It can be one person.
 - Turn on Developer Mode, to copy IDs: User Settings → **Advanced** → **Developer Mode**.
-- ⚪ Community is optional. Forums and announcement channels may need it; without it, use plain text channels.
+- ⚪ Community is optional. Announcement channels need it; without it, they are plain text channels. Forums work either way.
 
 ## 1. Create the application
 
@@ -37,7 +37,7 @@ file first if you want other names or fewer languages.
 
 It also sets each channel's topic and pins Neil's description in it, with the code of conduct in `#rules` and `#guest-rules`. A dry run without Administrator can't read the pins of hidden channels and says so; the real run checks them.
 
-Running it twice is safe. Without Community, forums and announcement channels become plain text channels, with the same permissions.
+Running it twice is safe. Without Community, announcement channels become plain text channels, with the same permissions.
 
 If Interaction Bot isn't on your server yet, invite it and run the script again, so it gets its allow.
 

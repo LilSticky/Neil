@@ -1177,14 +1177,14 @@ describe("running the setup again", () => {
     expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
   });
 
-  test("without Community, creates a forum and an announcement as text, and plans nothing for them on the next run", async () => {
+  test("without Community, creates a forum as a forum and an announcement as text, and plans nothing for them on the next run", async () => {
     const server = new FakeSetupServer({ features: NO_FEATURES });
     const first = await planFor(SMALL_LAYOUT, server);
     expect(first.findings.map((finding) => finding.kind)).toContain("fallback-to-text");
 
     await applySetup(first, server);
 
-    expect(server.findChannel("tactics")?.kind).toBe("text");
+    expect(server.findChannel("tactics")?.kind).toBe("forum");
     expect(server.findChannel("news")?.kind).toBe("text");
     expect((await planFor(SMALL_LAYOUT, server)).steps).toEqual([]);
   });

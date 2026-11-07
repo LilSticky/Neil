@@ -86,7 +86,7 @@ Never run Neil locally while Wispbyte runs ([HOSTING.md](HOSTING.md)).
 ## Known broken / WIP
 
 - The setup script's real run hides existing layout channels from @everyone at once. On the live server it is the cutover: only on the announced date ([MIGRATION-GUIDE.md](MIGRATION-GUIDE.md) step 6).
-- Whether forums and announcement channels really need Community is unverified; without it the script makes plain text channels.
+- Announcement channels need Community; without it the script makes them plain text channels. Forums are built as forums either way (to confirm in TEST-RUN §6v).
 - `npm run test` can time out at 5 seconds in unrelated tests when two runs overlap; alone it is green (seen in slice 022).
 - Until slice 021 is deployed and one Daily Sync has run, Guests can hold Preference Roles, so don't gate channels on them.
 - Manual checks open: slice 013 (T012, TEST-RUN.md §6i), slice 014 (T014, §6j), slice 016 (T015, §6k, not run), slice 017 (T011, §6l, not run), slice 015 (T019, §6m), slice 018 (T010, §6n), slice 021 (T017, §6o), slice 022 (T009, §6p), slice 020 (T019, §6q), slice 023 (T009, §6r), slice 024 (T009, §6s), slice 027 (T008, §6t), slice 026 (T019, §6u), slice 029 (§6v; §6q.1–6q.4 passed on 2026-11-07).
