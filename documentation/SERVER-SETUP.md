@@ -171,8 +171,9 @@ forum: if another post is pinned, Neil's stays unpinned and the script says so.
   Doctor or Kingdom role, so without this allow it stops.
 - **Read only** (`#rules`, `#welcome`, `#news`, guest rules, the guides forum): the role that sees the channel reads the
   history but gets the same four ❌ as above.
-- **Guides forum**: **Events** View Channel and Read Message History ✅; **Veteran** Create Posts and Send Messages in Threads ✅; **Moderator** and
-  **King** Manage Threads ✅, which is what makes it moderated. A Veteran writes there only when they hold Events too.
+- **Guides forum**: **Events** View Channel and Read Message History ✅ (read only); **Intermediate** and **Veteran** View
+  Channel, Read Message History, Create Posts and Send Messages in Threads ✅, on their own, so Discord counts them as
+  posters; **Moderator** and **King** Manage Threads ✅, which is what makes it moderated.
 - **No Community on your server?** Forums work without it; announcement channels need it. Use plain text channels for
   announcements instead; the permissions above stay the same.
 - **Guest area, no commands:** nothing to set here. Section 5 limits every command to other channels, and Guests see none of them.
