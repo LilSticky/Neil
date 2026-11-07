@@ -12,6 +12,7 @@
     "Recruitment",
     "Off-topic",
     "NaP discussions",
+    "Intermediate",
     "Veteran"
   ],
   "externalRoles": [
@@ -414,11 +415,21 @@
         {
           "name": "guides",
           "type": "forum",
-          "description": "Guides by our Veterans, one post per guide 📚",
+          "description": "Guides by our Intermediate and Veteran players, one post per guide 📚",
           "mode": "read-only",
           "overwrites": {
+            "Intermediate": {
+              "allow": [
+                "ViewChannel",
+                "ReadMessageHistory",
+                "SendMessages",
+                "SendMessagesInThreads"
+              ]
+            },
             "Veteran": {
               "allow": [
+                "ViewChannel",
+                "ReadMessageHistory",
                 "SendMessages",
                 "SendMessagesInThreads"
               ]
@@ -448,7 +459,7 @@
             ],
             "reaction": "📚",
             "howTo": {
-              "belongs": "One guide per post, written by a Veteran: how something in the game works and how to do it well.",
+              "belongs": "One guide per post, written by an Intermediate or Veteran player: how something in the game works and how to do it well.",
               "exampleTitle": "Hero upgrade order for new players",
               "template": [
                 "Who it's for",

@@ -17,7 +17,7 @@ Reply inside a post to discuss it. React with <reaction> to a post you found use
 
 | Forum | What belongs here | Example title | Template |
 |-------|-------------------|---------------|----------|
-| `guides` | One guide per post, written by a Veteran: how something in the game works and how to do it well. | Hero upgrade order for new players | Who it's for / What you'll learn / Steps / Tips |
+| `guides` | One guide per post, written by an Intermediate or Veteran player: how something in the game works and how to do it well. | Hero upgrade order for new players | Who it's for / What you'll learn / Steps / Tips |
 | `nap-forum` | Questions, proposals and reports about non-aggression pacts (NaP) between Alliances. Decisions are announced in `#nap-announcements`. | Proposal: NaP with [ABC] for the next season | Alliances / What we propose or ask / Why / Until when |
 | `pvp-tactics` | One battle plan, trick or lesson per post. | Rally timing against #412 | Situation / What we did / What worked / What didn't |
 | `ad-tactics` | Alliance Duel plans and lessons, one per post. | Day 3 points plan | Day / Goal / Who does what / Lessons |

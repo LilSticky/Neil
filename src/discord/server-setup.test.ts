@@ -1004,6 +1004,15 @@ describe("runSetup", () => {
 });
 
 describe("the shipped server-layout.json", () => {
+  test("Veteran and Intermediate see and post in the guides forum on their own; Events only reads it", () => {
+    const guides = shippedLayout().categories.flatMap((category) => category.channels).find((channel) => channel.name === "guides");
+    const posting = ["ViewChannel", "ReadMessageHistory", "SendMessages", "SendMessagesInThreads"];
+    expect(shippedLayout().roles).toEqual(expect.arrayContaining(["Veteran", "Intermediate"]));
+    expect(guides?.mode).toBe("read-only");
+    expect(new Set(guides?.overwrites?.Veteran?.allow)).toEqual(new Set(posting));
+    expect(new Set(guides?.overwrites?.Intermediate?.allow)).toEqual(new Set(posting));
+  });
+
   test.each([
     { name: "guides", reaction: "📚", tags: ["Beginner", "Events", "PvP", "Heroes", "Economy", "Alliance Duel", "KvK"] },
     { name: "nap-forum", reaction: "🤝", tags: ["Question", "Proposal", "Agreement", "Violation"] },
@@ -1020,7 +1029,7 @@ describe("the shipped server-layout.json", () => {
   test.each([
     {
       name: "guides",
-      belongs: "One guide per post, written by a Veteran: how something in the game works and how to do it well.",
+      belongs: "One guide per post, written by an Intermediate or Veteran player: how something in the game works and how to do it well.",
       exampleTitle: "Hero upgrade order for new players",
       template: ["Who it's for", "What you'll learn", "Steps", "Tips"],
     },
