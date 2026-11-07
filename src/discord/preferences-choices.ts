@@ -33,7 +33,7 @@ import {
   preferenceStepMessage,
   preferencesFailedReply,
   preferencesLogLine,
-  savedMessage,
+  finishedMessage,
   type PreferenceQuestion,
   type PreferencesMessage,
 } from "./preferences-texts.js";
@@ -179,7 +179,7 @@ async function answerChannels(deps: PreferenceChoicesDeps, command: ChannelsComm
  * off just before the thread goes, since that closes the Interview.
  */
 async function finish(deps: PreferenceChoicesDeps, press: PreferencePress, memberId: MemberId): Promise<void> {
-  await press.update(savedMessage());
+  await press.update(finishedMessage(deps.preferences.get(memberId).experience, deps.guidesForumId));
   const prompt = deps.preferences.prompt(memberId);
   if (prompt === undefined) return;
   if (deps.rankApprovals.pendingFor(memberId) === undefined) {

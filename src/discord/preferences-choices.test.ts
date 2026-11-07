@@ -21,6 +21,7 @@ import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboard
 import type { PreferenceRoles } from "./preferences.js";
 import { createPreferenceChoices } from "./preferences-choices.js";
 import {
+  finishedMessage,
   guestChannelsReply,
   guidesLine,
   notLinkedReply,
@@ -567,6 +568,18 @@ describe("a go press by a Guest, or by a Member who is not Linked", () => {
 });
 
 describe("Done", () => {
+  test("answers with the finishing message: /channels and the guides line for the stored Experience, no menus", async () => {
+    const { store, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.setExperience(ALICE, "new");
+    store.openPrompt(ALICE, ALICE_THREAD);
+    const done = doneOf();
+
+    await choices.press(done);
+
+    expect(done.updates).toEqual([finishedMessage("new", GUIDES_FORUM)]);
+  });
+
   test("closes the open prompt and deletes its thread", async () => {
     const { store, channels, linkAlice, doneOf, choices } = setUp();
     linkAlice();
