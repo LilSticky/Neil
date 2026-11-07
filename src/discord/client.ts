@@ -1531,8 +1531,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     });
     // The Events ahead are invited at startup; the reminders are ticked once a minute, until disconnect stops them.
     void eventInvitations.onStartup();
+    // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
+    let reminderTickRunning = false;
     const reminderTimer = setInterval(() => {
-      void eventReminders.tick();
+      if (reminderTickRunning) return;
+      reminderTickRunning = true;
+      void eventReminders.tick().finally(() => {
+        reminderTickRunning = false;
+      });
     }, REMINDER_TICK_MS);
     stopEventReminders = () => {
       clearInterval(reminderTimer);

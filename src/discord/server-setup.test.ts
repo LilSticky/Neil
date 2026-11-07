@@ -520,15 +520,15 @@ describe("readServer", () => {
     expect(overwrite?.allow.slice().sort()).toEqual(["EmbedLinks", "ViewChannel"]);
   });
 
-  test("says whether each role holds any permission", async () => {
+  test("gives each role the permission bits it holds", async () => {
     const server = new FakeSetupServer();
     const moderator = server.defineRole("Moderator", { permissions: MANAGE_ROLES });
     const doctor = server.defineRole("Doctor");
 
     const state = await readServer(server);
 
-    expect(state.roles.find((role) => role.id === moderator)?.hasPermissions).toBe(true);
-    expect(state.roles.find((role) => role.id === doctor)?.hasPermissions).toBe(false);
+    expect(state.roles.find((role) => role.id === moderator)?.permissions).toBe(MANAGE_ROLES);
+    expect(state.roles.find((role) => role.id === doctor)?.permissions).toBe(0n);
   });
 
   test("finds Administrator through a role Neil's member holds", async () => {
@@ -1987,5 +1987,35 @@ describe("runSetup gives CreateEvents to the roles rolePermissions names (FR-014
     const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
 
     expect(report).not.toMatch(/would allow CreateEvents/);
+  });
+
+  test("does not report a layout role holding exactly the CreateEvents its layout grants", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4", { permissions: CREATE_EVENTS });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(report).not.toContain("R4 holds permissions");
+  });
+
+  test("reports a layout role that holds Administrator beyond the CreateEvents its layout grants", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4", { permissions: CREATE_EVENTS | ADMINISTRATOR });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(report).toContain("R4 holds permissions; Neil doesn't give or take it");
+  });
+
+  test("reports a layout role that holds ManageRoles beyond the CreateEvents its layout grants", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+    server.defineRole("R4", { permissions: CREATE_EVENTS | MANAGE_ROLES });
+    const layout = parseLayout(rolePermissionsFile({ R4: ["CreateEvents"] }));
+
+    const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: false, port: server, secrets: [] });
+
+    expect(report).toContain("R4 holds permissions; Neil doesn't give or take it");
   });
 });

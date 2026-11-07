@@ -69,8 +69,8 @@ export class FakeEventInvitationServer implements EventInvitationServer {
     return Promise.resolve([...(this.interested.get(eventId) ?? [])]);
   }
 
-  isOnServer(memberId: MemberId): Promise<boolean> {
-    return Promise.resolve(!this.left.has(memberId));
+  membersOnServer(memberIds: readonly MemberId[]): Promise<ReadonlySet<MemberId>> {
+    return Promise.resolve(new Set(memberIds.filter((memberId) => !this.left.has(memberId))));
   }
 
   holdersOf(roleName: string): Promise<readonly MemberId[]> {

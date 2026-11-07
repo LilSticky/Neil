@@ -280,6 +280,20 @@ describe("Event reminders (US2, T011 and T012)", () => {
       expect(events.remindersSent(EVENT_ID)).toEqual([{ target: "start", leadMinutes: 30 }]);
     });
 
+    test("a reminder whose post fails is not recorded as sent, so the next tick posts it", async () => {
+      listed(scheduledEvent());
+      placeAndInvite(EVENT_ID);
+      server.setInterested(EVENT_ID, [ALICE]);
+      server.failNextPost(new Error("Missing Permissions"));
+
+      await tickAt(before(START, 30));
+      expect(events.remindersSent(EVENT_ID)).toEqual([]);
+
+      await tickAt(before(START, 29));
+      expect(server.posts).toHaveLength(1);
+      expect(events.remindersSent(EVENT_ID)).toEqual([{ target: "start", leadMinutes: 30 }]);
+    });
+
     test("writes one #neil-log line for the reminder posted, naming the Event", async () => {
       listed(scheduledEvent());
       placeAndInvite(EVENT_ID);

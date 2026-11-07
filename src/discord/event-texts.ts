@@ -1,7 +1,7 @@
 import type { APIEmbed, BaseMessageOptions } from "discord.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { Event } from "./events.js";
-import { CARD_COLOR, escapeText } from "./lookup-cards.js";
+import { CARD_COLOR, escapeText, fitTitle } from "./lookup-cards.js";
 import { textWithMentions } from "./mentions.js";
 
 /** The most guides an invitation card shows. */
@@ -34,7 +34,7 @@ export function eventInvitationMessages(guildId: string, event: Event, mentioned
   const start = unixOf(event.start);
   const card: APIEmbed = {
     color: CARD_COLOR,
-    title: escapeText(event.name),
+    title: fitTitle(escapeText(event.name)),
     description: `Starts <t:${start}:F> (<t:${start}:R>).\n${discordEventLinkOf(guildId, event)}`,
     fields: guidesOf(event.description).map((guide) => ({ name: "Guide", value: guide })),
   };

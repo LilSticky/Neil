@@ -3,6 +3,7 @@ import {
   BOT_TARGET,
   EVERYONE_TARGET,
   expandLayout,
+  ROLE_PERMISSION_BITS,
   type ChannelType,
   type ExpandedChannel,
   type ExpandedLayout,
@@ -15,7 +16,8 @@ import {
 export interface ServerRole {
   id: string;
   name: string;
-  hasPermissions: boolean;
+  /** The role's Discord permission bits, as Discord gives them. */
+  permissions: bigint;
   managed: boolean;
   position: number;
   /** The layout's role permissions the role holds; left out when none is known (slice 028). */
@@ -110,13 +112,13 @@ interface Plan {
   readonly topicSteps: SetupStep[];
   readonly descriptionSteps: SetupStep[];
   readonly findings: SetupFinding[];
-  /** The roles the layout names in rolePermissions: they may hold permissions without a finding. */
-  readonly rolePermissionRoles: ReadonlySet<string>;
+  /** The layout's rolePermissions: a listed role may hold the bits they grant, and no other permission bits. */
+  readonly rolePermissions: Record<string, RolePermission[]>;
   /** Server channels and categories the layout accounts for; any other is outside the layout. */
   readonly claimed: Set<string>;
 }
 
-/** Roles of the layout that may hold permissions without a finding, besides those rolePermissions names: Moderator and King. */
+/** Roles of the layout that may hold any permission without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
 
 /**
@@ -135,7 +137,7 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
     topicSteps: [],
     descriptionSteps: [],
     findings: [],
-    rolePermissionRoles: new Set(Object.keys(layout.rolePermissions ?? {})),
+    rolePermissions: layout.rolePermissions ?? {},
     claimed: new Set(),
   };
 
@@ -198,10 +200,17 @@ function planRolePermissions(plan: Plan, rolePermissions: Record<string, RolePer
   }
 }
 
+/** A listed role may hold the bits its rolePermissions grant; any other bit it holds is a finding, unless Moderator or King. */
 function reviewRole(plan: Plan, role: ServerRole): void {
-  const exempt = PERMISSION_ROLES.includes(role.name) || plan.rolePermissionRoles.has(role.name);
-  if (role.hasPermissions && !exempt) plan.findings.push({ kind: "role-has-permissions", name: role.name });
+  const granted = grantedBitsOf(plan.rolePermissions[role.name] ?? []);
+  const beyond = role.permissions & ~granted;
+  const exempt = PERMISSION_ROLES.includes(role.name);
+  if (beyond !== 0n && !exempt) plan.findings.push({ kind: "role-has-permissions", name: role.name });
   if (role.position >= plan.server.botTopPosition) plan.findings.push({ kind: "role-above-neil", name: role.name });
+}
+
+function grantedBitsOf(permissions: readonly RolePermission[]): bigint {
+  return permissions.reduce((bits, name) => bits | ROLE_PERMISSION_BITS[name], 0n);
 }
 
 function planCategories(plan: Plan, layout: ExpandedLayout, allianceRoleNames: readonly string[]): void {

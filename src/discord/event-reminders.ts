@@ -22,8 +22,8 @@ export interface EventReminderServer
   extends Pick<EventInvitationServer, "holdersOf" | "scheduledEvents" | "announcementsChannelId" | "allianceChatId" | "post" | "log"> {
   /** The Members who marked the Discord event Interested. */
   interestedIn(eventId: string): Promise<readonly MemberId[]>;
-  /** Whether the Member is still on the server. */
-  isOnServer(memberId: MemberId): Promise<boolean>;
+  /** The ids of the Members, out of these, who are still on the server: one read for all of them, not one per Member. */
+  membersOnServer(memberIds: readonly MemberId[]): Promise<ReadonlySet<MemberId>>;
 }
 
 export interface EventReminderDeps {
@@ -71,16 +71,14 @@ export function createEventReminders(deps: EventReminderDeps): EventReminders {
   /** The Interested Members who may take part in the Event of this owner. */
   async function mentionedOf(owner: EventOwner, eventId: string): Promise<MemberId[]> {
     const holders = owner.kind === "alliance" ? await server.holdersOf(allianceRoleName(owner.tag)) : [];
-    const mentioned: MemberId[] = [];
-    for (const memberId of await server.interestedIn(eventId)) {
-      if (deps.links.linkFor(memberId) === undefined || !(await server.isOnServer(memberId))) continue;
-      const mayTakePart =
-        owner.kind === "alliance"
-          ? holders.includes(memberId)
-          : !isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom);
-      if (mayTakePart) mentioned.push(memberId);
-    }
-    return mentioned;
+    const linked = (await server.interestedIn(eventId)).filter((memberId) => deps.links.linkFor(memberId) !== undefined);
+    const onServer = await server.membersOnServer(linked);
+    return linked.filter((memberId) => {
+      if (!onServer.has(memberId)) return false;
+      return owner.kind === "alliance"
+        ? holders.includes(memberId)
+        : !isKnownGuest(deps.applied.get(memberId)?.roles, deps.homeKingdom);
+    });
   }
 
   async function remind(scheduledEvent: unknown): Promise<void> {
@@ -101,11 +99,14 @@ export function createEventReminders(deps: EventReminderDeps): EventReminders {
       new Date(stored.firstSeenAt),
       deps.now(),
     );
-    for (const reminder of [...plan.send, ...plan.record]) events.recordReminderSent(event.id, reminder);
+    for (const reminder of plan.record) events.recordReminderSent(event.id, reminder);
 
     for (const sent of plan.send) {
       const mentioned = await mentionedOf(owner, event.id);
-      if (mentioned.length === 0) continue;
+      if (mentioned.length === 0) {
+        events.recordReminderSent(event.id, sent);
+        continue;
+      }
       const channelId = eventChannelId(server, owner);
       if (channelId === undefined) {
         deps.logError(`The reminder of the Event ${event.name} was not posted: its Alliance has no alliance-chat`);
@@ -114,6 +115,7 @@ export function createEventReminders(deps: EventReminderDeps): EventReminders {
       for (const message of eventReminderMessages(guildId, reminderOf(event, sent, kind), mentioned)) {
         await server.post(channelId, message);
       }
+      events.recordReminderSent(event.id, sent);
       await server.log(`The reminder of the Event "${event.name}" was posted, mentioning ${mentioned.length.toString()} Members.`);
     }
   }

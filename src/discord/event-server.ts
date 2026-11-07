@@ -67,6 +67,13 @@ export interface EventGuildLike {
   };
 }
 
+/** Every Member of the guild, read over REST page by page. */
+function listAllMembers(guild: EventGuildLike): Promise<EventMemberLike[]> {
+  return listEveryMember(async (after, limit) => [
+    ...(await guild.members.list(after === undefined ? { limit } : { after, limit })).values(),
+  ]);
+}
+
 function isPostable(channel: ChannelLike): channel is PostableChannelLike {
   return channel.type === ChannelType.GuildText;
 }
@@ -96,12 +103,16 @@ export function eventServerOf(
 ): EventServer {
   return {
     async holdersOf(roleName) {
-      const members = await listEveryMember(async (after, limit) => [
-        ...(await guild.members.list(after === undefined ? { limit } : { after, limit })).values(),
-      ]);
+      const members = await listAllMembers(guild);
       return members
         .filter((member) => [...member.roles.cache.values()].some((role) => role.name === roleName))
         .map((member) => member.id);
+    },
+
+    async membersOnServer(memberIds) {
+      if (memberIds.length === 0) return new Set();
+      const present = new Set((await listAllMembers(guild)).map((member) => member.id));
+      return new Set(memberIds.filter((memberId) => present.has(memberId)));
     },
 
     async rolesOf(memberId) {
@@ -147,13 +158,6 @@ export function eventServerOf(
         if (ids.length < SUBSCRIBER_PAGE_SIZE || last === undefined) return interested;
         after = last;
       }
-    },
-
-    isOnServer(memberId) {
-      return guild.members.fetch(memberId).then(
-        () => true,
-        () => false,
-      );
     },
   };
 }

@@ -7,6 +7,7 @@ import { PIN_MARK } from "../domain/channel-description.js";
 import {
   BOT_TARGET,
   EVERYONE_TARGET,
+  ROLE_PERMISSION_BITS,
   expandLayout,
   translatedDescription,
   type ChannelType,
@@ -130,10 +131,6 @@ const PERMISSION_BITS: Record<Permission, bigint> = {
   Speak: PermissionFlagsBits.Speak,
 };
 const PERMISSIONS: readonly Permission[] = Object.keys(PERMISSION_BITS).filter(isPermission);
-/** The Discord bit of each role permission the layout may give (slice 028, plan D10). */
-const ROLE_PERMISSION_BITS: Record<RolePermission, bigint> = {
-  CreateEvents: PermissionFlagsBits.CreateEvents,
-};
 const ROLE_PERMISSIONS: readonly RolePermission[] = Object.keys(ROLE_PERMISSION_BITS).filter(isRolePermission);
 const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 const LOWERCASE_NO_SPACES = /^[a-z0-9_-]+$/;
@@ -421,7 +418,7 @@ function toServerRole(role: SetupRoleInfo): ServerRole {
   return {
     id: role.id,
     name: role.name,
-    hasPermissions: role.permissions !== 0n,
+    permissions: role.permissions,
     managed: role.managed,
     position: role.position,
     rolePermissions: rolePermissionNamesOf(role.permissions),

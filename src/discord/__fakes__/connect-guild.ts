@@ -111,15 +111,18 @@ export class FakeConnectGuild {
   private readonly interestedStore = new Map<string, string[]>();
   private readonly subscriberRequestLog: ConnectSubscriberRequest[] = [];
   private scheduledListingCount = 0;
+  private scheduledListingGate: Promise<void> | undefined = undefined;
+  private memberReadCount = 0;
 
   /**
    * The scheduled events of the guild. `fetch` lists them all, as discord.js does; `fetchSubscribers` pages the users who
    * marked an event Interested by id, `limit` at a time (100 by default), from the id given as `after`.
    */
   readonly scheduledEvents = {
-    fetch: (): Promise<Map<string, ConnectScheduledEvent>> => {
+    fetch: async (): Promise<Map<string, ConnectScheduledEvent>> => {
       this.scheduledListingCount += 1;
-      return Promise.resolve(new Map(this.scheduledStore));
+      if (this.scheduledListingGate !== undefined) await this.scheduledListingGate;
+      return new Map(this.scheduledStore);
     },
     fetchSubscribers: (
       eventId: string,
@@ -182,6 +185,7 @@ export class FakeConnectGuild {
     },
     /** One page of the Members over REST, in id order, after the given id. */
     list: async (options: { readonly after?: string; readonly limit: number }): Promise<Map<string, FakeConnectMember>> => {
+      this.memberReadCount += 1;
       if (this.listingGate !== undefined) await this.listingGate;
       const after = options.after ?? "";
       const ids = [...this.joined.keys()].filter((id) => id > after).sort().slice(0, options.limit);
@@ -195,6 +199,7 @@ export class FakeConnectGuild {
      * always rate limited here, as Discord refused it at startup (#53), so a listing that goes back to it fails the tests.
      */
     fetch: (memberId?: string): Promise<FakeConnectMember> => {
+      this.memberReadCount += 1;
       if (memberId === undefined) {
         this.unscopedFetchCount += 1;
         return Promise.reject(new Error("Request with opcode 8 was rate limited."));
@@ -220,6 +225,22 @@ export class FakeConnectGuild {
   /** Caches the status Discord reports for a Member; a Member with no presence set is not in the cache. */
   setPresence(memberId: string, status: ConnectPresence["status"]): void {
     this.presenceStore.set(memberId, { userId: memberId, status });
+  }
+
+  /** Holds every listing of the scheduled events until the returned function is called. */
+  holdScheduledListings(): () => void {
+    let release: () => void = () => undefined;
+    this.scheduledListingGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    return () => {
+      release();
+    };
+  }
+
+  /** How many reads of Members the code made, by id or by page, batched or not. */
+  get memberReads(): number {
+    return this.memberReadCount;
   }
 
   /** Makes listing the Members wait, once the code asks for it, until releaseListing is called. */

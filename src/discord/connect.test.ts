@@ -912,6 +912,31 @@ describe("connect", () => {
         vi.useRealTimers();
       }
     });
+
+    test("skips a minute's reminder tick while the tick before it is still running, and runs the next one once that has finished", async () => {
+      const { guild, officerRoleIds } = eventGuild();
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      try {
+        connection = await connect(TOKEN, { ...connectOptions(), officerRoleIds });
+        await vi.waitFor(() => {
+          expect(guild.scheduledListings).toBe(1);
+        });
+
+        const release = guild.holdScheduledListings();
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(guild.scheduledListings).toBe(2);
+
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(guild.scheduledListings).toBe(2);
+
+        release();
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(guild.scheduledListings).toBe(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   describe("/reaper", () => {

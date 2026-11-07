@@ -137,12 +137,15 @@ describe("the Event invitation server over discord.js", () => {
     expect(guild.subscriberRequests.map((request) => request.after)).toEqual([undefined, INTERESTED[99]]);
   });
 
-  test("tells whether a Member is still on the server", async () => {
+  test("tells which Interested Members are on the server with one read of the Members, not one per Member", async () => {
     const guild = new FakeConnectGuild([]);
     guild.join(ALICE);
+    guild.join(BOB);
     const { server } = adapterOver(guild);
 
-    expect(await server.isOnServer(ALICE)).toBe(true);
-    expect(await server.isOnServer(BOB)).toBe(false);
+    const onServer = await server.membersOnServer([ALICE, BOB, CAROL]);
+
+    expect([...onServer].sort()).toEqual([ALICE, BOB]);
+    expect(guild.memberReads).toBe(1);
   });
 });

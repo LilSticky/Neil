@@ -44,7 +44,7 @@ Tasks in one phase run in order unless marked [P].
 ## Phase G: Finish
 
 - [x] T019 ADR 14 in `documentation/adr/`: the `GuildScheduledEvents` intent and the stored data (Event Invitations Off, sent reminders)
-- [ ] T020 `bot-reviewer` pass, findings in `review.md`
+- [x] T020 `bot-reviewer` pass, findings in `review.md`
 - [ ] T021 `spec-auditor` pass, findings in `audit.md`
 - [ ] T022 Docs: STATUS, ROADMAP, SERVER-SETUP (Create Events, where Neil can see events), TEST-RUN.md §6x
 - [ ] T023 Manual check on the test server, by the user (needs the deploy, `npm run commands:register` and the setup script)

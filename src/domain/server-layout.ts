@@ -15,6 +15,10 @@ export type Permission =
 export type ChannelType = "text" | "voice" | "forum" | "announcement";
 /** A permission the layout gives a whole role, not an overwrite (slice 028, plan D10). */
 export type RolePermission = "CreateEvents";
+/** The Discord bit of each role permission the layout may give (slice 028, plan D10): CreateEvents is bit 44. */
+export const ROLE_PERMISSION_BITS: Record<RolePermission, bigint> = {
+  CreateEvents: 1n << 44n,
+};
 
 export interface OverwriteSpec {
   allow: Permission[];
