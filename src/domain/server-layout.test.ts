@@ -16,7 +16,11 @@
  *   }
  *   interface WantedOverwrite { target: string; allow: Permission[]; deny: Permission[] }
  *     // target: a role name, "@everyone", "Neil" or an external role name
- *   interface ExpandedChannel { name: string; type: ChannelType; overwrites: WantedOverwrite[] }
+ *   interface ExpandedChannel {
+ *     name: string; type: ChannelType; overwrites: WantedOverwrite[];
+ *     topic: string | undefined; // the description; undefined for voice (slice 029)
+ *     message: string | undefined; // the description message; undefined for forums (slice 029)
+ *   }
  *   interface ExpandedCategory { name: string; overwrites: WantedOverwrite[]; channels: ExpandedChannel[] }
  *   interface ExpandedLayout { roles: string[]; externalRoles: string[]; categories: ExpandedCategory[] }
  *   function expandLayout(layout: ServerLayout, homeKingdom: number, allianceRoles: readonly string[]): ExpandedLayout;
@@ -29,6 +33,7 @@ import {
   type ExpandedChannel,
   type ExpandedLayout,
   type LayoutCategory,
+  type LayoutChannel,
   type ServerLayout,
   type WantedOverwrite,
 } from "./server-layout.js";
@@ -348,5 +353,137 @@ describe("expandLayout: translated copies", () => {
     const names = hangoutNames(expanded());
 
     expect(names.filter((name) => name.startsWith("kvk-announcements-"))).toEqual([]);
+  });
+});
+
+describe("expandLayout: topic and description message", () => {
+  function hangoutWith(channels: LayoutChannel[]): ServerLayout {
+    const hangout: LayoutCategory = { name: "Hangout", seenBy: ["#<Home Kingdom>"], channels };
+    return { ...layout, categories: [hangout] };
+  }
+
+  function hangoutChannel(channels: LayoutChannel[], name: string): ExpandedChannel {
+    return channelNamed(categoryNamed(expandLayout(hangoutWith(channels), HOME_KINGDOM, []), "Hangout"), name);
+  }
+
+  function postersOf(message: string | undefined): string[] {
+    const line = message?.split("\n").find((candidate) => candidate.startsWith("✍️ Posts: "));
+    if (line === undefined) throw new Error("no Posts line in the description message");
+    return line.slice("✍️ Posts: ".length).split(", ");
+  }
+
+  describe("topic", () => {
+    test("a text channel's topic is its description", () => {
+      const general = channelNamed(categoryNamed(expanded(), "Hangout"), "general");
+      expect(general.topic).toBe("A test channel.");
+    });
+
+    test("an announcement channel's topic is its description", () => {
+      const announcements = channelNamed(categoryNamed(expanded(), "Hangout"), "kvk-announcements");
+      expect(announcements.topic).toBe("A test channel.");
+    });
+
+    test("a forum's topic is its description", () => {
+      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum." }], "forum");
+      expect(forum.topic).toBe("A forum.");
+    });
+
+    test("a voice channel has no topic", () => {
+      const voice = channelNamed(categoryNamed(expanded(["[NML]"]), "[NML]"), "alliance-voice");
+      expect(voice.topic).toBeUndefined();
+    });
+
+    test("a language chat's topic is Chat in <Language>.", () => {
+      const english = channelNamed(categoryNamed(expanded(), "Languages"), "english-chat");
+      expect(english.topic).toBe("Chat in English.");
+    });
+  });
+
+  describe("message", () => {
+    test("a text channel's message names it, gives its description, who sees it and who posts", () => {
+      const general = channelNamed(categoryNamed(expanded(), "Hangout"), "general");
+      expect(general.message).toBe("📌 **#general**\nA test channel.\n\n👀 Seen by: #330\n✍️ Posts: #330");
+    });
+
+    test("a read-only channel says that nobody posts", () => {
+      const rules = channelNamed(categoryNamed(expanded(), "Hangout"), "rules");
+      expect(rules.message).toBe("📌 **#rules**\nA test channel.\n\n👀 Seen by: #330\n✍️ Posts: read only");
+    });
+
+    test("a channel seen by some roles lists them in overwrite order, as both seers and posters", () => {
+      const closed = channelNamed(categoryNamed(expanded(), "Hangout"), "closed");
+      expect(closed.message).toBe("📌 **#closed**\nA test channel.\n\n👀 Seen by: R5, King\n✍️ Posts: R5, King");
+    });
+
+    test("an only-king-posts announcement is posted by King alone", () => {
+      const event = hangoutChannel(
+        [{ name: "event-announcements", type: "announcement", description: "A test channel.", mode: "only-king-posts" }],
+        "event-announcements",
+      );
+      expect(event.message).toBe("📌 **#event-announcements**\nA test channel.\n\n👀 Seen by: #330, King\n✍️ Posts: King");
+    });
+
+    test("a channel whose overwrites let other roles send messages lists them among the posters", () => {
+      const giftCodes = hangoutChannel(
+        [
+          {
+            name: "gift-codes",
+            type: "text",
+            description: "A test channel.",
+            mode: "only-king-posts",
+            overwrites: { R4: { allow: ["SendMessages"], deny: [] }, R5: { allow: ["SendMessages"], deny: [] } },
+          },
+        ],
+        "gift-codes",
+      );
+      expect(new Set(postersOf(giftCodes.message))).toEqual(new Set(["King", "R4", "R5"]));
+    });
+
+    test("Neil is left out of Seen by", () => {
+      const onboarding = channelNamed(categoryNamed(expanded(), "Hangout"), "onboarding");
+      expect(onboarding.message).toBe("📌 **#onboarding**\nA test channel.\n\n👀 Seen by: #330\n✍️ Posts: #330");
+    });
+
+    test("an Alliance area names its [TAG] role in Seen by and Posts", () => {
+      const chat = channelNamed(categoryNamed(expanded(["[NML]"]), "[NML]"), "alliance-chat");
+      expect(chat.message).toBe("📌 **#alliance-chat**\nA test channel.\n\n👀 Seen by: [NML]\n✍️ Posts: [NML]");
+    });
+
+    test("a voice channel's message has no Posts line", () => {
+      const voice = channelNamed(categoryNamed(expanded(["[NML]"]), "[NML]"), "alliance-voice");
+      expect(voice.message).toBe("📌 **#alliance-voice**\nA test channel.\n\n👀 Seen by: [NML]");
+    });
+
+    test("a language chat is seen and posted by its own language", () => {
+      const english = channelNamed(categoryNamed(expanded(), "Languages"), "english-chat");
+      expect(english.message).toBe("📌 **#english-chat**\nChat in English.\n\n👀 Seen by: English\n✍️ Posts: English");
+    });
+
+    test("a forum has no message", () => {
+      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum." }], "forum");
+      expect(forum.message).toBeUndefined();
+    });
+  });
+
+  describe("translated copies", () => {
+    const withTranslations: ServerLayout = {
+      ...layout,
+      languages: ["English", "German"],
+      translations: ["German"],
+    };
+
+    function germanCopy(): ExpandedChannel {
+      return channelNamed(categoryNamed(expandLayout(withTranslations, HOME_KINGDOM, []), "Hangout"), "kvk-announcements-german");
+    }
+
+    test("a copy's topic is the original's description followed by the translation credit", () => {
+      expect(germanCopy().topic).toBe("A test channel. Translated into German by Interaction Bot.");
+    });
+
+    test("a copy's message leaves the Interaction Bot out of Seen by but counts it among the posters", () => {
+      expect(germanCopy().message).toBe(
+        "📌 **#kvk-announcements-german**\nA test channel. Translated into German by Interaction Bot.\n\n👀 Seen by: German, King\n✍️ Posts: King, Interaction Bot",
+      );
+    });
   });
 });

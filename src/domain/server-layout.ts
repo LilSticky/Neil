@@ -1,3 +1,4 @@
+import { describeChannel } from "./channel-description.js";
 import { tagOfAllianceRole } from "./managed-roles.js";
 
 export type Permission =
@@ -52,13 +53,14 @@ export interface WantedOverwrite {
   deny: Permission[];
 }
 
-/** A channel as the expansion reads it: everything but the description, which the wanted overwrites do not need. */
-type ExpandableChannel = Omit<LayoutChannel, "description">;
-
 export interface ExpandedChannel {
   name: string;
   type: ChannelType;
   overwrites: WantedOverwrite[];
+  /** The description, undefined for voice (slice 029). */
+  topic: string | undefined;
+  /** The description message, undefined for forums (slice 029). */
+  message: string | undefined;
 }
 
 export interface ExpandedCategory {
@@ -94,15 +96,25 @@ type Grants = Map<string, Map<Permission, Grant>>;
  */
 export function expandLayout(layout: ServerLayout, homeKingdom: number, allianceRoles: readonly string[]): ExpandedLayout {
   const resolve = (target: string): string => (target === KINGDOM_PLACEHOLDER ? `#${homeKingdom.toString()}` : target);
-  const expandWithCopies = (channel: ExpandableChannel, categorySeenBy: readonly string[]): ExpandedChannel[] => {
-    const original = expandChannel(channel, categorySeenBy, resolve);
+  const expansion: Expansion = { resolve, hidden: new Set([BOT_TARGET, ...layout.externalRoles]) };
+  const expandWithCopies = (channel: LayoutChannel, categorySeenBy: readonly string[]): ExpandedChannel[] => {
+    const original = expandChannel(channel, categorySeenBy, expansion);
     if (channel.translated !== true) return [original];
     const copies = layout.translations.map((language) =>
-      expandChannel({ ...channel, name: `${channel.name}-${language.toLowerCase()}`, seenBy: [language] }, categorySeenBy, resolve),
+      expandChannel(
+        {
+          ...channel,
+          name: `${channel.name}-${language.toLowerCase()}`,
+          seenBy: [language],
+          description: `${channel.description} Translated into ${language} by ${TRANSLATION_BOT_ROLE}.`,
+        },
+        categorySeenBy,
+        expansion,
+      ),
     );
     return [original, ...copies];
   };
-  const expand = (name: string, seenBy: readonly string[], channels: readonly ExpandableChannel[]): ExpandedCategory => ({
+  const expand = (name: string, seenBy: readonly string[], channels: readonly LayoutChannel[]): ExpandedCategory => ({
     name,
     overwrites: toOverwrites(categoryGrants(seenBy.map(resolve))),
     channels: channels.flatMap((channel) => expandWithCopies(channel, seenBy.map(resolve))),
@@ -114,7 +126,12 @@ export function expandLayout(layout: ServerLayout, homeKingdom: number, alliance
       expand(
         LANGUAGES_CATEGORY,
         [],
-        layout.languages.map((language) => ({ name: `${language.toLowerCase()}-chat`, type: "text", seenBy: [language] })),
+        layout.languages.map((language) => ({
+          name: `${language.toLowerCase()}-chat`,
+          type: "text",
+          description: `Chat in ${language}.`,
+          seenBy: [language],
+        })),
       ),
     );
   }
@@ -137,7 +154,14 @@ function categoryGrants(seenBy: readonly string[]): Grants {
   return grants;
 }
 
-function expandChannel(channel: ExpandableChannel, categorySeenBy: readonly string[], resolve: (target: string) => string): ExpandedChannel {
+/** What a channel is expanded with: the placeholder resolution and the targets Neil never names as seers. */
+interface Expansion {
+  resolve: (target: string) => string;
+  hidden: ReadonlySet<string>;
+}
+
+function expandChannel(channel: LayoutChannel, categorySeenBy: readonly string[], expansion: Expansion): ExpandedChannel {
+  const { resolve } = expansion;
   const seenBy = (channel.seenBy ?? categorySeenBy).map(resolve);
   const grants = categoryGrants(seenBy);
   if (channel.mode === "read-only") {
@@ -152,7 +176,8 @@ function expandChannel(channel: ExpandableChannel, categorySeenBy: readonly stri
     grant(grants, resolve(target), spec.allow, "allow");
     grant(grants, resolve(target), spec.deny, "deny");
   }
-  return { name: channel.name, type: channel.type, overwrites: toOverwrites(grants) };
+  const overwrites = toOverwrites(grants);
+  return { name: channel.name, type: channel.type, overwrites, ...describeChannel(channel, overwrites, expansion.hidden) };
 }
 
 function grant(grants: Grants, target: string, permissions: readonly Permission[], how: Grant): void {
