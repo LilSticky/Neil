@@ -40,6 +40,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 027 | See what Neil can do | a Member see each command they can use, how to write it and what it is for ([#76](https://github.com/LilSticky/Neil/issues/76)) | | `/help`, built from the command definitions | merged; manual check open (TEST-RUN.md §6t) |
 | 028 | Be reminded of events | a Member be invited to each Event and reminded of the ones they mark Interested, before the start and before the Sign-up Deadline, and leaders set the Event Kinds' lead times ([#88](https://github.com/LilSticky/Neil/issues/88)) | Event, Kingdom Event, Alliance Event, Event Kind, Sign-up Deadline, Event Invitation, Event Reminder | scheduled events intent, `/event-kinds`, `/event-invitations`, one-minute tick, `rolePermissions` | merged; manual check open (TEST-RUN.md §6x) |
 | 029 | Rework the Server Layout | a Member see what each channel is for and who sees it, in a reworked layout (one Hangout, Recruitment channels (replaced by slice 025's per-Region set), coaching voice, translated KvK and NaP announcements, a code of conduct in the rules) [#80](https://github.com/LilSticky/Neil/issues/80) | Server Layout, Hangout | setup script, `server-layout.json` | merged; manual check open (TEST-RUN.md §6v) |
+| 030 | Set up the forums | the owner get finished forums from the setup: tags, default reaction, recommended permissions and Neil's pinned how-to post [#87](https://github.com/LilSticky/Neil/issues/87) | Server Layout | setup script, `server-layout.json` | in progress |
 
 ## Later (unordered)
 

@@ -7,6 +7,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Slice 030, Set up the forums ([specs](../specs/030-set-up-the-forums/), issue [#87](https://github.com/LilSticky/Neil/issues/87)): the setup script finishes each forum: its tags, its default reaction, @everyone's Send Messages deny (what Discord's "Set recommended permissions" step sets, measured on the test server) and one pinned "How to post in #<forum>" post by Neil, kept in step on later runs. The user's decisions (2026-11-07): tags per forum, reactions 📚 🤝 ⚔️, the how-to texts as drafted. Manual check: [TEST-RUN.md](TEST-RUN.md) §6y.
+
 Slice 028, Be reminded of events ([specs](../specs/028-be-reminded-of-events/), issue [#88](https://github.com/LilSticky/Neil/issues/88), [discovery](discovery/028-be-reminded-of-events.md)): Neil reads Discord scheduled events (a new, unprivileged intent, ADR 14) and posts one Event Invitation per Event, in `#event-announcements` (Kingdom Event, mentioning `Events`) or the Alliance's `alliance-chat` (`[TAG]` in the name, mentioning its members), if its creator may create it. A one-minute tick reminds the Members who clicked Interested, 30 minutes before the start or at the Event Kind's lead times and before its Sign-up Deadline. `/event-kinds` and `/event-invitations` are new. The setup script now grants Create Events to `R4`, `R5`, Moderator and King (`rolePermissions`, the user's decision). Migration 15.
 Merged to `main` with T001–T022 and T024 done (review and audit in the spec folder). **Merged red:** the manual check ([TEST-RUN.md](TEST-RUN.md) §6x, T023) needs the deploy, `npm run commands:register` and the setup script, so Definition of Done 2 is open. The real discord.js adapters have only been tested with fakes.
 

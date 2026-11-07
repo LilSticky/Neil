@@ -32,11 +32,13 @@ import {
   type ExpandedCategory,
   type ExpandedChannel,
   type ExpandedLayout,
+  type ForumSetup,
   type LayoutCategory,
   type LayoutChannel,
   type ServerLayout,
   type WantedOverwrite,
 } from "./server-layout.js";
+import { forumHowTo } from "./forum-how-to.js";
 
 const HOME_KINGDOM = 330;
 const KINGDOM_ROLE = "#330";
@@ -390,7 +392,7 @@ describe("expandLayout: topic and description message", () => {
     });
 
     test("a forum's topic is its description", () => {
-      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum." }], "forum");
+      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } }], "forum");
       expect(forum.topic).toBe("A forum.");
     });
 
@@ -466,7 +468,7 @@ describe("expandLayout: topic and description message", () => {
     });
 
     test("a forum has no message", () => {
-      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum." }], "forum");
+      const forum = hangoutChannel([{ name: "forum", type: "forum", description: "A forum.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } }], "forum");
       expect(forum.message).toBeUndefined();
     });
   });
@@ -513,8 +515,8 @@ describe("expandLayout: what a seer may do, by channel type", () => {
         seenBy: ["PvP"],
         channels: [
           { name: "Typed voice", type: "voice", description: "A test channel." },
-          { name: "typed-forum", type: "forum", description: "A test channel." },
-          { name: "read-forum", type: "forum", description: "A test channel.", mode: "read-only", overwrites: { R5: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } } },
+          { name: "typed-forum", type: "forum", description: "A test channel.", forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } },
+          { name: "read-forum", type: "forum", description: "A test channel.", mode: "read-only", overwrites: { R5: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } }, forum: { tags: ["Rally"], reaction: "⚔️", howTo: { belongs: "A test post.", exampleTitle: "A test title", template: ["Steps"] } } },
         ],
       },
     ],
@@ -536,5 +538,87 @@ describe("expandLayout: what a seer may do, by channel type", () => {
     expect(new Set(overwriteFor(forum.overwrites, "PvP").allow)).toEqual(new Set(["ViewChannel", "ReadMessageHistory"]));
     expect(overwriteFor(forum.overwrites, "PvP").deny).toEqual(expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]));
     expect(overwriteFor(forum.overwrites, "R5").allow).toEqual(expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]));
+  });
+});
+
+describe("expandLayout: a read-only guides forum, as the shipped layout has it", () => {
+  const guidesForum: ForumSetup = {
+    tags: ["Beginner", "Events"],
+    reaction: "📚",
+    howTo: { belongs: "One guide per post, written by a Veteran.", exampleTitle: "Hero upgrade order", template: ["Steps"] },
+  };
+  const guides: ServerLayout = {
+    ...layout,
+    roles: [...layout.roles, "Events", "Veteran"],
+    categories: [
+      {
+        name: "Guides",
+        seenBy: ["Events"],
+        channels: [
+          {
+            name: "guides",
+            type: "forum",
+            description: "A test channel.",
+            mode: "read-only",
+            overwrites: { Veteran: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } },
+            forum: guidesForum,
+          },
+        ],
+      },
+    ],
+  };
+  const guidesChannel = (): ExpandedChannel => channelNamed(categoryNamed(expandLayout(guides, HOME_KINGDOM, []), "Guides"), "guides");
+
+  test("Events, which sees the forum, is denied SendMessages and SendMessagesInThreads", () => {
+    expect(overwriteFor(guidesChannel().overwrites, "Events").deny).toEqual(
+      expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]),
+    );
+  });
+
+  test("Veteran, by its own overwrite, is allowed SendMessages and SendMessagesInThreads", () => {
+    expect(overwriteFor(guidesChannel().overwrites, "Veteran").allow).toEqual(
+      expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]),
+    );
+  });
+
+  test("@everyone is denied View Channel and Send Messages", () => {
+    expect(new Set(overwriteFor(guidesChannel().overwrites, "@everyone").deny)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+  });
+});
+
+describe("expandLayout: forums", () => {
+  const tacticsForum: ForumSetup = {
+    tags: ["Rally", "Defense"],
+    reaction: "⚔️",
+    howTo: { belongs: "One battle plan per post.", exampleTitle: "Rally timing", template: ["Situation", "What we did"] },
+  };
+
+  function expandedForum(): ExpandedChannel {
+    const forumLayout: ServerLayout = {
+      ...layout,
+      categories: [
+        {
+          name: "Hangout",
+          seenBy: ["#<Home Kingdom>"],
+          channels: [{ name: "tactics", type: "forum", description: "A test channel.", forum: tacticsForum }],
+        },
+      ],
+    };
+    return channelNamed(categoryNamed(expandLayout(forumLayout, HOME_KINGDOM, []), "Hangout"), "tactics");
+  }
+
+  test("a forum's @everyone overwrite denies View Channel and Send Messages", () => {
+    const forum = expandedForum();
+    expect(new Set(overwriteFor(forum.overwrites, "@everyone").deny)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+  });
+
+  test("a forum carries its tags, its reaction and its how-to post", () => {
+    const forum = expandedForum();
+    expect(forum.forum).toEqual({ tags: ["Rally", "Defense"], reaction: "⚔️", howTo: forumHowTo("tactics", tacticsForum) });
+  });
+
+  test("a text channel's @everyone overwrite still denies only View Channel", () => {
+    const general = channelNamed(categoryNamed(expanded(), "Hangout"), "general");
+    expect(overwriteFor(general.overwrites, "@everyone").deny).toEqual(["ViewChannel"]);
   });
 });

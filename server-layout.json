@@ -301,7 +301,26 @@
         {
           "name": "nap-forum",
           "type": "forum",
-          "description": "Questions and discussion about the NaP, one post per topic."
+          "description": "Questions and discussion about the NaP, one post per topic.",
+          "forum": {
+            "tags": [
+              "Question",
+              "Proposal",
+              "Agreement",
+              "Violation"
+            ],
+            "reaction": "🤝",
+            "howTo": {
+              "belongs": "Questions, proposals and reports about non-aggression pacts (NaP) between Alliances. Decisions are announced in #nap-announcements.",
+              "exampleTitle": "Proposal: NaP with [ABC] for the next season",
+              "template": [
+                "Alliances",
+                "What we propose or ask",
+                "Why",
+                "Until when"
+              ]
+            }
+          }
         }
       ]
     },
@@ -329,7 +348,27 @@
         {
           "name": "pvp-tactics",
           "type": "forum",
-          "description": "Battle plans and lessons learned, one post per topic."
+          "description": "Battle plans and lessons learned, one post per topic.",
+          "forum": {
+            "tags": [
+              "Rally",
+              "Defense",
+              "Scouting",
+              "Troops",
+              "Lessons learned"
+            ],
+            "reaction": "⚔️",
+            "howTo": {
+              "belongs": "One battle plan, trick or lesson per post.",
+              "exampleTitle": "Rally timing against #412",
+              "template": [
+                "Situation",
+                "What we did",
+                "What worked",
+                "What didn't"
+              ]
+            }
+          }
         }
       ]
     },
@@ -396,6 +435,28 @@
                 "ManageThreads"
               ]
             }
+          },
+          "forum": {
+            "tags": [
+              "Beginner",
+              "Events",
+              "PvP",
+              "Heroes",
+              "Economy",
+              "Alliance Duel",
+              "KvK"
+            ],
+            "reaction": "📚",
+            "howTo": {
+              "belongs": "One guide per post, written by a Veteran: how something in the game works and how to do it well.",
+              "exampleTitle": "Hero upgrade order for new players",
+              "template": [
+                "Who it's for",
+                "What you'll learn",
+                "Steps",
+                "Tips"
+              ]
+            }
           }
         }
       ]
@@ -420,7 +481,26 @@
         {
           "name": "ad-tactics",
           "type": "forum",
-          "description": "Alliance Duel plans, one post per topic."
+          "description": "Alliance Duel plans, one post per topic.",
+          "forum": {
+            "tags": [
+              "Plan",
+              "Schedule",
+              "Points",
+              "Lessons learned"
+            ],
+            "reaction": "⚔️",
+            "howTo": {
+              "belongs": "Alliance Duel plans and lessons, one per post.",
+              "exampleTitle": "Day 3 points plan",
+              "template": [
+                "Day",
+                "Goal",
+                "Who does what",
+                "Lessons"
+              ]
+            }
+          }
         },
         {
           "name": "ad-intel",
@@ -459,7 +539,28 @@
         {
           "name": "kvk-tactics",
           "type": "forum",
-          "description": "KvK plans, one post per topic."
+          "description": "KvK plans, one post per topic.",
+          "forum": {
+            "tags": [
+              "Plan",
+              "Squads",
+              "Targets",
+              "Defense",
+              "Lessons learned"
+            ],
+            "reaction": "⚔️",
+            "howTo": {
+              "belongs": "Kingdom vs Kingdom plans and lessons, one per post.",
+              "exampleTitle": "Defending the castle in the first hour",
+              "template": [
+                "Phase",
+                "Goal",
+                "Squads",
+                "Targets",
+                "Lessons"
+              ]
+            }
+          }
         },
         {
           "name": "kvk-intel",

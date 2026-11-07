@@ -449,6 +449,19 @@ Branch `028-be-reminded-of-events`. New commands: `/event-kinds`, `/event-invita
 | 6x.8 | As B, `/event-invitations invitations:off`, then the Officer creates another event | B isn't mentioned in its card | | |
 | 6x.9 | Move an event's start by 10 minutes, then cancel another | Reminders follow the new start without repeats; the cancelled one sends nothing | | |
 | 6x.10 | Restart Neil with an event 20 minutes ahead | No second card; its reminder still comes | | |
+## 6y. Set up the forums (slice 030, collected 2026-11-07)
+
+On the test server built by 6v, with the deploy not needed (the script runs locally).
+
+| # | Step | Expected | Result |
+|---|------|----------|--------|
+| 6y.1 | `npm run server:setup` without Administrator | `would set tags of`, `would set reaction of`, `would correct permissions of` and `would open how-to post in` lines for the five forums, or the "can't read the posts of n forums" line | |
+| 6y.2 | Give Neil's role Administrator, `npm run server:setup -- --apply`, then run it again | The second run says `Nothing to do.` | |
+| 6y.3 | Open each of the five forums | No open step in Discord's getting-started checklist; Neil's "How to post in #…" is pinned at the top; the tags and the reaction match SERVER-SETUP.md | |
+| 6y.4 | As a Member with PvP: create a post in `pvp-tactics` with a tag | Works; the post shows ⚔️ | |
+| 6y.5 | As a Member with Events but not Veteran: open `guides` | No way to create a post; Neil's post is readable | |
+| 6y.6 | Change one forum's `howTo.belongs` in `server-layout.json`, run with `--apply` | Neil's post is edited; no second post | |
+| 6y.7 | Take Administrator off Neil's role | Done | |
 
 ## 7. Afterwards
 
