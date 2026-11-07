@@ -278,6 +278,63 @@ describe("commands", () => {
     expect(reaper?.default_member_permissions ?? null).toBeNull();
   });
 
+  test("hold /booty, open to every Member, guild only, without options, described as calling a Booty for the caller's Alliance", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "booty",
+        description: "Call a Booty for your Alliance: a card alerts the Members whose Booty Alerts match",
+        type: ApplicationCommandType.ChatInput,
+        options: [],
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+      }),
+    );
+  });
+
+  test("hold /booty-alerts, open to every Member, guild only, with optional options mode (Off, Always, Only when online, Only when offline), from and to (HH:MM) and time-zone with autocomplete", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "booty-alerts",
+        description: "Choose when a Booty Call alerts you: the mode, a daily window and your time zone",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "mode",
+            required: false,
+            choices: [
+              { name: "Off", value: "off" },
+              { name: "Always", value: "always" },
+              { name: "Only when online", value: "online" },
+              { name: "Only when offline", value: "offline" },
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "from",
+            description: "Start of your daily window, HH:MM on the 24-hour clock, e.g. 08:00",
+            required: false,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "to",
+            description: "End of your daily window, HH:MM on the 24-hour clock, e.g. 23:00",
+            required: false,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.String,
+            name: "time-zone",
+            description: "Your time zone, e.g. Europe/Lisbon",
+            required: false,
+            autocomplete: true,
+          }),
+        ],
+      }),
+    );
+  });
+
   test("hold /help, open to every Member, guild only, without options, described as showing the commands you can use and what they are for", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
@@ -291,9 +348,11 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage and /help", () => {
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty and /booty-alerts", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
+      "booty",
+      "booty-alerts",
       "channels",
       "help",
       "interview",

@@ -2,7 +2,7 @@
  * Contract for src/domain/server-layout.ts (slice 020, data-model.md "Layout file" and "Expansion"). Names the implementer
  * must export:
  *
- *   type Permission = "ViewChannel" | "SendMessages" | "SendMessagesInThreads" | "CreatePublicThreads" | "CreatePrivateThreads";
+ *   type Permission = "ViewChannel" | "SendMessages" | "SendMessagesInThreads" | "CreatePublicThreads" | "CreatePrivateThreads" | "EmbedLinks";
  *   type ChannelType = "text" | "voice" | "forum" | "announcement";
  *   interface OverwriteSpec { allow: Permission[]; deny: Permission[] }
  *   interface LayoutChannel {
@@ -239,6 +239,47 @@ describe("expandLayout: Alliance areas", () => {
     const area = categoryNamed(expanded(["[ABC]"]), "[ABC]");
     const chat = channelNamed(area, "alliance-chat");
     expect(targetsOf(chat.overwrites)).toEqual(["@everyone", "[ABC]"]);
+  });
+
+  test("gives each Alliance's alliance-chat the overwrites the layout names, and its alliance-voice none", () => {
+    const withNeilInChat: ServerLayout = {
+      ...layout,
+      allianceArea: {
+        channels: [
+          { name: "alliance-chat", type: "text", overwrites: { Neil: { allow: ["ViewChannel", "SendMessages"], deny: [] } } },
+          { name: "alliance-voice", type: "voice" },
+        ],
+      },
+    };
+    const result = expandLayout(withNeilInChat, HOME_KINGDOM, ["[ABC]", "[XYZ]"]);
+
+    for (const name of ["[ABC]", "[XYZ]"]) {
+      const area = categoryNamed(result, name);
+      const neil = overwriteFor(channelNamed(area, "alliance-chat").overwrites, "Neil");
+      expect(new Set(neil.allow)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+      expect(neil.deny).toEqual([]);
+      expect(targetsOf(channelNamed(area, "alliance-voice").overwrites)).toEqual(["@everyone", name]);
+    }
+  });
+
+  test("keeps EmbedLinks in the overwrite the layout gives Neil on alliance-chat, alongside View Channel and Send Messages", () => {
+    const withEmbedLinks: ServerLayout = {
+      ...layout,
+      allianceArea: {
+        channels: [
+          {
+            name: "alliance-chat",
+            type: "text",
+            overwrites: { Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks"], deny: [] } },
+          },
+          { name: "alliance-voice", type: "voice" },
+        ],
+      },
+    };
+    const area = categoryNamed(expandLayout(withEmbedLinks, HOME_KINGDOM, ["[ABC]"]), "[ABC]");
+
+    const neil = overwriteFor(channelNamed(area, "alliance-chat").overwrites, "Neil");
+    expect(new Set(neil.allow)).toEqual(new Set(["ViewChannel", "SendMessages", "EmbedLinks"]));
   });
 
   test("without a [TAG] role there is no Alliance area", () => {

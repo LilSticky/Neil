@@ -30,6 +30,15 @@ export interface PlayerDetails {
   readonly shielded?: boolean | undefined;
 }
 
+/** One row of an Alliance roster as a Player's lookup gives it: the uid, and the game's online reading of it. */
+export interface RosterPresence {
+  readonly uid: Uid;
+  /** The game's online flag (`online`); undefined when the Game gives none readable. */
+  readonly online: boolean | undefined;
+  /** The last time the row's Player was seen online (`last_online_at`); undefined when the Game gives none. */
+  readonly lastOnlineAt: Date | undefined;
+}
+
 interface PlayerProfile {
   readonly uid: Uid;
   readonly name: string;
@@ -37,6 +46,8 @@ interface PlayerProfile {
   readonly might: number;
   readonly sanctuaryLevel: number;
   readonly details?: PlayerDetails;
+  /** The whole Alliance roster, when the answer gives one; optional so readers that do not use it need not set it. */
+  readonly roster?: readonly RosterPresence[];
 }
 
 /**

@@ -41,6 +41,7 @@ nickname and roles matching the game.
 | **Correct a Link** | Officers, and Members for themselves | `/unlink` (Members: yourself; Officers: anyone), `/rank` (Officers set an Alliance Rank), `/link` (Officers Link a Member whose Interview was handed off). |
 | **Daily Quota** | Officers | `/quota` shows how many Game API requests are left today, and the top Members. |
 | **REAPER** | any Member; Home Kingdom R5s edit | A shared list of Exiles (malicious Players): `/reaper closest`, `/reaper list`, `/reaper add`, `/reaper remove`. |
+| **Booty Call** | any Member of the Alliance | `/booty` in the Alliance's `alliance-chat` asks for a private Confirm, then posts a card that mentions the Members of that Alliance whose Booty Alerts match. One per Alliance per minute. `/booty-alerts` records when you want to be mentioned: Off (the default), Always, Only when online or Only when offline, with a daily window and your time zone. |
 | **Help** | any Member | `/help` privately lists the commands you can use, how to write them and what they are for. Officers see their commands too. |
 | **Ping** | any Member | `/ping` shows that Neil is online, and which version. Temporary. |
 
@@ -166,6 +167,7 @@ or No (a person must do it).
 | Manage Roles and Manage Nicknames on Neil | All name and role changes; one line in the log | No |
 | Neil in `#onboarding`: View Channel, Send Messages in Threads, Create Private Threads, Manage Threads | Neil won't start | Yes* |
 | Neil in `#neil-log`: View Channel, Send Messages | Neil won't start | Yes* |
+| Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed | Yes* |
 | Read Message History for Neil and Use Application Commands for Members, in `#onboarding` (they usually come from @everyone defaults; don't deny them) | Interview edits; `/interview` | Yes* |
 | Onboarding in `#onboarding`: View Channel, Send Messages, Send Messages in Threads | Onboarding Interview | Yes* |
 | Moderator and King in `#onboarding`: View Channel, Manage Threads | Hand-offs, and Rank Approval with no Linked R5 | Yes* |
@@ -207,6 +209,8 @@ can use every command everywhere, so test with an account that isn't one.
 | `/quota`, `/rank`, `/link` | 🔴 add **Moderator** and **King** | 🟡 Moderator channel |
 | `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the intel channels (PvP, Alliance Duel, Kingdom vs Kingdom) |
 | `/channels`, `/usage`, `/ping`, `/help` | leave as is | 🟡 `#alliance-hall` |
+| `/booty` | leave as is | 🔴 don't limit it, or allow every `alliance-chat`: it works nowhere else |
+| `/booty-alerts` | leave as is | 🟡 `#alliance-hall` |
 | `/unlink` | leave as is | 🟡 `#alliance-hall` and the Moderator channel |
 | `/interview` | leave as is | 🟡 `#onboarding`, or newcomers can't start a new Interview |
 

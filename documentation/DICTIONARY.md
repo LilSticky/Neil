@@ -178,6 +178,20 @@ discovery.
 * Roster of Exiled Antagonists, Pervs, Evildoers & Reprobates: the list of all Exiles
 * Any Member may see it and find the closest Exiles to a position in the same Kingdom, or all of them by distance
 
+## Booty
+* An alliance excavation in the game that Members want to reach while it lasts
+* Neil can't see one; a Member calls it out with a Booty Call
+
+## Booty Call
+* One confirmed `/booty` in an Alliance's `alliance-chat`: a card that mentions the Members of that Alliance whose Booty Alerts match
+* Any Linked Member of the Alliance may make one; at most one per Alliance per minute
+* Not kept: only the log line remains
+
+## Booty Alerts
+* What a Member recorded with `/booty-alerts` about when to be mentioned: Off, Always, Only when online or Only when offline, with a daily time window in their own time zone
+* Off until the Member records otherwise; forgotten at Unlink
+* Online means online on Discord or in the game
+
 # Onboarding
 
 ## Onboarding Interview

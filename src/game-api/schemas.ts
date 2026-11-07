@@ -31,10 +31,16 @@ const unixSecondsSchema = z.number().int().positive().max(MAX_DATE_SECONDS).opti
  */
 const picturePathSchema = z.string().regex(PICTURE_PATH_PATTERN).optional().catch(undefined);
 
+/**
+ * One row of the Alliance roster in a Player's answer. The rank label reads as null when missing or not text (the rank is
+ * then unknown). `online` and `last_online_at` read as absent when unreadable, as in an Alliance's roster; the row is still
+ * accepted.
+ */
 const rosterRowSchema = z.object({
   uid: idSchema,
-  /** Missing or not text (some answers omit it) reads as null: the rank is then unknown, the body still valid. */
   rank_label: z.string().nullable().catch(null),
+  online: z.boolean().nullish().catch(undefined),
+  last_online_at: z.number().int().positive().max(MAX_DATE_SECONDS).nullish().catch(undefined),
 });
 
 /**

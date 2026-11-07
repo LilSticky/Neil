@@ -418,7 +418,16 @@
     "channels": [
       {
         "name": "alliance-chat",
-        "type": "text"
+        "type": "text",
+        "overwrites": {
+          "Neil": {
+            "allow": [
+              "ViewChannel",
+              "SendMessages",
+              "EmbedLinks"
+            ]
+          }
+        }
       },
       {
         "name": "alliance-voice",
