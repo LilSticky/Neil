@@ -144,7 +144,7 @@ export interface InterviewDeps {
   readonly nameAndRoles: NameAndRoles;
   readonly unlink: Unlink;
   readonly onboardingRole: Pick<OnboardingRole, "give" | "takeOff">;
-  /** Gives the Doctor Role to a Member once their Link is stored, before the Onboarding Role is taken off. */
+  /** Gives the Doctor Role to a Member once their Link is stored, so the Member is never in neither role. */
   readonly doctorRole: Pick<DoctorRole, "give">;
   readonly preferences: PreferencesAfterLink;
   /** Privately sends the Member the Link note after a Link; Discord may refuse it. */
@@ -834,10 +834,11 @@ async function refuseConfirmation(
 }
 
 /**
- * The Link is stored: the Doctor Role is given, then the Onboarding Role is taken off, so the Member is never in neither
- * role; the log notes the Link with the leader's Member when present. The Member's name and roles follow, without touching
- * the Link. The Preferences message is posted in the thread. A pending Rank Approval is asked in the thread, which says the
- * Link is stored; otherwise the thread is deleted, unless the Preferences message is open in it.
+ * The Link is stored: the Doctor Role is given, so the Member is never in neither role; the log notes the Link with the
+ * leader's Member when present. The Member's name and roles follow, without touching the Link. The Preferences message is
+ * posted in the thread. A pending Rank Approval is asked in the thread, which says the Link is stored; otherwise the thread
+ * is deleted, unless the Preferences message is open in it. Only a deleted thread closes the Interview, so the Onboarding
+ * Role is taken off just before that deletion; a thread that stays keeps the role.
  */
 async function finishLink(
   deps: InterviewDeps,
@@ -848,7 +849,6 @@ async function finishLink(
 ): Promise<void> {
   const pendingApproval = rankApproval?.state === "pending" ? rankApproval : undefined;
   await deps.doctorRole.give(interview.memberId);
-  await deps.onboardingRole.takeOff(interview.memberId);
   if (pendingApproval !== undefined) {
     await deps.channels.post(interview.threadId, linkedMessage(interview.memberId, interview.player));
   }
@@ -858,7 +858,9 @@ async function finishLink(
   const preferencesPosted = await postPreferencesAfterLink(deps, interview, link);
   await nameAndRolesAfterLink(deps, interview.memberId, interview.player, link);
   if (pendingApproval !== undefined) return deps.rankApprovals.announce(pendingApproval, interview.player);
-  if (!preferencesPosted) await deps.channels.deleteThread(interview.threadId);
+  if (preferencesPosted) return;
+  await deps.onboardingRole.takeOff(interview.memberId);
+  await deps.channels.deleteThread(interview.threadId);
 }
 
 /** Privately sends the Member the Link note after a Link; a failure is logged, never thrown, so the Link stands. */

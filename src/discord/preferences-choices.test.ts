@@ -16,6 +16,7 @@ import type { LinkStore } from "../storage/link-store.js";
 import type { PreferencePrompt, PreferenceStore } from "../storage/preference-store.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
 import type { PrivateReply } from "./interview-texts.js";
+import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 import type { PreferenceRoles } from "./preferences.js";
 import { createPreferenceChoices } from "./preferences-choices.js";
 import {
@@ -242,6 +243,7 @@ function setUp() {
   const applied = new FakeApplied();
   const channels = new FakeChannels(trace);
   const logError = vi.fn<(line: string) => void>();
+  const onboardingRole = new FakeOnboardingRole();
   const choices = createPreferenceChoices({
     roles,
     preferences: store,
@@ -250,6 +252,7 @@ function setUp() {
     applied,
     homeKingdom: HOME_KINGDOM,
     channels,
+    onboardingRole,
     guidesForumId: GUIDES_FORUM,
     logError,
   });
@@ -261,7 +264,7 @@ function setUp() {
     new FakePress(trace, preferencesCustomId(question, ALICE), { id: userId }, values);
   const doneOf = (userId: MemberId = ALICE): FakePress =>
     new FakePress(trace, preferencesCustomId("done", ALICE), { id: userId });
-  return { trace, store, roles, links, applied, channels, logError, choices, linkAlice, selectOf, doneOf };
+  return { trace, store, roles, links, applied, channels, onboardingRole, logError, choices, linkAlice, selectOf, doneOf };
 }
 
 describe("a select change", () => {
@@ -528,6 +531,42 @@ describe("Done", () => {
     expect(channels.deleted).toEqual([]);
   });
 
+  test("takes the Onboarding Role off the Member when the thread is deleted", async () => {
+    const { store, onboardingRole, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+
+    await choices.press(doneOf());
+
+    expect(onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: ALICE }]);
+  });
+
+  test("takes the Onboarding Role off before the thread is deleted", async () => {
+    const { store, channels, onboardingRole, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+    let deletedWhenTakenOff: readonly string[] | undefined;
+    onboardingRole.onCall = (call: OnboardingRoleCall) => {
+      if (call.kind === "takeOff") deletedWhenTakenOff = [...channels.deleted];
+    };
+
+    await choices.press(doneOf());
+
+    expect(deletedWhenTakenOff).toEqual([]);
+    expect(channels.deleted).toEqual([ALICE_THREAD]);
+  });
+
+  test("keeps the Onboarding Role while a Rank Approval is pending, and the thread stays open", async () => {
+    const { store, links, onboardingRole, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    links.pendingApproval(ALICE);
+    store.openPrompt(ALICE, ALICE_THREAD);
+
+    await choices.press(doneOf());
+
+    expect(onboardingRole.calls).toEqual([]);
+  });
+
   test("without an open prompt, only updates the message to a saved text without components", async () => {
     const { channels, linkAlice, doneOf, choices } = setUp();
     linkAlice();
@@ -678,6 +717,17 @@ describe("a refused thread deletion on Done", () => {
 
     expect(store.prompt(ALICE)).toEqual({ threadId: ALICE_THREAD, postedAt: NOW });
     expect(logError).toHaveBeenCalledOnce();
+  });
+
+  test("takes the Onboarding Role off once, as the thread is due to close, so that a retry changes nothing more", async () => {
+    const { store, channels, onboardingRole, linkAlice, doneOf, choices } = setUp();
+    linkAlice();
+    store.openPrompt(ALICE, ALICE_THREAD);
+    channels.failDelete = true;
+
+    await choices.press(doneOf());
+
+    expect(onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: ALICE }]);
   });
 });
 

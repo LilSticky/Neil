@@ -28,6 +28,7 @@ import {
   quotaResetMessage,
 } from "./interview-texts.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
+import { FakeOnboardingRole, type OnboardingRoleCall } from "./__fakes__/onboarding-role.js";
 
 function uidOf(digits: string): Uid {
   const parsed = parseUid(digits);
@@ -180,6 +181,7 @@ describe("createSweeper", () => {
   let links: LinkStore;
   let preferences: PreferenceStore;
   let channels: FakeChannels;
+  let onboardingRole: FakeOnboardingRole;
   let errors: string[];
   let sweeper: ReturnType<typeof createSweeper>;
 
@@ -191,12 +193,14 @@ describe("createSweeper", () => {
     links = new LinkStore(db);
     preferences = createPreferenceStore(db, () => undefined);
     channels = new FakeChannels();
+    onboardingRole = new FakeOnboardingRole();
     errors = [];
     sweeper = createSweeper({
       interviews,
       links,
       preferences,
       channels,
+      onboardingRole,
       timeoutMs: TIMEOUT_MS,
       now: () => clock,
       logError: (line: string) => {
@@ -342,6 +346,36 @@ describe("createSweeper", () => {
 
       expect(preferences.prompt(MEMBER)).toBeUndefined();
       expect(channels.deleted).toEqual([]);
+    });
+
+    test("takes the Onboarding Role off the Member when the thread is deleted", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+
+      await sweeper.sweep();
+
+      expect(onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: MEMBER }]);
+    });
+
+    test("takes the Onboarding Role off before the thread is deleted", async () => {
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+      let deletedWhenTakenOff: readonly string[] | undefined;
+      onboardingRole.onCall = (call: OnboardingRoleCall) => {
+        if (call.kind === "takeOff") deletedWhenTakenOff = [...channels.deleted];
+      };
+
+      await sweeper.sweep();
+
+      expect(deletedWhenTakenOff).toEqual([]);
+      expect(channels.deleted).toEqual([THREAD]);
+    });
+
+    test("keeps the Onboarding Role while the Member has a pending Rank Approval, whose thread stays", async () => {
+      pendingApprovalFor(links, MEMBER, UID, OVERDUE_START);
+      preferences.openPrompt(MEMBER, THREAD, OVERDUE_START);
+
+      await sweeper.sweep();
+
+      expect(onboardingRole.calls).toEqual([]);
     });
 
     test("is deleted before its prompt is closed, so that the prompt is still open while its thread goes", async () => {

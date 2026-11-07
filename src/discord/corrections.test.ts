@@ -168,6 +168,7 @@ interface Harness {
   readonly channels: FakeChannels;
   readonly nameAndRoles: FakeNameAndRoles;
   readonly preferences: FakePreferenceStore;
+  readonly onboardingRole: FakeOnboardingRole;
   readonly errors: string[];
   readonly close: () => void;
 }
@@ -187,6 +188,7 @@ function makeHarness(): Harness {
     channels: new FakeChannels(),
     nameAndRoles: new FakeNameAndRoles(),
     preferences: new FakePreferenceStore(),
+    onboardingRole: new FakeOnboardingRole(),
     errors,
     close: () => {
       db.close();
@@ -333,6 +335,7 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
       preferences: h.preferences,
       channels: h.channels,
       nameAndRoles: h.nameAndRoles,
+      onboardingRole: h.onboardingRole,
       officerRoles: OFFICERS,
       now: () => NOW,
       logError: (line) => h.errors.push(line),
@@ -431,6 +434,39 @@ describe("handleRank: an Officer gives a Linked Member's rank", () => {
 
     expect(h.channels.posts).toEqual([]);
     expect(h.channels.deleted).toEqual([THREAD]);
+  });
+
+  test("takes the Onboarding Role off the Member when the approval's thread is deleted", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
+    expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: LINKED }]);
+  });
+
+  test("takes the Onboarding Role off before the approval's thread is deleted", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    let deletedWhenTakenOff: readonly string[] | undefined;
+    h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+      if (call.kind === "takeOff") deletedWhenTakenOff = [...h.channels.deleted];
+    };
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
+    expect(deletedWhenTakenOff).toEqual([]);
+    expect(h.channels.deleted).toEqual([THREAD]);
+  });
+
+  test("keeps the Onboarding Role while the Member's Preferences message is open in the approval's thread", async () => {
+    linkWithPendingApproval(h, LINKED, LINKED_UID, UNKNOWN_RANK);
+    h.preferences.openPrompt(LINKED, THREAD, NOW);
+    const interaction = new FakeCorrectionInteraction(OFFICER, OFFICER_ROLE_IDS, { member: LINKED, rank: "R4" });
+
+    await handleRank(interaction, deps);
+
+    expect(h.onboardingRole.calls).toEqual([]);
   });
 
   test("keeps the thread while the Member's Preferences message is open in it, with no message in it", async () => {
@@ -570,6 +606,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
       preferences: h.preferences,
       channels: h.channels,
       nameAndRoles,
+      onboardingRole: h.onboardingRole,
       officerRoles: OFFICERS,
       now: () => NOW,
       logError: (line) => h.errors.push(line),
@@ -605,6 +642,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
       preferences: h.preferences,
       channels: h.channels,
       nameAndRoles,
+      onboardingRole: h.onboardingRole,
       officerRoles: OFFICERS,
       now: () => NOW,
       logError: (line) => h.errors.push(line),
@@ -1293,14 +1331,27 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
     expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: HANDED_OFF }]);
   });
 
-  test("Confirm takes the Onboarding Role off the Member too when a Rank Approval is pending", async () => {
+  test("Confirm takes the Onboarding Role off the Member before the thread is deleted", async () => {
+    const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
+    let deletedWhenTakenOff: readonly string[] | undefined;
+    h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
+      if (call.kind === "takeOff") deletedWhenTakenOff = [...h.channels.deleted];
+    };
+
+    await press(h, confirm, OFFICER);
+
+    expect(deletedWhenTakenOff).toEqual([]);
+    expect(h.channels.deleted).toEqual([`thread-of-${HANDED_OFF}`]);
+  });
+
+  test("Confirm keeps the Onboarding Role on the Member while a Rank Approval is pending, until the approval ends", async () => {
     h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);
 
     expect(h.rankApprovals.announced).toHaveLength(1);
-    expect(h.onboardingRole.calls).toEqual([{ kind: "takeOff", memberId: HANDED_OFF }]);
+    expect(h.onboardingRole.calls).toEqual([]);
   });
 
   test("Confirm gives the Doctor Role to the Member it Links", async () => {
@@ -1323,18 +1374,14 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
     expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: HANDED_OFF }]);
   });
 
-  test("Confirm gives the Doctor Role before the Onboarding Role is taken off, also when a Rank Approval is pending", async () => {
+  test("Confirm gives the Doctor Role to the Member too when a Rank Approval is pending", async () => {
     h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
-    let doctorCallsAtTakeOff: readonly DoctorRoleCall[] = [];
-    h.onboardingRole.onCall = (call: OnboardingRoleCall) => {
-      if (call.kind === "takeOff") doctorCallsAtTakeOff = [...h.doctorRole.calls];
-    };
 
     await press(h, confirm, OFFICER);
 
     expect(h.rankApprovals.announced).toHaveLength(1);
-    expect(doctorCallsAtTakeOff).toEqual([{ kind: "give", memberId: HANDED_OFF }]);
+    expect(h.doctorRole.calls).toEqual([{ kind: "give", memberId: HANDED_OFF }]);
   });
 
   test("Confirm of a Player whose rank is unknown announces a Rank Approval for the thread, and leaves the thread open", async () => {

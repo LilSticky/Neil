@@ -976,6 +976,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const onboardingRole = createOnboardingRole({
       members: serverMembersOf(guild),
       links: options.links,
+      preferences: options.preferences,
       logError,
       log: (message) => channels.log(message),
       officerRoleIds: options.officerRoleIds,
@@ -1018,6 +1019,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       applied: options.applied,
       homeKingdom: options.homeKingdom,
       channels,
+      onboardingRole,
       guidesForumId: options.guidesForumId,
       logError,
     });
@@ -1053,6 +1055,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       preferences: options.preferences,
       channels,
       nameAndRoles,
+      onboardingRole,
       officerRoles,
       memberRoleIdsOf: (memberId) =>
         guild.members.fetch(memberId).then(
@@ -1100,6 +1103,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           preferences: options.preferences,
           channels,
           nameAndRoles,
+          onboardingRole,
           officerRoles,
           now,
           logError,
@@ -1229,6 +1233,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       links: options.links,
       preferences: options.preferences,
       channels,
+      onboardingRole,
       timeoutMs: options.interviewTimeoutMs,
       now,
       logError,
