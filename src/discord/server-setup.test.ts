@@ -590,6 +590,18 @@ describe("parseLayout forum setup", () => {
   test("refuses a template line over 100 characters, naming the channel", () => {
     expect(refusal(forumFile(forumBlock({ howTo: { ...FORUM_HOW_TO, template: ["x".repeat(101)] } })))).toContain("tactics");
   });
+
+  test("refuses a forum whose how-to post is over 2000 characters, naming the category and the channel", () => {
+    const tags = Array.from({ length: 20 }, (_, index) => `${index.toString().padStart(2, "0")}${"x".repeat(18)}`);
+    const howTo = { belongs: "b".repeat(500), exampleTitle: "e".repeat(100), template: Array.from({ length: 10 }, () => "y".repeat(100)) };
+    const built = forumHowTo("tactics", { tags, reaction: "⚔️", howTo });
+    expect(built.content.length).toBeGreaterThan(2000);
+
+    const message = refusal(forumFile(forumBlock({ tags, howTo })));
+
+    expect(message).toContain("Hangout");
+    expect(message).toContain("tactics");
+  });
 });
 
 describe("readServer", () => {
@@ -996,6 +1008,42 @@ describe("the shipped server-layout.json", () => {
     expect(forum?.type).toBe("forum");
     expect(forum?.forum?.tags).toEqual(tags);
     expect(forum?.forum?.reaction).toBe(reaction);
+  });
+
+  test.each([
+    {
+      name: "guides",
+      belongs: "One guide per post, written by a Veteran: how something in the game works and how to do it well.",
+      exampleTitle: "Hero upgrade order for new players",
+      template: ["Who it's for", "What you'll learn", "Steps", "Tips"],
+    },
+    {
+      name: "nap-forum",
+      belongs: "Questions, proposals and reports about non-aggression pacts (NaP) between Alliances. Decisions are announced in #nap-announcements.",
+      exampleTitle: "Proposal: NaP with [ABC] for the next season",
+      template: ["Alliances", "What we propose or ask", "Why", "Until when"],
+    },
+    {
+      name: "pvp-tactics",
+      belongs: "One battle plan, trick or lesson per post.",
+      exampleTitle: "Rally timing against #412",
+      template: ["Situation", "What we did", "What worked", "What didn't"],
+    },
+    {
+      name: "ad-tactics",
+      belongs: "Alliance Duel plans and lessons, one per post.",
+      exampleTitle: "Day 3 points plan",
+      template: ["Day", "Goal", "Who does what", "Lessons"],
+    },
+    {
+      name: "kvk-tactics",
+      belongs: "Kingdom vs Kingdom plans and lessons, one per post.",
+      exampleTitle: "Defending the castle in the first hour",
+      template: ["Phase", "Goal", "Squads", "Targets", "Lessons"],
+    },
+  ])("$name carries the how-to post's belongs, example title and template, as approved (slice 030)", ({ name, belongs, exampleTitle, template }) => {
+    const forum = shippedLayout().categories.flatMap((category) => category.channels).find((channel) => channel.name === name);
+    expect(forum?.forum?.howTo).toEqual({ belongs, exampleTitle, template });
   });
 
   test("holds #gift-codes in Hangout, where only R4, R5 and the King post", () => {

@@ -42,10 +42,22 @@ export interface ServerChannel {
   forum: ForumState | undefined;
 }
 
+/** A forum tag as the server holds it. The emoji and moderated flag are kept as read and sent back unchanged. */
+export interface ForumTagState {
+  id: string;
+  name: string;
+  moderated?: boolean;
+  emojiId?: string | null;
+  emojiName?: string | null;
+}
+
+/** A tag the set-forum-tags step writes: a kept tag by its id, with the fields it was read with, or a new one by name. */
+export type ForumTagWrite = Partial<ForumTagState> & { name: string };
+
 /** What the server holds of a forum beyond its channel: tags, reaction and posts (slice 030, data-model.md). */
 export interface ForumState {
   /** The forum's available tags. */
-  tags: { id: string; name: string }[];
+  tags: ForumTagState[];
   /** The default reaction's emoji name; undefined when none is set. */
   reaction: string | undefined;
   /** false when Discord refused the read of the forum's posts, so Neil's how-to post is unknown. */
@@ -92,7 +104,7 @@ export type SetupStep =
   | { kind: "post-description"; name: string; categoryName: string; id: string | undefined; content: string; pinned: boolean }
   | { kind: "edit-description"; id: string; name: string; messageId: string; content: string }
   /** A forum's tags: the whole list, present tags with their ids in layout order, then the new ones, then the extras. */
-  | { kind: "set-forum-tags"; id: string | undefined; name: string; categoryName: string; tags: { id?: string; name: string }[] }
+  | { kind: "set-forum-tags"; id: string | undefined; name: string; categoryName: string; tags: ForumTagWrite[] }
   | { kind: "set-forum-reaction"; id: string | undefined; name: string; categoryName: string; reaction: string }
   /** Neil's how-to post; `pin` is false when another post of the forum is pinned. */
   | {
@@ -151,6 +163,8 @@ interface Plan {
 
 /** Roles of the layout that may hold permissions without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
+/** The variation selector that turns an emoji into its emoji presentation (U+FE0F). */
+const VARIATION_SELECTOR = /\uFE0F/gu;
 /** The state of a forum the plan creates: no tags, no reaction and no posts. */
 const NO_FORUM_STATE: ForumState = { tags: [], reaction: undefined, postsReadable: true, howTo: undefined, otherPinned: false };
 
@@ -364,13 +378,26 @@ function planForumState(
 ): void {
   if (state === undefined) return;
   planForumTags(plan, wanted, name, categoryName, id, state);
-  if (state.reaction !== wanted.reaction) {
+  if (bareEmoji(state.reaction) !== bareEmoji(wanted.reaction)) {
     plan.forumSteps.push({ kind: "set-forum-reaction", id, name, categoryName, reaction: wanted.reaction });
   }
   planHowTo(plan, wanted, name, categoryName, id, state);
 }
 
-/** Missing tags give one step with the whole list: the layout's tags in its order, then the extras, which stay. */
+/** An emoji without its variation selector: the layout and Discord may each include U+FE0F or leave it out. */
+function bareEmoji(emoji: string | undefined): string | undefined {
+  return emoji?.replace(VARIATION_SELECTOR, "");
+}
+
+/** Tag names are the same tag when they differ only in case (slice 030). */
+function sameTagName(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+/**
+ * Missing tags, and kept tags whose case differs from the layout's, give one step with the whole list: the layout's tags in
+ * its order, with a kept tag taking the layout's spelling, then the new ones, then the extras, which stay.
+ */
 function planForumTags(
   plan: Plan,
   wanted: ExpandedForum,
@@ -379,12 +406,15 @@ function planForumTags(
   id: string | undefined,
   state: ForumState,
 ): void {
-  const missing = wanted.tags.filter((tag) => !state.tags.some((existing) => existing.name === tag));
-  const present = wanted.tags.flatMap((tag) => state.tags.filter((existing) => existing.name === tag));
-  const extras = state.tags.filter((existing) => !wanted.tags.includes(existing.name));
+  const missing = wanted.tags.filter((tag) => !state.tags.some((existing) => sameTagName(existing.name, tag)));
+  const present = wanted.tags.flatMap((tag) =>
+    state.tags.filter((existing) => sameTagName(existing.name, tag)).map((existing) => ({ ...existing, name: tag })),
+  );
+  const extras = state.tags.filter((existing) => !wanted.tags.some((tag) => sameTagName(existing.name, tag)));
   for (const extra of extras) plan.findings.push({ kind: "extra-tag", name, tag: extra.name });
-  if (missing.length === 0) return;
-  const tags = [...present, ...missing.map((tag) => ({ name: tag })), ...extras];
+  const renamed = present.some((kept) => state.tags.some((existing) => existing.id === kept.id && existing.name !== kept.name));
+  if (missing.length === 0 && !renamed) return;
+  const tags: ForumTagWrite[] = [...present, ...missing.map((tag) => ({ name: tag })), ...extras];
   plan.forumSteps.push({ kind: "set-forum-tags", id, name, categoryName, tags });
 }
 

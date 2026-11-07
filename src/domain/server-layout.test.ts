@@ -541,6 +541,51 @@ describe("expandLayout: what a seer may do, by channel type", () => {
   });
 });
 
+describe("expandLayout: a read-only guides forum, as the shipped layout has it", () => {
+  const guidesForum: ForumSetup = {
+    tags: ["Beginner", "Events"],
+    reaction: "📚",
+    howTo: { belongs: "One guide per post, written by a Veteran.", exampleTitle: "Hero upgrade order", template: ["Steps"] },
+  };
+  const guides: ServerLayout = {
+    ...layout,
+    roles: [...layout.roles, "Events", "Veteran"],
+    categories: [
+      {
+        name: "Guides",
+        seenBy: ["Events"],
+        channels: [
+          {
+            name: "guides",
+            type: "forum",
+            description: "A test channel.",
+            mode: "read-only",
+            overwrites: { Veteran: { allow: ["SendMessages", "SendMessagesInThreads"], deny: [] } },
+            forum: guidesForum,
+          },
+        ],
+      },
+    ],
+  };
+  const guidesChannel = (): ExpandedChannel => channelNamed(categoryNamed(expandLayout(guides, HOME_KINGDOM, []), "Guides"), "guides");
+
+  test("Events, which sees the forum, is denied SendMessages and SendMessagesInThreads", () => {
+    expect(overwriteFor(guidesChannel().overwrites, "Events").deny).toEqual(
+      expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]),
+    );
+  });
+
+  test("Veteran, by its own overwrite, is allowed SendMessages and SendMessagesInThreads", () => {
+    expect(overwriteFor(guidesChannel().overwrites, "Veteran").allow).toEqual(
+      expect.arrayContaining(["SendMessages", "SendMessagesInThreads"]),
+    );
+  });
+
+  test("@everyone is denied View Channel and Send Messages", () => {
+    expect(new Set(overwriteFor(guidesChannel().overwrites, "@everyone").deny)).toEqual(new Set(["ViewChannel", "SendMessages"]));
+  });
+});
+
 describe("expandLayout: forums", () => {
   const tacticsForum: ForumSetup = {
     tags: ["Rally", "Defense"],

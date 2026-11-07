@@ -4,6 +4,7 @@ import { PermissionFlagsBits } from "discord.js";
 import { z } from "zod";
 import { redact } from "../startup.js";
 import { PIN_MARK } from "../domain/channel-description.js";
+import { forumHowTo } from "../domain/forum-how-to.js";
 import {
   BOT_TARGET,
   EVERYONE_TARGET,
@@ -80,24 +81,33 @@ export interface SetupChannelInfo {
   reaction?: string | undefined;
 }
 
-/** A tag of a forum as Discord holds it. */
+/** A tag of a forum as Discord holds it, with the emoji and moderated flag that a kept tag is sent back with. */
 export interface ForumTagInfo {
   id: string;
   name: string;
+  moderated: boolean;
+  emojiId: string | null;
+  emojiName: string | null;
 }
 
-/** A tag to write: an existing tag by id, or a new one by name alone. */
+/** A tag to write: an existing tag by id, sent back with the fields it was read with, or a new one by name alone. */
 export interface ForumTag {
   id?: string;
   name: string;
+  moderated?: boolean;
+  emojiId?: string | null;
+  emojiName?: string | null;
 }
 
-/** A post of a forum: the thread, the id of the Member who opened it, its title and starter content, and its state. */
+/**
+ * A post of a forum: the thread, the id of the Member who opened it, its title, and its state. The starter content is read
+ * only for Neil's posts, so another Member's post has none.
+ */
 export interface ForumPostInfo {
   threadId: string;
   ownerId: string;
   title: string;
-  content: string;
+  content?: string;
   archived: boolean;
   pinned: boolean;
 }
@@ -348,6 +358,7 @@ function checkChannel(
   for (const target of raw.seenBy ?? []) checkTarget(known, place, target);
   const overwrites = raw.overwrites === undefined ? undefined : checkOverwrites(place, raw.overwrites, known);
   const forum = checkForum(place, type, raw.forum);
+  if (forum !== undefined) checkHowToLength(place, raw.name, forum);
 
   const channel: LayoutChannel = { name: raw.name, type, description };
   if (raw.codeOfConduct !== undefined) channel.codeOfConduct = [...raw.codeOfConduct];
@@ -359,13 +370,15 @@ function checkChannel(
   return channel;
 }
 
-const REACTION = /^\p{Extended_Pictographic}️?$/u;
+const REACTION = /^\p{Extended_Pictographic}\uFE0F?$/u;
 const TAGS_MAX = 20;
 const TAG_MAX = 20;
 const BELONGS_MAX = 500;
 const EXAMPLE_TITLE_MAX = 100;
 const TEMPLATE_MAX = 10;
 const TEMPLATE_LINE_MAX = 100;
+/** Discord's limit on one message, which a forum's how-to post is. */
+const MESSAGE_MAX = 2000;
 
 /** A forum has its forum block and no other channel does (slice 030); the block's values are checked here. */
 function checkForum(place: string, type: ChannelType, raw: RawForum | undefined): ForumSetup | undefined {
@@ -411,6 +424,14 @@ function checkHowTo(place: string, howTo: RawForum["howTo"]): ForumSetup["howTo"
   }
   for (const line of howTo.template) checkLength(place, `template line "${line}"`, line, TEMPLATE_LINE_MAX);
   return { belongs: howTo.belongs, exampleTitle: howTo.exampleTitle, template: [...howTo.template] };
+}
+
+/** The how-to post of a forum is one message, so its text must fit Discord's limit (counted in characters, as Discord does). */
+function checkHowToLength(place: string, name: string, forum: ForumSetup): void {
+  const length = Array.from(forumHowTo(name, forum).content).length;
+  if (length > MESSAGE_MAX) {
+    throw new Error(`${place}: the how-to post is ${length.toString()} characters; Discord allows ${MESSAGE_MAX.toString()}`);
+  }
 }
 
 /** A text of 1 to `max` characters. */
@@ -496,7 +517,7 @@ async function readForum(port: SetupServer, channel: SetupChannelInfo, botUserId
   const posts = await port.readForumPosts(channel.id);
   const howTo = posts === undefined ? undefined : neilHowToOf(posts, botUserId);
   return {
-    tags: (channel.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
+    tags: [...(channel.tags ?? [])],
     reaction: channel.reaction,
     postsReadable: posts !== undefined,
     howTo,
@@ -507,8 +528,8 @@ async function readForum(port: SetupServer, channel: SetupChannelInfo, botUserId
 /** Neil's how-to post: the oldest post by Neil whose starter starts with the pin mark, the oldest by thread id. */
 function neilHowToOf(posts: readonly ForumPostInfo[], botUserId: string): ForumState["howTo"] {
   const oldest = posts
-    .filter((post) => post.ownerId === botUserId && post.content.startsWith(PIN_MARK))
-    .reduce<ForumPostInfo | undefined>(
+    .filter((post): post is ForumPostInfo & { content: string } => post.ownerId === botUserId && post.content?.startsWith(PIN_MARK) === true)
+    .reduce<(ForumPostInfo & { content: string }) | undefined>(
       (best, post) => (best === undefined || BigInt(post.threadId) < BigInt(best.threadId) ? post : best),
       undefined,
     );
@@ -790,8 +811,6 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
     exitCode: blocked || failures.length > 0 ? 1 : 0,
   };
 }
-
-const MESSAGE_MAX = 2000;
 
 /**
  * One line per description message longer than Discord allows. The message depends on the Kingdom number and on the

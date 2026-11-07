@@ -41,7 +41,7 @@ no pings; idempotent; one pinned post per forum (Discord)
 | III. Framework-free domain | The how-to text, tag and reaction comparison and the new steps live in `src/domain/`. HTTP stays in `setup-server-rest.ts`. ✅ |
 | IV. Game API | Not touched. ✅ |
 | V. Least privilege | No new runtime right. The script's writes grow (forum settings, one thread per forum, its pin) inside the same Administrator run. Posts use `allowed_mentions: none`. ✅ |
-| VI. Context | STATUS, ROADMAP, SERVER-SETUP, STARTUP-GUIDE, TEST-RUN §6x updated in the slice. ✅ |
+| VI. Context | STATUS, ROADMAP, SERVER-SETUP, STARTUP-GUIDE, TEST-RUN §6y updated in the slice. ✅ |
 
 No violations.
 

@@ -1386,6 +1386,25 @@ describe("planSetup: an existing forum's tags", () => {
     expect(plan.findings).toContainEqual({ kind: "extra-tag", name: "tactics", tag: "Old" });
     expect(plan.steps.filter((step) => step.kind === "set-forum-tags")).toEqual([]);
   });
+
+  test("a tag that differs from the layout's only in case is kept with its id and renamed to the layout's spelling, with no duplicate", () => {
+    const state = forumWith({ tags: [{ id: "t-question", name: "question" }] });
+
+    const plan = planSetup(layoutWithTags(["Question"]), serverWithTactics(state), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(
+      expect.objectContaining({ kind: "set-forum-tags", name: "tactics", tags: [{ id: "t-question", name: "Question" }] }),
+    );
+    expect(plan.findings).not.toContainEqual(expect.objectContaining({ kind: "extra-tag", tag: "question" }));
+  });
+
+  test("a tag with the layout's exact spelling gives no set-forum-tags step", () => {
+    const state = forumWith({ tags: [{ id: "t-question", name: "Question" }] });
+
+    const plan = planSetup(layoutWithTags(["Question"]), serverWithTactics(state), HOME_KINGDOM);
+
+    expect(plan.steps.filter((step) => step.kind === "set-forum-tags")).toEqual([]);
+  });
 });
 
 describe("planSetup: an existing forum's reaction", () => {
@@ -1393,6 +1412,52 @@ describe("planSetup: an existing forum's reaction", () => {
     const plan = planSetup(layout, serverWithTactics(forumWith({ reaction: "📚" })), HOME_KINGDOM);
 
     expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "set-forum-reaction", name: "tactics", reaction: "⚔️" }));
+  });
+
+  test.each([
+    { stateReaction: "⚔", wantedReaction: "⚔️" },
+    { stateReaction: "⚔️", wantedReaction: "⚔" },
+  ])(
+    "a reaction that differs only by U+FE0F gives no set-forum-reaction (state $stateReaction, layout $wantedReaction)",
+    ({ stateReaction, wantedReaction }) => {
+      const forum: ForumSetup = { ...layoutForum("tactics"), reaction: wantedReaction };
+      const wanted: ServerLayout = {
+        ...layout,
+        categories: layout.categories.map((category) => ({
+          ...category,
+          channels: category.channels.map((candidate) => (candidate.name === "tactics" ? { ...candidate, forum } : candidate)),
+        })),
+      };
+
+      const plan = planSetup(wanted, serverWithTactics(forumWith({ reaction: stateReaction })), HOME_KINGDOM);
+
+      expect(plan.steps.filter((step) => step.kind === "set-forum-reaction")).toEqual([]);
+    },
+  );
+});
+
+describe("planSetup: a forum whose Neil post is gone", () => {
+  test("gets open-how-to with the forum's id, pinned, and no other post pinned", () => {
+    const existing = withForum(
+      described(channel("tactics", "forum", "Hangout"), "A test channel.", undefined),
+      forumWith({ howTo: undefined, postsReadable: true, otherPinned: false }),
+    );
+
+    const plan = planSetup(layout, serverWithHangout([existing]), HOME_KINGDOM);
+
+    expect(plan.steps).toContainEqual(expect.objectContaining({ kind: "open-how-to", id: existing.id, name: "tactics", pin: true }));
+  });
+});
+
+describe("planSetup: a layout forum that exists as a text channel", () => {
+  test("is reported as wrong-type and gets no forum step", () => {
+    const plan = planSetup(layout, serverWithHangout([channel("tactics", "text", "Hangout")]), HOME_KINGDOM);
+
+    expect(plan.findings).toContainEqual(
+      expect.objectContaining({ kind: "wrong-type", name: "tactics", expected: "forum", actual: "text" }),
+    );
+    const forumKinds: string[] = ["set-forum-tags", "set-forum-reaction", "open-how-to"];
+    expect(plan.steps.filter((step) => forumKinds.includes(step.kind))).toEqual([]);
   });
 });
 

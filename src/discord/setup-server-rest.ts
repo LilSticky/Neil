@@ -3,7 +3,7 @@
 import { ChannelFlags, ChannelType as DiscordChannelType, Routes } from "discord.js";
 import { z } from "zod";
 import type { ChannelType } from "../domain/server-layout.js";
-import type { ForumPostInfo, ForumTagInfo, OverwriteEdit, SetupChannelInfo, SetupServer } from "./server-setup.js";
+import type { ForumPostInfo, ForumTag, ForumTagInfo, OverwriteEdit, SetupChannelInfo, SetupServer } from "./server-setup.js";
 
 /**
  * The REST calls the setup makes, the part of discord.js's REST it uses. The fake in the tests stands in for it, and
@@ -48,7 +48,13 @@ const overwriteResponse = z.object({
   allow: bits,
   deny: bits,
 });
-const forumTagResponse = z.object({ id: z.string(), name: z.string() });
+const forumTagResponse = z.object({
+  id: z.string(),
+  name: z.string(),
+  moderated: z.boolean(),
+  emoji_id: z.string().nullish(),
+  emoji_name: z.string().nullish(),
+});
 const channelsResponse = z.array(
   z.object({
     id: z.string(),
@@ -57,7 +63,7 @@ const channelsResponse = z.array(
     parent_id: z.string().nullish(),
     topic: z.string().nullish(),
     permission_overwrites: z.array(overwriteResponse),
-    /** A forum's tags and default reaction; other kinds leave them out. */
+    /** A forum's tags and default reaction; other kinds leave them out, and a forum must carry its tags. */
     available_tags: z.array(forumTagResponse).nullish(),
     default_reaction_emoji: z.object({ emoji_name: z.string().nullish() }).nullish(),
   }),
@@ -95,26 +101,26 @@ const messagesResponse = z.array(
   }),
 );
 /**
- * A page of the guild's active list or of a forum's archived list; a list without threads is empty. `archive_timestamp` is
- * optional here because only the archived paging needs it, and only when another page follows.
+ * A page of the guild's active list or of a forum's archived list; a reply without a threads array is refused.
+ * `archive_timestamp` is optional here because only the archived paging needs it, and only when another page follows.
  */
 const threadsResponse = z.object({
-  threads: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        parent_id: z.string().nullish(),
-        owner_id: z.string(),
-        thread_metadata: z.object({ archived: z.boolean(), archive_timestamp: z.string().optional() }),
-        flags: z.number().int().default(0),
-      }),
-    )
-    .default([]),
+  threads: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      parent_id: z.string().nullish(),
+      owner_id: z.string(),
+      thread_metadata: z.object({ archived: z.boolean(), archive_timestamp: z.string().optional() }),
+      flags: z.number().int().default(0),
+    }),
+  ),
   has_more: z.boolean().default(false),
 });
 /** A thread's starter message: the post's content, which must be present; its id is the thread's id. */
 const starterResponse = z.object({ content: z.string() });
+/** Discord's refusals of one starter message: 403 (Missing Access) and 404 (the message is gone). */
+const refusedStarterResponse = z.object({ status: z.union([z.literal(403), z.literal(404)]) });
 /** The thread flag that pins a post to the top of its forum (Discord's ChannelFlags.Pinned). */
 const PINNED_FLAG = ChannelFlags.Pinned;
 
@@ -125,12 +131,27 @@ function threadsOf(response: unknown): ThreadRead[] {
   return threadsResponse.parse(response).threads;
 }
 
-/** A forum's tags and default reaction, as the setup reads them from the channel. */
+/** A forum's tags and default reaction, as the setup reads them from the channel; a forum without its tags is refused. */
 function forumFieldsOf(channel: ChannelRead): { tags: ForumTagInfo[]; reaction: string | undefined } {
+  if (channel.available_tags === undefined || channel.available_tags === null) {
+    throw new Error(`forum ${channel.name} came from Discord without available_tags`);
+  }
   return {
-    tags: (channel.available_tags ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
+    tags: channel.available_tags.map((tag) => ({
+      id: tag.id,
+      name: tag.name,
+      moderated: tag.moderated,
+      emojiId: tag.emoji_id ?? null,
+      emojiName: tag.emoji_name ?? null,
+    })),
     reaction: channel.default_reaction_emoji?.emoji_name ?? undefined,
   };
+}
+
+/** A tag as Discord's request body: a kept tag with the fields it was read with, a new tag by name alone. */
+function forumTagBody(tag: ForumTag): Record<string, unknown> {
+  if (tag.id === undefined) return { name: tag.name };
+  return { id: tag.id, name: tag.name, moderated: tag.moderated, emoji_id: tag.emojiId, emoji_name: tag.emojiName };
 }
 
 /** The SetupServer of one guild, over Discord's REST API with the bot's token. */
@@ -184,11 +205,11 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
 
   /**
    * A forum's archived public posts, every page: each page after the first asks for the posts archived before the last
-   * post of the page. Undefined when Discord refuses a read with 403 (Missing Access).
+   * post of the page, and a post a page repeats is listed once. Undefined when Discord refuses a read with 403 (Missing Access).
    */
   const archivedThreadsOf = async (forumId: string): Promise<ThreadRead[] | undefined> => {
     const listRoute = Routes.channelThreads(forumId, "public");
-    const threads: ThreadRead[] = [];
+    const threads = new Map<string, ThreadRead>();
     let before: string | undefined;
     for (;;) {
       const route = before === undefined ? listRoute : `${listRoute}?before=${encodeURIComponent(before)}`;
@@ -200,25 +221,35 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
         throw error;
       }
       const page = threadsResponse.parse(response);
-      threads.push(...page.threads);
-      if (!page.has_more) return threads;
+      for (const thread of page.threads) threads.set(thread.id, thread);
+      if (!page.has_more) return [...threads.values()];
       const last = page.threads.at(-1);
       before = last?.thread_metadata.archive_timestamp;
       if (before === undefined) throw new Error("Discord has more archived posts but no archive time to page from");
     }
   };
 
-  /** A forum's post as the setup reads it: its starter message is read for the content. */
-  const postOf = async (thread: ThreadRead): Promise<ForumPostInfo> => {
-    const starter = starterResponse.parse(await rest.get(Routes.channelMessage(thread.id, thread.id)));
-    return {
+  /**
+   * A forum's post as the setup reads it. Only Neil's posts are read through their starter message, for the content. A
+   * starter that Discord refuses (403 or 404) leaves its post out; the other posts are still read.
+   */
+  const postOf = async (thread: ThreadRead, botId: string): Promise<ForumPostInfo | undefined> => {
+    const post: ForumPostInfo = {
       threadId: thread.id,
       ownerId: thread.owner_id,
       title: thread.name,
-      content: starter.content,
       archived: thread.thread_metadata.archived,
       pinned: (thread.flags & PINNED_FLAG) !== 0,
     };
+    if (thread.owner_id !== botId) return post;
+    let response: unknown;
+    try {
+      response = await rest.get(Routes.channelMessage(thread.id, thread.id));
+    } catch (error) {
+      if (refusedStarterResponse.safeParse(error).success) return undefined;
+      throw error;
+    }
+    return { ...post, content: starterResponse.parse(response).content };
   };
 
   return {
@@ -334,8 +365,7 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       });
     },
     async setForumTags(channelId, tags) {
-      const available = tags.map((tag) => (tag.id === undefined ? { name: tag.name } : { id: tag.id, name: tag.name }));
-      await rest.patch(Routes.channel(channelId), { body: { available_tags: available } });
+      await rest.patch(Routes.channel(channelId), { body: { available_tags: tags.map(forumTagBody) } });
     },
     async setForumReaction(channelId, emojiName) {
       await rest.patch(Routes.channel(channelId), { body: { default_reaction_emoji: { emoji_id: null, emoji_name: emojiName } } });
@@ -344,7 +374,9 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       const active = (await activeThreadsOf()).filter((thread) => thread.parent_id === forumId);
       const archived = await archivedThreadsOf(forumId);
       if (archived === undefined) return undefined;
-      return Promise.all([...active, ...archived].map(postOf));
+      const botId = await botUserId();
+      const posts = await Promise.all([...active, ...archived].map((thread) => postOf(thread, botId)));
+      return posts.filter((post): post is ForumPostInfo => post !== undefined);
     },
     async openForumPost(forumId, title, content) {
       const body = { name: title, message: { content, allowed_mentions: { parse: [] } } };
@@ -354,6 +386,7 @@ export function createRestSetupServer(rest: SetupRest, guildId: string): SetupSe
       if (unarchive) await rest.patch(Routes.channel(threadId), { body: { archived: false } });
       await rest.patch(Routes.channel(threadId), { body: { flags: PINNED_FLAG } });
     },
+    // Three PATCHes, not one: if one fails, the next run finds the post as it is and repairs what is left.
     async editForumPost(threadId, title, content, unarchive) {
       if (unarchive) await rest.patch(Routes.channel(threadId), { body: { archived: false } });
       await rest.patch(Routes.channel(threadId), { body: { name: title } });

@@ -11,7 +11,7 @@ Proves: the shipped layout loads with five forum blocks; an empty in-memory serv
 Send deny and one pinned how-to post per forum; a second run plans nothing; changed tags, reaction or text plan only that
 change; an extra tag is reported and kept; another pinned post leaves Neil's unpinned; an archived post is found.
 
-## Manual (test server, TEST-RUN §6x)
+## Manual (test server, TEST-RUN §6y)
 
 1. `npm run server:setup` without Administrator: lists the tag, reaction, permission and post lines for the five forums,
    or the aggregate "can't read the posts" line.

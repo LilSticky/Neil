@@ -174,7 +174,10 @@ export class FakeSetupServer implements SetupServer {
       overwrites: [...(options.overwrites ?? [])],
       topic: options.topic,
       ...(options.kind === "forum"
-        ? { tags: (options.tags ?? []).map((tagName) => ({ id: this.newId(), name: tagName })), reaction: options.reaction }
+        ? {
+            tags: (options.tags ?? []).map((tagName) => ({ id: this.newId(), name: tagName, moderated: false, emojiId: null, emojiName: null })),
+            reaction: options.reaction,
+          }
         : {}),
     });
     return id;
@@ -358,7 +361,15 @@ export class FakeSetupServer implements SetupServer {
   setForumTags(channelId: string, tags: readonly ForumTag[]): Promise<void> {
     this.sequence.push(`set-forum-tags ${this.nameOf(channelId)}`);
     const channel = this.channels.find((candidate) => candidate.id === channelId);
-    if (channel !== undefined) channel.tags = tags.map((tag) => ({ id: tag.id ?? this.newId(), name: tag.name }));
+    if (channel !== undefined) {
+      channel.tags = tags.map((tag) => ({
+        id: tag.id ?? this.newId(),
+        name: tag.name,
+        moderated: tag.moderated ?? false,
+        emojiId: tag.emojiId ?? null,
+        emojiName: tag.emojiName ?? null,
+      }));
+    }
     return Promise.resolve();
   }
 
