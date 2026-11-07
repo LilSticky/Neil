@@ -333,10 +333,10 @@ On the test server, with its token and ID in `.env`. Neil needs a role there fir
 
 | # | Step | Expected | Result |
 |---|------|----------|--------|
-| 6q.1 | `npm run server:setup` | Lists everything to create; the server is unchanged | |
-| 6q.2 | `npm run server:setup -- --apply` without Administrator | Refused; nothing changes | |
-| 6q.3 | Give Neil's role Administrator, run again with `--apply` | The layout appears; forums and announcements are text channels if Community is off | |
-| 6q.4 | Run it again | `Nothing to do.` | |
+| 6q.1 | `npm run server:setup` | Lists everything to create; the server is unchanged | ✅ 2026-11-07 |
+| 6q.2 | `npm run server:setup -- --apply` without Administrator | Refused; nothing changes | ✅ 2026-11-07: refused, exit 1 |
+| 6q.3 | Give Neil's role Administrator, run again with `--apply` | The layout appears; forums and announcements are text channels if Community is off | ✅ 2026-11-07: built without Community |
+| 6q.4 | Run it again | `Nothing to do.` | ✅ 2026-11-07 |
 | 6q.5 | Add a role `[TST]`, an unknown channel and an extra overwrite on `#general`, run again | `[TST]` gets an area; the other two are reported and unchanged | |
 | 6q.6 | Take Administrator off, drag Moderator and King above Neil, set the printed IDs, start Neil | Neil starts | |
 | 6q.7 | **View Server As Role** | **Onboarding** sees `#onboarding` only; **Doctor** alone sees the Guest area only | |
@@ -397,6 +397,23 @@ Branch `026-call-out-a-booty`. New commands: `/booty`, `/booty-alerts`. Migratio
 | 6u.11 | As A, set `from` and `to` to exclude the time now, with `time-zone` your city; as B, call again | A isn't mentioned | | |
 | 6u.12 | As A, `/unlink`, Link again, `/booty-alerts` | Off | | |
 
+
+## 6v. Rework the Server Layout (slice 029, collected 2026-11-07)
+
+On the test server, emptied again (no channels, no layout roles), with Interaction Bot on it and the test server's token,
+ID and `HOME_KINGDOM` in `.env`.
+
+| # | Step | Expected | Result |
+|---|------|----------|--------|
+| 6v.1 | `npm run server:setup` | No `guest-announcements`, `ad-announcements`, Home Kingdom or Off-topic category; `looking-for-alliance`, `looking-for-players`, `Coaching voice` and eight translated announcement channels listed; a `would post description in …` line for every text, announcement and voice channel | |
+| 6v.2 | Give Neil's role Administrator, `npm run server:setup -- --apply` | The layout appears; every text channel has a topic and one pinned message from Neil, with no "pinned a message" notice below it | |
+| 6v.3 | Run it again, then take Administrator off | `Nothing to do.` | |
+| 6v.4 | Open `#rules` and `#guest-rules` | The code of conduct is there, below the description | |
+| 6v.5 | Open `Coaching voice`'s chat | Neil's description is pinned | |
+| 6v.6 | **View Server As Role** `#330` alone | `kvk-announcements` and `event-announcements` visible, no other KvK or Events channel; no `off-topic` or `memes` in Hangout | |
+| 6v.7 | **View Server As Role** `#330` and `German` | `kvk-announcements-german` and `nap-announcements-german` visible, no other translated copy | |
+| 6v.8 | Change one channel's `description` in `server-layout.json`, run with `--apply` | That channel's topic and pinned message change; no second message | |
+| 6v.9 | Delete Neil's pinned message in one channel, run with `--apply` | It is posted and pinned again | |
 
 ## 7. Afterwards
 
