@@ -38,6 +38,7 @@ import { forumHowTo } from "../domain/forum-how-to.js";
 import { GAME_LANGUAGES } from "../domain/preferences.js";
 import {
   expandLayout,
+  ROLE_GRANTS,
   type ExpandedCategory,
   type ExpandedChannel,
   type LayoutChannel,
@@ -2353,6 +2354,10 @@ describe("the shipped server-layout.json for Create Events and Event announcemen
       Moderator: ["CreateEvents"],
       King: ["CreateEvents"],
     });
+  });
+
+  test("grants the same role permissions as the domain's ROLE_GRANTS, which Neil reads, so the two do not drift", () => {
+    expect(shippedLayout().rolePermissions).toEqual(ROLE_GRANTS);
   });
 
   test("gives Neil View Channel, Send Messages and Embed Links on event-announcements", () => {

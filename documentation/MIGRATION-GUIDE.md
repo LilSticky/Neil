@@ -10,7 +10,7 @@ losing channels. For a new server, use [STARTUP-GUIDE.md](STARTUP-GUIDE.md).
 
 - List your channels, roles and bots.
 - **Name collisions:** a role called `Events`, `New`, `Veteran`, `R5`, `Doctor` or any other name Neil uses becomes Neil's if
-  it has no permissions: Neil gives and takes it by its own rules. If it has permissions, Neil refuses it. Rename the ones
+  it has no permissions: Neil gives and takes it by its own rules. If it has permissions (other than Create Events on `R4` and `R5`, which the setup script grants), Neil refuses it. Rename the ones
   that mean something else.
 - **Other bots:** they hold no Doctor or Kingdom role, so each needs its own allow before a channel is hidden. Interaction
   Bot is one of them.
