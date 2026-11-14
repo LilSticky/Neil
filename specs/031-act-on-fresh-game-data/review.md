@@ -23,3 +23,14 @@
   required on the uncharged methods, so each caller states it.
 - client.ts:299 byName: the cache `store` of a found answer uses storedAt = this.now() after the fetch; fine, but the
   name-lookup found path does not seed the `players` cache by uid; fine, only a missed saving.
+
+## Resolution (2026-11-14)
+
+- Must fix (copy without an age stamped "now" served live lookups): fixed. Cache entries carry `liveUsable`
+  (data-model.md), tested in `client.test.ts` "live lookup after a copy answer without a usable age".
+- Should fix (ambiguous match lists): fixed by the same rule; a 409 list serves live lookups only from a live request.
+- Should fix (`orStale` for acting callers): kept. The spec's edge cases allow the stale fallback when the quota is
+  spent or reserved, as before the slice; the answer carries its real `asOf`.
+- Nit (rest-tuple default): kept. A plain default parameter types as `Freshness | undefined` under
+  `exactOptionalPropertyTypes`; the tuple keeps the signature exact. Making it required would touch every fake for no
+  behaviour gain.

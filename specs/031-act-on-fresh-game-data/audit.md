@@ -47,3 +47,12 @@ No in tasks.md except T016 (open, needs the deploy). Definition of Done 2 still 
 - typecheck: pass.
 - lint --quiet: pass.
 - test: full run 3699 pass, 1 flaky timeout (interview.test.ts uid modal) plus event-store timeout, both pass on rerun (185/185). Load-related, not caused by the slice.
+
+## Resolution (2026-11-14)
+
+- `/player`, `/alliance`, picks and the Overview go only through `chargedTo`, which `client-charged.test.ts` proves
+  never sends `?fresh=1`.
+- Rank Approval and the Officer Link read through `corrections.ts` and nickname-and-roles, both guarded as live.
+- The Booty Call's Player read is its roster read (the roster comes with the Player, slice 026).
+- FR-007: every client test counts requests per call; a live call is one request like any other.
+- T002, T004, T006 ticked; T014, T015 done; T016 (manual) open until the deploy.

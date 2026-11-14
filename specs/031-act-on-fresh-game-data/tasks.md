@@ -13,17 +13,17 @@
 - [x] T001 Refactor (green stays green): rename the found answer's `fetchedAt` to `asOf` across `src/` (domain
   `LookupResult`, client, cache, Discord adapters, fakes, tests). Doc comments say "when the game sent the data". No
   behaviour change; typecheck, lint and tests green.
-- [ ] T002 Red: in `src/game-api/schemas.test.ts`, player and alliance bodies read an optional `age_seconds`; a missing,
+- [x] T002 Red: in `src/game-api/schemas.test.ts`, player and alliance bodies read an optional `age_seconds`; a missing,
   negative, non-numeric or non-finite value reads as undefined and does not fail the body.
 - [x] T003 Green: `src/game-api/schemas.ts`.
 
 ## Phase 2: User Story 1 - Neil acts only on current game data (P1)
 
-- [ ] T004 [US1] Red: in `src/game-api/client.test.ts`, the uncharged `getPlayer`, `findPlayer`, `getAlliance` and
+- [x] T004 [US1] Red: in `src/game-api/client.test.ts`, the uncharged `getPlayer`, `findPlayer`, `getAlliance` and
   `findAlliance` send `?fresh=1` by default and with `"live"`, and no query with `"copy"`; charged lookups
   (`chargedTo`) never send it (`client-charged.test.ts`).
 - [x] T005 [US1] Green: `Freshness` type in `src/domain/player.ts`; optional last parameter in `src/game-api/client.ts`.
-- [ ] T006 [US1] Red: in `src/game-api/client.test.ts`, a found answer's `asOf` is the receive moment minus
+- [x] T006 [US1] Red: in `src/game-api/client.test.ts`, a found answer's `asOf` is the receive moment minus
   `age_seconds` (player and alliance, by uid/tag and by name); without a usable age it is the receive moment.
 - [x] T007 [US1] Green: `src/game-api/client.ts`.
 - [x] T008 [US1] Red: cache rules (data-model.md): a copy lookup is answered from an entry stored within the TTL even
@@ -50,6 +50,6 @@
 
 ## Phase 5: Polish
 
-- [ ] T014 `bot-reviewer` on the slice diff; fixes via `implementer`.
-- [ ] T015 `spec-auditor` against spec.md; STATUS.md and ROADMAP.md by `housekeeper`.
+- [x] T014 `bot-reviewer` on the slice diff; fixes via `implementer`.
+- [x] T015 `spec-auditor` against spec.md; STATUS.md and ROADMAP.md by `housekeeper`.
 - [ ] T016 Manual check: [quickstart.md](quickstart.md) Manual, after the deploy (needs the user).
