@@ -116,7 +116,7 @@ button of User Story 2 asks live, because then the Member has just refreshed the
 - The map time is missing, zero, negative or not a number: no "as of", and the hint and button are shown.
 - A Player without a Kingdom number: the hint links the tracker's map page without a Kingdom.
 - Someone other than the Member who asked presses the button: refused the way other card buttons refuse other Members.
-- The button is pressed after the card's interaction expired: Neil replies that the lookup must be run again.
+- The button is pressed long after the lookup (the cooldown and the refresh can take over 30 minutes): it still works; it needs no state, also after a restart.
 - The live request fails (502, 503, 504, timeout): reported as any failed lookup; the old card stays.
 - A paged `/alliance` card (roster pages): the button reloads the Alliance and shows the first page.
 - A name lookup that now finds several Players (409): handled as the original command handles it.
