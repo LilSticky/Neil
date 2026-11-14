@@ -244,7 +244,7 @@ describe("GameApiClient.getPlayer result", () => {
         details: RECORDED_PLAYER_DETAILS,
         roster: RECORDED_ROSTER,
       },
-      fetchedAt: FIXED_NOW,
+      asOf: FIXED_NOW,
     });
   });
 
@@ -282,7 +282,7 @@ describe("GameApiClient.getPlayer result", () => {
         details: RECORDED_PLAYER_DETAILS,
         roster: [],
       },
-      fetchedAt: FIXED_NOW,
+      asOf: FIXED_NOW,
     });
   });
 
@@ -642,7 +642,7 @@ describe("GameApiClient.getAlliance result", () => {
         },
       ],
     };
-    expect(result).toEqual({ kind: "found", value: expected, fetchedAt: FIXED_NOW });
+    expect(result).toEqual({ kind: "found", value: expected, asOf: FIXED_NOW });
   });
 
   test("a null online and a null last_online_at of a roster member read as undefined", async () => {
@@ -886,7 +886,7 @@ describe("GameApiClient non-200 answers", () => {
 });
 
 describe("GameApiClient clock", () => {
-  test("a found answer's fetchedAt is the time the answer arrived, not the time the request was sent", async () => {
+  test("a found answer's asOf is the time the answer arrived, not the time the request was sent", async () => {
     let clock = new Date("2026-10-30T15:20:00Z");
     const fetch: FetchLike = () => {
       clock = new Date("2026-10-30T15:20:05Z");
@@ -895,10 +895,10 @@ describe("GameApiClient clock", () => {
 
     const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:05Z") });
+    expect(result).toMatchObject({ kind: "found", asOf: new Date("2026-10-30T15:20:05Z") });
   });
 
-  test("a found player's fetchedAt is the time its body was read, after the body took 1 s to arrive", async () => {
+  test("a found player's asOf is the time its body was read, after the body took 1 s to arrive", async () => {
     let clock = new Date("2026-10-30T15:20:00Z");
     class SlowBodyResponse extends Response {
       override text = async (): Promise<string> => {
@@ -916,7 +916,7 @@ describe("GameApiClient clock", () => {
 
     const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", fetchedAt: new Date("2026-10-30T15:20:01Z") });
+    expect(result).toMatchObject({ kind: "found", asOf: new Date("2026-10-30T15:20:01Z") });
   });
 
   test("a 429 resets at the next 00:00 UTC after now, on whatever day now is", async () => {
@@ -932,7 +932,7 @@ describe("GameApiClient clock", () => {
 });
 
 describe("GameApiClient cache", () => {
-  test("a second getPlayer within the TTL is answered from the cache, with the same fetchedAt", async () => {
+  test("a second getPlayer within the TTL is answered from the cache, with the same asOf", async () => {
     let clock = FIXED_NOW;
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
     const client = clientWith(fetch, () => clock);
@@ -944,10 +944,10 @@ describe("GameApiClient cache", () => {
 
     expect(sent).toHaveLength(1);
     expect(second).toEqual(first);
-    expect(second).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+    expect(second).toMatchObject({ kind: "found", asOf: FIXED_NOW });
   });
 
-  test("a getPlayer after the TTL fetches again, and the new answer has a new fetchedAt", async () => {
+  test("a getPlayer after the TTL fetches again, and the new answer has a new asOf", async () => {
     let clock = FIXED_NOW;
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
     const client = clientWith(fetch, () => clock);
@@ -958,7 +958,7 @@ describe("GameApiClient cache", () => {
     const later = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
-    expect(later).toMatchObject({ kind: "found", fetchedAt: clock });
+    expect(later).toMatchObject({ kind: "found", asOf: clock });
   });
 
   test("two concurrent getPlayer calls for the same uid share one fetch, and both are found", async () => {
@@ -1089,10 +1089,10 @@ describe("GameApiClient Daily Quota gate", () => {
     const afterMidnight = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
-    expect(afterMidnight).toMatchObject({ kind: "found", fetchedAt: NEXT_MIDNIGHT_UTC });
+    expect(afterMidnight).toMatchObject({ kind: "found", asOf: NEXT_MIDNIGHT_UTC });
   });
 
-  test("when spent, a cached player past its TTL is answered as found with its old fetchedAt, and no fetch", async () => {
+  test("when spent, a cached player past its TTL is answered as found with its old asOf, and no fetch", async () => {
     const store = new FakeQuotaStore();
     let answer: () => Response = () => jsonResponse(200, playerInAlliance);
     const { fetch, sent } = fakeFetch(() => answer());
@@ -1107,10 +1107,10 @@ describe("GameApiClient Daily Quota gate", () => {
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
   });
 
-  test("when spent, a cached alliance past its TTL is answered as found with its old fetchedAt, and no fetch", async () => {
+  test("when spent, a cached alliance past its TTL is answered as found with its old asOf, and no fetch", async () => {
     const store = new FakeQuotaStore();
     let answer: () => Response = () => jsonResponse(200, alliance);
     const { fetch, sent } = fakeFetch(() => answer());
@@ -1124,7 +1124,7 @@ describe("GameApiClient Daily Quota gate", () => {
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
   });
 
   test("a new client on the same store after a 429 makes no fetch", async () => {
@@ -1211,7 +1211,7 @@ describe("GameApiClient Quota Reserve", () => {
     expect(sent).toEqual([]);
   });
 
-  test("when only the Quota Reserve is left, a cached player past its TTL is answered as found with its old fetchedAt, and no fetch", async () => {
+  test("when only the Quota Reserve is left, a cached player past its TTL is answered as found with its old asOf, and no fetch", async () => {
     const store = new FakeQuotaStore();
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
     const client = clientWith(fetch, now, quotaOn(store, now));
@@ -1224,7 +1224,7 @@ describe("GameApiClient Quota Reserve", () => {
 
     expect(sent).toHaveLength(1);
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
   });
 
   test("a 503 is not retried for a lookup once its own request has left only the Quota Reserve", async () => {
@@ -1274,7 +1274,7 @@ describe("GameApiClient retries", () => {
 
     const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", fetchedAt: new Date(FIXED_NOW.getTime() + retryDelay(1, JITTER)) });
+    expect(result).toMatchObject({ kind: "found", asOf: new Date(FIXED_NOW.getTime() + retryDelay(1, JITTER)) });
     expect(sent).toHaveLength(2);
     expect(clock.pauses).toEqual([retryDelay(1, JITTER)]);
   });
@@ -1456,7 +1456,7 @@ describe("GameApiClient.findPlayer result", () => {
         details: RECORDED_PLAYER_DETAILS,
         roster: RECORDED_ROSTER,
       },
-      fetchedAt: FIXED_NOW,
+      asOf: FIXED_NOW,
     });
   });
 
@@ -1610,7 +1610,7 @@ describe("GameApiClient.findAlliance result", () => {
         capacity: 100,
         leaderName: "DrLOL",
       },
-      fetchedAt: FIXED_NOW,
+      asOf: FIXED_NOW,
     });
   });
 

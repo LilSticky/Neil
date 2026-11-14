@@ -102,7 +102,7 @@ function closestCard(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, now
       fields: reaperFields,
     };
   }
-  const card = renderPlayerCard(read.player, read.fetchedAt, now);
+  const card = renderPlayerCard(read.player, read.asOf, now);
   return { ...card, fields: [...(card.fields ?? []), ...reaperFields] };
 }
 

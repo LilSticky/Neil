@@ -66,7 +66,7 @@ export class FakeBootyCallGameApi {
       allianceRank: "R4",
       ...(this.roster === undefined ? {} : { roster: this.roster }),
     };
-    return Promise.resolve({ kind: "found", value, fetchedAt: new Date("2026-11-07T12:00:00Z") });
+    return Promise.resolve({ kind: "found", value, asOf: new Date("2026-11-07T12:00:00Z") });
   }
 }
 

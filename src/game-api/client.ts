@@ -211,12 +211,12 @@ export class GameApiClient {
   ): Promise<ChargedResult<Player>> {
     const key = `player:${uid}`;
     const fresh = this.players.get(key, this.now());
-    if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+    if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
 
     return this.playerLookups.share(flightKey(purpose, key, caller), async () => {
       const result = await this.fetchPlayer(uid, purpose, caller);
       if (result.kind === "found") {
-        this.players.store(key, result.value, result.fetchedAt);
+        this.players.store(key, result.value, result.asOf);
         this.sawPlayer(result.value);
       }
       return orStale(result, foundBy(this.players.getStale(key)));
@@ -267,12 +267,12 @@ export class GameApiClient {
   ): Promise<ChargedResult<Alliance>> {
     const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
     const fresh = this.alliances.get(cacheKey, this.now());
-    if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+    if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
 
     return this.allianceLookups.share(flightKey(purpose, cacheKey, caller), async () => {
       const result = await this.fetchAlliance(kingdom, key, purpose, caller);
       if (result.kind === "found") {
-        this.alliances.store(cacheKey, result.value, result.fetchedAt);
+        this.alliances.store(cacheKey, result.value, result.asOf);
         this.sawAlliance(result.value);
       }
       return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
@@ -298,7 +298,7 @@ export class GameApiClient {
     return inFlight.share(flightKey(purpose, key, caller), async () => {
       const result = await fetch();
       if (result.kind === "found") {
-        cache.store(key, { kind: "found", value: result.value }, result.fetchedAt);
+        cache.store(key, { kind: "found", value: result.value }, result.asOf);
       } else if (result.kind === "ambiguous") {
         cache.store(key, { kind: "ambiguous", matches: result.matches }, this.now());
       }
@@ -340,10 +340,10 @@ export class GameApiClient {
 
     const read = await this.readBody(endpoint, reply, playerBodySchema);
     if (!read.ok) return read.failure;
-    const fetchedAt = this.now();
+    const asOf = this.now();
 
     if (read.body.uid !== uid) return this.unexpected(endpoint, "status 200, answer is for another uid");
-    return this.playerFrom(endpoint, read.body, fetchedAt);
+    return this.playerFrom(endpoint, read.body, asOf);
   }
 
   /**
@@ -380,7 +380,7 @@ export class GameApiClient {
   }
 
   /** The Player a 200 body describes, or the unexpected failure when the body does not describe one. */
-  private playerFrom(endpoint: string, body: PlayerBody, fetchedAt: Date): LookupResult<Player> {
+  private playerFrom(endpoint: string, body: PlayerBody, asOf: Date): LookupResult<Player> {
     const uid = parseUid(body.uid);
     if (!uid.ok) return this.unexpected(endpoint, "status 200, uid is not a uid");
 
@@ -398,7 +398,7 @@ export class GameApiClient {
     };
 
     if (body.aid === null || body.aid === 0) {
-      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, fetchedAt };
+      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, asOf };
     }
 
     if (typeof body.alliance_abbr !== "string" || typeof body.alliance_name !== "string") {
@@ -413,7 +413,7 @@ export class GameApiClient {
         alliance: { tag: body.alliance_abbr, name: body.alliance_name, leaderUid: leaderUidFrom(body.alliance) },
         allianceRank: rankFromRoster(uid.value, roster),
       },
-      fetchedAt,
+      asOf,
     };
   }
 
@@ -470,14 +470,14 @@ export class GameApiClient {
 
     const read = await this.readBody(endpoint, reply, allianceBodySchema);
     if (!read.ok) return read.failure;
-    const fetchedAt = this.now();
+    const asOf = this.now();
 
     const kingdom = parseKingdom(read.body.sid);
     if (!kingdom.ok) return this.unexpected(endpoint, "status 200, sid is not a Kingdom number");
     if (expected !== undefined && kingdom.value !== expected) {
       return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
     }
-    return { kind: "found", value: allianceFrom(read.body, kingdom.value), fetchedAt };
+    return { kind: "found", value: allianceFrom(read.body, kingdom.value), asOf };
   }
 
   /**
@@ -693,13 +693,13 @@ function flightKey(purpose: RequestPurpose, key: string, caller: LookupCaller | 
 
 /** A cached Player as a found answer. */
 function foundBy<T>(entry: CacheEntry<T> | undefined): LookupResult<T> | undefined {
-  return entry === undefined ? undefined : { kind: "found", value: entry.value, fetchedAt: entry.fetchedAt };
+  return entry === undefined ? undefined : { kind: "found", value: entry.value, asOf: entry.asOf };
 }
 
 /** A cached Player Name answer as the lookup result it stood for. */
 function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
-  const { value, fetchedAt } = entry;
-  return value.kind === "found" ? { kind: "found", value: value.value, fetchedAt } : value;
+  const { value, asOf } = entry;
+  return value.kind === "found" ? { kind: "found", value: value.value, asOf } : value;
 }
 
 /** The uid of an Alliance's leader; undefined when the body gives none or it is not a readable uid. */

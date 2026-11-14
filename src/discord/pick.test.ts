@@ -142,7 +142,7 @@ describe("handlePick for a Member who did not open the pick list", () => {
       userId: OTHER_MEMBER_ID,
       values: ["1"],
     });
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -188,7 +188,7 @@ describe("handlePick for a pick list that is no longer open", () => {
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: now }, now);
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: drLol, asOf: now }, now);
 
     await handlePick(interaction, context);
 
@@ -215,7 +215,7 @@ describe("handlePick for the owner choosing a Player match", () => {
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -230,7 +230,7 @@ describe("handlePick for the owner choosing a Player match", () => {
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -331,7 +331,7 @@ const ALLIANCE_MATCHES: readonly Match[] = [
 ];
 
 function openRoster(sessions: PickSessions): string {
-  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, fetchedAt: OPENED_AT }, OPENED_AT);
+  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, asOf: OPENED_AT }, OPENED_AT);
 }
 
 function openAlliances(sessions: PickSessions): string {
@@ -365,7 +365,7 @@ describe("handlePick page buttons of a roster", () => {
   test("makes the roster picks that follow index into the page turned to", async () => {
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
 
     await handlePick(new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID }), context);
     await handlePick(
@@ -431,7 +431,7 @@ describe("handlePick from a Member who did not open a roster or Alliance pick li
       userId: OTHER_MEMBER_ID,
       values: ["1"],
     });
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -483,7 +483,7 @@ describe("handlePick for the owner choosing a roster member", () => {
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -506,7 +506,7 @@ describe("handlePick for the owner choosing a roster member", () => {
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -527,7 +527,7 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
@@ -564,14 +564,14 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     const { context } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
 
     expect(open).toHaveBeenCalledWith(
       OWNER_ID,
-      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, fetchedAt: NOW },
+      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, asOf: NOW },
       NOW,
     );
   });
@@ -637,7 +637,7 @@ describe("handlePick for a roster menu's page named in its custom id", () => {
   test("picks the member of the page the menu shows, not the page the roster was last turned to", async () => {
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
-    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context, getPlayer } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
 
     await handlePick(new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID }), context);
     await handlePick(
@@ -680,7 +680,7 @@ describe("handlePick for the owner choosing a close Known Alliance", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
@@ -704,7 +704,7 @@ describe("handlePick for the owner choosing a close Known Alliance", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
@@ -723,7 +723,7 @@ describe("handlePick when the public card cannot be posted after the menu said w
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context, logged } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, logged } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -806,7 +806,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
     const { context, getAlliance, getPlayer } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
@@ -1098,7 +1098,7 @@ describe("handlePick for the owner choosing a Player match, charged to the calle
     const sessions = new PickSessions();
     const pickId = openPickList(sessions);
     const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["1"] });
-    const { context, gameApi } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, gameApi } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -1115,7 +1115,7 @@ describe("handlePick for the owner choosing a Player match, charged to the calle
       values: ["1"],
       roleIds: [OFFICER_ROLE_ID],
     });
-    const { context, gameApi } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, gameApi } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -1143,7 +1143,7 @@ describe("handlePick for the owner choosing an Alliance match, charged to the ca
     const { context, gameApi } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
@@ -1171,7 +1171,7 @@ describe("handlePick for the owner choosing a roster member, charged to the call
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
     const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select:0`, userId: OWNER_ID, values: ["1"] });
-    const { context, gameApi } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context, gameApi } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
 
     await handlePick(interaction, context);
 
@@ -1202,7 +1202,7 @@ describe("handlePick for the Overview button of an Alliance card, charged to the
     const { context, gameApi } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
 
     await handlePick(interaction, context);
@@ -1233,10 +1233,10 @@ describe("handlePick shows the usage line, read after the request", () => {
     const sessions = new PickSessions();
     const pickId = openPickList(sessions);
     const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["1"] });
-    const { context, getPlayer, usage } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, getPlayer, usage } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
     getPlayer.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: drLol, fetchedAt: NOW });
+      return Promise.resolve({ kind: "found", value: drLol, asOf: NOW });
     });
 
     await handlePick(interaction, context);
@@ -1260,11 +1260,11 @@ describe("handlePick shows the usage line, read after the request", () => {
     const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
     getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: allianceNmx, fetchedAt: NOW });
+      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: NOW });
     });
 
     await handlePick(interaction, context);
@@ -1285,10 +1285,10 @@ describe("handlePick shows the usage line, read after the request", () => {
     const sessions = new PickSessions();
     const pickId = openRoster(sessions);
     const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["0"] });
-    const { context, getPlayer, usage } = contextWith(sessions, { kind: "found", value: memberOne, fetchedAt: NOW });
+    const { context, getPlayer, usage } = contextWith(sessions, { kind: "found", value: memberOne, asOf: NOW });
     getPlayer.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: memberOne, fetchedAt: NOW });
+      return Promise.resolve({ kind: "found", value: memberOne, asOf: NOW });
     });
 
     await handlePick(interaction, context);
@@ -1314,11 +1314,11 @@ describe("handlePick shows the usage line, read after the request", () => {
     const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      fetchedAt: NOW,
+      asOf: NOW,
     });
     getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: allianceNmx, fetchedAt: NOW });
+      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: NOW });
     });
 
     await handlePick(interaction, context);
@@ -1366,7 +1366,7 @@ describe("handlePick when the usage line cannot be read, for a Player the owner 
       userId: OWNER_ID,
       values: ["1"],
     });
-    const { context, logged } = contextWith(sessions, { kind: "found", value: drLol, fetchedAt: NOW });
+    const { context, logged } = contextWith(sessions, { kind: "found", value: drLol, asOf: NOW });
 
     await handlePick(interaction, { ...context, usage: unreadableUsage });
 

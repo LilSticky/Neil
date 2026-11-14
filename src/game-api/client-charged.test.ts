@@ -210,7 +210,7 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     expect(allowance.usageOf(ALICE)).toBe(DAILY_ALLOWANCE);
   });
 
-  test("a stale cached answer is returned as found with its old fetchedAt, and no request is sent", async () => {
+  test("a stale cached answer is returned as found with its old asOf, and no request is sent", async () => {
     const { client, clock, sent } = setUp();
     const charged = client.chargedTo(alice);
     const first = await charged.findPlayer(ALPHA, undefined);
@@ -220,7 +220,7 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     const stale = await charged.findPlayer(ALPHA, undefined);
 
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
     expect(sent).toHaveLength(DAILY_ALLOWANCE);
   });
 

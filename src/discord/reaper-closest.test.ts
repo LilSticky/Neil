@@ -91,7 +91,7 @@ function playerOf(uid: Uid, name: string, kingdom: KingdomNumber, location: Posi
 }
 
 function found(player: Player): LookupResult<Player> {
-  return { kind: "found", value: player, fetchedAt: FETCHED_AT };
+  return { kind: "found", value: player, asOf: FETCHED_AT };
 }
 
 /** The Exile as a store row: stored in the Home Kingdom, added by an R5 who is never shown. */

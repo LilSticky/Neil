@@ -318,11 +318,11 @@ describe("card footers say when the data was fetched", () => {
   test.each([
     {
       label: "the Player card",
-      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
     },
     {
       label: "the Alliance card",
-      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
     },
   ])("$label shows zero-padded UTC time for a fetch on today's UTC day", ({ render }) => {
     expect(render(new Date("2026-10-30T09:05:00Z"), NOW)).toMatchObject({
@@ -333,11 +333,11 @@ describe("card footers say when the data was fetched", () => {
   test.each([
     {
       label: "the Player card",
-      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
     },
     {
       label: "the Alliance card",
-      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
     },
   ])("$label shows the day, English month and UTC time for a fetch on an earlier UTC day", ({ render }) => {
     expect(render(new Date("2026-10-29T23:50:00Z"), NOW)).toMatchObject({
@@ -348,11 +348,11 @@ describe("card footers say when the data was fetched", () => {
   test.each([
     {
       label: "the Player card",
-      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
     },
     {
       label: "the Alliance card",
-      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
     },
   ])("$label counts a fetch from just before midnight UTC as an earlier day, right after midnight", ({ render }) => {
     expect(render(new Date("2026-10-29T23:50:00Z"), new Date("2026-10-30T00:05:00Z"))).toMatchObject({
@@ -363,11 +363,11 @@ describe("card footers say when the data was fetched", () => {
   test.each([
     {
       label: "the Player card",
-      render: (fetchedAt: Date, now: Date) => renderPlayerCard(inAlliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
     },
     {
       label: "the Alliance card",
-      render: (fetchedAt: Date, now: Date) => renderAllianceCard(alliance, fetchedAt, now),
+      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
     },
   ])("$label writes the day of the month without a leading zero", ({ render }) => {
     expect(render(new Date("2026-10-03T09:05:00Z"), NOW)).toMatchObject({

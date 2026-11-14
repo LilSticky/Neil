@@ -97,7 +97,7 @@ const MATCHES: readonly Match[] = [
 
 const LOOKUP_OPTIONS = { strings: { name: "Vex", reason: "  Hoarding gold  " } };
 
-const FOUND: LookupResult<Player> = { kind: "found", value: VEX, fetchedAt: FETCHED_AT };
+const FOUND: LookupResult<Player> = { kind: "found", value: VEX, asOf: FETCHED_AT };
 
 /** The Exile of the Member as a store row: seeded before the test runs. */
 function exileOf(overrides: Partial<Exile> = {}): Exile {
@@ -256,7 +256,7 @@ describe("handleReaperAdd", () => {
 
   test("keeps the confirmation within 2,000 characters for a 200-character name of characters to escape", async () => {
     const starred = { ...VEX, name: "*".repeat(200) };
-    const { context } = addContext(store, { lookup: { kind: "found", value: starred, fetchedAt: FETCHED_AT } });
+    const { context } = addContext(store, { lookup: { kind: "found", value: starred, asOf: FETCHED_AT } });
     const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
 
     await handleReaperAdd(interaction, context);

@@ -197,7 +197,7 @@ function byKingdomThenName(a: Match, b: Match): number {
 
 /** What the Game API client returns for every lookup; an API failure is a value, never a throw. */
 export type LookupResult<T> =
-  | { readonly kind: "found"; readonly value: T; readonly fetchedAt: Date }
+  | { readonly kind: "found"; readonly value: T; readonly asOf: Date }
   | { readonly kind: "not-found" }
   | { readonly kind: "ambiguous"; readonly matches: readonly Match[] }
   | { readonly kind: "quota-spent"; readonly resetsAt: Date }

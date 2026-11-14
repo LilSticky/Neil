@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest";
 import { InFlight, LookupCache } from "./lookup-cache.js";
 
 const TTL_MS = 10 * 60_000;
-const fetchedAt = new Date("2026-10-30T10:00:00Z");
+const asOf = new Date("2026-10-30T10:00:00Z");
 const playerKey = "player:1";
 
 /** A promise whose settlement the test controls. */
@@ -21,20 +21,20 @@ function deferred<R>(): {
 }
 
 describe("LookupCache.get", () => {
-  test("returns the entry with its fetchedAt while it is younger than the TTL", () => {
+  test("returns the entry with its asOf while it is younger than the TTL", () => {
     const cache = new LookupCache<string>({ ttlMs: TTL_MS });
-    cache.store(playerKey, "Alice", fetchedAt);
+    cache.store(playerKey, "Alice", asOf);
 
-    const justBeforeExpiry = new Date(fetchedAt.getTime() + TTL_MS - 1);
+    const justBeforeExpiry = new Date(asOf.getTime() + TTL_MS - 1);
 
-    expect(cache.get(playerKey, justBeforeExpiry)).toEqual({ value: "Alice", fetchedAt });
+    expect(cache.get(playerKey, justBeforeExpiry)).toEqual({ value: "Alice", asOf });
   });
 
   test("returns nothing once the entry is exactly the TTL old", () => {
     const cache = new LookupCache<string>({ ttlMs: TTL_MS });
-    cache.store(playerKey, "Alice", fetchedAt);
+    cache.store(playerKey, "Alice", asOf);
 
-    const atExpiry = new Date(fetchedAt.getTime() + TTL_MS);
+    const atExpiry = new Date(asOf.getTime() + TTL_MS);
 
     expect(cache.get(playerKey, atExpiry)).toBeUndefined();
   });
@@ -43,12 +43,12 @@ describe("LookupCache.get", () => {
 describe("LookupCache.getStale", () => {
   test("returns an entry however old it is", () => {
     const cache = new LookupCache<string>({ ttlMs: TTL_MS });
-    cache.store(playerKey, "Alice", fetchedAt);
+    cache.store(playerKey, "Alice", asOf);
 
-    const yearLater = new Date(fetchedAt.getTime() + 365 * 24 * 60 * 60_000);
+    const yearLater = new Date(asOf.getTime() + 365 * 24 * 60 * 60_000);
     expect(cache.get(playerKey, yearLater)).toBeUndefined();
 
-    expect(cache.getStale(playerKey)).toEqual({ value: "Alice", fetchedAt });
+    expect(cache.getStale(playerKey)).toEqual({ value: "Alice", asOf });
   });
 
   test("returns nothing for a key that was never stored", () => {
@@ -61,24 +61,24 @@ describe("LookupCache.getStale", () => {
 describe("LookupCache.store capacity", () => {
   test("with maxEntries 2, storing a third entry drops the oldest stored one", () => {
     const cache = new LookupCache<string>({ ttlMs: TTL_MS, maxEntries: 2 });
-    cache.store("player:1", "Alice", fetchedAt);
-    cache.store("player:2", "Bob", fetchedAt);
-    cache.store("player:3", "Carol", fetchedAt);
+    cache.store("player:1", "Alice", asOf);
+    cache.store("player:2", "Bob", asOf);
+    cache.store("player:3", "Carol", asOf);
 
     expect(cache.getStale("player:1")).toBeUndefined();
-    expect(cache.getStale("player:2")).toEqual({ value: "Bob", fetchedAt });
-    expect(cache.getStale("player:3")).toEqual({ value: "Carol", fetchedAt });
+    expect(cache.getStale("player:2")).toEqual({ value: "Bob", asOf });
+    expect(cache.getStale("player:3")).toEqual({ value: "Carol", asOf });
   });
 
   test("by default holds 2,000 entries and drops the oldest stored one past that", () => {
     const cache = new LookupCache<string>({ ttlMs: TTL_MS });
     for (let i = 0; i < 2000; i++) {
-      cache.store(`player:${String(i)}`, `Player ${String(i)}`, fetchedAt);
+      cache.store(`player:${String(i)}`, `Player ${String(i)}`, asOf);
     }
 
     expect(cache.getStale("player:0")).toBeDefined();
 
-    cache.store("player:2000", "Player 2000", fetchedAt);
+    cache.store("player:2000", "Player 2000", asOf);
 
     expect(cache.getStale("player:0")).toBeUndefined();
     expect(cache.getStale("player:1")).toBeDefined();

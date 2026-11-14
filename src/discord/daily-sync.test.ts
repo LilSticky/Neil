@@ -70,7 +70,7 @@ const APPROVED_R3: RankOnLink = { source: "rank-approval", rank: "R3", approvedB
 const UNKNOWN_RANK: RankOnLink = { source: "unknown" };
 
 function found<T>(value: T): LookupResult<T> {
-  return { kind: "found", value, fetchedAt: NOW };
+  return { kind: "found", value, asOf: NOW };
 }
 
 function allianceOf(tag: string, kingdom: KingdomNumber, roster: readonly RosterEntry[]): Alliance {

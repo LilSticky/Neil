@@ -10,7 +10,7 @@
 
 ## Phase 1: Foundational
 
-- [ ] T001 Refactor (green stays green): rename the found answer's `fetchedAt` to `asOf` across `src/` (domain
+- [x] T001 Refactor (green stays green): rename the found answer's `fetchedAt` to `asOf` across `src/` (domain
   `LookupResult`, client, cache, Discord adapters, fakes, tests). Doc comments say "when the game sent the data". No
   behaviour change; typecheck, lint and tests green.
 - [ ] T002 Red: in `src/game-api/schemas.test.ts`, player and alliance bodies read an optional `age_seconds`; a missing,

@@ -470,7 +470,7 @@ async function joinedMember(h: Harness, memberId: MemberId = MEMBER, displayName
 
 /** The Member joins with a display name that cleans to the Player Name drlol, and the name lookup finds one Player. */
 async function recommendedMemberJoined(h: Harness, player: Player): Promise<number> {
-  h.gameApi.answerNameWith({ kind: "found", value: player, fetchedAt: NOW });
+  h.gameApi.answerNameWith({ kind: "found", value: player, asOf: NOW });
   return joinedMember(h, MEMBER, DRLOL_DISPLAY_NAME);
 }
 
@@ -504,7 +504,7 @@ async function failUidTimes(h: Harness, interviewId: number, times: number): Pro
 /** The Member's Interview is waiting for them to confirm the Player shown. Returns the Interview id. */
 async function confirmationShown(h: Harness, player: Player): Promise<number> {
   const interviewId = await joinedMember(h);
-  h.gameApi.answerWith({ kind: "found", value: player, fetchedAt: NOW });
+  h.gameApi.answerWith({ kind: "found", value: player, asOf: NOW });
   await submitUid(h, interviewId, UID_DIGITS);
   return interviewId;
 }
@@ -1061,7 +1061,7 @@ describe("createInterviews", () => {
 
     test("looks the uid up once for the onboarding interview and posts the found card", async () => {
       const interviewId = await joinedMember(h);
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
 
       await submitUid(h, interviewId, UID_DIGITS);
 
@@ -1071,7 +1071,7 @@ describe("createInterviews", () => {
 
     test("looks the uid up uncharged, so no Member's Daily Allowance is used", async () => {
       const interviewId = await joinedMember(h);
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
 
       await submitUid(h, interviewId, UID_DIGITS);
 
@@ -1092,7 +1092,7 @@ describe("createInterviews", () => {
 
       expect(second.replies).toEqual([checkingReply()]);
       expect(h.gameApi.lookups).toHaveLength(1);
-      answer({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      answer({ kind: "found", value: PLAYER, asOf: NOW });
       await first;
     });
   });
@@ -1290,7 +1290,7 @@ describe("createInterviews", () => {
     test("two Members confirming the same uid: the second is refused and asked again", async () => {
       const first = await confirmationShown(h, PLAYER);
       const secondId = await joinedMember(h, OTHER);
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
       await submitUid(h, secondId, UID_DIGITS, OTHER);
       await h.service.onButton(new FakeButton(interviewCustomId("confirm", first), { id: MEMBER }));
 
@@ -1533,7 +1533,7 @@ describe("createInterviews", () => {
       const interviewId = await joinedMember(h);
       h.gameApi.answerWith({ kind: "not-found" });
       await failUidTimes(h, interviewId, 4);
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
       await submitUid(h, interviewId, UID_DIGITS);
       const button = new FakeButton(interviewCustomId("reject", interviewId), { id: MEMBER });
 
@@ -1782,7 +1782,7 @@ describe("createInterviews", () => {
       });
 
       await sweeper.sweep();
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: later });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: later });
       await restarted.onModalSubmit(new FakeModal(interviewCustomId("modal", interviewId), { id: MEMBER }, UID_DIGITS));
 
       expect(h.interviews.get(interviewId)).toMatchObject({ step: "awaiting-confirmation" });
@@ -1918,7 +1918,7 @@ describe("createInterviews", () => {
     });
 
     test("/interview looks the display name of the Member who ran it up the same way", async () => {
-      h.gameApi.answerNameWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerNameWith({ kind: "found", value: PLAYER, asOf: NOW });
       const command = new FakeCommand({ id: MEMBER, username: "vex_fan" }, DRLOL_DISPLAY_NAME);
 
       await h.service.onCommand(command);
@@ -2101,7 +2101,7 @@ describe("createInterviews", () => {
 
     test("the uid of the picked match is looked up once, and links the Member at once", async () => {
       const interviewId = await matchPicked(h, "1");
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
 
       await submitUid(h, interviewId, UID_DIGITS);
 
@@ -2118,7 +2118,7 @@ describe("createInterviews", () => {
 
     test("a different uid after That's me goes through the usual lookup and asks Is this you", async () => {
       const interviewId = await recommendationAccepted(h, PLAYER);
-      h.gameApi.answerWith({ kind: "found", value: PLAYER_OTHER_UID, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER_OTHER_UID, asOf: NOW });
 
       await submitUid(h, interviewId, OTHER_UID_DIGITS);
 
@@ -2411,7 +2411,7 @@ describe("createInterviews", () => {
 
     test("a Player the Member chose with That's me is linked at once, and the name and roles get that Player", async () => {
       const interviewId = await recommendationAccepted(h, PLAYER);
-      h.gameApi.answerWith({ kind: "found", value: PLAYER, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
 
       await submitUid(h, interviewId, UID_DIGITS);
 

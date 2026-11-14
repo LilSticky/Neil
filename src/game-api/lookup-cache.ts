@@ -1,7 +1,7 @@
-/** A stored value and the moment its data was fetched from the Game API. */
+/** A stored value and when the game sent its data. */
 export interface CacheEntry<T> {
   readonly value: T;
-  readonly fetchedAt: Date;
+  readonly asOf: Date;
 }
 
 export interface LookupCacheOptions {
@@ -33,7 +33,7 @@ export class InFlight<R> {
 }
 
 /**
- * An in-memory cache of Game API answers keyed by lookup. Entries are fresh for `ttlMs` after their `fetchedAt`.
+ * An in-memory cache of Game API answers keyed by lookup. Entries are fresh for `ttlMs` after their `asOf`.
  * Past `maxEntries` the oldest stored entry is dropped.
  */
 export class LookupCache<T> {
@@ -50,7 +50,7 @@ export class LookupCache<T> {
   get(key: string, now: Date): CacheEntry<T> | undefined {
     const entry = this.entries.get(key);
     if (entry === undefined) return undefined;
-    return now.getTime() - entry.fetchedAt.getTime() < this.ttlMs ? entry : undefined;
+    return now.getTime() - entry.asOf.getTime() < this.ttlMs ? entry : undefined;
   }
 
   /** The entry for `key` however old it is, for answers given when the Daily Quota is spent. */
@@ -59,9 +59,9 @@ export class LookupCache<T> {
   }
 
   /** Stores `value` under `key` as the newest entry, dropping the oldest stored entry past `maxEntries`. */
-  store(key: string, value: T, fetchedAt: Date): void {
+  store(key: string, value: T, asOf: Date): void {
     this.entries.delete(key);
-    this.entries.set(key, { value, fetchedAt });
+    this.entries.set(key, { value, asOf });
     if (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next();
       if (oldest.done !== true) this.entries.delete(oldest.value);
