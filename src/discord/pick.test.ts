@@ -1,13 +1,21 @@
 import {
   ComponentType,
   MessageFlags,
+  type BaseMessageOptions,
   type APIButtonComponentWithCustomId,
   type APIEmbed,
   type InteractionReplyOptions,
   type InteractionUpdateOptions,
 } from "discord.js";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { exileReasonOf, type Editor, type ExileReason } from "../domain/exile.js";
+import { openDatabase } from "../storage/database.js";
+import { ReaperStore } from "../storage/reaper-store.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import {
   parseAllianceKey,
@@ -1436,3 +1444,61 @@ describe("handlePick when the usage line cannot be read, for a roster page turn"
     expect(logged).toEqual([expect.stringContaining(UNREADABLE_USAGE_MESSAGE)]);
   });
 });
+
+describe("picking an Exile from the pick list of /reaper add", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let store: ReaperStore;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-pick-exile-"));
+    db = openDatabase(dataDir);
+    store = new ReaperStore(db);
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test("reads the picked Player uncharged, from the copy, for the lookup purpose, never charged to the Member", async () => {
+    const sessions = new PickSessions();
+    const sessionId = sessions.open(
+      OWNER_ID,
+      { kind: "exile", matches: LISTED_MATCHES, reason: reasonOf("Hoarding gold") },
+      OPENED_AT,
+    );
+    const gameApi = new FakeGameApi({ player: { kind: "found", value: drLol, asOf: NOW } });
+    const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
+    const interaction = new FakePickInteraction({
+      customId: `pick:${sessionId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+
+    await handlePick(interaction, {
+      gameApi,
+      pickSessions: sessions,
+      now: () => NOW,
+      logError: vi.fn<(message: string) => void>(),
+      reaper: store,
+      channels: { log },
+      editorOf: () => R5_EDITOR,
+      homeKingdom: kingdomNumber(330),
+      officerRoleIds: [],
+      allowance: () => ALLOWANCE,
+      usage: new FakeUsage().usage,
+    });
+
+    expect(gameApi.getPlayer).toHaveBeenCalledWith(uid("93159425"), "lookup", "copy");
+    expect(gameApi.chargedTo).not.toHaveBeenCalled();
+  });
+});
+
+function reasonOf(text: string): ExileReason {
+  const parsed = exileReasonOf(text);
+  if (!parsed.ok) throw new Error(`the test reason "${text}" must be accepted`);
+  return parsed.value;
+}
+
+const R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: kingdomNumber(330) };

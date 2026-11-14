@@ -337,6 +337,17 @@ describe("runDailySync", () => {
     expect(h.gameApi.requests).toEqual([{ kind: "roster", kingdom: 330, tag: "NML", purpose: "sync" }]);
   });
 
+  test("reads the roster and the Player of the sync live, not from the copy", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
+    h.gameApi.answerPlayer(ANA_UID, found(playerOf(ANA_UID, "Rogue", HOME, 21)));
+
+    await runDailySync(h.deps);
+
+    expect(h.gameApi.requests.map((request) => request.freshness ?? "live")).toEqual(["live", "live"]);
+  });
+
   test("looks up by uid a Linked Player who is no longer in the roster of their last Alliance", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
     joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");

@@ -1,13 +1,24 @@
 import { utcDayOf, type DailyQuota, type RequestPurpose } from "../../domain/daily-quota.js";
 import type { LookupCaller } from "../../game-api/allowance-keeper.js";
 import type { AllianceKey, KingdomNumber, Uid } from "../../domain/lookup-input.js";
-import type { Alliance, LookupResult, Player } from "../../domain/player.js";
+import type { Alliance, Freshness, LookupResult, Player } from "../../domain/player.js";
 import type { DailySyncGameApi } from "../daily-sync.js";
 
 /** One request the Daily Sync sent: a roster (an Alliance by Kingdom and tag) or a Player by uid. */
 export type SyncRequest =
-  | { readonly kind: "roster"; readonly kingdom: number; readonly tag: string; readonly purpose: RequestPurpose }
-  | { readonly kind: "player"; readonly uid: string; readonly purpose: RequestPurpose };
+  | {
+      readonly kind: "roster";
+      readonly kingdom: number;
+      readonly tag: string;
+      readonly purpose: RequestPurpose;
+      readonly freshness?: Freshness | undefined;
+    }
+  | {
+      readonly kind: "player";
+      readonly uid: string;
+      readonly purpose: RequestPurpose;
+      readonly freshness?: Freshness | undefined;
+    };
 
 /**
  * The Game API as the Daily Sync uses it: records every request it is asked for, counts it against the Daily Quota,
@@ -49,14 +60,19 @@ export class FakeDailySyncGameApi implements DailySyncGameApi {
     this.hooks.push(hook);
   }
 
-  getAlliance(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
-    this.requests.push({ kind: "roster", kingdom: Number(kingdom), tag: String(key), purpose });
+  getAlliance(
+    kingdom: KingdomNumber,
+    key: AllianceKey,
+    purpose: RequestPurpose,
+    freshness?: Freshness,
+  ): Promise<LookupResult<Alliance>> {
+    this.requests.push({ kind: "roster", kingdom: Number(kingdom), tag: String(key), purpose, freshness });
     this.sent();
     return Promise.resolve(this.rosters.get(`${kingdom.toString()}:${String(key)}`) ?? { kind: "not-found" });
   }
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.requests.push({ kind: "player", uid: String(uid), purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.requests.push({ kind: "player", uid: String(uid), purpose, freshness });
     this.sent();
     return Promise.resolve(this.players.get(String(uid)) ?? { kind: "not-found" });
   }

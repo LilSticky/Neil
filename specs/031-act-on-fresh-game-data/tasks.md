@@ -35,12 +35,12 @@
 
 ## Phase 3: User Story 2 - Members see how old the data on a card is (P2)
 
-- [ ] T010 [P] [US2] Red: REAPER's reads (`src/discord/reaper.test.ts`, `src/discord/pick.test.ts` for `/reaper add`)
+- [x] T010 [P] [US2] Red: REAPER's reads (`src/discord/reaper.test.ts`, `src/discord/pick.test.ts` for `/reaper add`)
   ask with `"copy"`; the other uncharged callers (Interview, corrections, nickname and roles, Daily Sync, Booty Call)
   ask without a freshness or with `"live"` (their fakes record it).
-- [ ] T011 [US2] Green: `src/discord/reaper.ts`, `src/discord/pick.ts`, fakes in `src/discord/__fakes__/`.
-- [ ] T012 [P] [US2] Red: `src/discord/lookup-cards.test.ts`: a Player found with `asOf` 2 hours before `now` shows
-  "as of" that time (proves the footer uses the answer's time; expected to pass after T001, kept as a guard).
+- [x] T011 [US2] Green: `src/discord/reaper.ts`, `src/discord/pick.ts`, fakes in `src/discord/__fakes__/`.
+- [x] T012 [P] [US2] Red: `src/discord/lookup-cards.test.ts`: a Player found with `asOf` 2 hours before `now` shows
+  "as of" that time. Covered by the existing footer tests (`lookup-cards.test.ts`: today and earlier days take the answer's `asOf`).
 
 ## Phase 4: User Story 3 - The project knows the new API (P3)
 

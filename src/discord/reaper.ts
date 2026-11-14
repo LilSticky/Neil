@@ -174,7 +174,7 @@ async function findNamed(
   context: ReaperAddContext,
 ): Promise<LookupResult<Player> | undefined> {
   try {
-    return await context.gameApi.findPlayer(name, kingdom, "lookup");
+    return await context.gameApi.findPlayer(name, kingdom, "lookup", "copy");
   } catch (error) {
     context.logError(`Looking up the name for REAPER failed: ${errorText(error)}`);
     return undefined;
@@ -284,7 +284,7 @@ async function readPlayer(
   context: Pick<ReaperClosestContext, "gameApi" | "logError">,
 ): Promise<LookupResult<Player>> {
   try {
-    return await context.gameApi.getPlayer(uid, "lookup");
+    return await context.gameApi.getPlayer(uid, "lookup", "copy");
   } catch (error) {
     context.logError(`Reading an Exile for REAPER failed: ${errorText(error)}`);
     return { kind: "unavailable", reason: "unexpected" };

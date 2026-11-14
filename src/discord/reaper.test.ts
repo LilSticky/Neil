@@ -186,7 +186,7 @@ describe("handleReaperAdd", () => {
 
     await handleReaperAdd(interaction, context);
 
-    expect(gameApi.findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup");
+    expect(gameApi.findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup", "copy");
     expect(gameApi.chargedTo).not.toHaveBeenCalled();
   });
 
@@ -196,7 +196,7 @@ describe("handleReaperAdd", () => {
 
     await handleReaperAdd(interaction, context);
 
-    expect(findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup");
+    expect(findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup", "copy");
     expect(store.find(UID)).toEqual({
       uid: UID,
       name: "Vex",
@@ -395,7 +395,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       usage: new FakeUsage().usage,
     });
 
-    expect(gameApi.getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(gameApi.getPlayer).toHaveBeenCalledWith(UID, "lookup", "copy");
     expect(gameApi.chargedTo).not.toHaveBeenCalled();
     expect(store.find(UID)).toEqual({
       uid: UID,

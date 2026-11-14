@@ -8,7 +8,7 @@ import type { RequestPurpose } from "../domain/daily-quota.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { RankOnLink } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { Freshness, LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { openDatabase } from "../storage/database.js";
@@ -90,7 +90,7 @@ const ROGUE_GUEST: Player = {
 
 /** The Game API as the name and roles use it: records each lookup and answers with the prepared result. */
 class FakeGameApi {
-  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose; readonly freshness?: Freshness | undefined }[] = [];
   private answer: LookupResult<Player> = { kind: "not-found" };
   private readonly answers = new Map<string, LookupResult<Player>>();
   private hold: { readonly reached: () => void; readonly released: Promise<void> } | undefined = undefined;
@@ -118,8 +118,8 @@ class FakeGameApi {
     return { reached: reachedPromise, release };
   }
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.lookups.push({ uid, purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose, freshness });
     const answer = this.answers.get(String(uid)) ?? this.answer;
     const hold = this.hold;
     if (hold === undefined) return Promise.resolve(answer);
@@ -555,6 +555,16 @@ describe("createNameAndRoles", () => {
 
       expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "lookup" }]);
       expect(h.gameApi.charges).toEqual([]);
+    });
+
+    test("reads the Player for the nickname and roles live, not from the copy", async () => {
+      joinMember(h, ALICE);
+      linkMember(h, ALICE, UID, GAME_RANK_R4);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
     });
 
     test("skips a Linked Member who is not on the server, with no lookup", async () => {

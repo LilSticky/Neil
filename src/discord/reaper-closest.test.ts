@@ -15,7 +15,7 @@ import { exileReasonOf, type Exile, type ExileReason, type Position } from "../d
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
 import type { MemberId } from "../domain/rank-approval.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { Freshness, LookupResult, Player } from "../domain/player.js";
 import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
@@ -24,7 +24,7 @@ import { embedCharacters, lookupMessages, renderPlayerCard } from "./lookup-card
 import { handleReaperClosest, handleReaperPage, type ReaperClosestContext } from "./reaper.js";
 import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 
-type GetPlayer = (uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>;
+type GetPlayer = (uid: Uid, purpose: RequestPurpose, freshness?: Freshness) => Promise<LookupResult<Player>>;
 
 function uidOf(digits: string): Uid {
   const parsed = parseUid(digits);
@@ -246,7 +246,7 @@ describe("handleReaperClosest", () => {
 
     await handleReaperClosest(interaction, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup");
+    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup", "copy");
     expect(chargedTo).not.toHaveBeenCalled();
   });
 
@@ -260,7 +260,7 @@ describe("handleReaperClosest", () => {
 
     await handleReaperClosest(interaction, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup");
+    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup", "copy");
     expect(repliesOf(interaction)).toHaveLength(1);
     expect(repliesOf(interaction)[0]).toMatch(/\bx\b.*\by\b/);
   });
@@ -284,7 +284,7 @@ describe("handleReaperClosest", () => {
 
     await handleReaperClosest(interaction, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup");
+    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup", "copy");
     expect(titlesOf(exileEmbedsOf(interaction))).toEqual(["Near", "Mid", "Far"]);
     expect(JSON.stringify(answerOf(interaction))).not.toContain("Beyond");
   });
@@ -455,7 +455,7 @@ describe("handleReaperClosest", () => {
 
       await handleReaperClosest(interaction, context);
 
-      expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup");
+      expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup", "copy");
       expect(repliesOf(interaction)).toEqual([text]);
     },
   );
@@ -597,6 +597,24 @@ describe("handleReaperClosest", () => {
     await handleReaperClosest(interaction, context);
 
     expect(getPlayer.mock.calls.map(([, purpose]) => purpose)).toEqual(["lookup", "lookup", "lookup"]);
+  });
+
+  test("reads the caller's Player and every Exile from the copy, so the ranking is not a live request", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
+    const { context, getPlayer } = closestContext(store, {
+      link: CALLER_LINK,
+      read: readsOf(
+        playerOf(CALLER_UID, "Caller", HOME, { x: 0, y: 0 }),
+        playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }),
+        playerOf(MID, "Mid", HOME, { x: 0, y: 2 }),
+      ),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(getPlayer.mock.calls.map(([, , freshness]) => freshness)).toEqual(["copy", "copy", "copy"]);
   });
 
   test("keeps the 3 closest Exiles with the longest names and reasons within 6,000 characters across all embeds", async () => {

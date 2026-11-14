@@ -219,7 +219,7 @@ async function pickExileMatch(
   const uid = parsedUid.value;
   let result: LookupResult<Player>;
   try {
-    result = await context.gameApi.getPlayer(uid, "lookup");
+    result = await context.gameApi.getPlayer(uid, "lookup", "copy");
   } catch (error) {
     context.logError(`Looking up the picked Player for REAPER failed: ${errorText(error)}`);
     await followUpPrivately(interaction, { content: lookupMessages.unavailable });

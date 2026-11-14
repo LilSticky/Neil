@@ -9,7 +9,7 @@ import type { Link, RankOnLink } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { HandedOff, Abandoned } from "../domain/onboarding-interview.js";
 import { MAX_FAILED_ATTEMPTS } from "../domain/onboarding-interview.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { Freshness, LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { AppliedStore } from "../storage/applied-store.js";
@@ -613,6 +613,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
     });
 
     expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
+    expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
   });
 
   test("a Linked Guest with no rank in the game gets /rank as any Link: the rank is stored and the name and roles are re-applied", async () => {
@@ -871,11 +872,11 @@ const PLAYER_UNRANKED_OUTSIDE_HOME: Player = { ...PLAYER_UNRANKED, kingdom: king
 
 /** The Game API for a uid: records every lookup and answers with the result set. */
 class FakeLinkGameApi {
-  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose; readonly freshness?: Freshness | undefined }[] = [];
   answer: LookupResult<Player> = { kind: "found", value: PLAYER_RANKED, asOf: NOW };
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.lookups.push({ uid, purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose, freshness });
     return Promise.resolve(this.answer);
   }
 }

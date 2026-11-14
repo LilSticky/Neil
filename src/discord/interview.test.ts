@@ -9,7 +9,7 @@ import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import { memberLeft, recommendationFound, timeOut } from "../domain/onboarding-interview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { Link } from "../domain/link.js";
-import type { LookupResult, PickablePlayerMatch, Player } from "../domain/player.js";
+import type { Freshness, LookupResult, PickablePlayerMatch, Player } from "../domain/player.js";
 import type { MemberId, RankApproval } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { InterviewStore } from "../storage/interview-store.js";
@@ -176,12 +176,13 @@ function deferred<T>(): { readonly promise: Promise<T>; readonly resolve: (value
 /** The Game API as the Interview uses it: records each lookup and answers with the next prepared result. */
 class FakeGameApi {
   /** Uid lookups (getPlayer), the Interview's uid checks. */
-  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose; readonly freshness?: Freshness | undefined }[] = [];
   /** Player Name lookups (findPlayer), the Interview's Recommended Player. */
   readonly nameLookups: {
     readonly name: PlayerName;
     readonly kingdom: KingdomNumber | undefined;
     readonly purpose: RequestPurpose;
+    readonly freshness?: Freshness | undefined;
   }[] = [];
   private answer: Promise<LookupResult<Player>> = Promise.resolve({ kind: "not-found" });
   private nameAnswer: LookupResult<Player> = { kind: "not-found" };
@@ -214,8 +215,8 @@ class FakeGameApi {
     return held.resolve;
   }
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.lookups.push({ uid, purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose, freshness });
     if (this.failure !== undefined) return Promise.reject(this.failure);
     return this.answer;
   }
@@ -224,8 +225,9 @@ class FakeGameApi {
     name: PlayerName,
     kingdom: KingdomNumber | undefined,
     purpose: RequestPurpose,
+    freshness?: Freshness,
   ): Promise<LookupResult<Player>> {
-    this.nameLookups.push({ name, kingdom, purpose });
+    this.nameLookups.push({ name, kingdom, purpose, freshness });
     if (this.nameFailure !== undefined) return Promise.reject(this.nameFailure);
     return Promise.resolve(this.nameAnswer);
   }
@@ -1067,6 +1069,21 @@ describe("createInterviews", () => {
 
       expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "onboarding-interview" }]);
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
+    });
+
+    test("looks the uid up live, not from the copy", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+    });
+
+    test("looks the Recommended Player up live, not from the copy", async () => {
+      await recommendedMemberJoined(h, PLAYER);
+
+      expect(h.gameApi.nameLookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
     });
 
     test("looks the uid up uncharged, so no Member's Daily Allowance is used", async () => {
