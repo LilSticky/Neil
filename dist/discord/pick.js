@@ -57,7 +57,7 @@ async function answerPick(interaction, context, caller, ask, card, failureMessag
         return;
     }
     try {
-        const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
+        const message = withCallerUsage(context, caller, card(result.value, result.asOf, context.now()));
         await interaction.followUp({ ...message, allowedMentions });
     }
     catch (error) {
@@ -103,7 +103,7 @@ async function pickExileMatch(interaction, match, reason, context) {
     const uid = parsedUid.value;
     let result;
     try {
-        result = await context.gameApi.getPlayer(uid, "lookup");
+        result = await context.gameApi.getPlayer(uid, "lookup", "copy");
     }
     catch (error) {
         context.logError(`Looking up the picked Player for REAPER failed: ${errorText(error)}`);
@@ -114,7 +114,7 @@ async function pickExileMatch(interaction, match, reason, context) {
         await followUpPrivately(interaction, { content: playerFailureText(result, uid, context.now()) });
         return;
     }
-    const content = await recordFoundExile(result.value, result.fetchedAt, reason, interaction.user.id, {
+    const content = await recordFoundExile(result.value, result.asOf, reason, interaction.user.id, {
         reaper,
         channels,
         now: context.now,
@@ -136,7 +136,7 @@ async function pickAllianceMatch(interaction, match, context) {
     const { kingdom, key } = target;
     const ownerId = interaction.user.id;
     const caller = callerOf(interaction, context.officerRoleIds);
-    await answerPick(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key), (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions), (failure, now) => allianceFailureMessage(failure, key, lookupMessages.allianceNotFound(key, kingdom), ownerId, context.pickSessions, now));
+    await answerPick(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key), (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions), (failure, now) => allianceFailureMessage(failure, key, lookupMessages.allianceNotFound(key, kingdom), ownerId, context.pickSessions, now));
 }
 /**
  * The owner picked a member of the roster menu's page: the member's Player card is posted publicly as a reply under
@@ -183,7 +183,7 @@ async function turnRosterPage(interaction, session, page, context) {
     context.pickSessions.turnPage(session.id, page);
     const caller = callerOf(interaction, context.officerRoleIds);
     await interaction.update(withCallerUsage(context, caller, {
-        embeds: [renderAllianceCard(choice.alliance, choice.fetchedAt, context.now(), page)],
+        embeds: [renderAllianceCard(choice.alliance, choice.asOf, context.now(), page)],
         components: renderAllianceComponents(choice.alliance, page, session.id),
     }));
 }
@@ -191,21 +191,21 @@ async function turnRosterPage(interaction, session, page, context) {
  * Opens a pick list for the asker that holds the Alliance, so the page buttons of an Alliance Overview can show it again;
  * the pick list belongs to the asker, not to the owner of the card. Returns its id.
  */
-function openOverviewSession(alliance, fetchedAt, askerId, pickSessions, now) {
-    return pickSessions.open(askerId, { kind: "roster", entries: sortRoster(alliance.roster), alliance, fetchedAt }, now);
+function openOverviewSession(alliance, asOf, askerId, pickSessions, now) {
+    return pickSessions.open(askerId, { kind: "roster", entries: sortRoster(alliance.roster), alliance, asOf }, now);
 }
 /**
  * The Alliance Overview of a card's pick list for the asker: the one the asker already holds under that pick list while
  * it is open; otherwise a new one, which the pick list then remembers for the asker.
  */
-function overviewUnderCard(card, alliance, fetchedAt, askerId, pickSessions, now) {
+function overviewUnderCard(card, alliance, asOf, askerId, pickSessions, now) {
     const heldId = card.overviews.get(askerId);
     if (heldId !== undefined && pickSessions.get(heldId, now) !== "expired") {
-        return renderOverview(alliance, fetchedAt, now, heldId, 0);
+        return renderOverview(alliance, asOf, now, heldId, 0);
     }
-    const sessionId = openOverviewSession(alliance, fetchedAt, askerId, pickSessions, now);
+    const sessionId = openOverviewSession(alliance, asOf, askerId, pickSessions, now);
     pickSessions.linkOverview(card.id, askerId, sessionId);
-    return renderOverview(alliance, fetchedAt, now, sessionId, 0);
+    return renderOverview(alliance, asOf, now, sessionId, 0);
 }
 /**
  * Sends an Alliance Overview privately. A refused Discord call is logged, and the press is answered as unavailable so it
@@ -236,14 +236,14 @@ async function pressOverview(interaction, press, context) {
     const caller = callerOf(interaction, context.officerRoleIds);
     const session = context.pickSessions.get(press.sessionId, context.now());
     if (session !== "expired" && session.choice.kind === "roster") {
-        const { alliance, fetchedAt } = session.choice;
-        const overview = overviewUnderCard(session, alliance, fetchedAt, askerId, context.pickSessions, context.now());
+        const { alliance, asOf } = session.choice;
+        const overview = overviewUnderCard(session, alliance, asOf, askerId, context.pickSessions, context.now());
         await sendOverview(interaction, context, () => interaction.reply({ ...withCallerUsage(context, caller, overview), flags: MessageFlags.Ephemeral, allowedMentions }));
         return;
     }
     const kingdomNumber = kingdom.value;
     const tag = key.value;
-    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdomNumber, tag), (alliance, fetchedAt, now) => renderOverview(alliance, fetchedAt, now, openOverviewSession(alliance, fetchedAt, askerId, context.pickSessions, now), 0), (failure, now) => failure.kind === "ambiguous"
+    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdomNumber, tag), (alliance, asOf, now) => renderOverview(alliance, asOf, now, openOverviewSession(alliance, asOf, askerId, context.pickSessions, now), 0), (failure, now) => failure.kind === "ambiguous"
         ? { content: lookupMessages.tryAgain }
         : allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, kingdomNumber), askerId, context.pickSessions, now), { flags: MessageFlags.Ephemeral });
 }
@@ -291,9 +291,9 @@ export async function handleOverview(interaction, context) {
             await replyPrivately(interaction, lookupMessages.unavailable);
             return;
         }
-        const { alliance, fetchedAt } = session.choice;
+        const { alliance, asOf } = session.choice;
         const caller = callerOf(interaction, context.officerRoleIds);
-        await sendOverview(interaction, context, () => interaction.update(withCallerUsage(context, caller, renderOverview(alliance, fetchedAt, context.now(), session.id, parsed.page, parsed.sort))));
+        await sendOverview(interaction, context, () => interaction.update(withCallerUsage(context, caller, renderOverview(alliance, asOf, context.now(), session.id, parsed.page, parsed.sort))));
     });
 }
 //# sourceMappingURL=pick.js.map

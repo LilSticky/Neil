@@ -13,6 +13,8 @@ const languageSchema = z
     .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/)
     .optional()
     .catch(undefined);
+/** How old the answer's data is in seconds; a number of zero or more, any other value reads as undefined (no age). */
+const ageSecondsSchema = z.number().nonnegative().optional().catch(undefined);
 /** The shield reading: any number (0 means no shield); any other value reads as undefined (unknown). */
 const shieldingSchema = z.number().optional().catch(undefined);
 /** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
@@ -63,6 +65,8 @@ export const playerBodySchema = z.object({
     avatar_url: picturePathSchema,
     server_badge_url: picturePathSchema,
     shielding: shieldingSchema,
+    /** How old the data is; unreadable reads as undefined, which counts as no age (the answer is received now). */
+    age_seconds: ageSecondsSchema,
 });
 /**
  * One row of an Alliance's `members`; the name and the rank label may be null. The Kingdom (`kid`) and sanctuary level
@@ -128,6 +132,8 @@ export const allianceBodySchema = z.object({
         .catch(undefined),
     badge_url: picturePathSchema,
     server_badge_url: picturePathSchema,
+    /** How old the data is; unreadable reads as undefined, which counts as no age (the answer is received now). */
+    age_seconds: ageSecondsSchema,
 });
 const matchSchema = z.object({
     tag: z.string().optional(),

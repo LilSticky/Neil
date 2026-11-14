@@ -81,7 +81,7 @@ function closestCard(entry, reads, now) {
             fields: reaperFields,
         };
     }
-    const card = renderPlayerCard(read.player, read.fetchedAt, now);
+    const card = renderPlayerCard(read.player, read.asOf, now);
     return { ...card, fields: [...(card.fields ?? []), ...reaperFields] };
 }
 /** The text that replaces the cards when no Exile can be shown: the refusal, else why every Exile was left out, else none. */

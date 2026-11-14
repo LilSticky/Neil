@@ -89,7 +89,7 @@ function sortButtonId(sessionId, sort) {
  * The Alliance Overview of an Alliance fetched at one moment and shown at another: the overview embed and one page of
  * the member table, sorted by `sort`. The table's rows are cut so the whole reply stays within Discord's limits.
  */
-export function renderOverview(alliance, fetchedAt, now, sessionId, page, sort = "might") {
+export function renderOverview(alliance, asOf, now, sessionId, page, sort = "might") {
     const table = tablePage(alliance.roster, sort, page);
     const details = alliance.details;
     const thumbnail = thumbnailOf(details?.badgePath);
@@ -99,7 +99,7 @@ export function renderOverview(alliance, fetchedAt, now, sessionId, page, sort =
         author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
         ...(thumbnail === undefined ? {} : { thumbnail }),
         fields: overviewFields(alliance.roster, now),
-        footer: footerFor(fetchedAt, now),
+        footer: footerFor(asOf, now),
     };
     const embeds = [overview, tableEmbed(table, sort, alliance, now, embedCharacters(overview))];
     return { embeds, components: [sortRow(sessionId, sort), ...pageRows(sessionId, sort, table.page, table.pageCount)] };

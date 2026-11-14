@@ -118,14 +118,14 @@ export function utcTime(moment) {
     return `${twoDigits(moment.getUTCHours())}:${twoDigits(moment.getUTCMinutes())} UTC`;
 }
 /**
- * The card footer: the source and when the data was fetched, in UTC. Today's fetch shows the time only; an earlier
+ * The card footer: the source and when the game sent the data, in UTC. Data from today shows the time only; an earlier
  * day shows the day and English month too.
  */
-export function footerFor(fetchedAt, now) {
-    const time = utcTime(fetchedAt);
-    const when = utcDayOf(fetchedAt) === utcDayOf(now)
+export function footerFor(asOf, now) {
+    const time = utcTime(asOf);
+    const when = utcDayOf(asOf) === utcDayOf(now)
         ? time
-        : `${fetchedAt.getUTCDate().toString()} ${MONTHS[fetchedAt.getUTCMonth()] ?? ""} ${time}`;
+        : `${asOf.getUTCDate().toString()} ${MONTHS[asOf.getUTCMonth()] ?? ""} ${time}`;
     return { text: `${FOOTER_SOURCE} · as of ${when}` };
 }
 /** Escapes Game API and user text for Discord markdown; discord.js leaves a lone `~` alone, so it is escaped here. */
@@ -205,7 +205,7 @@ function onlineText(details, now) {
     return seen.kind === "online" ? "Online now" : `Last online ${timeAgo(seen.at, now)}`;
 }
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
-export function renderPlayerCard(player, fetchedAt, now) {
+export function renderPlayerCard(player, asOf, now) {
     const details = player.details;
     const alliance = player.alliance === undefined
         ? "No alliance"
@@ -233,7 +233,7 @@ export function renderPlayerCard(player, fetchedAt, now) {
         ...(thumbnail === undefined ? {} : { thumbnail }),
         ...(lastOnline === undefined ? {} : { description: lastOnline }),
         fields,
-        footer: footerFor(fetchedAt, now),
+        footer: footerFor(asOf, now),
     };
 }
 /**
@@ -315,7 +315,7 @@ function rosterSection(shown, fixed) {
  * in menu order; a page past the last one is clamped), so the card follows the menu's page. The Alliance fields are the
  * same on every page. Every Game API text is escaped; a missing Leader reads Unknown.
  */
-export function renderAllianceCard(alliance, fetchedAt, now, page = 0) {
+export function renderAllianceCard(alliance, asOf, now, page = 0) {
     const details = alliance.details;
     const fields = [
         { name: "Might", value: thousands(alliance.might), inline: true },
@@ -343,7 +343,7 @@ export function renderAllianceCard(alliance, fetchedAt, now, page = 0) {
         ...(thumbnail === undefined ? {} : { thumbnail }),
         ...(joinRequirements === undefined ? {} : { description: `**Join Requirements:** ${joinRequirements}` }),
         fields,
-        footer: footerFor(fetchedAt, now),
+        footer: footerFor(asOf, now),
     };
     const shown = pageOf(sortRoster(alliance.roster), page);
     return { ...embed, fields: [...fields, ...rosterSection(shown, embedCharacters(embed) + USAGE_FOOTER_ROOM)] };

@@ -110,19 +110,19 @@ export function allianceFailureMessage(failure, key, notFound, ownerId, pickSess
     }
 }
 /** The public reply that shows a Player: the Player card. */
-export function playerCardMessage(player, fetchedAt, now) {
-    return { embeds: [renderPlayerCard(player, fetchedAt, now)] };
+export function playerCardMessage(player, asOf, now) {
+    return { embeds: [renderPlayerCard(player, asOf, now)] };
 }
 /**
  * The public reply that shows an Alliance: its card and, when the roster has members, the roster menu under it. The
  * menu's pick list is opened for the caller, with the roster in the order the card lists it.
  */
-export function allianceCardMessage(alliance, fetchedAt, now, ownerId, pickSessions) {
-    const embeds = [renderAllianceCard(alliance, fetchedAt, now)];
+export function allianceCardMessage(alliance, asOf, now, ownerId, pickSessions) {
+    const embeds = [renderAllianceCard(alliance, asOf, now)];
     if (alliance.roster.length === 0)
         return { embeds };
     const entries = sortRoster(alliance.roster);
-    const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, fetchedAt }, now);
+    const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, asOf }, now);
     return { embeds, components: renderAllianceComponents(alliance, 0, sessionId) };
 }
 /** The text of a thrown value, for a log line. */
@@ -175,7 +175,7 @@ export async function showLookup(interaction, context, caller, ask, card, failur
         return;
     }
     try {
-        const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
+        const message = withCallerUsage(context, caller, card(result.value, result.asOf, context.now()));
         await interaction.editReply({ ...message, allowedMentions });
     }
     catch (error) {
@@ -241,7 +241,7 @@ export async function handlePlayer(interaction, context) {
  */
 async function showAlliance(interaction, context, caller, ask, failureMessage) {
     const ownerId = interaction.user.id;
-    await showLookup(interaction, context, caller, ask, (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions), failureMessage);
+    await showLookup(interaction, context, caller, ask, (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions), failureMessage);
 }
 /** The Known Alliances close to a name, best first; a store that cannot be read is logged and leaves none. */
 function closeKnownAlliances(name, context, now) {

@@ -20,8 +20,9 @@ export class InFlight {
     }
 }
 /**
- * An in-memory cache of Game API answers keyed by lookup. Entries are fresh for `ttlMs` after their `fetchedAt`.
- * Past `maxEntries` the oldest stored entry is dropped.
+ * An in-memory cache of Game API answers keyed by lookup. A copy lookup takes an entry stored less than `ttlMs` ago;
+ * a live lookup takes one that is `liveUsable` and whose `asOf` is less than `ttlMs` ago. Past `maxEntries` the oldest
+ * stored entry is dropped.
  */
 export class LookupCache {
     ttlMs;
@@ -31,21 +32,30 @@ export class LookupCache {
         this.ttlMs = options.ttlMs;
         this.maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
     }
-    /** The entry for `key` if it is younger than the TTL at `now`; otherwise `undefined`. */
-    get(key, now) {
+    /**
+     * The entry for `key` if it is young enough at `now` for the freshness asked for: a copy lookup counts from when it
+     * was stored, a live lookup, which takes only a `liveUsable` entry, from when the game sent it. Otherwise `undefined`.
+     */
+    get(key, now, freshness) {
         const entry = this.entries.get(key);
         if (entry === undefined)
             return undefined;
-        return now.getTime() - entry.fetchedAt.getTime() < this.ttlMs ? entry : undefined;
+        if (freshness === "live" && !entry.liveUsable)
+            return undefined;
+        const since = freshness === "live" ? entry.asOf : entry.storedAt;
+        return now.getTime() - since.getTime() < this.ttlMs ? entry : undefined;
     }
     /** The entry for `key` however old it is, for answers given when the Daily Quota is spent. */
     getStale(key) {
         return this.entries.get(key);
     }
-    /** Stores `value` under `key` as the newest entry, dropping the oldest stored entry past `maxEntries`. */
-    store(key, value, fetchedAt) {
+    /**
+     * Stores `value` under `key` as the newest entry, dropping the oldest stored entry past `maxEntries`. `liveUsable`
+     * says whether a live lookup may take it (see CacheEntry).
+     */
+    store(key, value, asOf, storedAt, liveUsable) {
         this.entries.delete(key);
-        this.entries.set(key, { value, fetchedAt });
+        this.entries.set(key, { value, asOf, storedAt, liveUsable });
         if (this.entries.size > this.maxEntries) {
             const oldest = this.entries.keys().next();
             if (oldest.done !== true)
