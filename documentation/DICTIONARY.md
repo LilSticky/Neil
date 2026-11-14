@@ -85,6 +85,11 @@ discovery.
 ## Game API
 * The external source of in-game information about Players
 
+## Map Refresh
+* The Game API re-reading a whole Kingdom's map; a Player's Might, Location, Alliance and other game data change only through it
+* Started only by someone using Update Map on the Game API's site, at most once per 30 minutes per Kingdom; Neil cannot start one
+* A Player's "as of" time is the last Map Refresh that changed them (Game API `map_updated_at`); an Alliance has none
+
 ## Kingdom
 * A game server, identified by its number
 * A Player belongs to exactly one Kingdom
