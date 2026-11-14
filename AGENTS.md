@@ -52,6 +52,10 @@ Ask only about domain, dictionary or scope questions.
 - **Commits**: small, one concern each, conventional-commit style (`feat:`, `fix:`, `docs:`, `chore:`,
   …, optional scope). Authored as `LilSticky <58908604+LilSticky@users.noreply.github.com>`, set per
   repository on every machine.
+- **Author guard** (`.githooks/`): blocks a commit or push under a different identity than this clone
+  last used. Set up once per clone: `git config core.hooksPath .githooks` and
+  `git config neil.author "LilSticky <58908604+LilSticky@users.noreply.github.com>"`. A deliberate
+  switch is confirmed by typing `yes`, or without a terminal with `NEIL_AUTHOR_CONFIRM=<email>`.
 - **Pull requests**: every branch reaches `main` through a pull request (`gh pr create`), never a local
   merge or direct push. The body lists every issue it touches: `Closes #N` / `Refs #N`.
 - **Merging**: when the Definition of Done gate is green and CI passes, squash-merge yourself
