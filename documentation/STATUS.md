@@ -7,6 +7,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Docs (2026-11-14): the tracker's game data changes only when someone presses Update Map on its site (30 min cooldown per Kingdom and per IP); `age_seconds` and `?fresh=1` concern only its answer copy. GAME-API.md Freshness corrected; the wrong "as of" clock and the value of `?fresh=1` are issue [#100](https://github.com/LilSticky/Neil/issues/100) (needs a scope decision).
+
 Docs (2026-11-14): [DISCORD-PLATFORM.md](DISCORD-PLATFORM.md) collects Discord's official rules and limits (intents, role hierarchy, rate limits, interactions, commands, components, scheduled events) and where Neil depends on them. **Watch:** Discord obfuscates channels a bot cannot view from 2026-11-16; check scheduled events and channel lookups after that date.
 
 Fix (2026-11-14): `R4` and `R5` hold Create Events from the setup script (slice 028), and Neil refused every Managed Role with a permission, so each check logged `skipped R4 (must lose its permissions or be renamed first)` and Neil could neither give nor take `R4`/`R5`. Neil now ignores the setup's own grants (`ROLE_GRANTS` in `src/domain/server-layout.ts`, kept equal to `server-layout.json` by a test); any other permission is still refused. ADR 8 amended. Check after the deploy: the next check logs no `R4` skip.
