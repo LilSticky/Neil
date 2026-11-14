@@ -525,3 +525,48 @@ describe("quotaFiguresFrom", () => {
     expect(quotaFiguresFrom({}, headers)).toBe("malformed");
   });
 });
+
+/** Ages the tracker may send that are usable: a number of zero or more, read as it is. */
+const READABLE_AGES = [0, 7200];
+
+/** Values that are no usable age: each reads as undefined, and the body is still accepted. */
+const UNUSABLE_AGES: readonly { readonly label: string; readonly value: unknown }[] = [
+  { label: "a missing age", value: undefined },
+  { label: "a null age", value: null },
+  { label: "a negative age", value: -1 },
+  { label: "an age that is text", value: "7200" },
+  { label: "an age that is infinite", value: Number.POSITIVE_INFINITY },
+  { label: "an age that is not a number", value: Number.NaN },
+];
+
+describe("playerBodySchema age_seconds", () => {
+  test.each(READABLE_AGES)("reads an age of %s seconds as it is", (age) => {
+    const parsed = playerBodySchema.safeParse({ ...playerInAlliance, age_seconds: age });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.age_seconds).toBe(age);
+  });
+
+  test.each(UNUSABLE_AGES)("reads $label as undefined, and still accepts the body", ({ value }) => {
+    const parsed = playerBodySchema.safeParse({ ...playerInAlliance, age_seconds: value });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.age_seconds).toBeUndefined();
+  });
+});
+
+describe("allianceBodySchema age_seconds", () => {
+  test.each(READABLE_AGES)("reads an age of %s seconds as it is", (age) => {
+    const parsed = allianceBodySchema.safeParse({ ...alliance, age_seconds: age });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.age_seconds).toBe(age);
+  });
+
+  test.each(UNUSABLE_AGES)("reads $label as undefined, and still accepts the body", ({ value }) => {
+    const parsed = allianceBodySchema.safeParse({ ...alliance, age_seconds: value });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.age_seconds).toBeUndefined();
+  });
+});

@@ -195,6 +195,12 @@ function byKingdomThenName(a: Match, b: Match): number {
   return (a.name ?? "").localeCompare(b.name ?? "", "en", { sensitivity: "base" });
 }
 
+/**
+ * Whether a lookup needs data the Game sends now (`live`, for a caller that acts on the answer) or accepts the tracker's
+ * copy (`copy`, for a caller that only shows it).
+ */
+export type Freshness = "live" | "copy";
+
 /** What the Game API client returns for every lookup; an API failure is a value, never a throw. */
 export type LookupResult<T> =
   | { readonly kind: "found"; readonly value: T; readonly asOf: Date }
