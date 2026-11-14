@@ -23,6 +23,7 @@ Ask only about domain, dictionary or scope questions.
 | plan, check the Definition of Done, or merge | [`.specify/memory/constitution.md`](.specify/memory/constitution.md); it overrides this file if the two disagree |
 | change slice order or scope | [`documentation/ROADMAP.md`](documentation/ROADMAP.md) |
 | touch the Game API client | [`documentation/GAME-API.md`](documentation/GAME-API.md) |
+| touch a Discord adapter (`src/discord/`, `scripts/`) | [`documentation/DISCORD-PLATFORM.md`](documentation/DISCORD-PLATFORM.md) |
 
 ## Documentation sources
 
@@ -32,6 +33,7 @@ Ask only about domain, dictionary or scope questions.
 | `documentation/ROADMAP.md` | Slices, ordered by capability | A slice changes state or scope |
 | `documentation/DICTIONARY.md` | Domain terms | A term is added or clarified (only with user approval) |
 | `documentation/GAME-API.md` | What we know about the Game API: endpoints, auth, rate limit | Something about the API is learned |
+| `documentation/DISCORD-PLATFORM.md` | Discord's rules and limits: intents, permissions, rate limits, interactions | Something about Discord is learned |
 | `documentation/adr/` | Architecture decisions (Nygard) | A significant decision is made (`adr` skill) |
 | `.specify/memory/constitution.md` | Principles, Definition of Done, governance | Only through an ADR plus a version bump |
 | `specs/NNN-slice/` | Spec Kit artifacts per slice | During the slice |
