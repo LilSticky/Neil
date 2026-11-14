@@ -1,7 +1,10 @@
-/** A stored value and when the game sent its data. */
+import type { Freshness } from "../domain/player.js";
+
+/** A stored value, when the game sent its data, and when Neil stored it. */
 export interface CacheEntry<T> {
   readonly value: T;
   readonly asOf: Date;
+  readonly storedAt: Date;
 }
 
 export interface LookupCacheOptions {
@@ -33,8 +36,8 @@ export class InFlight<R> {
 }
 
 /**
- * An in-memory cache of Game API answers keyed by lookup. Entries are fresh for `ttlMs` after their `asOf`.
- * Past `maxEntries` the oldest stored entry is dropped.
+ * An in-memory cache of Game API answers keyed by lookup. A copy lookup takes an entry stored less than `ttlMs` ago;
+ * a live lookup takes one whose `asOf` is less than `ttlMs` ago. Past `maxEntries` the oldest stored entry is dropped.
  */
 export class LookupCache<T> {
   private readonly ttlMs: number;
@@ -46,11 +49,15 @@ export class LookupCache<T> {
     this.maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
   }
 
-  /** The entry for `key` if it is younger than the TTL at `now`; otherwise `undefined`. */
-  get(key: string, now: Date): CacheEntry<T> | undefined {
+  /**
+   * The entry for `key` if it is young enough at `now` for the freshness asked for: a copy lookup counts from when it
+   * was stored, a live lookup from when the game sent it. Otherwise `undefined`.
+   */
+  get(key: string, now: Date, freshness: Freshness): CacheEntry<T> | undefined {
     const entry = this.entries.get(key);
     if (entry === undefined) return undefined;
-    return now.getTime() - entry.asOf.getTime() < this.ttlMs ? entry : undefined;
+    const since = freshness === "live" ? entry.asOf : entry.storedAt;
+    return now.getTime() - since.getTime() < this.ttlMs ? entry : undefined;
   }
 
   /** The entry for `key` however old it is, for answers given when the Daily Quota is spent. */
@@ -59,9 +66,9 @@ export class LookupCache<T> {
   }
 
   /** Stores `value` under `key` as the newest entry, dropping the oldest stored entry past `maxEntries`. */
-  store(key: string, value: T, asOf: Date): void {
+  store(key: string, value: T, asOf: Date, storedAt: Date): void {
     this.entries.delete(key);
-    this.entries.set(key, { value, asOf });
+    this.entries.set(key, { value, asOf, storedAt });
     if (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next();
       if (oldest.done !== true) this.entries.delete(oldest.value);

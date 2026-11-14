@@ -222,13 +222,13 @@ export class GameApiClient {
     freshness: Freshness,
   ): Promise<ChargedResult<Player>> {
     const key = `player:${uid}`;
-    const fresh = this.players.get(key, this.now());
+    const fresh = this.players.get(key, this.now(), freshness);
     if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
 
     return this.playerLookups.share(flightKey(purpose, freshness, key, caller), async () => {
       const result = await this.fetchPlayer(uid, purpose, caller, freshness);
       if (result.kind === "found") {
-        this.players.store(key, result.value, result.asOf);
+        this.players.store(key, result.value, result.asOf, this.now());
         this.sawPlayer(result.value);
       }
       return orStale(result, foundBy(this.players.getStale(key)));
@@ -282,13 +282,13 @@ export class GameApiClient {
     freshness: Freshness,
   ): Promise<ChargedResult<Alliance>> {
     const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
-    const fresh = this.alliances.get(cacheKey, this.now());
+    const fresh = this.alliances.get(cacheKey, this.now(), freshness);
     if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
 
     return this.allianceLookups.share(flightKey(purpose, freshness, cacheKey, caller), async () => {
       const result = await this.fetchAlliance(kingdom, key, purpose, caller, freshness);
       if (result.kind === "found") {
-        this.alliances.store(cacheKey, result.value, result.asOf);
+        this.alliances.store(cacheKey, result.value, result.asOf, this.now());
         this.sawAlliance(result.value);
       }
       return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
@@ -309,15 +309,16 @@ export class GameApiClient {
     freshness: Freshness,
     fetch: () => Promise<ChargedResult<T>>,
   ): Promise<ChargedResult<T>> {
-    const fresh = cache.get(key, this.now());
+    const fresh = cache.get(key, this.now(), freshness);
     if (fresh !== undefined) return answerOf(fresh);
 
     return inFlight.share(flightKey(purpose, freshness, key, caller), async () => {
       const result = await fetch();
+      const receivedAt = this.now();
       if (result.kind === "found") {
-        cache.store(key, { kind: "found", value: result.value }, result.asOf);
+        cache.store(key, { kind: "found", value: result.value }, result.asOf, receivedAt);
       } else if (result.kind === "ambiguous") {
-        cache.store(key, { kind: "ambiguous", matches: result.matches }, this.now());
+        cache.store(key, { kind: "ambiguous", matches: result.matches }, receivedAt, receivedAt);
       }
       const stale = cache.getStale(key);
       return orStale(result, stale === undefined ? undefined : answerOf(stale));

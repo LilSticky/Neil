@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, test, vi } from "vitest";
-import { todaysQuota, type DailyQuota, type RequestPurpose } from "../domain/daily-quota.js";
+import { DEFAULT_LIMIT, todaysQuota, type DailyQuota, type RequestPurpose } from "../domain/daily-quota.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -19,7 +19,8 @@ import allianceNotFound from "./__fixtures__/alliance-not-found.json" with { typ
 import playerByName from "./__fixtures__/player-by-name.json" with { type: "json" };
 import playerInAlliance from "./__fixtures__/player-in-alliance.json" with { type: "json" };
 import playersAmbiguous from "./__fixtures__/players-ambiguous.json" with { type: "json" };
-import { type AllianceSeenHook, type FetchLike, GameApiClient } from "./client.js";
+import type { LookupCaller } from "./allowance-keeper.js";
+import { type AllianceSeenHook, type ChargedLookups, type ChargedResult, type FetchLike, GameApiClient } from "./client.js";
 import { fakeAllowance } from "./__fakes__/game-api-fakes.js";
 import { QuotaKeeper, type DailyQuotaStorage } from "./quota-keeper.js";
 
@@ -2148,4 +2149,182 @@ describe("GameApiClient asOf of a found answer", () => {
 
     expect(result).toMatchObject({ kind: "found", asOf: FIXED_NOW });
   });
+});
+
+/** The uncharged lookups the cache rules are tested on: a Player, a Player by name and an Alliance by tag. */
+const FRESHNESS_LOOKUPS = UNCHARGED_LOOKUPS.filter(({ name }) => ["getPlayer", "findPlayer", "getAlliance"].includes(name));
+
+/** The Member the charged lookups are made for. */
+const CALLER: LookupCaller = { memberId: "111111111111111111", officer: false };
+
+/** The charged lookups, each with the body the tracker answers it with and the path it is sent to without a query. */
+interface ChargedLookup {
+  readonly name: string;
+  readonly path: string;
+  readonly body: Readonly<Record<string, unknown>>;
+  readonly call: (lookups: ChargedLookups) => Promise<ChargedResult<Player | Alliance>>;
+}
+
+const CHARGED_LOOKUPS: readonly ChargedLookup[] = [
+  {
+    name: "getPlayer",
+    path: PLAYER_PATH,
+    body: playerInAlliance,
+    call: (lookups) => lookups.getPlayer(parsedUid(PLAYER_UID_TEXT)),
+  },
+  {
+    name: "findPlayer",
+    path: PLAYER_NAME_PATH,
+    body: playerByName,
+    call: (lookups) => lookups.findPlayer(parsedPlayerName("DrLOL"), undefined),
+  },
+  {
+    name: "getAlliance",
+    path: ALLIANCE_PATH,
+    body: alliance,
+    call: (lookups) => lookups.getAlliance(parsedKingdom(1), parsedAllianceKey("NML")),
+  },
+];
+
+/** The Quota states a cached copy is answered in: the Quota Reserve is kept, or the Daily Quota is spent. */
+const SPENT_QUOTA: readonly { readonly label: string; readonly used: number }[] = [
+  { label: "the Quota Reserve is kept", used: DEFAULT_LIMIT - QUOTA_RESERVE },
+  { label: "the Daily Quota is spent", used: DEFAULT_LIMIT },
+];
+
+describe("GameApiClient cache by freshness", () => {
+  let clock: Date;
+  const now = (): Date => clock;
+
+  beforeEach(() => {
+    clock = FIXED_NOW;
+  });
+
+  test.each(FRESHNESS_LOOKUPS)(
+    "$name with copy is answered from the cache after a copy answer aged 7,200 s, with its old asOf",
+    async ({ body, call }) => {
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
+      const client = clientWith(fetch, now);
+
+      await call(client, "copy");
+      clock = new Date(FIXED_NOW.getTime() + 60_000);
+      const second = await call(client, "copy");
+
+      expect(sent).toHaveLength(1);
+      expect(second).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+    },
+  );
+
+  test.each(FRESHNESS_LOOKUPS)(
+    "$name with live after a copy answer aged 7,200 s sends a request with ?fresh=1",
+    async ({ path, body, call }) => {
+      let age = TWO_HOURS_IN_SECONDS;
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: age }));
+      const client = clientWith(fetch, now);
+
+      await call(client, "copy");
+      clock = new Date(FIXED_NOW.getTime() + 60_000);
+      age = 0;
+      const live = await call(client, "live");
+
+      expect(sent).toHaveLength(2);
+      expect(sent[1]?.url).toBe(`${path}?fresh=1`);
+      expect(live).toMatchObject({ kind: "found", asOf: clock });
+    },
+  );
+
+  test.each(FRESHNESS_LOOKUPS)(
+    "$name with live within the TTL of a live answer aged 0 sends no request",
+    async ({ body, call }) => {
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 0 }));
+      const client = clientWith(fetch, now);
+
+      const first = await call(client, "live");
+      clock = new Date(FIXED_NOW.getTime() + 60_000);
+      const second = await call(client, "live");
+
+      expect(sent).toHaveLength(1);
+      expect(second).toEqual(first);
+      expect(second).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    },
+  );
+
+  test.each(FRESHNESS_LOOKUPS)(
+    "$name with copy within the TTL of a live answer aged 0 sends no request",
+    async ({ body, call }) => {
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 0 }));
+      const client = clientWith(fetch, now);
+
+      await call(client, "live");
+      clock = new Date(FIXED_NOW.getTime() + 60_000);
+      const second = await call(client, "copy");
+
+      expect(sent).toHaveLength(1);
+      expect(second).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    },
+  );
+
+  test.each(FRESHNESS_LOOKUPS)(
+    "$name with live and with copy at once send two requests, one with ?fresh=1",
+    async ({ path, body, call }) => {
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, body));
+      const gatedFetch: FetchLike = async (input, init) => {
+        await fetch(input, init);
+        await gate;
+        return jsonResponse(200, body);
+      };
+      const client = clientWith(gatedFetch, now);
+
+      const live = call(client, "live");
+      const copy = call(client, "copy");
+      release();
+      await Promise.all([live, copy]);
+
+      const urls = sent.map((request) => request.url);
+      expect(sent).toHaveLength(2);
+      expect(urls).toContain(path);
+      expect(urls).toContain(`${path}?fresh=1`);
+    },
+  );
+
+  describe.each(SPENT_QUOTA)("with a copy in the cache when $label", ({ used }) => {
+    test.each(FRESHNESS_LOOKUPS)(
+      "$name with live answers the cached copy with its old asOf, and sends no request",
+      async ({ body, call }) => {
+        const store = new FakeQuotaStore();
+        const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
+        const client = clientWith(fetch, now, quotaOn(store, now));
+
+        await call(client, "copy");
+        store.save({ ...todaysQuota(undefined, FIXED_NOW), used });
+        clock = new Date(FIXED_NOW.getTime() + 60_000);
+        const live = await call(client, "live");
+
+        expect(sent).toHaveLength(1);
+        expect(live).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+      },
+    );
+  });
+});
+
+describe("GameApiClient charged lookups with a copy in the cache", () => {
+  test.each(CHARGED_LOOKUPS)(
+    "$name after a copy answer aged 7,200 s is answered from the cache, with its old asOf",
+    async ({ body, call }) => {
+      let clock = FIXED_NOW;
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
+      const lookups = clientWith(fetch, () => clock).chargedTo(CALLER);
+
+      await call(lookups);
+      clock = new Date(FIXED_NOW.getTime() + 60_000);
+      const second = await call(lookups);
+
+      expect(sent).toHaveLength(1);
+      expect(second).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+    },
+  );
 });
