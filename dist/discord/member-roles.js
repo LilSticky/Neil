@@ -3,8 +3,16 @@ import { isManagedRoleName, planApply, tagOfAllianceRole } from "../domain/manag
 import { ALL_PREFERENCE_ROLE_NAMES } from "../domain/preferences.js";
 import { DOCTOR_ROLE_NAME } from "../domain/doctor-role.js";
 import { ONBOARDING_ROLE_NAME } from "../domain/onboarding-role.js";
+import { grantedRoleBits } from "../domain/server-layout.js";
 /** Discord's code for a missing permission: a role above the bot's, or a change to the owner's nickname. */
 const MISSING_PERMISSIONS = 50013;
+/**
+ * Whether the role is permission-free: it holds no permission beyond the ones the setup grants its name (ROLE_GRANTS),
+ * such as Create Events on R4. Only such a role is a Managed Role Neil may give and take; any other permission refuses it.
+ */
+function isPermissionFree(role) {
+    return (role.permissions.bitfield & ~grantedRoleBits(role.name)) === 0n;
+}
 const discordError = z.object({ code: z.number() });
 /** Role creations in flight, by guild ID and then by name, so concurrent applies create a missing role once. */
 const creationsByGuild = new Map();
@@ -29,7 +37,7 @@ export async function applyNameAndRoles(guild, member, wanted) {
     // Only roles Neil may hand out count as held: a role with permissions, an Officer role or an integration's is not one.
     const held = [
         ...new Set(member.roles
-            .filter((role) => isGivable(guild, role, wanted.officerRoleIds) && role.permissions.bitfield === 0n)
+            .filter((role) => isGivable(guild, role, wanted.officerRoleIds) && isPermissionFree(role))
             .map((role) => role.name)
             .filter((name) => isManagedRoleName(name, wanted.managedTags))),
     ];
@@ -63,7 +71,7 @@ export async function takeOffNamedRole(guild, member, name, officerRoleIds) {
     const skip = await removeRoles(guild, member, name, officerRoleIds, []);
     if (skip !== undefined)
         return skip;
-    const keepsPermissions = member.roles.some((role) => role.name === name && isGivable(guild, role, officerRoleIds) && role.permissions.bitfield !== 0n);
+    const keepsPermissions = member.roles.some((role) => role.name === name && isGivable(guild, role, officerRoleIds) && !isPermissionFree(role));
     return keepsPermissions ? { what: name, reason: "has-permissions" } : undefined;
 }
 /**
@@ -84,7 +92,7 @@ async function renamePlainAllianceRoles(guild, wanted, skipped) {
         if (sameName.length > 1)
             continue;
         const plain = sameName.find((role) => isGivable(guild, role, wanted.officerRoleIds) &&
-            role.permissions.bitfield === 0n &&
+            isPermissionFree(role) &&
             role.position < guild.botTopRolePosition);
         if (plain === undefined)
             continue;
@@ -126,7 +134,7 @@ async function setNickname(guild, member, nickname) {
  * left and the others are still removed; the first problem is the skip.
  */
 async function removeRoles(guild, member, name, officerRoleIds, removed) {
-    const held = member.roles.filter((role) => role.name === name && isGivable(guild, role, officerRoleIds) && role.permissions.bitfield === 0n);
+    const held = member.roles.filter((role) => role.name === name && isGivable(guild, role, officerRoleIds) && isPermissionFree(role));
     let skip = undefined;
     let didRemove = false;
     for (const role of held) {
@@ -147,9 +155,9 @@ async function removeRoles(guild, member, name, officerRoleIds, removed) {
     return skip;
 }
 /**
- * Gives the Member the Managed Role of the name: the permission-free role of that name, or a new one when the guild has
- * none. A name held only by Officer roles, @everyone or integration roles is never given, and a name whose roles all
- * grant permissions is skipped.
+ * Gives the Member the Managed Role of the name: the permission-free role of that name (see isPermissionFree), or a new
+ * one when the guild has none. A name held only by Officer roles, @everyone or integration roles is never given, and a
+ * name whose roles all grant more than the setup grants it is skipped.
  */
 async function addRole(guild, member, name, officerRoleIds, report) {
     try {
@@ -157,7 +165,7 @@ async function addRole(guild, member, name, officerRoleIds, report) {
         const givable = named.filter((role) => isGivable(guild, role, officerRoleIds));
         if (named.length > 0 && givable.length === 0)
             return { what: name, reason: "not-managed" };
-        const free = givable.find((role) => role.permissions.bitfield === 0n);
+        const free = givable.find(isPermissionFree);
         if (givable.length > 0 && free === undefined)
             return { what: name, reason: "has-permissions" };
         const found = free === undefined ? await createOnce(guild, name) : { role: free, wasCreated: false };

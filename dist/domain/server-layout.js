@@ -5,6 +5,24 @@ import { tagOfAllianceRole } from "./managed-roles.js";
 export const ROLE_PERMISSION_BITS = {
     CreateEvents: 1n << 44n,
 };
+/** The Discord permission bits of the given role permissions, combined. */
+export function permissionBits(permissions) {
+    return permissions.reduce((bits, name) => bits | ROLE_PERMISSION_BITS[name], 0n);
+}
+/**
+ * The role permissions the setup grants each role by name: the same as server-layout.json's rolePermissions. Neil never
+ * reads that file (it is not deployed), so this is how it knows the setup's own grants; a test keeps the two equal.
+ */
+export const ROLE_GRANTS = {
+    R4: ["CreateEvents"],
+    R5: ["CreateEvents"],
+    Moderator: ["CreateEvents"],
+    King: ["CreateEvents"],
+};
+/** The Discord permission bits the setup grants a role of the name: none when the setup grants it nothing. */
+export function grantedRoleBits(name) {
+    return Object.hasOwn(ROLE_GRANTS, name) ? permissionBits(ROLE_GRANTS[name] ?? []) : 0n;
+}
 export const EVERYONE_TARGET = "@everyone";
 export const BOT_TARGET = "Neil";
 const KINGDOM_PLACEHOLDER = "#<Home Kingdom>";

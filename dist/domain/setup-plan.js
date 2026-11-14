@@ -1,5 +1,5 @@
 import { tagOfAllianceRole } from "./managed-roles.js";
-import { BOT_TARGET, EVERYONE_TARGET, expandLayout, ROLE_PERMISSION_BITS, } from "./server-layout.js";
+import { BOT_TARGET, EVERYONE_TARGET, expandLayout, permissionBits, } from "./server-layout.js";
 /** Roles of the layout that may hold any permission without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
 /** The variation selector that turns an emoji into its emoji presentation (U+FE0F). */
@@ -101,16 +101,13 @@ function planRolePermissions(plan, rolePermissions) {
 }
 /** A listed role may hold the bits its rolePermissions grant; any other bit it holds is a finding, unless Moderator or King. */
 function reviewRole(plan, role) {
-    const granted = grantedBitsOf(plan.rolePermissions[role.name] ?? []);
+    const granted = permissionBits(plan.rolePermissions[role.name] ?? []);
     const beyond = role.permissions & ~granted;
     const exempt = PERMISSION_ROLES.includes(role.name);
     if (beyond !== 0n && !exempt)
         plan.findings.push({ kind: "role-has-permissions", name: role.name });
     if (role.position >= plan.server.botTopPosition)
         plan.findings.push({ kind: "role-above-neil", name: role.name });
-}
-function grantedBitsOf(permissions) {
-    return permissions.reduce((bits, name) => bits | ROLE_PERMISSION_BITS[name], 0n);
 }
 function planCategories(plan, layout, allianceRoleNames) {
     for (const category of layout.categories) {
