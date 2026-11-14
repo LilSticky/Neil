@@ -14,14 +14,22 @@ the answer − `age_seconds`. For a live answer, `asOf` equals the receive momen
 
 ## Cache entry
 
-`{ value, storedAt: Date, asOf: Date }`.
+`{ value, storedAt: Date, asOf: Date, liveUsable: boolean }`. `liveUsable` is set when the entry is stored and says whether a
+live lookup may take it:
+
+- an answer to a live request (`?fresh=1`) is `liveUsable`;
+- a copy answer is `liveUsable` only when the tracker gave a usable `age_seconds`;
+- a copy answer without a usable `age_seconds` is not: its `asOf` is the receive moment (shown as such), which says nothing
+  about how old the data is, so a live lookup must ask again;
+- a 409 match list is `liveUsable` only from a live request.
 
 | Lookup | Uses the entry when |
 |--------|---------------------|
 | `copy` | `now − storedAt < ttl` |
-| `live` | `now − asOf < ttl` |
+| `live` | `liveUsable` and `now − asOf < ttl` |
 | quota spent / reserve kept / allowance spent | any entry (stale fallback) |
 
 ## Body fields read
 
-`age_seconds`: optional number on player and alliance bodies. Missing, negative or not finite → 0.
+`age_seconds`: optional number on player and alliance bodies. Missing or not a number, or negative or not finite, reads as
+no usable age: the answer's `asOf` is the receive moment, and a copy answer without one is not `liveUsable`.

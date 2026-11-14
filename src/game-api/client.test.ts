@@ -2328,3 +2328,102 @@ describe("GameApiClient charged lookups with a copy in the cache", () => {
     },
   );
 });
+
+/** Copy answers whose age is no usable age: the key left out, or a negative age. */
+const COPY_BODIES_WITHOUT_USABLE_AGE: readonly {
+  readonly label: string;
+  readonly withAge: (body: Readonly<Record<string, unknown>>) => Record<string, unknown>;
+}[] = [
+  { label: "no age_seconds", withAge: (body) => ({ ...body }) },
+  { label: "an age_seconds of -5", withAge: (body) => ({ ...body, age_seconds: -5 }) },
+];
+
+describe("GameApiClient live lookup after a copy answer without a usable age", () => {
+  let clock: Date;
+  const now = (): Date => clock;
+
+  beforeEach(() => {
+    clock = FIXED_NOW;
+  });
+
+  describe.each(COPY_BODIES_WITHOUT_USABLE_AGE)("with $label", ({ withAge }) => {
+    test.each(FRESHNESS_LOOKUPS)(
+      "$name with live within the TTL of a copy answer sends a request with ?fresh=1",
+      async ({ path, body, call }) => {
+        const { fetch, sent } = fakeFetch(() => jsonResponse(200, withAge(body)));
+        const client = clientWith(fetch, now);
+
+        await call(client, "copy");
+        clock = new Date(FIXED_NOW.getTime() + 60_000);
+        await call(client, "live");
+
+        expect(sent).toHaveLength(2);
+        expect(sent[1]?.url).toBe(`${path}?fresh=1`);
+      },
+    );
+  });
+
+  test("a live getPlayer within the TTL of a charged getPlayer without an age sends a request with ?fresh=1", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    const client = clientWith(fetch, now);
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    await client.chargedTo(CALLER).getPlayer(uid);
+    clock = new Date(FIXED_NOW.getTime() + 60_000);
+    await client.getPlayer(uid, "lookup", "live");
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.url).toBe(`${PLAYER_PATH}?fresh=1`);
+  });
+
+  test("a live findPlayer within the TTL of a copy findPlayer's 409 match list sends a request with ?fresh=1", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(409, playersAmbiguous));
+    const client = clientWith(fetch, now);
+    const name = parsedPlayerName("DrLOL");
+
+    const copy = await client.findPlayer(name, undefined, "lookup", "copy");
+    clock = new Date(FIXED_NOW.getTime() + 60_000);
+    const live = await client.findPlayer(name, undefined, "lookup", "live");
+
+    expect(copy).toMatchObject({ kind: "ambiguous" });
+    expect(live).toMatchObject({ kind: "ambiguous" });
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.url).toBe(`${PLAYER_NAME_PATH}?fresh=1`);
+  });
+
+  test("a live findPlayer within the TTL of a live findPlayer's 409 match list sends no request", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(409, playersAmbiguous));
+    const client = clientWith(fetch, now);
+    const name = parsedPlayerName("DrLOL");
+
+    const first = await client.findPlayer(name, undefined, "lookup", "live");
+    clock = new Date(FIXED_NOW.getTime() + 60_000);
+    const second = await client.findPlayer(name, undefined, "lookup", "live");
+
+    expect(sent).toHaveLength(1);
+    expect(second).toEqual(first);
+  });
+
+  test.each(FRESHNESS_LOOKUPS)(
+    "$name with live within the TTL of a copy answer aged 60 s is answered from the cache, with its old asOf",
+    async ({ body, call }) => {
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 60 }));
+      const client = clientWith(fetch, now);
+
+      await call(client, "copy");
+      clock = new Date(FIXED_NOW.getTime() + 60_000);
+      const live = await call(client, "live");
+
+      expect(sent).toHaveLength(1);
+      expect(live).toMatchObject({ kind: "found", asOf: new Date(FIXED_NOW.getTime() - 60_000) });
+    },
+  );
+
+  test.each(FRESHNESS_LOOKUPS)("$name with copy and no usable age is as of the receive moment", async ({ body, call }) => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await call(clientWith(fetch, now), "copy");
+
+    expect(result).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+  });
+});
