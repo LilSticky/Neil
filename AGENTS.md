@@ -117,3 +117,15 @@ it, checks the diff and test result, and commits.
 - `npm run commands:register`: register slash commands with Discord
 
 Development happens on Windows. The Bash tool is Git Bash and the primary shell is PowerShell.
+
+<!-- knowledge-base -->
+## Knowledge base
+
+The project knowledge is searchable through the [knowledge tool](https://github.com/HBTGmbH/hbt-leviathan-hack26): MCP server `knowledge` with the tools `search`, `read`, `define`, `overview` and `decisions`, and for maintenance `decide`, `term`, `new_page`, `audit`, `status` and `check`. It combines two sources:
+
+- **This repository** (public): `documentation/` (dictionary, ADRs, guides, discovery), `specs/*/spec.md` and the root Markdown files.
+- **Shared Last Asylum: Plague domain** (private, marked **INTERN:LAP**): game knowledge every project around the game shares, such as Kingdom, Alliance, Alliance Rank, Alliance Duel and Might. Each machine connects it in `.knowledge.local.json` (gitignored).
+
+- Look things up before answering questions about the game, the server, terms or decisions, and before changing code whose meaning is unclear. Cite the `id` of the source.
+- `documentation/DICTIONARY.md` stays Neil's binding ubiquitous language; change it only through the `dictionary` skill. Game terms that are not specific to Neil also belong in the shared domain (`term` with scope `lap`).
+- Results marked **INTERN:LAP** are private: use them to understand, never copy them literally into code, comments, test data, commits, issues, PRs or public docs. Write in your own words. A hook blocks literal copies; `check` scans the repository.

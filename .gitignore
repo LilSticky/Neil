@@ -159,3 +159,7 @@ vite.config.ts.timestamp-*
 # Neil runtime data (SQLite) and build output
 data/
 build-info.json
+
+# Wissensbasis: privater Sidecar und lokale Einstellung
+.knowledge.local.json
+.knowledge-intern/

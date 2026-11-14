@@ -1,0 +1,36 @@
+{
+  "name": "Neil",
+  "language": "en",
+  "sources": [
+    {
+      "glob": "documentation/DICTIONARY.md",
+      "audience": ["domain", "tech"],
+      "summary": "Neil's ubiquitous language: server, game and onboarding terms",
+      "boost": 1.5
+    },
+    {
+      "glob": "documentation/adr/**/*.md",
+      "audience": ["tech"]
+    },
+    {
+      "glob": "documentation/discovery/**/*.md",
+      "audience": ["domain"]
+    },
+    {
+      "glob": "documentation/**/*.md",
+      "audience": ["tech"]
+    },
+    {
+      "glob": "specs/*/spec.md",
+      "audience": ["domain", "tech"]
+    },
+    {
+      "glob": "*.md",
+      "audience": ["business", "domain", "tech"]
+    }
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "data/**"
+  ]
+}
