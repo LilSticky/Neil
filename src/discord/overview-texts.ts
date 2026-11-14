@@ -152,7 +152,7 @@ function sortButtonId(sessionId: string, sort: TableSort): string {
  */
 export function renderOverview(
   alliance: Alliance,
-  fetchedAt: Date,
+  asOf: Date,
   now: Date,
   sessionId: string,
   page: number,
@@ -167,7 +167,7 @@ export function renderOverview(
     author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
     ...(thumbnail === undefined ? {} : { thumbnail }),
     fields: overviewFields(alliance.roster, now),
-    footer: footerFor(fetchedAt, now),
+    footer: footerFor(asOf, now),
   };
   const embeds: APIEmbed[] = [overview, tableEmbed(table, sort, alliance, now, embedCharacters(overview))];
   return { embeds, components: [sortRow(sessionId, sort), ...pageRows(sessionId, sort, table.page, table.pageCount)] };

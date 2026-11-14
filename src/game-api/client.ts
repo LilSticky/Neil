@@ -12,6 +12,7 @@ import {
 import type {
   Alliance,
   AllianceDetails,
+  Freshness,
   LookupResult,
   Match,
   Player,
@@ -124,6 +125,15 @@ interface Call {
 /** A name answer as cached (Player or Alliance): the found value, or the matches when the name is ambiguous. */
 type NameAnswer<T> = { readonly kind: "found"; readonly value: T } | { readonly kind: "ambiguous"; readonly matches: readonly Match[] };
 
+/**
+ * A found answer as fetched: `liveUsable` tells whether a later live lookup may take it from the cache (see
+ * liveUsableFrom). It is not part of the lookup result.
+ */
+type FoundFetch<T> = Extract<LookupResult<T>, { readonly kind: "found" }> & { readonly liveUsable: boolean };
+
+/** What one fetch gave: a lookup result, or a found answer with its cache flag. */
+type Fetched<T> = Exclude<ChargedResult<T>, { readonly kind: "found" }> | FoundFetch<T>;
+
 /** A body that passed its schema, or the unexpected failure that was already logged. */
 type ReadBody<T> = { readonly ok: true; readonly body: T } | { readonly ok: false; readonly failure: Unexpected };
 
@@ -176,31 +186,41 @@ export class GameApiClient {
 
   /**
    * A fresh cached answer, else one shared request; only a found answer is cached. The purpose decides whether the
-   * request may use the Quota Reserve.
+   * request may use the Quota Reserve. A live lookup asks the tracker for the data it sends now.
    */
-  async getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    return uncharged(await this.playerLookup(uid, purpose, undefined));
+  async getPlayer(
+    uid: Uid,
+    purpose: RequestPurpose,
+    ...[freshness = "live"]: [Freshness?]
+  ): Promise<LookupResult<Player>> {
+    return uncharged(await this.playerLookup(uid, purpose, undefined, freshness));
   }
 
   /**
    * A fresh cached answer, else one shared request; a found Player and a match list are cached, a failure is not.
    * The name is compared in lower case, and the Kingdom (or all Kingdoms) is part of the key. The purpose decides
-   * whether the request may use the Quota Reserve.
+   * whether the request may use the Quota Reserve. A live lookup asks the tracker for the data it sends now.
    */
   async findPlayer(
     name: PlayerName,
     kingdom: KingdomNumber | undefined,
     purpose: RequestPurpose,
+    ...[freshness = "live"]: [Freshness?]
   ): Promise<LookupResult<Player>> {
-    return uncharged(await this.playerNameLookup(name, kingdom, purpose, undefined));
+    return uncharged(await this.playerNameLookup(name, kingdom, purpose, undefined, freshness));
   }
 
   /**
    * A fresh cached answer, else one shared request; a found Alliance and a match list are cached, a failure is not.
    * The full name is compared in lower case. The purpose decides whether the request may use the Quota Reserve.
+   * A live lookup asks the tracker for the data it sends now.
    */
-  async findAlliance(name: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
-    return uncharged(await this.allianceNameLookup(name, purpose, undefined));
+  async findAlliance(
+    name: AllianceKey,
+    purpose: RequestPurpose,
+    ...[freshness = "live"]: [Freshness?]
+  ): Promise<LookupResult<Alliance>> {
+    return uncharged(await this.allianceNameLookup(name, purpose, undefined, freshness));
   }
 
   /** The Player lookup by uid, for the Member charged for it, or uncharged when `caller` is undefined. */
@@ -208,18 +228,19 @@ export class GameApiClient {
     uid: Uid,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
+    freshness: Freshness,
   ): Promise<ChargedResult<Player>> {
     const key = `player:${uid}`;
-    const fresh = this.players.get(key, this.now());
-    if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+    const fresh = this.players.get(key, this.now(), freshness);
+    if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
 
-    return this.playerLookups.share(flightKey(purpose, key, caller), async () => {
-      const result = await this.fetchPlayer(uid, purpose, caller);
+    return this.playerLookups.share(flightKey(purpose, freshness, key, caller), async () => {
+      const result = await this.fetchPlayer(uid, purpose, caller, freshness);
       if (result.kind === "found") {
-        this.players.store(key, result.value, result.fetchedAt);
+        this.players.store(key, result.value, result.asOf, this.now(), result.liveUsable);
         this.sawPlayer(result.value);
       }
-      return orStale(result, foundBy(this.players.getStale(key)));
+      return orStale(resultOf(result), foundBy(this.players.getStale(key)));
     });
   }
 
@@ -229,10 +250,11 @@ export class GameApiClient {
     kingdom: KingdomNumber | undefined,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
+    freshness: Freshness,
   ): Promise<ChargedResult<Player>> {
     const key = `player-name:${kingdom === undefined ? "*" : kingdom.toString()}:${name.toLowerCase()}`;
-    return this.byName(this.playerNames, this.playerNameLookups, key, purpose, caller, async () => {
-      const result = await this.fetchPlayerByName(name, kingdom, purpose, caller);
+    return this.byName(this.playerNames, this.playerNameLookups, key, purpose, caller, freshness, async () => {
+      const result = await this.fetchPlayerByName(name, kingdom, purpose, caller, freshness);
       if (result.kind === "found") this.sawPlayer(result.value);
       return result;
     });
@@ -243,6 +265,7 @@ export class GameApiClient {
     name: AllianceKey,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
+    freshness: Freshness,
   ): Promise<ChargedResult<Alliance>> {
     return this.byName(
       this.allianceNames,
@@ -250,8 +273,9 @@ export class GameApiClient {
       `alliance-name:${name.toLowerCase()}`,
       purpose,
       caller,
+      freshness,
       async () => {
-        const result = await this.fetchAllianceByName(name, purpose, caller);
+        const result = await this.fetchAllianceByName(name, purpose, caller, freshness);
         if (result.kind === "found") this.sawAlliance(result.value);
         return result;
       },
@@ -264,18 +288,19 @@ export class GameApiClient {
     key: AllianceKey,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
+    freshness: Freshness,
   ): Promise<ChargedResult<Alliance>> {
     const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
-    const fresh = this.alliances.get(cacheKey, this.now());
-    if (fresh !== undefined) return { kind: "found", value: fresh.value, fetchedAt: fresh.fetchedAt };
+    const fresh = this.alliances.get(cacheKey, this.now(), freshness);
+    if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
 
-    return this.allianceLookups.share(flightKey(purpose, cacheKey, caller), async () => {
-      const result = await this.fetchAlliance(kingdom, key, purpose, caller);
+    return this.allianceLookups.share(flightKey(purpose, freshness, cacheKey, caller), async () => {
+      const result = await this.fetchAlliance(kingdom, key, purpose, caller, freshness);
       if (result.kind === "found") {
-        this.alliances.store(cacheKey, result.value, result.fetchedAt);
+        this.alliances.store(cacheKey, result.value, result.asOf, this.now(), result.liveUsable);
         this.sawAlliance(result.value);
       }
-      return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
+      return orStale(resultOf(result), foundBy(this.alliances.getStale(cacheKey)));
     });
   }
 
@@ -290,20 +315,23 @@ export class GameApiClient {
     key: string,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
-    fetch: () => Promise<ChargedResult<T>>,
+    freshness: Freshness,
+    fetch: () => Promise<Fetched<T>>,
   ): Promise<ChargedResult<T>> {
-    const fresh = cache.get(key, this.now());
+    const fresh = cache.get(key, this.now(), freshness);
     if (fresh !== undefined) return answerOf(fresh);
 
-    return inFlight.share(flightKey(purpose, key, caller), async () => {
+    return inFlight.share(flightKey(purpose, freshness, key, caller), async () => {
       const result = await fetch();
+      const receivedAt = this.now();
       if (result.kind === "found") {
-        cache.store(key, { kind: "found", value: result.value }, result.fetchedAt);
+        cache.store(key, { kind: "found", value: result.value }, result.asOf, receivedAt, result.liveUsable);
       } else if (result.kind === "ambiguous") {
-        cache.store(key, { kind: "ambiguous", matches: result.matches }, this.now());
+        // A match list from a copy lookup is no answer to a live lookup; only a live request's list is.
+        cache.store(key, { kind: "ambiguous", matches: result.matches }, receivedAt, receivedAt, freshness === "live");
       }
       const stale = cache.getStale(key);
-      return orStale(result, stale === undefined ? undefined : answerOf(stale));
+      return orStale(resultOf(result), stale === undefined ? undefined : answerOf(stale));
     });
   }
 
@@ -311,20 +339,26 @@ export class GameApiClient {
    * A fresh cached answer, else one shared request; only a found answer is cached. Tags are compared in lower case.
    * The purpose decides whether the request may use the Quota Reserve.
    */
-  async getAlliance(kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose): Promise<LookupResult<Alliance>> {
-    return uncharged(await this.allianceLookup(kingdom, key, purpose, undefined));
+  async getAlliance(
+    kingdom: KingdomNumber,
+    key: AllianceKey,
+    purpose: RequestPurpose,
+    ...[freshness = "live"]: [Freshness?]
+  ): Promise<LookupResult<Alliance>> {
+    return uncharged(await this.allianceLookup(kingdom, key, purpose, undefined, freshness));
   }
 
   /**
    * The lookups of one Member. Each is charged to the Member against the Daily Allowance before its request is
-   * counted against the Daily Quota; a cached answer is free. The purpose is always `lookup`.
+   * counted against the Daily Quota; a cached answer is free. The purpose is always `lookup`, and the freshness always
+   * `copy`: a charged lookup only shows the data.
    */
   chargedTo(caller: LookupCaller): ChargedLookups {
     return {
-      getPlayer: (uid) => this.playerLookup(uid, "lookup", caller),
-      findPlayer: (name, kingdom) => this.playerNameLookup(name, kingdom, "lookup", caller),
-      getAlliance: (kingdom, key) => this.allianceLookup(kingdom, key, "lookup", caller),
-      findAlliance: (name) => this.allianceNameLookup(name, "lookup", caller),
+      getPlayer: (uid) => this.playerLookup(uid, "lookup", caller, "copy"),
+      findPlayer: (name, kingdom) => this.playerNameLookup(name, kingdom, "lookup", caller, "copy"),
+      getAlliance: (kingdom, key) => this.allianceLookup(kingdom, key, "lookup", caller, "copy"),
+      findAlliance: (name) => this.allianceNameLookup(name, "lookup", caller, "copy"),
     };
   }
 
@@ -332,18 +366,24 @@ export class GameApiClient {
     uid: Uid,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
-  ): Promise<ChargedResult<Player>> {
+    freshness: Freshness,
+  ): Promise<Fetched<Player>> {
     const endpoint = "/players/{uid}";
 
-    const reply = await this.request({ endpoint, path: `/players/${uid}`, purpose, conflictIsAnswer: false, caller });
+    const reply = await this.request({
+      endpoint,
+      path: pathWithFreshness(`/players/${uid}`, freshness),
+      purpose,
+      conflictIsAnswer: false,
+      caller,
+    });
     if (reply.kind !== "reply") return reply;
 
     const read = await this.readBody(endpoint, reply, playerBodySchema);
     if (!read.ok) return read.failure;
-    const fetchedAt = this.now();
 
     if (read.body.uid !== uid) return this.unexpected(endpoint, "status 200, answer is for another uid");
-    return this.playerFrom(endpoint, read.body, fetchedAt);
+    return this.playerFrom(endpoint, read.body, this.now(), freshness);
   }
 
   /**
@@ -355,13 +395,14 @@ export class GameApiClient {
     kingdom: KingdomNumber | undefined,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
-  ): Promise<ChargedResult<Player>> {
+    freshness: Freshness,
+  ): Promise<Fetched<Player>> {
     const endpoint = kingdom === undefined ? "/players/name/{name}" : "/players/{kingdom}/{name}";
     const segments = kingdom === undefined ? "name" : kingdom.toString();
 
     const reply = await this.request({
       endpoint,
-      path: `/players/${segments}/${encodeURIComponent(name)}`,
+      path: pathWithFreshness(`/players/${segments}/${encodeURIComponent(name)}`, freshness),
       purpose,
       conflictIsAnswer: true,
       caller,
@@ -376,11 +417,16 @@ export class GameApiClient {
 
     const read = await this.readBody(endpoint, reply, playerBodySchema);
     if (!read.ok) return read.failure;
-    return this.playerFrom(endpoint, read.body, this.now());
+    return this.playerFrom(endpoint, read.body, this.now(), freshness);
   }
 
-  /** The Player a 200 body describes, or the unexpected failure when the body does not describe one. */
-  private playerFrom(endpoint: string, body: PlayerBody, fetchedAt: Date): LookupResult<Player> {
+  /**
+   * The Player a 200 body describes, or the unexpected failure when the body does not describe one. `receivedAt` is
+   * the moment the answer arrived; the Player is as of that moment less the body's age.
+   */
+  private playerFrom(endpoint: string, body: PlayerBody, receivedAt: Date, freshness: Freshness): FoundFetch<Player> | Unexpected {
+    const asOf = asOfFrom(receivedAt, body.age_seconds);
+    const liveUsable = liveUsableFrom(freshness, body.age_seconds);
     const uid = parseUid(body.uid);
     if (!uid.ok) return this.unexpected(endpoint, "status 200, uid is not a uid");
 
@@ -398,7 +444,7 @@ export class GameApiClient {
     };
 
     if (body.aid === null || body.aid === 0) {
-      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, fetchedAt };
+      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, asOf, liveUsable };
     }
 
     if (typeof body.alliance_abbr !== "string" || typeof body.alliance_name !== "string") {
@@ -413,7 +459,8 @@ export class GameApiClient {
         alliance: { tag: body.alliance_abbr, name: body.alliance_name, leaderUid: leaderUidFrom(body.alliance) },
         allianceRank: rankFromRoster(uid.value, roster),
       },
-      fetchedAt,
+      asOf,
+      liveUsable,
     };
   }
 
@@ -423,13 +470,15 @@ export class GameApiClient {
     key: AllianceKey,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
-  ): Promise<ChargedResult<Alliance>> {
+    freshness: Freshness,
+  ): Promise<Fetched<Alliance>> {
     return this.requestAlliance(
       "/alliances/{kingdom}/{key}",
-      `/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`,
+      pathWithFreshness(`/alliances/${kingdom.toString()}/${encodeURIComponent(key)}`, freshness),
       purpose,
       caller,
       kingdom,
+      freshness,
     );
   }
 
@@ -438,13 +487,15 @@ export class GameApiClient {
     name: AllianceKey,
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
-  ): Promise<ChargedResult<Alliance>> {
+    freshness: Freshness,
+  ): Promise<Fetched<Alliance>> {
     return this.requestAlliance(
       "/alliances/name/{name}",
-      `/alliances/name/${encodeURIComponent(name)}`,
+      pathWithFreshness(`/alliances/name/${encodeURIComponent(name)}`, freshness),
       purpose,
       caller,
       undefined,
+      freshness,
     );
   }
 
@@ -458,7 +509,8 @@ export class GameApiClient {
     purpose: RequestPurpose,
     caller: LookupCaller | undefined,
     expected: KingdomNumber | undefined,
-  ): Promise<ChargedResult<Alliance>> {
+    freshness: Freshness,
+  ): Promise<Fetched<Alliance>> {
     const reply = await this.request({ endpoint, path, purpose, conflictIsAnswer: true, caller });
     if (reply.kind !== "reply") return reply;
 
@@ -470,14 +522,15 @@ export class GameApiClient {
 
     const read = await this.readBody(endpoint, reply, allianceBodySchema);
     if (!read.ok) return read.failure;
-    const fetchedAt = this.now();
 
     const kingdom = parseKingdom(read.body.sid);
     if (!kingdom.ok) return this.unexpected(endpoint, "status 200, sid is not a Kingdom number");
     if (expected !== undefined && kingdom.value !== expected) {
       return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
     }
-    return { kind: "found", value: allianceFrom(read.body, kingdom.value), fetchedAt };
+    const asOf = asOfFrom(this.now(), read.body.age_seconds);
+    const liveUsable = liveUsableFrom(freshness, read.body.age_seconds);
+    return { kind: "found", value: allianceFrom(read.body, kingdom.value), asOf, liveUsable };
   }
 
   /**
@@ -687,19 +740,52 @@ function uncharged<T>(result: ChargedResult<T>): LookupResult<T> {
  * joins a lookup's request, which may have been refused at the Quota Reserve. A charged lookup's key holds its Member,
  * so a refusal by the Daily Allowance never reaches another Member. The cache is shared by every purpose.
  */
-function flightKey(purpose: RequestPurpose, key: string, caller: LookupCaller | undefined): string {
-  return caller === undefined ? `${purpose}:${key}` : `${purpose}:member:${caller.memberId}:${key}`;
+function flightKey(
+  purpose: RequestPurpose,
+  freshness: Freshness,
+  key: string,
+  caller: LookupCaller | undefined,
+): string {
+  const scope = caller === undefined ? "" : `member:${caller.memberId}:`;
+  return `${purpose}:${freshness}:${scope}${key}`;
+}
+
+/** The request path with the freshness asked for: a live lookup ends in `?fresh=1`, a copy lookup has no query. */
+function pathWithFreshness(path: string, freshness: Freshness): string {
+  return freshness === "live" ? `${path}?fresh=1` : path;
+}
+
+/**
+ * When the game sent an answer: the moment it arrived less the age the tracker gives it. No usable age counts as zero,
+ * so the answer is as of the moment it arrived.
+ */
+function asOfFrom(receivedAt: Date, ageSeconds: number | undefined): Date {
+  return new Date(receivedAt.getTime() - (ageSeconds ?? 0) * 1000);
+}
+
+/**
+ * Whether a later live lookup may take a found answer from the cache: an answer to a live request always may; a copy
+ * answer may only when the tracker gave its age, as its `asOf` is then a real moment and not the receive moment.
+ */
+function liveUsableFrom(freshness: Freshness, ageSeconds: number | undefined): boolean {
+  return freshness === "live" || ageSeconds !== undefined;
+}
+
+/** A fetched answer as the lookup result it is: a found answer loses its cache flag. */
+function resultOf<T>(fetched: Fetched<T>): ChargedResult<T> {
+  if (fetched.kind !== "found") return fetched;
+  return { kind: "found", value: fetched.value, asOf: fetched.asOf };
 }
 
 /** A cached Player as a found answer. */
 function foundBy<T>(entry: CacheEntry<T> | undefined): LookupResult<T> | undefined {
-  return entry === undefined ? undefined : { kind: "found", value: entry.value, fetchedAt: entry.fetchedAt };
+  return entry === undefined ? undefined : { kind: "found", value: entry.value, asOf: entry.asOf };
 }
 
 /** A cached Player Name answer as the lookup result it stood for. */
 function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
-  const { value, fetchedAt } = entry;
-  return value.kind === "found" ? { kind: "found", value: value.value, fetchedAt } : value;
+  const { value, asOf } = entry;
+  return value.kind === "found" ? { kind: "found", value: value.value, asOf } : value;
 }
 
 /** The uid of an Alliance's leader; undefined when the body gives none or it is not a readable uid. */

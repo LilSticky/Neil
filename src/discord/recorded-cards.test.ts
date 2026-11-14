@@ -38,7 +38,7 @@ describe("cards from recorded Game API answers", () => {
     const result = await clientAnswering(playerBody).getPlayer(uid.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    expect(renderPlayerCard(result.value, result.fetchedAt, NOW)).toEqual({
+    expect(renderPlayerCard(result.value, result.asOf, NOW)).toEqual({
       title: "DrLOL",
       color: 0xb33a3a,
       author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
@@ -67,7 +67,7 @@ describe("cards from recorded Game API answers", () => {
     const result = await clientAnswering(allianceBody).getAlliance(kingdom.value, key.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    const card = renderAllianceCard(result.value, result.fetchedAt, NOW);
+    const card = renderAllianceCard(result.value, result.asOf, NOW);
     expect(card).toMatchObject({
       title: "[NML] No Man's Land",
       color: 0xb33a3a,

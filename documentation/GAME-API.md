@@ -4,8 +4,8 @@ What we know about the Game API: the **Last Asylum Tracker** HTTP API, a third-p
 Asylum: Plague. Only the Game API client in `src/game-api/` talks to it (constitution IV). Update this
 file whenever something about the API is learned.
 
-Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and three test calls made on
-2026-10-29 (`/quota`, `/players/145563254785`, `/alliances/1/NML`). The docs page is partly outdated;
+Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's own tests, three test calls made on
+2026-10-29 (`/quota`, `/players/145563254785`, `/alliances/1/NML`) and three on 2026-11-14 (see Freshness). The docs page is partly outdated;
 **what was verified by a real call wins**. Field names below are the API's, not our dictionary terms.
 
 ## Access
@@ -34,8 +34,22 @@ Sources: the tracker's docs page (read 2026-10-29), the user's own tests, and th
 
 ## Freshness
 
-- The tracker keeps a profile or roster for **10 minutes** (`cache_seconds: 600`); requests inside that
-  window get the same data and still cost quota. Our cache never needs to be shorter than 10 minutes.
+**Changed 2026-11-14** (the tracker's "much faster responses" update; verified the same day on
+`/players/145563254785` and `/alliances/1/NML`):
+
+- The tracker answers at once from **its own copy**, kept for 60 minutes (`cache_seconds: 3600`). An older copy is
+  still served at once, and a newer one is fetched in the background for the next request. Copies seen:
+  **160,263 s (≈ 44 h)** for a player, 12,503 s (≈ 3.5 h) for `NML`. Before the update nothing was older than 10 minutes.
+- Every player and alliance answer carries, **at the top level** next to `quota`: `age_seconds` (seconds since the game
+  sent the copy; 0 for live data), `refreshing` (true while a newer copy is on its way), `cached`, `cache_seconds`.
+- **`?fresh=1`** on any player or alliance GET waits for a live game lookup (documented 1–2 s, measured 0.12 s). It costs
+  one request like any other. Not offered on `/quota`.
+- Header `x-cache`: `hit` (copy under 60 min), `stale` (older, refresh queued), `miss` (first lookup, waited for the
+  game), `live` (`?fresh=1`).
+- Answers come gzip-compressed (`content-encoding: gzip`); Node's fetch decodes them.
+- Since slice 031, Neil asks with `?fresh=1` when it acts on an answer (Link, corrections, Interview, nickname and roles,
+  Daily Sync, Booty Call) and takes the copy when it only shows one (`/player`, `/alliance`, picks, Alliance Overview,
+  REAPER). The answer's time (`asOf`) is the receive moment minus `age_seconds`.
 
 ## Endpoints
 

@@ -9,7 +9,7 @@ import type { Link, RankOnLink } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { HandedOff, Abandoned } from "../domain/onboarding-interview.js";
 import { MAX_FAILED_ATTEMPTS } from "../domain/onboarding-interview.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { Freshness, LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { openDatabase } from "../storage/database.js";
 import { AppliedStore } from "../storage/applied-store.js";
@@ -613,10 +613,11 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
     });
 
     expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
+    expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
   });
 
   test("a Linked Guest with no rank in the game gets /rank as any Link: the rank is stored and the name and roles are re-applied", async () => {
-    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED_OUTSIDE_HOME, fetchedAt: NOW };
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED_OUTSIDE_HOME, asOf: NOW };
     linkMember(h, LINKED, LINKED_UID, UNKNOWN_RANK);
     const members = new FakeServerMembers();
     const guild = new FakeRolesGuild(OWNER_ID);
@@ -817,7 +818,7 @@ describe("handleLinkButton: an Officer Link's /channels note depends on the Play
   });
 
   test("to a Player outside the Home Kingdom, sends no /channels note but still sends the Link note", async () => {
-    h.gameApi.answer = { kind: "found", value: PLAYER_OUTSIDE_HOME, fetchedAt: NOW };
+    h.gameApi.answer = { kind: "found", value: PLAYER_OUTSIDE_HOME, asOf: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);
@@ -871,11 +872,11 @@ const PLAYER_UNRANKED_OUTSIDE_HOME: Player = { ...PLAYER_UNRANKED, kingdom: king
 
 /** The Game API for a uid: records every lookup and answers with the result set. */
 class FakeLinkGameApi {
-  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
-  answer: LookupResult<Player> = { kind: "found", value: PLAYER_RANKED, fetchedAt: NOW };
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose; readonly freshness?: Freshness | undefined }[] = [];
+  answer: LookupResult<Player> = { kind: "found", value: PLAYER_RANKED, asOf: NOW };
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.lookups.push({ uid, purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose, freshness });
     return Promise.resolve(this.answer);
   }
 }
@@ -1345,7 +1346,7 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
   });
 
   test("Confirm keeps the Onboarding Role on the Member while a Rank Approval is pending, until the approval ends", async () => {
-    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, asOf: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);
@@ -1375,7 +1376,7 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
   });
 
   test("Confirm gives the Doctor Role to the Member too when a Rank Approval is pending", async () => {
-    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, asOf: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);
@@ -1385,7 +1386,7 @@ describe("handleLinkButton: Confirm makes the Officer Link", () => {
   });
 
   test("Confirm of a Player whose rank is unknown announces a Rank Approval for the thread, and leaves the thread open", async () => {
-    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, fetchedAt: NOW };
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED, asOf: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);
@@ -1427,7 +1428,7 @@ describe("handleLinkButton: an Officer Link of a Guest with no rank in the game 
   });
 
   test("Confirm stores the Officer Link, stores no Rank Approval, and deletes the Interview thread", async () => {
-    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED_OUTSIDE_HOME, fetchedAt: NOW };
+    h.gameApi.answer = { kind: "found", value: PLAYER_UNRANKED_OUTSIDE_HOME, asOf: NOW };
     const { confirm } = await openCard(h, OFFICER, HANDED_OFF, FOUND_UID);
 
     await press(h, confirm, OFFICER);

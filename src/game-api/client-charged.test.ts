@@ -210,7 +210,7 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     expect(allowance.usageOf(ALICE)).toBe(DAILY_ALLOWANCE);
   });
 
-  test("a stale cached answer is returned as found with its old fetchedAt, and no request is sent", async () => {
+  test("a stale cached answer is returned as found with its old asOf, and no request is sent", async () => {
     const { client, clock, sent } = setUp();
     const charged = client.chargedTo(alice);
     const first = await charged.findPlayer(ALPHA, undefined);
@@ -220,7 +220,7 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     const stale = await charged.findPlayer(ALPHA, undefined);
 
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", fetchedAt: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
     expect(sent).toHaveLength(DAILY_ALLOWANCE);
   });
 
@@ -416,5 +416,24 @@ describe("GameApiClient.chargedTo when the charge cannot be made", () => {
     await expect(client.chargedTo(bob).getAlliance(KINGDOM_ONE, NML)).resolves.toMatchObject({ kind: "found" });
 
     expect(quotaStore.load()?.used).toBe(10);
+  });
+});
+
+describe("GameApiClient.chargedTo never asks for live data", () => {
+  test("its four lookups, each a miss, send the plain paths with no ?fresh=1 query", async () => {
+    const { client, sent } = setUp();
+    const charged = client.chargedTo(alice);
+
+    await charged.getPlayer(UID);
+    await charged.findPlayer(ALPHA, undefined);
+    await charged.getAlliance(KINGDOM_ONE, NML);
+    await charged.findAlliance(NO_MANS_LAND);
+
+    expect(sent).toEqual([
+      "https://api.lastasylumtracker.com/v1/players/145563254785",
+      "https://api.lastasylumtracker.com/v1/players/name/Alpha",
+      "https://api.lastasylumtracker.com/v1/alliances/1/NML",
+      "https://api.lastasylumtracker.com/v1/alliances/name/No%20Man's%20Land",
+    ]);
   });
 });

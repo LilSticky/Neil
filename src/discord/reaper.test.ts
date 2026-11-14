@@ -97,7 +97,7 @@ const MATCHES: readonly Match[] = [
 
 const LOOKUP_OPTIONS = { strings: { name: "Vex", reason: "  Hoarding gold  " } };
 
-const FOUND: LookupResult<Player> = { kind: "found", value: VEX, fetchedAt: FETCHED_AT };
+const FOUND: LookupResult<Player> = { kind: "found", value: VEX, asOf: FETCHED_AT };
 
 /** The Exile of the Member as a store row: seeded before the test runs. */
 function exileOf(overrides: Partial<Exile> = {}): Exile {
@@ -186,7 +186,7 @@ describe("handleReaperAdd", () => {
 
     await handleReaperAdd(interaction, context);
 
-    expect(gameApi.findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup");
+    expect(gameApi.findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup", "copy");
     expect(gameApi.chargedTo).not.toHaveBeenCalled();
   });
 
@@ -196,7 +196,7 @@ describe("handleReaperAdd", () => {
 
     await handleReaperAdd(interaction, context);
 
-    expect(findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup");
+    expect(findPlayer).toHaveBeenCalledWith(PLAYER_NAME, undefined, "lookup", "copy");
     expect(store.find(UID)).toEqual({
       uid: UID,
       name: "Vex",
@@ -256,7 +256,7 @@ describe("handleReaperAdd", () => {
 
   test("keeps the confirmation within 2,000 characters for a 200-character name of characters to escape", async () => {
     const starred = { ...VEX, name: "*".repeat(200) };
-    const { context } = addContext(store, { lookup: { kind: "found", value: starred, fetchedAt: FETCHED_AT } });
+    const { context } = addContext(store, { lookup: { kind: "found", value: starred, asOf: FETCHED_AT } });
     const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
 
     await handleReaperAdd(interaction, context);
@@ -395,7 +395,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       usage: new FakeUsage().usage,
     });
 
-    expect(gameApi.getPlayer).toHaveBeenCalledWith(UID, "lookup");
+    expect(gameApi.getPlayer).toHaveBeenCalledWith(UID, "lookup", "copy");
     expect(gameApi.chargedTo).not.toHaveBeenCalled();
     expect(store.find(UID)).toEqual({
       uid: UID,

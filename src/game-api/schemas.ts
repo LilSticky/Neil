@@ -17,6 +17,9 @@ const languageSchema = z
   .optional()
   .catch(undefined);
 
+/** How old the answer's data is in seconds; a number of zero or more, any other value reads as undefined (no age). */
+const ageSecondsSchema = z.number().nonnegative().optional().catch(undefined);
+
 /** The shield reading: any number (0 means no shield); any other value reads as undefined (unknown). */
 const shieldingSchema = z.number().optional().catch(undefined);
 
@@ -72,6 +75,8 @@ export const playerBodySchema = z.object({
   avatar_url: picturePathSchema,
   server_badge_url: picturePathSchema,
   shielding: shieldingSchema,
+  /** How old the data is; unreadable reads as undefined, which counts as no age (the answer is received now). */
+  age_seconds: ageSecondsSchema,
 });
 
 export type PlayerBody = z.infer<typeof playerBodySchema>;
@@ -145,6 +150,8 @@ export const allianceBodySchema = z.object({
     .catch(undefined),
   badge_url: picturePathSchema,
   server_badge_url: picturePathSchema,
+  /** How old the data is; unreadable reads as undefined, which counts as no age (the answer is received now). */
+  age_seconds: ageSecondsSchema,
 });
 
 export type AllianceBody = z.infer<typeof allianceBodySchema>;

@@ -124,7 +124,7 @@ class FakeGameApi {
     this.lookups.push({ uid, purpose });
     if (this.gate !== undefined) await this.gate;
     if (this.player === undefined) return { kind: "not-found" };
-    return { kind: "found", value: this.player, fetchedAt: NOW };
+    return { kind: "found", value: this.player, asOf: NOW };
   }
 
   findPlayer(): Promise<LookupResult<Player>> {

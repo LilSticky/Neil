@@ -117,7 +117,7 @@ describe("handlePlayer", () => {
     const interaction = new FakeLookupInteraction({
       strings: { uid: "14556abc" },
     });
-    const { context, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, getPlayer } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -138,7 +138,7 @@ describe("handlePlayer", () => {
     const interaction = new FakeLookupInteraction({
       strings: { uid: ` ${UID} ` },
     });
-    const { context, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, getPlayer } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -147,7 +147,7 @@ describe("handlePlayer", () => {
 
   test("defers publicly, then shows the Player card to everyone", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
-    const { context } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -173,7 +173,7 @@ describe("handlePlayer", () => {
     const { context } = contextReturning({
       kind: "found",
       value: player,
-      fetchedAt: new Date("2026-10-29T23:50:00Z"),
+      asOf: new Date("2026-10-29T23:50:00Z"),
     });
 
     await handlePlayer(interaction, context);
@@ -219,7 +219,7 @@ describe("handlePlayer", () => {
   test("logs a rejected reply and resolves instead of throwing", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, logged } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
@@ -239,7 +239,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
       const { context, getPlayer, findPlayer } = contextReturning({
         kind: "found",
         value: player,
-        fetchedAt: FETCHED_AT,
+        asOf: FETCHED_AT,
       });
 
       await handlePlayer(interaction, context);
@@ -267,7 +267,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
     const { context, getPlayer, findPlayer } = contextReturning({
       kind: "found",
       value: player,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handlePlayer(interaction, context);
@@ -286,7 +286,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
       const { context, getPlayer, findPlayer } = contextReturning({
         kind: "found",
         value: player,
-        fetchedAt: FETCHED_AT,
+        asOf: FETCHED_AT,
       });
 
       await handlePlayer(interaction, context);
@@ -311,7 +311,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
     const { context, findPlayer, getPlayer } = contextReturning({
       kind: "found",
       value: player,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handlePlayer(interaction, context);
@@ -328,7 +328,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
     const { context, findPlayer } = contextReturning({
       kind: "found",
       value: player,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handlePlayer(interaction, context);
@@ -338,7 +338,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
 
   test("defers publicly, then shows the Player card to everyone when the name matches one player", async () => {
     const interaction = new FakeLookupInteraction({ strings: { name: "Vex" } });
-    const { context } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -592,7 +592,7 @@ describe("handleAlliance", () => {
       const { context, getAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
-        fetchedAt: FETCHED_AT,
+        asOf: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -624,7 +624,7 @@ describe("handleAlliance", () => {
       const { context, getAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
-        fetchedAt: FETCHED_AT,
+        asOf: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -651,7 +651,7 @@ describe("handleAlliance", () => {
     const { context, getAlliance } = allianceContextReturning({
       kind: "found",
       value: alliance,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -667,7 +667,7 @@ describe("handleAlliance", () => {
     const { context } = allianceContextReturning({
       kind: "found",
       value: alliance,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -767,7 +767,7 @@ describe("handleAlliance", () => {
     const { context, logged } = allianceContextReturning({
       kind: "found",
       value: alliance,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
@@ -855,12 +855,12 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
     const { context, pickSessions } = allianceContextReturning({
       kind: "found",
       value: allianceWithRoster,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
 
-    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, fetchedAt: FETCHED_AT }, NOW);
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, asOf: FETCHED_AT }, NOW);
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
       {
@@ -879,7 +879,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
     const { context, pickSessions } = allianceContextReturning({
       kind: "found",
       value: alliance,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -897,7 +897,7 @@ describe("handleAlliance by the Alliance's full name", () => {
     const { context, findAlliance, getAlliance } = allianceContextReturning({
       kind: "found",
       value: allianceWithRoster,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -911,12 +911,12 @@ describe("handleAlliance by the Alliance's full name", () => {
     const { context, pickSessions } = allianceContextReturning({
       kind: "found",
       value: allianceWithRoster,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
 
-    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, fetchedAt: FETCHED_AT }, NOW);
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, asOf: FETCHED_AT }, NOW);
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
       {
@@ -1010,7 +1010,7 @@ describe("handleAlliance with a combination that is neither a kingdom and tag no
       const { context, getAlliance, findAlliance } = allianceContextReturning({
         kind: "found",
         value: alliance,
-        fetchedAt: FETCHED_AT,
+        asOf: FETCHED_AT,
       });
 
       await handleAlliance(interaction, context);
@@ -1037,7 +1037,7 @@ describe("handleAlliance with a tag and no Kingdom", () => {
     const { context, getAlliance, findAlliance } = allianceContextReturning({
       kind: "found",
       value: alliance,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
@@ -1185,7 +1185,7 @@ describe("handlePlayer when the card cannot be sent", () => {
   test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, logged } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await expect(handlePlayer(interaction, context)).resolves.toBeUndefined();
 
@@ -1324,7 +1324,7 @@ describe("handleAlliance when the card cannot be sent", () => {
       integers: { kingdom: 1 },
     });
     interaction.fail("editReply", new Error("Unknown interaction"));
-    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance, fetchedAt: FETCHED_AT });
+    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance, asOf: FETCHED_AT });
 
     await expect(handleAlliance(interaction, context)).resolves.toBeUndefined();
 
@@ -1462,7 +1462,7 @@ describe("callerOf", () => {
 describe("handlePlayer by uid charges the Member who ran the command", () => {
   test("asks the charged view of that Member for the Player, and no uncharged lookup", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
-    const { context, gameApi, getPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, gameApi, getPlayer } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -1473,7 +1473,7 @@ describe("handlePlayer by uid charges the Member who ran the command", () => {
 
   test("charges an Officer as an Officer", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID, [OFFICER_ROLE_ID]);
-    const { context, gameApi } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, gameApi } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -1504,7 +1504,7 @@ describe("handlePlayer by uid charges the Member who ran the command", () => {
 describe("handlePlayer by name charges the Member who ran the command", () => {
   test("asks the charged view of that Member for the Player by name and Kingdom", async () => {
     const interaction = new FakeLookupInteraction({ strings: { name: "Vex" }, integers: { kingdom: 330 } });
-    const { context, gameApi, findPlayer } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, gameApi, findPlayer } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -1605,10 +1605,10 @@ const OFFICER: LookupCaller = { memberId: USER_ID, officer: true };
 describe("handlePlayer shows the usage line, read after the request", () => {
   test("shows 5 of 14 on an uncached card, because the usage is read after the request that was just made", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
-    const { context, gameApi, usage } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, gameApi, usage } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
     gameApi.charged.getPlayer.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+      return Promise.resolve({ kind: "found", value: player, asOf: FETCHED_AT });
     });
 
     await handlePlayer(interaction, context);
@@ -1627,7 +1627,7 @@ describe("handlePlayer shows the usage line, read after the request", () => {
 
   test("shows the count of the Member, not of the Officers, to an Officer, who is not limited", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID, [OFFICER_ROLE_ID]);
-    const { context, usage } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, usage } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await handlePlayer(interaction, context);
 
@@ -1671,11 +1671,11 @@ describe("handleAlliance shows the usage line on the Alliance card, read after t
     const { context, gameApi, usage } = allianceContextReturning({
       kind: "found",
       value: alliance,
-      fetchedAt: FETCHED_AT,
+      asOf: FETCHED_AT,
     });
     gameApi.charged.getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: alliance, fetchedAt: FETCHED_AT });
+      return Promise.resolve({ kind: "found", value: alliance, asOf: FETCHED_AT });
     });
 
     await handleAlliance(interaction, context);
@@ -1696,7 +1696,7 @@ describe("handleAlliance shows the usage line on the Alliance card, read after t
 describe("handlePlayer when the usage line cannot be read", () => {
   test("shows the Player card without the usage line, and logs the failure", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
-    const { context, logged } = contextReturning({ kind: "found", value: player, fetchedAt: FETCHED_AT });
+    const { context, logged } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
 
     await expect(handlePlayer(interaction, { ...context, usage: unreadableUsage })).resolves.toBeUndefined();
 

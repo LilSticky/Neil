@@ -163,7 +163,7 @@ function rosterChoice(count: number): PickChoice {
     leaderName: "M00",
     roster,
   };
-  return { kind: "roster", entries: roster, alliance, fetchedAt: OPENED_AT };
+  return { kind: "roster", entries: roster, alliance, asOf: OPENED_AT };
 }
 
 /** A roster of the given size, with uids and names in the order the roster menu shows them. */

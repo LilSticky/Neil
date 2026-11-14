@@ -3,7 +3,7 @@ import type { LookupCaller } from "../../game-api/allowance-keeper.js";
 import type { ChargedLookups, ChargedResult } from "../../game-api/client.js";
 import type { RequestPurpose } from "../../domain/daily-quota.js";
 import type { AllianceKey, KingdomNumber, PlayerName, Uid } from "../../domain/lookup-input.js";
-import type { Alliance, LookupResult, Player } from "../../domain/player.js";
+import type { Alliance, Freshness, LookupResult, Player } from "../../domain/player.js";
 
 /** What the fake answers. A charged lookup is refused with `allowance-spent` when `refusedUntil` is set. */
 export interface GameApiAnswers {
@@ -17,14 +17,20 @@ type ChargedFindPlayer = (name: PlayerName, kingdom: KingdomNumber | undefined) 
 type ChargedGetAlliance = (kingdom: KingdomNumber, key: AllianceKey) => Promise<ChargedResult<Alliance>>;
 type ChargedFindAlliance = (name: AllianceKey) => Promise<ChargedResult<Alliance>>;
 
-type GetPlayer = (uid: Uid, purpose: RequestPurpose) => Promise<LookupResult<Player>>;
+type GetPlayer = (uid: Uid, purpose: RequestPurpose, freshness?: Freshness) => Promise<LookupResult<Player>>;
 type FindPlayer = (
   name: PlayerName,
   kingdom: KingdomNumber | undefined,
   purpose: RequestPurpose,
+  freshness?: Freshness,
 ) => Promise<LookupResult<Player>>;
-type GetAlliance = (kingdom: KingdomNumber, key: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
-type FindAlliance = (name: AllianceKey, purpose: RequestPurpose) => Promise<LookupResult<Alliance>>;
+type GetAlliance = (
+  kingdom: KingdomNumber,
+  key: AllianceKey,
+  purpose: RequestPurpose,
+  freshness?: Freshness,
+) => Promise<LookupResult<Alliance>>;
+type FindAlliance = (name: AllianceKey, purpose: RequestPurpose, freshness?: Freshness) => Promise<LookupResult<Alliance>>;
 
 /**
  * The Game API as the Discord handlers use it. Every method is a spy, so a test reads what was asked and by whom:

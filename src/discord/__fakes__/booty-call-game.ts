@@ -2,7 +2,7 @@ import type { Link } from "../../domain/link.js";
 import type { RequestPurpose } from "../../domain/daily-quota.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../../domain/lookup-input.js";
 import type { MemberId } from "../../domain/rank-approval.js";
-import type { LookupResult, Player, RosterEntry, RosterPresence } from "../../domain/player.js";
+import type { Freshness, LookupResult, Player, RosterEntry, RosterPresence } from "../../domain/player.js";
 import type { LinkStore } from "../../storage/link-store.js";
 
 /** A refusal or failure of the lookup: anything but a found Player. */
@@ -36,7 +36,7 @@ export function rosterEntry(uid: string, name: string, state: RosterState): Rost
  * refuse instead (quota out, unavailable).
  */
 export class FakeBootyCallGameApi {
-  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose; readonly freshness?: Freshness | undefined }[] = [];
   private roster: readonly RosterPresence[] | undefined = [];
   private refusal: LookupRefusal | undefined = undefined;
 
@@ -53,8 +53,8 @@ export class FakeBootyCallGameApi {
     this.refusal = refusal;
   }
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.lookups.push({ uid, purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose, freshness });
     if (this.refusal !== undefined) return Promise.resolve(this.refusal);
     const value: Player = {
       uid,
@@ -66,7 +66,7 @@ export class FakeBootyCallGameApi {
       allianceRank: "R4",
       ...(this.roster === undefined ? {} : { roster: this.roster }),
     };
-    return Promise.resolve({ kind: "found", value, fetchedAt: new Date("2026-11-07T12:00:00Z") });
+    return Promise.resolve({ kind: "found", value, asOf: new Date("2026-11-07T12:00:00Z") });
   }
 }
 

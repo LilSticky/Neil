@@ -8,7 +8,7 @@ import type { RequestPurpose } from "../domain/daily-quota.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { RankOnLink } from "../domain/link.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
-import type { LookupResult, Player } from "../domain/player.js";
+import type { Freshness, LookupResult, Player } from "../domain/player.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { AppliedStore } from "../storage/applied-store.js";
 import { openDatabase } from "../storage/database.js";
@@ -90,7 +90,7 @@ const ROGUE_GUEST: Player = {
 
 /** The Game API as the name and roles use it: records each lookup and answers with the prepared result. */
 class FakeGameApi {
-  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose }[] = [];
+  readonly lookups: { readonly uid: Uid; readonly purpose: RequestPurpose; readonly freshness?: Freshness | undefined }[] = [];
   private answer: LookupResult<Player> = { kind: "not-found" };
   private readonly answers = new Map<string, LookupResult<Player>>();
   private hold: { readonly reached: () => void; readonly released: Promise<void> } | undefined = undefined;
@@ -118,8 +118,8 @@ class FakeGameApi {
     return { reached: reachedPromise, release };
   }
 
-  getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> {
-    this.lookups.push({ uid, purpose });
+  getPlayer(uid: Uid, purpose: RequestPurpose, freshness?: Freshness): Promise<LookupResult<Player>> {
+    this.lookups.push({ uid, purpose, freshness });
     const answer = this.answers.get(String(uid)) ?? this.answer;
     const hold = this.hold;
     if (hold === undefined) return Promise.resolve(answer);
@@ -494,7 +494,7 @@ describe("createNameAndRoles", () => {
     test("gives the Preference Roles of the rank on the Link to a Linked Member it applies to at startup", async () => {
       joinAlice(h);
       linkAlice(h, GAME_RANK_R5);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -504,7 +504,7 @@ describe("createNameAndRoles", () => {
     test("a Link ended while the lookup is in flight at startup gives the Member no nickname or roles", async () => {
       const alice = joinAlice(h);
       linkAlice(h);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
       const lookup = h.gameApi.holdNextLookup();
 
       const starting = h.service.atStartup();
@@ -523,7 +523,7 @@ describe("createNameAndRoles", () => {
       const bob = joinMember(h, BOB);
       linkMember(h, ALICE, UID, GAME_RANK_R4);
       linkMember(h, BOB, BOB_UID, GAME_RANK_R4);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -539,7 +539,7 @@ describe("createNameAndRoles", () => {
     test("records the Alliance of each Linked Member it applies to, so the Daily Sync needs no uid lookup for them", async () => {
       joinMember(h, ALICE);
       linkMember(h, ALICE, UID);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -549,7 +549,7 @@ describe("createNameAndRoles", () => {
     test("reads the Player for the nickname and roles uncharged, so no Member's Daily Allowance is used", async () => {
       joinMember(h, ALICE);
       linkMember(h, ALICE, UID, GAME_RANK_R4);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -557,11 +557,21 @@ describe("createNameAndRoles", () => {
       expect(h.gameApi.charges).toEqual([]);
     });
 
+    test("reads the Player for the nickname and roles live, not from the copy", async () => {
+      joinMember(h, ALICE);
+      linkMember(h, ALICE, UID, GAME_RANK_R4);
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
+
+      await h.service.atStartup();
+
+      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+    });
+
     test("skips a Linked Member who is not on the server, with no lookup", async () => {
       joinMember(h, BOB);
       linkMember(h, ALICE, UID);
       linkMember(h, BOB, BOB_UID);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -582,7 +592,7 @@ describe("createNameAndRoles", () => {
         appliedAt: NOW,
         complete: true,
       });
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -598,9 +608,9 @@ describe("createNameAndRoles", () => {
         linkMember(h, ALICE, UID);
         linkMember(h, BOB, BOB_UID);
         linkMember(h, CAROL, CAROL_UID);
-        h.gameApi.answerFor(UID, { kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+        h.gameApi.answerFor(UID, { kind: "found", value: ROGUE_R4, asOf: NOW });
         h.gameApi.answerFor(BOB_UID, { kind, resetsAt: NOW });
-        h.gameApi.answerFor(CAROL_UID, { kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+        h.gameApi.answerFor(CAROL_UID, { kind: "found", value: ROGUE_R4, asOf: NOW });
 
         await h.service.atStartup();
 
@@ -617,7 +627,7 @@ describe("createNameAndRoles", () => {
       linkMember(h, ALICE, UID);
       linkMember(h, BOB, BOB_UID);
       h.gameApi.answerFor(UID, { kind: "not-found" });
-      h.gameApi.answerFor(BOB_UID, { kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerFor(BOB_UID, { kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -634,7 +644,7 @@ describe("createNameAndRoles", () => {
       linkMember(h, ALICE, UID);
       linkMember(h, BOB, BOB_UID);
       h.server.failFor(ALICE, new Error("Discord is unavailable"));
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -691,7 +701,7 @@ describe("createNameAndRoles", () => {
     test("leaves the Linked Members who are on the server alone, and the apply goes on for them", async () => {
       const alice = joinAlice(h);
       linkAlice(h);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
@@ -816,7 +826,7 @@ describe("createNameAndRoles", () => {
     test("gives the Preference Roles of the approved rank", async () => {
       joinAlice(h);
       linkAlice(h, APPROVED_R4);
-      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.onRankApproved(ALICE);
 
@@ -826,7 +836,7 @@ describe("createNameAndRoles", () => {
     test("looks the Player up once with the lookup purpose, and gives the rank of the Link", async () => {
       const alice = joinAlice(h);
       linkAlice(h, APPROVED_R4);
-      h.gameApi.answerWith({ kind: "found", value: { ...ROGUE_R4, allianceRank: "unknown" }, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: { ...ROGUE_R4, allianceRank: "unknown" }, asOf: NOW });
 
       await h.service.onRankApproved(ALICE);
 
@@ -838,7 +848,7 @@ describe("createNameAndRoles", () => {
     test("a Link ended while the lookup is in flight gives the Member no nickname, roles or applied state", async () => {
       const alice = joinAlice(h);
       linkAlice(h, APPROVED_R4);
-      h.gameApi.answerWith({ kind: "found", value: { ...ROGUE_R4, allianceRank: "unknown" }, fetchedAt: NOW });
+      h.gameApi.answerWith({ kind: "found", value: { ...ROGUE_R4, allianceRank: "unknown" }, asOf: NOW });
       const lookup = h.gameApi.holdNextLookup();
 
       const approving = h.service.onRankApproved(ALICE);

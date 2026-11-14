@@ -90,13 +90,13 @@ function positionOf(player: Player): Position | undefined {
 }
 
 /** The Exile a found Player makes: its position when the Game read one, the reason and the adder. */
-function exileOf(player: Player, fetchedAt: Date, reason: ExileReason, adderId: MemberId, addedAt: Date): Exile {
+function exileOf(player: Player, asOf: Date, reason: ExileReason, adderId: MemberId, addedAt: Date): Exile {
   const position = positionOf(player);
   return {
     uid: player.uid,
     name: player.name,
     kingdom: player.kingdom,
-    lastPosition: position === undefined ? undefined : { position, at: fetchedAt },
+    lastPosition: position === undefined ? undefined : { position, at: asOf },
     reason,
     addedAt,
     addedBy: adderId,
@@ -115,7 +115,7 @@ function allianceText(player: Player): string {
  */
 export async function recordFoundExile(
   player: Player,
-  fetchedAt: Date,
+  asOf: Date,
   reason: ExileReason,
   adderId: MemberId,
   context: ReaperRecordContext,
@@ -123,7 +123,7 @@ export async function recordFoundExile(
   const existing = context.reaper.find(player.uid);
   if (existing !== undefined) return reaperMessages.alreadyExile(existing.name, existing.reason);
 
-  const exile = exileOf(player, fetchedAt, reason, adderId, context.now());
+  const exile = exileOf(player, asOf, reason, adderId, context.now());
   context.reaper.add(exile);
   const logged = reaperMessages.addLog(player.name, player.uid, player.kingdom, adderId, reason);
   await answer("the log line of a REAPER change", context, () =>
@@ -174,7 +174,7 @@ async function findNamed(
   context: ReaperAddContext,
 ): Promise<LookupResult<Player> | undefined> {
   try {
-    return await context.gameApi.findPlayer(name, kingdom, "lookup");
+    return await context.gameApi.findPlayer(name, kingdom, "lookup", "copy");
   } catch (error) {
     context.logError(`Looking up the name for REAPER failed: ${errorText(error)}`);
     return undefined;
@@ -212,7 +212,7 @@ export async function handleReaperAdd(interaction: ReaperInteraction, context: R
       return;
     }
     if (result.kind === "found") {
-      const content = await recordFoundExile(result.value, result.fetchedAt, reason.value, interaction.user.id, context);
+      const content = await recordFoundExile(result.value, result.asOf, reason.value, interaction.user.id, context);
       await interaction.editReply({ content, allowedMentions });
       return;
     }
@@ -229,7 +229,7 @@ type QuotaRefusal = Extract<LookupResult<Player>, { readonly kind: "quota-spent"
 /** A Player read from the Game API this time, and when it was read. */
 export interface FreshRead {
   readonly player: Player;
-  readonly fetchedAt: Date;
+  readonly asOf: Date;
 }
 
 /** The ranking behind /reaper closest: closest first, the reads made to rank it, the Exiles left out, and the refusal that stopped the reads, if any. */
@@ -284,7 +284,7 @@ async function readPlayer(
   context: Pick<ReaperClosestContext, "gameApi" | "logError">,
 ): Promise<LookupResult<Player>> {
   try {
-    return await context.gameApi.getPlayer(uid, "lookup");
+    return await context.gameApi.getPlayer(uid, "lookup", "copy");
   } catch (error) {
     context.logError(`Reading an Exile for REAPER failed: ${errorText(error)}`);
     return { kind: "unavailable", reason: "unexpected" };
@@ -292,8 +292,8 @@ async function readPlayer(
 }
 
 /** The REAPER row a fresh read of a Player leaves behind. */
-function refreshOf(player: Player, fetchedAt: Date): ExileRead {
-  return { name: player.name, kingdom: player.kingdom, position: positionOf(player), readAt: fetchedAt };
+function refreshOf(player: Player, asOf: Date): ExileRead {
+  return { name: player.name, kingdom: player.kingdom, position: positionOf(player), readAt: asOf };
 }
 
 /**
@@ -315,8 +315,8 @@ async function readExiles(
       const { uid } = next.value;
       const result = await readPlayer(uid, context);
       if (result.kind === "found") {
-        reads.set(uid, { player: result.value, fetchedAt: result.fetchedAt });
-        context.reaper.refresh(uid, refreshOf(result.value, result.fetchedAt));
+        reads.set(uid, { player: result.value, asOf: result.asOf });
+        context.reaper.refresh(uid, refreshOf(result.value, result.asOf));
       } else if (result.kind === "quota-spent" || result.kind === "reserve-kept") {
         state.refusal = result;
       }

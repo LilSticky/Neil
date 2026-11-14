@@ -347,6 +347,24 @@ describe("/booty and its Booty Call", () => {
       expect(game.lookups).toEqual([{ uid: ALICE_UID, purpose: "lookup" }]);
     });
 
+    test("the roster's Player is read live, not from the copy", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
+      roster(rosterEntry(ALICE_UID, "Alice Game", { online: true }));
+
+      await bootyCallBy(ALICE);
+
+      expect(game.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+    });
+
+    test("the roster's Player is read live, not from the copy", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
+      roster(rosterEntry(ALICE_UID, "Alice Game", { online: true }));
+
+      await bootyCallBy(ALICE);
+
+      expect(game.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+    });
+
     test("a Member who chose Only when online is mentioned while the game says they are online", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("online"));

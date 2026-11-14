@@ -258,8 +258,8 @@ export function allianceFailureMessage(
 }
 
 /** The public reply that shows a Player: the Player card. */
-export function playerCardMessage(player: Player, fetchedAt: Date, now: Date): CardMessage {
-  return { embeds: [renderPlayerCard(player, fetchedAt, now)] };
+export function playerCardMessage(player: Player, asOf: Date, now: Date): CardMessage {
+  return { embeds: [renderPlayerCard(player, asOf, now)] };
 }
 
 /**
@@ -268,15 +268,15 @@ export function playerCardMessage(player: Player, fetchedAt: Date, now: Date): C
  */
 export function allianceCardMessage(
   alliance: Alliance,
-  fetchedAt: Date,
+  asOf: Date,
   now: Date,
   ownerId: string,
   pickSessions: Pick<PickSessions, "open">,
 ): CardMessage {
-  const embeds = [renderAllianceCard(alliance, fetchedAt, now)];
+  const embeds = [renderAllianceCard(alliance, asOf, now)];
   if (alliance.roster.length === 0) return { embeds };
   const entries = sortRoster(alliance.roster);
-  const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, fetchedAt }, now);
+  const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, asOf }, now);
   return { embeds, components: renderAllianceComponents(alliance, 0, sessionId) };
 }
 
@@ -323,7 +323,7 @@ export async function showLookup<T>(
   context: LookupReplyContext,
   caller: LookupCaller,
   ask: () => Promise<ChargedResult<T>>,
-  card: (value: T, fetchedAt: Date, now: Date) => CardMessage,
+  card: (value: T, asOf: Date, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
   placeholder?: InteractionDeferReplyOptions,
 ): Promise<void> {
@@ -348,7 +348,7 @@ export async function showLookup<T>(
   }
 
   try {
-    const message = withCallerUsage(context, caller, card(result.value, result.fetchedAt, context.now()));
+    const message = withCallerUsage(context, caller, card(result.value, result.asOf, context.now()));
     await interaction.editReply({ ...message, allowedMentions });
   } catch (error) {
     context.logError(`Showing the card failed: ${errorText(error)}`);
@@ -456,7 +456,7 @@ async function showAlliance(
     context,
     caller,
     ask,
-    (alliance, fetchedAt, now) => allianceCardMessage(alliance, fetchedAt, now, ownerId, context.pickSessions),
+    (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions),
     failureMessage,
   );
 }
