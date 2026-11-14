@@ -49,7 +49,32 @@ Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's
 - Answers come gzip-compressed (`content-encoding: gzip`); Node's fetch decodes them.
 - Since slice 031, Neil asks with `?fresh=1` when it acts on an answer (Link, corrections, Interview, nickname and roles,
   Daily Sync, Booty Call) and takes the copy when it only shows one (`/player`, `/alliance`, picks, Alliance Overview,
-  REAPER). The answer's time (`asOf`) is the receive moment minus `age_seconds`.
+  REAPER). The answer's time (`asOf`) is the receive moment minus `age_seconds`. **This is the wrong clock**, see below.
+
+### Two clocks: the answer copy and the map refresh
+
+**Learned 2026-11-14**, from the user and measured on Kingdom 330 (before/after one map refresh, 22:57–22:59 UTC):
+
+- `age_seconds`, `cached`, `cache_seconds`, `x-cache` and `?fresh=1` describe only the tracker's **copy of its own answer**.
+  They say nothing about when the game data was gathered. A `?fresh=1` answer (`age_seconds: 0`, `x-cache: live`)
+  had the same Might, position and kills as the copy, and an unchanged `map_updated_at`; only `last_seen_at` moved
+  (it is set on every live lookup, so it is not a data age either).
+- The game data (Might, position, kills, level, Alliance) comes from the tracker's **map refresh** of a whole Kingdom.
+  It runs only when someone presses **Update Map** on the tracker's map page (`/map?kid=<kingdom>`). The page calls
+  `POST /api/map/update?kid=<kingdom>&token=<random client token>`; from a script the tracker answers
+  `{"detail":"Refresh only from the site"}`, so **Neil cannot start one**.
+- Cooldowns: **30 minutes per Kingdom** (`cooldown_remaining_sec`/`cooldown_total_sec: 1800`) and **30 minutes per IP**
+  (`ip_cooldown_*`), readable without login at `GET /api/map/update/status?kid=<kingdom>&token=<any>`. A press queues
+  a job (`job.status` `queued` → `running`, `progress_pct`, `tiles_done`/`tiles_total`, `cities_seen`). Kingdom 330's
+  job crawled 2,117 tiles and about 14,250 cities in about 50 seconds. `updates_paused` hides the button.
+- When the Kingdom was last refreshed: `stats.last_updated_at` (Unix seconds) in the site's `GET /api/map?kid=<kingdom>`.
+  This endpoint is the website's, not the documented `/v1` API; Neil does not use it (constitution IV: only the client).
+- A player's `map_updated_at` is when the map refresh last **changed** that player's record, not when it last saw it.
+  After the refresh at 22:58, one of five sampled players had `map_updated_at` 22:58; the others kept 22:13 or even
+  12:59, although their data was confirmed at 22:58. So `map_updated_at` is an upper bound on age, not the age.
+- Consequence for Neil: the card's "as of" (receive moment minus `age_seconds`) shows when the tracker copied its
+  answer, e.g. "as of 03:01 UTC" for data that may be much older, and `?fresh=1` costs a request without fresher game
+  data. Tracked in a GitHub issue.
 
 ## Endpoints
 
@@ -71,7 +96,7 @@ no approximate (fuzzy) name search in the API; Neil matches Known Alliances itse
 - Identity: `uid` (= `player_id`), `nick` (= `nick_name`), `kid` (= `sid`, the kingdom number),
   `kingdom_flag`
 - Game: `power`, `lv` (= `level`, sanctuary level), `kills`, `vip`, `likes`, `language`, `gender`,
-  `skin_name`, `x`, `y`, `first_seen_at`, `last_seen_at` (Unix seconds, fractional)
+  `skin_name`, `x`, `y`, `first_seen_at`, `last_seen_at`, `map_updated_at` (Unix seconds, fractional; see Freshness)
 - Alliance: `aid` (= `union_id`), `alliance_name`, `alliance_abbr`, and an `alliance` object with
   `name`, `abbr`, `power`, `member_count`, `capacity`, `language`, **`leader_id`**, `leader_name`.
   `leader_id` is read since slice 005 as the Alliance leader's uid, leniently (a number or a digit string;
