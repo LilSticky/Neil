@@ -7,6 +7,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Fix (2026-11-14): `R4` and `R5` hold Create Events from the setup script (slice 028), and Neil refused every Managed Role with a permission, so each check logged `skipped R4 (must lose its permissions or be renamed first)` and Neil could neither give nor take `R4`/`R5`. Neil now ignores the setup's own grants (`ROLE_GRANTS` in `src/domain/server-layout.ts`, kept equal to `server-layout.json` by a test); any other permission is still refused. ADR 8 amended. Check after the deploy: the next check logs no `R4` skip.
+
 Slice 031, Act on fresh game data ([specs](../specs/031-act-on-fresh-game-data/), issue [#95](https://github.com/LilSticky/Neil/issues/95)): since the tracker's update of 2026-11-14, its copy can be days old (a 44 h copy was seen), and Neil's lookups serve that copy unless asked with `?fresh=1` ([GAME-API.md](GAME-API.md) Freshness). The user's decision: fresh only where it matters. Neil asks for live data when it acts (Link, corrections, Interview, nickname and roles, Daily Sync, Booty Call) and takes the copy for `/player`, `/alliance`, picks, the Alliance Overview and REAPER. Card "as of" times now show when the game sent the data. Neil's cache never answers a live lookup with an old copy. No migration, no new command.
 Merged to `main` with T001–T015 done (review and audit in the spec folder). **Merged red:** the manual check ([quickstart.md](../specs/031-act-on-fresh-game-data/quickstart.md), T016) needs the deploy, so Definition of Done 2 is open.
 

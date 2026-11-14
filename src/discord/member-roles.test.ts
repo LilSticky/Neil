@@ -13,6 +13,8 @@ const ALICE = "111111111111111111";
 const BOB = "222222222222222222";
 /** The Administrator permission bit: a role with it is refused. */
 const ADMINISTRATOR = 8n;
+/** The Create Events permission bit (bit 44), which the setup grants R4 and R5 (ROLE_GRANTS). */
+const CREATE_EVENTS = 1n << 44n;
 
 /** The names of the roles a member holds, sorted. */
 function heldNames(member: FakeRolesMember): string[] {
@@ -394,6 +396,67 @@ describe("applyNameAndRoles", () => {
 
     expect(alice.roles.map((role) => role.id)).toEqual([high.id]);
     expect(report.skipped).toEqual([{ what: "R3", reason: "hierarchy" }]);
+  });
+});
+
+describe("applyNameAndRoles with a Managed Role whose only permission is one the setup grants its name", () => {
+  test("gives R4, which holds only Create Events, to a Member who should have it, with no skip", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole("R4", { permissions: CREATE_EVENTS });
+    const alice = guild.member(ALICE);
+
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["R4"], managedTags: [], officerRoleIds: [] });
+
+    expect(report.added).toEqual(["R4"]);
+    expect(report.skipped).toEqual([]);
+    expect(heldNames(alice)).toEqual(["R4"]);
+  });
+
+  test("takes R4, which holds only Create Events, off a Member who should not have it any more", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole("R4", { permissions: CREATE_EVENTS });
+    const alice = guild.member(ALICE, ["R4"]);
+
+    const report = await applyNameAndRoles(guild, alice, { nickname: "Rogue", roles: [], managedTags: [], officerRoleIds: [] });
+
+    expect(report.removed).toEqual(["R4"]);
+    expect(report.skipped).toEqual([]);
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("leaves R4, which holds only Create Events, alone for a Member who should keep it", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole("R4", { permissions: CREATE_EVENTS });
+    const alice = guild.member(ALICE, ["R4"]);
+
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["R4"], managedTags: [], officerRoleIds: [] });
+
+    expect(report).toMatchObject({ added: [], removed: [], created: [], skipped: [] });
+    expect(heldNames(alice)).toEqual(["R4"]);
+  });
+
+  test("refuses R4 that holds Create Events and Administrator, as a has-permissions skip", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole("R4", { permissions: CREATE_EVENTS | ADMINISTRATOR });
+    const alice = guild.member(ALICE);
+
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|R4] Rogue", roles: ["R4"], managedTags: [], officerRoleIds: [] });
+
+    expect(report.added).toEqual([]);
+    expect(report.skipped).toEqual([{ what: "R4", reason: "has-permissions" }]);
+    expect(heldNames(alice)).toEqual([]);
+  });
+
+  test("refuses T1, which holds Create Events though the setup grants it to no such name, as a has-permissions skip", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    guild.defineRole("T1", { permissions: CREATE_EVENTS });
+    const alice = guild.member(ALICE);
+
+    const report = await applyNameAndRoles(guild, alice, { nickname: "[NML|T1] Rogue", roles: ["T1"], managedTags: [], officerRoleIds: [] });
+
+    expect(report.added).toEqual([]);
+    expect(report.skipped).toEqual([{ what: "T1", reason: "has-permissions" }]);
+    expect(heldNames(alice)).toEqual([]);
   });
 });
 

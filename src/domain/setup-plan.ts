@@ -3,7 +3,7 @@ import {
   BOT_TARGET,
   EVERYONE_TARGET,
   expandLayout,
-  ROLE_PERMISSION_BITS,
+  permissionBits,
   type ChannelType,
   type ExpandedChannel,
   type ExpandedForum,
@@ -270,15 +270,11 @@ function planRolePermissions(plan: Plan, rolePermissions: Record<string, RolePer
 
 /** A listed role may hold the bits its rolePermissions grant; any other bit it holds is a finding, unless Moderator or King. */
 function reviewRole(plan: Plan, role: ServerRole): void {
-  const granted = grantedBitsOf(plan.rolePermissions[role.name] ?? []);
+  const granted = permissionBits(plan.rolePermissions[role.name] ?? []);
   const beyond = role.permissions & ~granted;
   const exempt = PERMISSION_ROLES.includes(role.name);
   if (beyond !== 0n && !exempt) plan.findings.push({ kind: "role-has-permissions", name: role.name });
   if (role.position >= plan.server.botTopPosition) plan.findings.push({ kind: "role-above-neil", name: role.name });
-}
-
-function grantedBitsOf(permissions: readonly RolePermission[]): bigint {
-  return permissions.reduce((bits, name) => bits | ROLE_PERMISSION_BITS[name], 0n);
 }
 
 function planCategories(plan: Plan, layout: ExpandedLayout, allianceRoleNames: readonly string[]): void {

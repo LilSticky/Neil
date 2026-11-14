@@ -73,7 +73,8 @@ nickname and roles matching the game.
 | **Preference Roles**: languages (e.g. `Italian`), `Americas`, `Europe/Africa`, `Asia/Oceania`, `PvP`, `Events`, `Recruitment`, `Off-topic`, `NaP discussions`, `New`, `Intermediate`, `Veteran` | Neil, when first chosen, or you | automatic | Given by the Member's choices. Regions, `New` and `Intermediate` show no channel. |
 
 🔴 **Requirement: never give a permission to a role Neil uses.** Neil creates them with no permissions, and refuses to use
-a role with one of these names that has any. A permission-free role you make with such a name **becomes Neil's**: it finds
+a role with one of these names that has any. The one exception is what the setup script grants itself: Create Events on
+`R4` and `R5`. A permission-free role you make with such a name **becomes Neil's**: it finds
 roles by exact name, and gives and takes them by its own rules.
 
 ⚪ **Suggestion:** change the color, icon and "display separately" setting of Neil's roles as you like.
