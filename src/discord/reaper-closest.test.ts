@@ -511,6 +511,18 @@ describe("handleReaperClosest", () => {
     });
   });
 
+  test("stores the moment of the read as an Exile's reading time when the Game gives no map time", async () => {
+    store.add(exileOf(NEAR, "Old name", { x: 1, y: 1 }));
+    const read: GetPlayer = () =>
+      Promise.resolve({ kind: "found", value: playerOf(NEAR, "Vex", HOME, { x: 120, y: 340 }), asOf: undefined });
+    const { context } = closestContext(store, { read });
+    const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(store.find(NEAR)?.lastPosition).toEqual({ position: { x: 120, y: 340 }, at: NOW });
+  });
+
   test("stores the Kingdom an Exile moved to, and leaves that Exile out of the answer", async () => {
     store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
     const { context } = closestContext(store, { read: readsOf(playerOf(NEAR, "Near", OTHER_KINGDOM, { x: 1, y: 0 })) });

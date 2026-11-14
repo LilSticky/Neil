@@ -258,7 +258,7 @@ export function allianceFailureMessage(
 }
 
 /** The public reply that shows a Player: the Player card. */
-export function playerCardMessage(player: Player, asOf: Date, now: Date): CardMessage {
+export function playerCardMessage(player: Player, asOf: Date | undefined, now: Date): CardMessage {
   return { embeds: [renderPlayerCard(player, asOf, now)] };
 }
 
@@ -268,7 +268,7 @@ export function playerCardMessage(player: Player, asOf: Date, now: Date): CardMe
  */
 export function allianceCardMessage(
   alliance: Alliance,
-  asOf: Date,
+  asOf: Date | undefined,
   now: Date,
   ownerId: string,
   pickSessions: Pick<PickSessions, "open">,
@@ -323,7 +323,7 @@ export async function showLookup<T>(
   context: LookupReplyContext,
   caller: LookupCaller,
   ask: () => Promise<ChargedResult<T>>,
-  card: (value: T, asOf: Date, now: Date) => CardMessage,
+  card: (value: T, asOf: Date | undefined, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
   placeholder?: InteractionDeferReplyOptions,
 ): Promise<void> {

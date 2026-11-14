@@ -151,10 +151,11 @@ export function utcTime(moment: Date): string {
 }
 
 /**
- * The card footer: the source and when the game sent the data, in UTC. Data from today shows the time only; an earlier
- * day shows the day and English month too.
+ * The card footer: the source and, when the game gave a map time, when it was, in UTC. Data from today shows the time
+ * only; an earlier day shows the day and English month too. Without a map time the footer names the source alone.
  */
-export function footerFor(asOf: Date, now: Date): { readonly text: string } {
+export function footerFor(asOf: Date | undefined, now: Date): { readonly text: string } {
+  if (asOf === undefined) return { text: FOOTER_SOURCE };
   const time = utcTime(asOf);
   const when = utcDayOf(asOf) === utcDayOf(now)
     ? time
@@ -245,7 +246,7 @@ function onlineText(details: PlayerDetails | undefined, now: Date): string | und
 }
 
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
-export function renderPlayerCard(player: Player, asOf: Date, now: Date): APIEmbed {
+export function renderPlayerCard(player: Player, asOf: Date | undefined, now: Date): APIEmbed {
   const details = player.details;
   const alliance =
     player.alliance === undefined
@@ -375,7 +376,7 @@ function rosterSection(shown: readonly RosterEntry[], fixed: number): APIEmbedFi
  * in menu order; a page past the last one is clamped), so the card follows the menu's page. The Alliance fields are the
  * same on every page. Every Game API text is escaped; a missing Leader reads Unknown.
  */
-export function renderAllianceCard(alliance: Alliance, asOf: Date, now: Date, page = 0): APIEmbed {
+export function renderAllianceCard(alliance: Alliance, asOf: Date | undefined, now: Date, page = 0): APIEmbed {
   const details = alliance.details;
   const fields: APIEmbedField[] = [
     { name: "Might", value: thousands(alliance.might), inline: true },

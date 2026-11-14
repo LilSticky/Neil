@@ -152,7 +152,7 @@ function sortButtonId(sessionId: string, sort: TableSort): string {
  */
 export function renderOverview(
   alliance: Alliance,
-  asOf: Date,
+  asOf: Date | undefined,
   now: Date,
   sessionId: string,
   page: number,

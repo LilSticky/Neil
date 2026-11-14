@@ -122,14 +122,25 @@ interface Call {
   readonly caller?: LookupCaller | undefined;
 }
 
-/** A name answer as cached (Player or Alliance): the found value, or the matches when the name is ambiguous. */
-type NameAnswer<T> = { readonly kind: "found"; readonly value: T } | { readonly kind: "ambiguous"; readonly matches: readonly Match[] };
+/** A found answer as cached: the value and its map time, which the cache does not read (the cache's `asOf` is `liveSince`). */
+interface Stored<T> {
+  readonly value: T;
+  readonly mapTime: Date | undefined;
+}
+
+/** A name answer as cached (Player or Alliance): the found answer, or the matches when the name is ambiguous. */
+type NameAnswer<T> =
+  | { readonly kind: "found"; readonly stored: Stored<T> }
+  | { readonly kind: "ambiguous"; readonly matches: readonly Match[] };
 
 /**
- * A found answer as fetched: `liveUsable` tells whether a later live lookup may take it from the cache (see
- * liveUsableFrom). It is not part of the lookup result.
+ * A found answer as fetched: `liveSince` is the moment a live lookup counts it from in the cache, and `liveUsable` tells
+ * whether a later live lookup may take it from the cache at all (see liveUsableFrom). Neither is part of the lookup result.
  */
-type FoundFetch<T> = Extract<LookupResult<T>, { readonly kind: "found" }> & { readonly liveUsable: boolean };
+type FoundFetch<T> = Extract<LookupResult<T>, { readonly kind: "found" }> & {
+  readonly liveSince: Date;
+  readonly liveUsable: boolean;
+};
 
 /** What one fetch gave: a lookup result, or a found answer with its cache flag. */
 type Fetched<T> = Exclude<ChargedResult<T>, { readonly kind: "found" }> | FoundFetch<T>;
@@ -151,8 +162,8 @@ export class GameApiClient {
   private readonly onAllianceSeen: AllianceSeenHook | undefined;
   private readonly timeoutMs: number;
   private readonly baseUrl: string;
-  private readonly players: LookupCache<Player>;
-  private readonly alliances: LookupCache<Alliance>;
+  private readonly players: LookupCache<Stored<Player>>;
+  private readonly alliances: LookupCache<Stored<Alliance>>;
   private readonly playerNames: LookupCache<NameAnswer<Player>>;
   private readonly allianceNames: LookupCache<NameAnswer<Alliance>>;
   private readonly playerLookups = new InFlight<ChargedResult<Player>>();
@@ -173,9 +184,9 @@ export class GameApiClient {
     this.onAllianceSeen = options.onAllianceSeen;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
-    this.players = new LookupCache<Player>({ ttlMs: options.cacheTtlMs });
+    this.players = new LookupCache<Stored<Player>>({ ttlMs: options.cacheTtlMs });
     this.playerNames = new LookupCache<NameAnswer<Player>>({ ttlMs: options.cacheTtlMs });
-    this.alliances = new LookupCache<Alliance>({ ttlMs: options.cacheTtlMs });
+    this.alliances = new LookupCache<Stored<Alliance>>({ ttlMs: options.cacheTtlMs });
     this.allianceNames = new LookupCache<NameAnswer<Alliance>>({ ttlMs: options.cacheTtlMs });
   }
 
@@ -232,12 +243,12 @@ export class GameApiClient {
   ): Promise<ChargedResult<Player>> {
     const key = `player:${uid}`;
     const fresh = this.players.get(key, this.now(), freshness);
-    if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
+    if (fresh !== undefined) return foundOf(fresh.value);
 
     return this.playerLookups.share(flightKey(purpose, freshness, key, caller), async () => {
       const result = await this.fetchPlayer(uid, purpose, caller, freshness);
       if (result.kind === "found") {
-        this.players.store(key, result.value, result.asOf, this.now(), result.liveUsable);
+        this.players.store(key, storedOf(result), result.liveSince, this.now(), result.liveUsable);
         this.sawPlayer(result.value);
       }
       return orStale(resultOf(result), foundBy(this.players.getStale(key)));
@@ -292,12 +303,12 @@ export class GameApiClient {
   ): Promise<ChargedResult<Alliance>> {
     const cacheKey = `alliance:${kingdom.toString()}:${key.toLowerCase()}`;
     const fresh = this.alliances.get(cacheKey, this.now(), freshness);
-    if (fresh !== undefined) return { kind: "found", value: fresh.value, asOf: fresh.asOf };
+    if (fresh !== undefined) return foundOf(fresh.value);
 
     return this.allianceLookups.share(flightKey(purpose, freshness, cacheKey, caller), async () => {
       const result = await this.fetchAlliance(kingdom, key, purpose, caller, freshness);
       if (result.kind === "found") {
-        this.alliances.store(cacheKey, result.value, result.asOf, this.now(), result.liveUsable);
+        this.alliances.store(cacheKey, storedOf(result), result.liveSince, this.now(), result.liveUsable);
         this.sawAlliance(result.value);
       }
       return orStale(resultOf(result), foundBy(this.alliances.getStale(cacheKey)));
@@ -325,7 +336,7 @@ export class GameApiClient {
       const result = await fetch();
       const receivedAt = this.now();
       if (result.kind === "found") {
-        cache.store(key, { kind: "found", value: result.value }, result.asOf, receivedAt, result.liveUsable);
+        cache.store(key, { kind: "found", stored: storedOf(result) }, result.liveSince, receivedAt, result.liveUsable);
       } else if (result.kind === "ambiguous") {
         // A match list from a copy lookup is no answer to a live lookup; only a live request's list is.
         cache.store(key, { kind: "ambiguous", matches: result.matches }, receivedAt, receivedAt, freshness === "live");
@@ -421,11 +432,17 @@ export class GameApiClient {
   }
 
   /**
-   * The Player a 200 body describes, or the unexpected failure when the body does not describe one. `receivedAt` is
-   * the moment the answer arrived; the Player is as of that moment less the body's age.
+   * The Player a 200 body describes, or the unexpected failure when the body does not describe one. The Player is as of
+   * its map time, undefined when the body gives none; `receivedAt` is the moment the answer arrived.
    */
-  private playerFrom(endpoint: string, body: PlayerBody, receivedAt: Date, freshness: Freshness): FoundFetch<Player> | Unexpected {
-    const asOf = asOfFrom(receivedAt, body.age_seconds);
+  private playerFrom(
+    endpoint: string,
+    body: PlayerBody,
+    receivedAt: Date,
+    freshness: Freshness,
+  ): FoundFetch<Player> | Unexpected {
+    const asOf = mapTimeOf(body.map_updated_at);
+    const liveSince = liveSinceFrom(receivedAt, body.age_seconds);
     const liveUsable = liveUsableFrom(freshness, body.age_seconds);
     const uid = parseUid(body.uid);
     if (!uid.ok) return this.unexpected(endpoint, "status 200, uid is not a uid");
@@ -444,7 +461,13 @@ export class GameApiClient {
     };
 
     if (body.aid === null || body.aid === 0) {
-      return { kind: "found", value: { ...profile, alliance: undefined, allianceRank: undefined }, asOf, liveUsable };
+      return {
+        kind: "found",
+        value: { ...profile, alliance: undefined, allianceRank: undefined },
+        asOf,
+        liveSince,
+        liveUsable,
+      };
     }
 
     if (typeof body.alliance_abbr !== "string" || typeof body.alliance_name !== "string") {
@@ -460,6 +483,7 @@ export class GameApiClient {
         allianceRank: rankFromRoster(uid.value, roster),
       },
       asOf,
+      liveSince,
       liveUsable,
     };
   }
@@ -528,9 +552,9 @@ export class GameApiClient {
     if (expected !== undefined && kingdom.value !== expected) {
       return this.unexpected(endpoint, "status 200, answer is for another Kingdom");
     }
-    const asOf = asOfFrom(this.now(), read.body.age_seconds);
+    const liveSince = liveSinceFrom(this.now(), read.body.age_seconds);
     const liveUsable = liveUsableFrom(freshness, read.body.age_seconds);
-    return { kind: "found", value: allianceFrom(read.body, kingdom.value), asOf, liveUsable };
+    return { kind: "found", value: allianceFrom(read.body, kingdom.value), asOf: undefined, liveSince, liveUsable };
   }
 
   /**
@@ -756,36 +780,56 @@ function pathWithFreshness(path: string, freshness: Freshness): string {
 }
 
 /**
- * When the game sent an answer: the moment it arrived less the age the tracker gives it. No usable age counts as zero,
- * so the answer is as of the moment it arrived.
+ * When a found answer counts as current for a live lookup: the moment it arrived less the age the tracker gives it. No
+ * usable age counts as zero, so the answer counts from the moment it arrived.
  */
-function asOfFrom(receivedAt: Date, ageSeconds: number | undefined): Date {
+function liveSinceFrom(receivedAt: Date, ageSeconds: number | undefined): Date {
   return new Date(receivedAt.getTime() - (ageSeconds ?? 0) * 1000);
 }
 
 /**
+ * The map time of a Player: the Unix seconds the Game's map last changed, as a Date. Undefined when the body gives none,
+ * or a time a Date cannot hold (the schema has already read 0 and below as none).
+ */
+function mapTimeOf(mapUpdatedAt: number | undefined): Date | undefined {
+  if (mapUpdatedAt === undefined) return undefined;
+  const moment = new Date(mapUpdatedAt * 1000);
+  return Number.isFinite(moment.getTime()) ? moment : undefined;
+}
+
+/**
  * Whether a later live lookup may take a found answer from the cache: an answer to a live request always may; a copy
- * answer may only when the tracker gave its age, as its `asOf` is then a real moment and not the receive moment.
+ * answer may only when the tracker gave its age, as its live moment is then a real moment and not the receive moment.
  */
 function liveUsableFrom(freshness: Freshness, ageSeconds: number | undefined): boolean {
   return freshness === "live" || ageSeconds !== undefined;
 }
 
-/** A fetched answer as the lookup result it is: a found answer loses its cache flag. */
+/** A fetched answer as the lookup result it is: a found answer loses its cache fields. */
 function resultOf<T>(fetched: Fetched<T>): ChargedResult<T> {
   if (fetched.kind !== "found") return fetched;
   return { kind: "found", value: fetched.value, asOf: fetched.asOf };
 }
 
-/** A cached Player as a found answer. */
-function foundBy<T>(entry: CacheEntry<T> | undefined): LookupResult<T> | undefined {
-  return entry === undefined ? undefined : { kind: "found", value: entry.value, asOf: entry.asOf };
+/** A found answer as it is cached: its value and map time. */
+function storedOf<T>(fetched: FoundFetch<T>): Stored<T> {
+  return { value: fetched.value, mapTime: fetched.asOf };
 }
 
-/** A cached Player Name answer as the lookup result it stood for. */
+/** A cached found answer as the lookup result it stood for. */
+function foundOf<T>(stored: Stored<T>): LookupResult<T> {
+  return { kind: "found", value: stored.value, asOf: stored.mapTime };
+}
+
+/** A cached Player or Alliance as a found answer. */
+function foundBy<T>(entry: CacheEntry<Stored<T>> | undefined): LookupResult<T> | undefined {
+  return entry === undefined ? undefined : foundOf(entry.value);
+}
+
+/** A cached Player Name or Alliance Name answer as the lookup result it stood for. */
 function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
-  const { value, asOf } = entry;
-  return value.kind === "found" ? { kind: "found", value: value.value, asOf } : value;
+  const { value } = entry;
+  return value.kind === "found" ? foundOf(value.stored) : value;
 }
 
 /** The uid of an Alliance's leader; undefined when the body gives none or it is not a readable uid. */

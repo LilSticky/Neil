@@ -130,7 +130,7 @@ async function answerPick<T>(
   context: PickContext,
   caller: LookupCaller,
   ask: () => Promise<ChargedResult<T>>,
-  card: (value: T, asOf: Date, now: Date) => CardMessage,
+  card: (value: T, asOf: Date | undefined, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
 ): Promise<void> {
   let result: ChargedResult<T>;
@@ -358,7 +358,7 @@ async function turnRosterPage(
  */
 function openOverviewSession(
   alliance: Alliance,
-  asOf: Date,
+  asOf: Date | undefined,
   askerId: string,
   pickSessions: Pick<PickSessions, "open">,
   now: Date,
@@ -373,7 +373,7 @@ function openOverviewSession(
 function overviewUnderCard(
   card: PickSession,
   alliance: Alliance,
-  asOf: Date,
+  asOf: Date | undefined,
   askerId: string,
   pickSessions: Pick<PickSessions, "get" | "open" | "linkOverview">,
   now: Date,

@@ -89,14 +89,17 @@ function positionOf(player: Player): Position | undefined {
   return location === undefined ? undefined : { x: location.x, y: location.y };
 }
 
-/** The Exile a found Player makes: its position when the Game read one, the reason and the adder. */
-function exileOf(player: Player, asOf: Date, reason: ExileReason, adderId: MemberId, addedAt: Date): Exile {
+/**
+ * The Exile a found Player makes: its position when the Game read one, the reason and the adder. The position is read at
+ * the Player's map time, or at the moment of the addition when the Game gives none.
+ */
+function exileOf(player: Player, asOf: Date | undefined, reason: ExileReason, adderId: MemberId, addedAt: Date): Exile {
   const position = positionOf(player);
   return {
     uid: player.uid,
     name: player.name,
     kingdom: player.kingdom,
-    lastPosition: position === undefined ? undefined : { position, at: asOf },
+    lastPosition: position === undefined ? undefined : { position, at: asOf ?? addedAt },
     reason,
     addedAt,
     addedBy: adderId,
@@ -115,7 +118,7 @@ function allianceText(player: Player): string {
  */
 export async function recordFoundExile(
   player: Player,
-  asOf: Date,
+  asOf: Date | undefined,
   reason: ExileReason,
   adderId: MemberId,
   context: ReaperRecordContext,
@@ -229,7 +232,8 @@ type QuotaRefusal = Extract<LookupResult<Player>, { readonly kind: "quota-spent"
 /** A Player read from the Game API this time, and when it was read. */
 export interface FreshRead {
   readonly player: Player;
-  readonly asOf: Date;
+  /** The Player's map time; undefined when the Game gives none. */
+  readonly asOf: Date | undefined;
 }
 
 /** The ranking behind /reaper closest: closest first, the reads made to rank it, the Exiles left out, and the refusal that stopped the reads, if any. */
@@ -291,9 +295,9 @@ async function readPlayer(
   }
 }
 
-/** The REAPER row a fresh read of a Player leaves behind. */
-function refreshOf(player: Player, asOf: Date): ExileRead {
-  return { name: player.name, kingdom: player.kingdom, position: positionOf(player), readAt: asOf };
+/** The REAPER row a fresh read of a Player leaves behind, read at its map time or else at the moment of the read. */
+function refreshOf(player: Player, asOf: Date | undefined, now: Date): ExileRead {
+  return { name: player.name, kingdom: player.kingdom, position: positionOf(player), readAt: asOf ?? now };
 }
 
 /**
@@ -302,7 +306,7 @@ function refreshOf(player: Player, asOf: Date): ExileRead {
  */
 async function readExiles(
   exiles: readonly Exile[],
-  context: Pick<ReaperClosestContext, "gameApi" | "reaper" | "logError">,
+  context: Pick<ReaperClosestContext, "gameApi" | "reaper" | "logError" | "now">,
 ): Promise<{ readonly reads: Map<Uid, FreshRead>; readonly refusal: QuotaRefusal | undefined }> {
   const queue = exiles.values();
   const reads = new Map<Uid, FreshRead>();
@@ -316,7 +320,7 @@ async function readExiles(
       const result = await readPlayer(uid, context);
       if (result.kind === "found") {
         reads.set(uid, { player: result.value, asOf: result.asOf });
-        context.reaper.refresh(uid, refreshOf(result.value, result.asOf));
+        context.reaper.refresh(uid, refreshOf(result.value, result.asOf, context.now()));
       } else if (result.kind === "quota-spent" || result.kind === "reserve-kept") {
         state.refusal = result;
       }
@@ -335,7 +339,7 @@ export async function rankClosest(
   origin: Position,
   kingdom: KingdomNumber,
   callerUid: Uid | undefined,
-  context: Pick<ReaperClosestContext, "gameApi" | "reaper" | "logError">,
+  context: Pick<ReaperClosestContext, "gameApi" | "reaper" | "logError" | "now">,
 ): Promise<ClosestRanking> {
   const exiles = context.reaper.inKingdom(kingdom);
   const { reads, refusal } = await readExiles(exiles, context);

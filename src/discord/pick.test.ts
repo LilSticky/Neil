@@ -339,7 +339,7 @@ const ALLIANCE_MATCHES: readonly Match[] = [
 ];
 
 function openRoster(sessions: PickSessions): string {
-  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, asOf: OPENED_AT }, OPENED_AT);
+  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, asOf: undefined }, OPENED_AT);
 }
 
 function openAlliances(sessions: PickSessions): string {
@@ -535,7 +535,7 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -572,14 +572,14 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     const { context } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
 
     expect(open).toHaveBeenCalledWith(
       OWNER_ID,
-      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, asOf: NOW },
+      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, asOf: undefined },
       NOW,
     );
   });
@@ -688,7 +688,7 @@ describe("handlePick for the owner choosing a close Known Alliance", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -712,7 +712,7 @@ describe("handlePick for the owner choosing a close Known Alliance", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -793,7 +793,7 @@ describe("handlePick for the Overview button of an Alliance card while its pick 
       {
         method: "reply",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, pickId, 0)),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, pickId, 0)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         }) as unknown,
@@ -814,7 +814,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
     const { context, getAlliance, getPlayer } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -830,7 +830,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
       {
         method: "editReply",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, NOW, NOW, UNKNOWN_SESSION_ID, 0)),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, UNKNOWN_SESSION_ID, 0)),
         }) as unknown,
       },
     ]);
@@ -872,7 +872,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might")),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, overviewId, 1, "might")),
         }) as unknown,
       },
     ]);
@@ -891,7 +891,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might")),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, overviewId, 1, "might")),
         }) as unknown,
       },
     ]);
@@ -933,7 +933,7 @@ describe("handleOverview sort buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 0, "dailyHonor")),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, overviewId, 0, "dailyHonor")),
         }) as unknown,
       },
     ]);
@@ -1151,7 +1151,7 @@ describe("handlePick for the owner choosing an Alliance match, charged to the ca
     const { context, gameApi } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -1210,7 +1210,7 @@ describe("handlePick for the Overview button of an Alliance card, charged to the
     const { context, gameApi } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -1268,11 +1268,11 @@ describe("handlePick shows the usage line, read after the request", () => {
     const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
     getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: NOW });
+      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: undefined });
     });
 
     await handlePick(interaction, context);
@@ -1282,7 +1282,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OWNER, 5)}` },
           }),
         ],
       }) as unknown,
@@ -1322,11 +1322,11 @@ describe("handlePick shows the usage line, read after the request", () => {
     const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
     getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: NOW });
+      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: undefined });
     });
 
     await handlePick(interaction, context);
@@ -1337,7 +1337,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: expect.arrayContaining([
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OTHER_MEMBER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OTHER_MEMBER, 5)}` },
           }),
         ]) as unknown,
       }) as unknown,
@@ -1357,7 +1357,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:00 UTC · ${LINE_BEFORE}` },
+            footer: { text: `Data from Last Asylum Tracker · ${LINE_BEFORE}` },
           }),
         ],
       }) as unknown,
@@ -1436,7 +1436,7 @@ describe("handlePick when the usage line cannot be read, for a roster page turn"
       {
         method: "update",
         options: {
-          embeds: [renderAllianceCard(allianceNmx, OPENED_AT, NOW, 1)],
+          embeds: [renderAllianceCard(allianceNmx, undefined, NOW, 1)],
           components: renderAllianceComponents(allianceNmx, 1, pickId),
         },
       },

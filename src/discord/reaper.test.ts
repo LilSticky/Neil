@@ -208,6 +208,15 @@ describe("handleReaperAdd", () => {
     });
   });
 
+  test("stores the moment of the addition as the reading's time when the Game gives no map time", async () => {
+    const { context } = addContext(store, { lookup: { kind: "found", value: VEX, asOf: undefined } });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(store.find(UID)?.lastPosition).toEqual({ position: { x: 120, y: 340 }, at: NOW });
+  });
+
   test("confirms privately with the name, Kingdom and tag, and never names the adder", async () => {
     const { context } = addContext(store);
     const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);

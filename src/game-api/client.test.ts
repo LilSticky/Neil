@@ -33,6 +33,8 @@ const FIXED_NOW = new Date("2026-10-30T15:20:00Z");
 const NEXT_MIDNIGHT_UTC = new Date("2026-10-31T00:00:00Z");
 const CACHE_TTL_MS = 600_000;
 const QUOTA_RESERVE = 100;
+/** The map time (`map_updated_at`) of the recorded player-in-alliance.json and player-by-name.json (slice 032, T004). */
+const PLAYER_MAP_TIME = new Date("2026-10-28T12:33:55.558Z");
 
 /** The Player details of the recorded player-in-alliance.json (slice 012, T001). */
 const RECORDED_PLAYER_DETAILS: PlayerDetails = {
@@ -81,6 +83,11 @@ function parsedKingdom(number: number): KingdomNumber {
   const parsed = parseKingdom(number);
   if (!parsed.ok) throw new Error(`test Kingdom ${number.toString()} must parse`);
   return parsed.value;
+}
+
+/** Unix seconds of an ISO time, as the tracker writes `map_updated_at` and `age_seconds` moments. */
+function epochSeconds(iso: string): number {
+  return Date.parse(iso) / 1000;
 }
 
 function parsedAllianceKey(text: string): AllianceKey {
@@ -245,7 +252,7 @@ describe("GameApiClient.getPlayer result", () => {
         details: RECORDED_PLAYER_DETAILS,
         roster: RECORDED_ROSTER,
       },
-      asOf: FIXED_NOW,
+      asOf: PLAYER_MAP_TIME,
     });
   });
 
@@ -283,7 +290,7 @@ describe("GameApiClient.getPlayer result", () => {
         details: RECORDED_PLAYER_DETAILS,
         roster: [],
       },
-      asOf: FIXED_NOW,
+      asOf: PLAYER_MAP_TIME,
     });
   });
 
@@ -643,7 +650,7 @@ describe("GameApiClient.getAlliance result", () => {
         },
       ],
     };
-    expect(result).toEqual({ kind: "found", value: expected, asOf: FIXED_NOW });
+    expect(result).toEqual({ kind: "found", value: expected, asOf: undefined });
   });
 
   test("a null online and a null last_online_at of a roster member read as undefined", async () => {
@@ -887,7 +894,7 @@ describe("GameApiClient non-200 answers", () => {
 });
 
 describe("GameApiClient clock", () => {
-  test("a found answer's asOf is the time the answer arrived, not the time the request was sent", async () => {
+  test("a found player's asOf is its map time, not the time the answer arrived", async () => {
     let clock = new Date("2026-10-30T15:20:00Z");
     const fetch: FetchLike = () => {
       clock = new Date("2026-10-30T15:20:05Z");
@@ -896,10 +903,10 @@ describe("GameApiClient clock", () => {
 
     const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", asOf: new Date("2026-10-30T15:20:05Z") });
+    expect(result).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
-  test("a found player's asOf is the time its body was read, after the body took 1 s to arrive", async () => {
+  test("a found player's asOf is its map time, not the time its body was read", async () => {
     let clock = new Date("2026-10-30T15:20:00Z");
     class SlowBodyResponse extends Response {
       override text = async (): Promise<string> => {
@@ -917,7 +924,7 @@ describe("GameApiClient clock", () => {
 
     const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", asOf: new Date("2026-10-30T15:20:01Z") });
+    expect(result).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
   test("a 429 resets at the next 00:00 UTC after now, on whatever day now is", async () => {
@@ -945,21 +952,24 @@ describe("GameApiClient cache", () => {
 
     expect(sent).toHaveLength(1);
     expect(second).toEqual(first);
-    expect(second).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(second).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
-  test("a getPlayer after the TTL fetches again, and the new answer has a new asOf", async () => {
+  test("a getPlayer after the TTL fetches again, and the new answer has the map time of the new answer", async () => {
     let clock = FIXED_NOW;
-    const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
+    let body: Readonly<Record<string, unknown>> = playerInAlliance;
+    const { fetch, sent } = fakeFetch(() => jsonResponse(200, body));
     const client = clientWith(fetch, () => clock);
     const uid = parsedUid(PLAYER_UID_TEXT);
 
     await client.getPlayer(uid, "lookup");
     clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
+    const newerMapTime = new Date("2026-10-30T14:02:00Z");
+    body = { ...playerInAlliance, map_updated_at: epochSeconds("2026-10-30T14:02:00Z") };
     const later = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
-    expect(later).toMatchObject({ kind: "found", asOf: clock });
+    expect(later).toMatchObject({ kind: "found", asOf: newerMapTime });
   });
 
   test("two concurrent getPlayer calls for the same uid share one fetch, and both are found", async () => {
@@ -1090,7 +1100,7 @@ describe("GameApiClient Daily Quota gate", () => {
     const afterMidnight = await client.getPlayer(uid, "lookup");
 
     expect(sent).toHaveLength(2);
-    expect(afterMidnight).toMatchObject({ kind: "found", asOf: NEXT_MIDNIGHT_UTC });
+    expect(afterMidnight).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
   test("when spent, a cached player past its TTL is answered as found with its old asOf, and no fetch", async () => {
@@ -1108,7 +1118,7 @@ describe("GameApiClient Daily Quota gate", () => {
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
   test("when spent, a cached alliance past its TTL is answered as found with its old asOf, and no fetch", async () => {
@@ -1125,7 +1135,7 @@ describe("GameApiClient Daily Quota gate", () => {
 
     expect(sent).toHaveLength(2);
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: undefined });
   });
 
   test("a new client on the same store after a 429 makes no fetch", async () => {
@@ -1227,7 +1237,7 @@ describe("GameApiClient Quota Reserve", () => {
 
     expect(sent).toHaveLength(1);
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
   test("a 503 is not retried for a lookup once its own request has left only the Quota Reserve", async () => {
@@ -1277,7 +1287,7 @@ describe("GameApiClient retries", () => {
 
     const result = await client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", asOf: new Date(FIXED_NOW.getTime() + retryDelay(1, JITTER)) });
+    expect(result).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
     expect(sent).toHaveLength(2);
     expect(clock.pauses).toEqual([retryDelay(1, JITTER)]);
   });
@@ -1459,7 +1469,7 @@ describe("GameApiClient.findPlayer result", () => {
         details: RECORDED_PLAYER_DETAILS,
         roster: RECORDED_ROSTER,
       },
-      asOf: FIXED_NOW,
+      asOf: PLAYER_MAP_TIME,
     });
   });
 
@@ -1613,7 +1623,7 @@ describe("GameApiClient.findAlliance result", () => {
         capacity: 100,
         leaderName: "DrLOL",
       },
-      asOf: FIXED_NOW,
+      asOf: undefined,
     });
   });
 
@@ -2058,6 +2068,8 @@ interface UnchargedLookup {
   readonly name: string;
   readonly path: string;
   readonly body: Readonly<Record<string, unknown>>;
+  /** The asOf of a found answer: the Player's map time, none for an Alliance. */
+  readonly asOf: Date | undefined;
   readonly call: (client: GameApiClient, freshness?: Freshness) => Promise<LookupResult<Player | Alliance>>;
 }
 
@@ -2066,24 +2078,28 @@ const UNCHARGED_LOOKUPS: readonly UnchargedLookup[] = [
     name: "getPlayer",
     path: PLAYER_PATH,
     body: playerInAlliance,
+    asOf: PLAYER_MAP_TIME,
     call: (client, freshness) => client.getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup", freshness),
   },
   {
     name: "findPlayer",
     path: PLAYER_NAME_PATH,
     body: playerByName,
+    asOf: PLAYER_MAP_TIME,
     call: (client, freshness) => client.findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup", freshness),
   },
   {
     name: "getAlliance",
     path: ALLIANCE_PATH,
     body: alliance,
+    asOf: undefined,
     call: (client, freshness) => client.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup", freshness),
   },
   {
     name: "findAlliance",
     path: ALLIANCE_NAME_PATH,
     body: allianceByName,
+    asOf: undefined,
     call: (client, freshness) => client.findAlliance(parsedAllianceKey("No Man's Land"), "lookup", freshness),
   },
 ];
@@ -2106,48 +2122,85 @@ describe("GameApiClient uncharged lookups with an explicit freshness", () => {
   });
 });
 
-/** Two hours before FIXED_NOW: the time of a copy that is 7,200 s old when it reaches Neil. */
-const TWO_HOURS_BEFORE_FIXED_NOW = new Date("2026-10-30T13:20:00Z");
+/** An answer copy aged two hours when it reaches Neil. */
 const TWO_HOURS_IN_SECONDS = 7_200;
 
-/** Ages that are no usable age; the answer then counts as received at once. */
-const NO_USABLE_AGE: readonly { readonly label: string; readonly value: unknown }[] = [
-  { label: "a null age", value: null },
-  { label: "a negative age", value: -1 },
-  { label: "an age that is text", value: "7200" },
+/** Map times that are no usable map time: the Player then has no asOf. */
+const NO_USABLE_MAP_TIME: readonly { readonly label: string; readonly value: unknown }[] = [
+  { label: "a null map_updated_at", value: null },
+  { label: "a map_updated_at of 0", value: 0 },
+  { label: "a negative map_updated_at", value: -1 },
+  { label: "a map_updated_at that is text", value: "1793190835.5" },
 ];
 
+/** The Players' lookups: the ones whose found answer is a Player, with their map time. */
+const PLAYER_LOOKUPS = UNCHARGED_LOOKUPS.filter(({ name }) => name === "getPlayer" || name === "findPlayer");
+
 describe("GameApiClient asOf of a found answer", () => {
-  test.each(UNCHARGED_LOOKUPS)("$name is the receive moment less age_seconds", async ({ body, call }) => {
+  test("a found Player is as of its map time, 22:13 UTC, when read at 22:57 UTC with an answer copy 8 s old", async () => {
+    const clock = new Date("2026-10-30T22:57:00Z");
+    const body = {
+      ...playerInAlliance,
+      map_updated_at: epochSeconds("2026-10-30T22:13:00Z"),
+      age_seconds: 8,
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch, () => clock).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
+
+    expect(result).toMatchObject({ kind: "found", asOf: new Date("2026-10-30T22:13:00Z") });
+  });
+
+  test.each(UNCHARGED_LOOKUPS)("$name is as of its map time, whatever its age_seconds", async ({ body, call, asOf }) => {
     const { fetch } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
 
     const result = await call(clientWith(fetch));
 
-    expect(result).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+    expect(result).toMatchObject({ kind: "found", asOf });
   });
 
-  test("a copy answer is as of its age too, when asked with copy", async () => {
+  test("a copy answer of a Player is as of its map time too, when asked with copy", async () => {
     const { fetch } = fakeFetch(() => jsonResponse(200, { ...playerInAlliance, age_seconds: TWO_HOURS_IN_SECONDS }));
 
     const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup", "copy");
 
-    expect(result).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+    expect(result).toMatchObject({ kind: "found", asOf: PLAYER_MAP_TIME });
   });
 
-  test.each(UNCHARGED_LOOKUPS)("$name without an age_seconds is as of the receive moment", async ({ body, call }) => {
-    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+  test.each(PLAYER_LOOKUPS)("$name of a Player body without map_updated_at has no asOf", async ({ body, call }) => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, { ...body, map_updated_at: undefined }));
 
     const result = await call(clientWith(fetch));
 
-    expect(result).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(result).toMatchObject({ kind: "found", asOf: undefined });
   });
 
-  test.each(NO_USABLE_AGE)("a Player with $label is as of the receive moment", async ({ value }) => {
-    const { fetch } = fakeFetch(() => jsonResponse(200, { ...playerInAlliance, age_seconds: value }));
+  test.each(NO_USABLE_MAP_TIME)("a Player with $label has no asOf", async ({ value }) => {
+    const { fetch } = fakeFetch(() => jsonResponse(200, { ...playerInAlliance, map_updated_at: value }));
 
     const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(result).toMatchObject({ kind: "found", asOf: undefined });
+  });
+
+  test("an Alliance found by tag has no asOf, even when its body carries a map time", async () => {
+    const { fetch } = fakeFetch(() =>
+      jsonResponse(200, { ...alliance, map_updated_at: epochSeconds("2026-10-30T14:02:00Z"), age_seconds: 8 }),
+    );
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toMatchObject({ kind: "found", asOf: undefined });
+  });
+
+  test("an Alliance found by name has no asOf, even when its body carries a map time", async () => {
+    const { fetch } = fakeFetch(() =>
+      jsonResponse(200, { ...allianceByName, map_updated_at: epochSeconds("2026-10-30T14:02:00Z"), age_seconds: 8 }),
+    );
+
+    const result = await clientWith(fetch).findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+
+    expect(result).toMatchObject({ kind: "found", asOf: undefined });
   });
 });
 
@@ -2162,6 +2215,8 @@ interface ChargedLookup {
   readonly name: string;
   readonly path: string;
   readonly body: Readonly<Record<string, unknown>>;
+  /** The asOf of a found answer: the Player's map time, none for an Alliance. */
+  readonly asOf: Date | undefined;
   readonly call: (lookups: ChargedLookups) => Promise<ChargedResult<Player | Alliance>>;
 }
 
@@ -2170,18 +2225,21 @@ const CHARGED_LOOKUPS: readonly ChargedLookup[] = [
     name: "getPlayer",
     path: PLAYER_PATH,
     body: playerInAlliance,
+    asOf: PLAYER_MAP_TIME,
     call: (lookups) => lookups.getPlayer(parsedUid(PLAYER_UID_TEXT)),
   },
   {
     name: "findPlayer",
     path: PLAYER_NAME_PATH,
     body: playerByName,
+    asOf: PLAYER_MAP_TIME,
     call: (lookups) => lookups.findPlayer(parsedPlayerName("DrLOL"), undefined),
   },
   {
     name: "getAlliance",
     path: ALLIANCE_PATH,
     body: alliance,
+    asOf: undefined,
     call: (lookups) => lookups.getAlliance(parsedKingdom(1), parsedAllianceKey("NML")),
   },
 ];
@@ -2202,7 +2260,7 @@ describe("GameApiClient cache by freshness", () => {
 
   test.each(FRESHNESS_LOOKUPS)(
     "$name with copy is answered from the cache after a copy answer aged 7,200 s, with its old asOf",
-    async ({ body, call }) => {
+    async ({ body, call, asOf }) => {
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
       const client = clientWith(fetch, now);
 
@@ -2211,13 +2269,13 @@ describe("GameApiClient cache by freshness", () => {
       const second = await call(client, "copy");
 
       expect(sent).toHaveLength(1);
-      expect(second).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+      expect(second).toMatchObject({ kind: "found", asOf });
     },
   );
 
   test.each(FRESHNESS_LOOKUPS)(
     "$name with live after a copy answer aged 7,200 s sends a request with ?fresh=1",
-    async ({ path, body, call }) => {
+    async ({ path, body, call, asOf }) => {
       let age = TWO_HOURS_IN_SECONDS;
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: age }));
       const client = clientWith(fetch, now);
@@ -2229,13 +2287,13 @@ describe("GameApiClient cache by freshness", () => {
 
       expect(sent).toHaveLength(2);
       expect(sent[1]?.url).toBe(`${path}?fresh=1`);
-      expect(live).toMatchObject({ kind: "found", asOf: clock });
+      expect(live).toMatchObject({ kind: "found", asOf });
     },
   );
 
   test.each(FRESHNESS_LOOKUPS)(
     "$name with live within the TTL of a live answer aged 0 sends no request",
-    async ({ body, call }) => {
+    async ({ body, call, asOf }) => {
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 0 }));
       const client = clientWith(fetch, now);
 
@@ -2245,13 +2303,13 @@ describe("GameApiClient cache by freshness", () => {
 
       expect(sent).toHaveLength(1);
       expect(second).toEqual(first);
-      expect(second).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+      expect(second).toMatchObject({ kind: "found", asOf });
     },
   );
 
   test.each(FRESHNESS_LOOKUPS)(
     "$name with copy within the TTL of a live answer aged 0 sends no request",
-    async ({ body, call }) => {
+    async ({ body, call, asOf }) => {
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 0 }));
       const client = clientWith(fetch, now);
 
@@ -2260,7 +2318,7 @@ describe("GameApiClient cache by freshness", () => {
       const second = await call(client, "copy");
 
       expect(sent).toHaveLength(1);
-      expect(second).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+      expect(second).toMatchObject({ kind: "found", asOf });
     },
   );
 
@@ -2294,7 +2352,7 @@ describe("GameApiClient cache by freshness", () => {
   describe.each(SPENT_QUOTA)("with a copy in the cache when $label", ({ used }) => {
     test.each(FRESHNESS_LOOKUPS)(
       "$name with live answers the cached copy with its old asOf, and sends no request",
-      async ({ body, call }) => {
+      async ({ body, call, asOf }) => {
         const store = new FakeQuotaStore();
         const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
         const client = clientWith(fetch, now, quotaOn(store, now));
@@ -2305,7 +2363,7 @@ describe("GameApiClient cache by freshness", () => {
         const live = await call(client, "live");
 
         expect(sent).toHaveLength(1);
-        expect(live).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+        expect(live).toMatchObject({ kind: "found", asOf });
       },
     );
   });
@@ -2314,7 +2372,7 @@ describe("GameApiClient cache by freshness", () => {
 describe("GameApiClient charged lookups with a copy in the cache", () => {
   test.each(CHARGED_LOOKUPS)(
     "$name after a copy answer aged 7,200 s is answered from the cache, with its old asOf",
-    async ({ body, call }) => {
+    async ({ body, call, asOf }) => {
       let clock = FIXED_NOW;
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
       const lookups = clientWith(fetch, () => clock).chargedTo(CALLER);
@@ -2324,7 +2382,7 @@ describe("GameApiClient charged lookups with a copy in the cache", () => {
       const second = await call(lookups);
 
       expect(sent).toHaveLength(1);
-      expect(second).toMatchObject({ kind: "found", asOf: TWO_HOURS_BEFORE_FIXED_NOW });
+      expect(second).toMatchObject({ kind: "found", asOf });
     },
   );
 });
@@ -2406,7 +2464,7 @@ describe("GameApiClient live lookup after a copy answer without a usable age", (
 
   test.each(FRESHNESS_LOOKUPS)(
     "$name with live within the TTL of a copy answer aged 60 s is answered from the cache, with its old asOf",
-    async ({ body, call }) => {
+    async ({ body, call, asOf }) => {
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 60 }));
       const client = clientWith(fetch, now);
 
@@ -2415,15 +2473,15 @@ describe("GameApiClient live lookup after a copy answer without a usable age", (
       const live = await call(client, "live");
 
       expect(sent).toHaveLength(1);
-      expect(live).toMatchObject({ kind: "found", asOf: new Date(FIXED_NOW.getTime() - 60_000) });
+      expect(live).toMatchObject({ kind: "found", asOf });
     },
   );
 
-  test.each(FRESHNESS_LOOKUPS)("$name with copy and no usable age is as of the receive moment", async ({ body, call }) => {
+  test.each(FRESHNESS_LOOKUPS)("$name with copy and no age_seconds is as of its map time, or none", async ({ body, call, asOf }) => {
     const { fetch } = fakeFetch(() => jsonResponse(200, body));
 
     const result = await call(clientWith(fetch, now), "copy");
 
-    expect(result).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(result).toMatchObject({ kind: "found", asOf });
   });
 });

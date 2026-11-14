@@ -19,7 +19,7 @@ None (no new dependency, no migration).
 - [x] T002 Player body schema reads `map_updated_at` leniently in `src/game-api/schemas.ts` (+ `schemas.test.ts`):
   missing, null, not a finite number, or ≤ 0 → undefined; otherwise Unix seconds (fractional) kept. Add
   `map_updated_at` to the fixtures `src/game-api/__fixtures__/player*.json` where missing.
-- [ ] T003 `LookupResult` found `asOf` becomes `Date | undefined` in `src/domain/player.ts`; update the `Freshness` doc
+- [x] T003 `LookupResult` found `asOf` becomes `Date | undefined` in `src/domain/player.ts`; update the `Freshness` doc
   comment: `copy` (default) may be answered from Neil's cache; `live` skips Neil's cache and asks the tracker with
   `?fresh=1` (only the Look again button). Fix compile errors in callers by passing `asOf` through unchanged (typecheck
   green, behaviour unchanged except where later tasks say).
@@ -28,15 +28,15 @@ None (no new dependency, no migration).
 
 **Independent test**: a Player with map time 12:59 UTC and an 8-second-old answer copy shows "as of 12:59 UTC".
 
-- [ ] T004 [US1] Client takes a Player's `asOf` from `map_updated_at` (seconds → Date) and no longer from
+- [x] T004 [US1] Client takes a Player's `asOf` from `map_updated_at` (seconds → Date) and no longer from
   `age_seconds`, in `src/game-api/client.ts` (+ `client.test.ts`): `playerFrom`, and by-name lookups; an Alliance's
   `asOf` is `undefined` (`fetchAlliance`, `fetchAllianceByName`). Remove `asOfFrom`.
-- [ ] T005 [US1] `footerFor(asOf: Date | undefined, now)` in `src/discord/lookup-cards.ts` (+ `lookup-cards.test.ts`):
+- [x] T005 [US1] `footerFor(asOf: Date | undefined, now)` in `src/discord/lookup-cards.ts` (+ `lookup-cards.test.ts`):
   undefined → `Data from Last Asylum Tracker` without "· as of"; otherwise as today. `renderPlayerCard`,
   `renderAllianceCard` and `renderOverview` (`src/discord/overview-texts.ts`) accept `Date | undefined`.
-- [ ] T006 [US1] Roster pick sessions keep `asOf: Date | undefined` in `src/discord/pick-sessions.ts`; adjust
+- [x] T006 [US1] Roster pick sessions keep `asOf: Date | undefined` in `src/discord/pick-sessions.ts`; adjust
   `src/discord/pick.ts` and `src/domain/alliance-overview.ts` (+ tests) so an Alliance Overview shows no "as of".
-- [ ] T007 [US1] REAPER reads store `readAt` = the Player's map time, else the moment the answer arrived (`now()`), in
+- [x] T007 [US1] REAPER reads store `readAt` = the Player's map time, else the moment the answer arrived (`now()`), in
   `src/discord/reaper.ts` (`refreshOf`, `exileOf`, `FreshRead`) (+ `reaper.test.ts`).
 
 ## Phase 4: User Story 2 — An old card tells the Member how to get current data (P1)

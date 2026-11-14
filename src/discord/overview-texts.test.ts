@@ -267,17 +267,12 @@ describe("renderOverview: the Alliance Overview embed", () => {
     expect(text).not.toContain("300000000001");
   });
 
-  test("shows when the roster was fetched in the footer, in UTC, as the card does", () => {
-    const reply = overviewOf([alpha]);
+  test("shows no as-of time in the footer, as an Alliance has no map time", () => {
+    const reply = renderOverview(allianceWith([alpha]), undefined, NOW, SESSION, 0);
 
-    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker · as of 10:00 UTC");
+    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker");
   });
 
-  test("shows the day and the month of a roster fetched on an earlier day", () => {
-    const reply = renderOverview(allianceWith([alpha]), new Date("2026-10-30T16:00:00Z"), NOW, SESSION, 0);
-
-    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker · as of 30 Oct 16:00 UTC");
-  });
 
   test("keeps the whole reply within the message limit when names escape to twice their length and figures are long", () => {
     const roster = Array.from({ length: 30 }, (_, index) =>

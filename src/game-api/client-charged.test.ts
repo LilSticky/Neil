@@ -220,7 +220,7 @@ describe("GameApiClient.chargedTo at the Daily Allowance", () => {
     const stale = await charged.findPlayer(ALPHA, undefined);
 
     expect(stale).toEqual(first);
-    expect(stale).toMatchObject({ kind: "found", asOf: FIXED_NOW });
+    expect(stale).toMatchObject({ kind: "found" });
     expect(sent).toHaveLength(DAILY_ALLOWANCE);
   });
 

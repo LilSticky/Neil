@@ -27,6 +27,7 @@ import type {
 } from "../domain/player.js";
 import {
   compactNumber,
+  footerFor,
   joinRequirementsText,
   languageName,
   lookupMessages,
@@ -372,6 +373,24 @@ describe("card footers say when the data was fetched", () => {
   ])("$label writes the day of the month without a leading zero", ({ render }) => {
     expect(render(new Date("2026-10-03T09:05:00Z"), NOW)).toMatchObject({
       footer: { text: "Data from Last Asylum Tracker · as of 3 Oct 09:05 UTC" },
+    });
+  });
+});
+
+describe("card footers without a map time", () => {
+  test("footerFor with no asOf credits the tracker and shows no as-of time", () => {
+    expect(footerFor(undefined, NOW)).toEqual({ text: "Data from Last Asylum Tracker" });
+  });
+
+  test("an Alliance card with no asOf has the tracker credit and no as-of time", () => {
+    expect(renderAllianceCard(alliance, undefined, NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker" },
+    });
+  });
+
+  test("a Player card with no asOf has the tracker credit and no as-of time", () => {
+    expect(renderPlayerCard(inAlliance, undefined, NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker" },
     });
   });
 });
