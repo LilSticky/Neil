@@ -209,7 +209,7 @@ describe("GameApiClient.getPlayer request", () => {
 
     await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(firstRequest(sent).url).toBe(`${PLAYER_PATH}?fresh=1`);
+    expect(firstRequest(sent).url).toBe(PLAYER_PATH);
     expect(firstRequest(sent).init?.method ?? "GET").toBe("GET");
   });
 
@@ -559,7 +559,7 @@ describe("GameApiClient.getAlliance request", () => {
 
     await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
-    expect(firstRequest(sent).url).toBe(`${ALLIANCE_PATH}?fresh=1`);
+    expect(firstRequest(sent).url).toBe(ALLIANCE_PATH);
     expect(firstRequest(sent).init?.method ?? "GET").toBe("GET");
   });
 
@@ -568,7 +568,7 @@ describe("GameApiClient.getAlliance request", () => {
 
     await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("No Man"), "lookup");
 
-    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/alliances/1/No%20Man?fresh=1");
+    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/alliances/1/No%20Man");
   });
 
   test("authenticates with the API key and identifies Neil in the User-Agent", async () => {
@@ -1430,7 +1430,7 @@ describe("GameApiClient.findPlayer request", () => {
 
     await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), undefined, "lookup");
 
-    expect(firstRequest(sent).url).toBe(`${PLAYER_NAME_PATH}?fresh=1`);
+    expect(firstRequest(sent).url).toBe(PLAYER_NAME_PATH);
   });
 
   test("with a Kingdom sends GET to /players/{kingdom}/{name} on the Game API", async () => {
@@ -1438,7 +1438,7 @@ describe("GameApiClient.findPlayer request", () => {
 
     await clientWith(fetch).findPlayer(parsedPlayerName("DrLOL"), parsedKingdom(1), "lookup");
 
-    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/players/1/DrLOL?fresh=1");
+    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/players/1/DrLOL");
   });
 
   test("percent-encodes a name with a space", async () => {
@@ -1446,7 +1446,7 @@ describe("GameApiClient.findPlayer request", () => {
 
     await clientWith(fetch).findPlayer(parsedPlayerName("Dr LOL"), undefined, "lookup");
 
-    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/players/name/Dr%20LOL?fresh=1");
+    expect(firstRequest(sent).url).toBe("https://api.lastasylumtracker.com/v1/players/name/Dr%20LOL");
   });
 });
 
@@ -1603,7 +1603,7 @@ describe("GameApiClient.findAlliance request", () => {
 
     await clientWith(fetch).findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
 
-    expect(firstRequest(sent).url).toBe(`${ALLIANCE_NAME_PATH}?fresh=1`);
+    expect(firstRequest(sent).url).toBe(ALLIANCE_NAME_PATH);
   });
 });
 
@@ -2259,7 +2259,7 @@ describe("GameApiClient cache by freshness", () => {
   });
 
   test.each(FRESHNESS_LOOKUPS)(
-    "$name with copy is answered from the cache after a copy answer aged 7,200 s, with its old asOf",
+    "$name with copy is answered from the cache within the TTL of its storing, with its old asOf",
     async ({ body, call, asOf }) => {
       const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
       const client = clientWith(fetch, now);
@@ -2274,15 +2274,13 @@ describe("GameApiClient cache by freshness", () => {
   );
 
   test.each(FRESHNESS_LOOKUPS)(
-    "$name with live after a copy answer aged 7,200 s sends a request with ?fresh=1",
+    "$name with live right after a cached copy sends a request with ?fresh=1, and its answer is found",
     async ({ path, body, call, asOf }) => {
-      let age = TWO_HOURS_IN_SECONDS;
-      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: age }));
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, body));
       const client = clientWith(fetch, now);
 
       await call(client, "copy");
-      clock = new Date(FIXED_NOW.getTime() + 60_000);
-      age = 0;
+      clock = new Date(FIXED_NOW.getTime() + 1_000);
       const live = await call(client, "live");
 
       expect(sent).toHaveLength(2);
@@ -2292,33 +2290,33 @@ describe("GameApiClient cache by freshness", () => {
   );
 
   test.each(FRESHNESS_LOOKUPS)(
-    "$name with live within the TTL of a live answer aged 0 sends no request",
-    async ({ body, call, asOf }) => {
-      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 0 }));
+    "$name with live right after a live answer sends another request with ?fresh=1",
+    async ({ path, body, call }) => {
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, body));
       const client = clientWith(fetch, now);
 
-      const first = await call(client, "live");
-      clock = new Date(FIXED_NOW.getTime() + 60_000);
-      const second = await call(client, "live");
+      await call(client, "live");
+      clock = new Date(FIXED_NOW.getTime() + 1_000);
+      await call(client, "live");
 
-      expect(sent).toHaveLength(1);
-      expect(second).toEqual(first);
-      expect(second).toMatchObject({ kind: "found", asOf });
+      expect(sent).toHaveLength(2);
+      expect(sent[1]?.url).toBe(`${path}?fresh=1`);
     },
   );
 
   test.each(FRESHNESS_LOOKUPS)(
-    "$name with copy within the TTL of a live answer aged 0 sends no request",
+    "$name with copy after a live answer is answered from the cache, sending no request",
     async ({ body, call, asOf }) => {
-      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 0 }));
+      const { fetch, sent } = fakeFetch(() => jsonResponse(200, body));
       const client = clientWith(fetch, now);
 
-      await call(client, "live");
+      const live = await call(client, "live");
       clock = new Date(FIXED_NOW.getTime() + 60_000);
-      const second = await call(client, "copy");
+      const copy = await call(client, "copy");
 
       expect(sent).toHaveLength(1);
-      expect(second).toMatchObject({ kind: "found", asOf });
+      expect(copy).toEqual(live);
+      expect(copy).toMatchObject({ kind: "found", asOf });
     },
   );
 
@@ -2387,16 +2385,7 @@ describe("GameApiClient charged lookups with a copy in the cache", () => {
   );
 });
 
-/** Copy answers whose age is no usable age: the key left out, or a negative age. */
-const COPY_BODIES_WITHOUT_USABLE_AGE: readonly {
-  readonly label: string;
-  readonly withAge: (body: Readonly<Record<string, unknown>>) => Record<string, unknown>;
-}[] = [
-  { label: "no age_seconds", withAge: (body) => ({ ...body }) },
-  { label: "an age_seconds of -5", withAge: (body) => ({ ...body, age_seconds: -5 }) },
-];
-
-describe("GameApiClient live lookup after a copy answer without a usable age", () => {
+describe("GameApiClient live lookup never reads Neil's cache", () => {
   let clock: Date;
   const now = (): Date => clock;
 
@@ -2404,24 +2393,7 @@ describe("GameApiClient live lookup after a copy answer without a usable age", (
     clock = FIXED_NOW;
   });
 
-  describe.each(COPY_BODIES_WITHOUT_USABLE_AGE)("with $label", ({ withAge }) => {
-    test.each(FRESHNESS_LOOKUPS)(
-      "$name with live within the TTL of a copy answer sends a request with ?fresh=1",
-      async ({ path, body, call }) => {
-        const { fetch, sent } = fakeFetch(() => jsonResponse(200, withAge(body)));
-        const client = clientWith(fetch, now);
-
-        await call(client, "copy");
-        clock = new Date(FIXED_NOW.getTime() + 60_000);
-        await call(client, "live");
-
-        expect(sent).toHaveLength(2);
-        expect(sent[1]?.url).toBe(`${path}?fresh=1`);
-      },
-    );
-  });
-
-  test("a live getPlayer within the TTL of a charged getPlayer without an age sends a request with ?fresh=1", async () => {
+  test("a live getPlayer within the TTL of a charged getPlayer sends a request with ?fresh=1", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(200, playerInAlliance));
     const client = clientWith(fetch, now);
     const uid = parsedUid(PLAYER_UID_TEXT);
@@ -2432,6 +2404,23 @@ describe("GameApiClient live lookup after a copy answer without a usable age", (
 
     expect(sent).toHaveLength(2);
     expect(sent[1]?.url).toBe(`${PLAYER_PATH}?fresh=1`);
+  });
+
+  test("a live getPlayer right after a copy answer that is 0 s old, with a map time 1 minute old, still sends ?fresh=1", async () => {
+    const mapTime = new Date(FIXED_NOW.getTime() - 60_000);
+    const { fetch, sent } = fakeFetch(() =>
+      jsonResponse(200, { ...playerInAlliance, map_updated_at: epochSeconds(mapTime.toISOString()), age_seconds: 0 }),
+    );
+    const client = clientWith(fetch, now);
+    const uid = parsedUid(PLAYER_UID_TEXT);
+
+    await client.getPlayer(uid, "lookup", "copy");
+    clock = new Date(FIXED_NOW.getTime() + 1_000);
+    const live = await client.getPlayer(uid, "lookup", "live");
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.url).toBe(`${PLAYER_PATH}?fresh=1`);
+    expect(live).toMatchObject({ kind: "found", asOf: mapTime });
   });
 
   test("a live findPlayer within the TTL of a copy findPlayer's 409 match list sends a request with ?fresh=1", async () => {
@@ -2449,33 +2438,18 @@ describe("GameApiClient live lookup after a copy answer without a usable age", (
     expect(sent[1]?.url).toBe(`${PLAYER_NAME_PATH}?fresh=1`);
   });
 
-  test("a live findPlayer within the TTL of a live findPlayer's 409 match list sends no request", async () => {
+  test("a live findPlayer within the TTL of a live findPlayer's 409 match list sends another request with ?fresh=1", async () => {
     const { fetch, sent } = fakeFetch(() => jsonResponse(409, playersAmbiguous));
     const client = clientWith(fetch, now);
     const name = parsedPlayerName("DrLOL");
 
-    const first = await client.findPlayer(name, undefined, "lookup", "live");
+    await client.findPlayer(name, undefined, "lookup", "live");
     clock = new Date(FIXED_NOW.getTime() + 60_000);
-    const second = await client.findPlayer(name, undefined, "lookup", "live");
+    await client.findPlayer(name, undefined, "lookup", "live");
 
-    expect(sent).toHaveLength(1);
-    expect(second).toEqual(first);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.url).toBe(`${PLAYER_NAME_PATH}?fresh=1`);
   });
-
-  test.each(FRESHNESS_LOOKUPS)(
-    "$name with live within the TTL of a copy answer aged 60 s is answered from the cache, with its old asOf",
-    async ({ body, call, asOf }) => {
-      const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: 60 }));
-      const client = clientWith(fetch, now);
-
-      await call(client, "copy");
-      clock = new Date(FIXED_NOW.getTime() + 60_000);
-      const live = await call(client, "live");
-
-      expect(sent).toHaveLength(1);
-      expect(live).toMatchObject({ kind: "found", asOf });
-    },
-  );
 
   test.each(FRESHNESS_LOOKUPS)("$name with copy and no age_seconds is as of its map time, or none", async ({ body, call, asOf }) => {
     const { fetch } = fakeFetch(() => jsonResponse(200, body));

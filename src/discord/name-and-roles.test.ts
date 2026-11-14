@@ -557,14 +557,14 @@ describe("createNameAndRoles", () => {
       expect(h.gameApi.charges).toEqual([]);
     });
 
-    test("reads the Player for the nickname and roles live, not from the copy", async () => {
+    test("reads the Player for the nickname and roles from the copy, with no live request", async () => {
       joinMember(h, ALICE);
       linkMember(h, ALICE, UID, GAME_RANK_R4);
       h.gameApi.answerWith({ kind: "found", value: ROGUE_R4, asOf: NOW });
 
       await h.service.atStartup();
 
-      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
     });
 
     test("skips a Linked Member who is not on the server, with no lookup", async () => {

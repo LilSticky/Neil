@@ -1071,19 +1071,19 @@ describe("createInterviews", () => {
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
     });
 
-    test("looks the uid up live, not from the copy", async () => {
+    test("looks the uid up from the copy, with no live request", async () => {
       const interviewId = await joinedMember(h);
       h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });
 
       await submitUid(h, interviewId, UID_DIGITS);
 
-      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+      expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
     });
 
-    test("looks the Recommended Player up live, not from the copy", async () => {
+    test("looks the Recommended Player up from the copy, with no live request", async () => {
       await recommendedMemberJoined(h, PLAYER);
 
-      expect(h.gameApi.nameLookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+      expect(h.gameApi.nameLookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
     });
 
     test("looks the uid up uncharged, so no Member's Daily Allowance is used", async () => {

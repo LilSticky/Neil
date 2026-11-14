@@ -57,7 +57,7 @@ None (no new dependency, no migration).
 - [ ] T010 [US2] Alliance cards and the Alliance Overview always carry the field (the Alliance's Kingdom) and the button
   (`allianceCardMessage` in `src/discord/lookup.ts`, `renderAllianceComponents`, `renderOverview` and their callers in
   `src/discord/pick.ts`) (+ tests). The button row goes below the existing rows.
-- [ ] T011 [US2] Game API client: `live` skips Neil's cache and asks with `?fresh=1`; `copy` reads the cache within the
+- [x] T011 [US2] Game API client: `live` skips Neil's cache and asks with `?fresh=1`; `copy` reads the cache within the
   window counted from `storedAt`; every found answer is stored. Remove `liveUsable` from `src/game-api/lookup-cache.ts`
   and `liveUsableFrom` from `src/game-api/client.ts` (+ `lookup-cache.test.ts`, `client.test.ts`): a live lookup after
   a cached copy makes a request; a copy lookup after a live one is answered from the cache.
@@ -78,7 +78,7 @@ None (no new dependency, no migration).
 
 **Independent test**: none of the acting flows asks with `?fresh=1`.
 
-- [ ] T015 [US3] Default `freshness` becomes `"copy"` for `getPlayer`, `findPlayer`, `getAlliance`, `findAlliance` in
+- [x] T015 [US3] Default `freshness` becomes `"copy"` for `getPlayer`, `findPlayer`, `getAlliance`, `findAlliance` in
   `src/game-api/client.ts`; drop explicit `"live"` arguments elsewhere in `src/` (+ tests: the Interview, corrections,
   Daily Sync, Booty Call, nickname-and-roles reads and the Recommended Player ask without `?fresh=1`; update the
   fakes in `src/discord/__fakes__/` and tests that expected `live`).

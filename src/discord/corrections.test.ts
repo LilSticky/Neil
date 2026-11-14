@@ -613,7 +613,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
     });
 
     expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
-    expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+    expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
   });
 
   test("a Linked Guest with no rank in the game gets /rank as any Link: the rank is stored and the name and roles are re-applied", async () => {
