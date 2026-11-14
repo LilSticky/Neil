@@ -44,7 +44,7 @@
 
 ## Phase 4: User Story 3 - The project knows the new API (P3)
 
-- [ ] T013 [P] [US3] `documentation/GAME-API.md`: Freshness rewritten (research R1), quota 2,000 with patron, `?fresh=1`,
+- [x] T013 [P] [US3] `documentation/GAME-API.md`: Freshness rewritten (research R1), quota 2,000 with patron, `?fresh=1`,
   `x-cache` values, gzip, top-level fields; check one alliance answer for `age_seconds` at top level (one request) and
   record it.
 
