@@ -12,11 +12,11 @@ None (no new dependency, no migration).
 
 ## Phase 2: Foundational
 
-- [ ] T001 [P] Domain rule in `src/domain/data-age.ts` (+ `data-age.test.ts`): `MAP_TIME_FRESH_MS = 5 * 60_000`;
+- [x] T001 [P] Domain rule in `src/domain/data-age.ts` (+ `data-age.test.ts`): `MAP_TIME_FRESH_MS = 5 * 60_000`;
   `isOld(asOf: Date | undefined, now: Date): boolean` — `true` when `asOf` is undefined or `now − asOf > 5 minutes`;
   a future `asOf` is not old; exactly 5 minutes is not old. `mapPageOf(kingdom: KingdomNumber | undefined): string` —
   `https://lastasylumtracker.com/map?kid=<kingdom>`, or `https://lastasylumtracker.com/map` when undefined.
-- [ ] T002 Player body schema reads `map_updated_at` leniently in `src/game-api/schemas.ts` (+ `schemas.test.ts`):
+- [x] T002 Player body schema reads `map_updated_at` leniently in `src/game-api/schemas.ts` (+ `schemas.test.ts`):
   missing, null, not a finite number, or ≤ 0 → undefined; otherwise Unix seconds (fractional) kept. Add
   `map_updated_at` to the fixtures `src/game-api/__fixtures__/player*.json` where missing.
 - [ ] T003 `LookupResult` found `asOf` becomes `Date | undefined` in `src/domain/player.ts`; update the `Freshness` doc
