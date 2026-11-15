@@ -24,6 +24,15 @@ const NML_ROLE: EventRole = { id: "11100000000000001", name: "[NML]" };
 const KING_ROLE: EventRole = { id: "12345678901234567890", name: "King" };
 const MODERATOR_ROLE: EventRole = { id: "12345678901234567", name: "Moderator" };
 
+/** Monday 16 November 2026, 12:00 UTC: the next Duel-day reset is Tuesday 02:00 UTC. */
+const MONDAY_NOON = new Date("2026-11-16T12:00:00Z");
+
+/** The Alliance Duel line of the kingdom's list, with the next Duel-day reset as Discord timestamps. */
+function allianceDuelLine(nextReset: string): string {
+  const unix = Math.floor(new Date(nextReset).getTime() / 1000).toString();
+  return `- **Alliance Duel**: daily plan in #event-announcements at 00:00 Server Time, Monday to Saturday; next <t:${unix}:t> (<t:${unix}:R>)`;
+}
+
 /** An Event Kind with lead times and no Sign-up Deadline. */
 function plainKind(name: string, beforeStart: readonly number[]): EventKind {
   return { name, beforeStart, signupOffsetMinutes: undefined, beforeSignup: [] };
@@ -35,8 +44,10 @@ describe("/event-kinds", () => {
   let events: EventStore;
   let links: FakeLinkStore;
   let logged: string[];
+  let clock: Date;
 
   beforeEach(() => {
+    clock = MONDAY_NOON;
     dataDir = mkdtempSync(join(tmpdir(), "neil-event-kinds-cmd-"));
     db = openDatabase(dataDir);
     events = new EventStore(db);
@@ -59,6 +70,7 @@ describe("/event-kinds", () => {
       links,
       events,
       officerRoleIds: [KING_ROLE.id, MODERATOR_ROLE.id],
+      now: () => clock,
       logError: (message: string) => {
         logged.push(message);
       },
@@ -356,6 +368,48 @@ describe("/event-kinds", () => {
       expect(chosen.replies[0]?.content).not.toContain("Hive move");
     });
 
+    test("the kingdom's list ends with the Alliance Duel line and the next Duel-day reset", async () => {
+      events.addKind("kingdom", plainKind("KvK", [1440]));
+      events.addKind("kingdom", plainKind("Alliance Duel", [60]));
+
+      const interaction = await run(DAN, [KING_ROLE], "list");
+
+      const lines = (interaction.replies[0]?.content ?? "").split("\n");
+      expect(lines).toEqual([
+        "Event Kinds of the Home Kingdom:",
+        "- **KvK**: 24h before the start",
+        "- **Alliance Duel**: 1h before the start",
+        allianceDuelLine("2026-11-17T02:00:00Z"),
+      ]);
+    });
+
+    test("the kingdom's list with no stored kinds shows the header and the Alliance Duel line", async () => {
+      const interaction = await run(DAN, [KING_ROLE], "list");
+
+      expect(interaction.replies[0]?.content).toBe(
+        ["Event Kinds of the Home Kingdom:", allianceDuelLine("2026-11-17T02:00:00Z")].join("\n"),
+      );
+    });
+
+    test("on Saturday after the reset, the Alliance Duel line shows Monday's reset, skipping Sunday", async () => {
+      clock = new Date("2026-11-21T03:00:00Z");
+
+      const interaction = await run(DAN, [KING_ROLE], "list");
+
+      expect(interaction.replies[0]?.content).toContain(allianceDuelLine("2026-11-23T02:00:00Z"));
+    });
+
+    test("an Alliance's list has no Alliance Duel line", async () => {
+      events.addKind("NML", plainKind("Hive move", [60]));
+
+      const listed = await run(ALICE, [NML_ROLE], "list");
+      events.removeKind("NML", "Hive move");
+      const empty = await run(ALICE, [NML_ROLE], "list");
+
+      expect(listed.replies[0]?.content).not.toContain("Alliance Duel");
+      expect(empty.replies[0]?.content).toBe("[NML] has no Event Kinds yet.");
+    });
+
     test("a list with no kinds is answered privately", async () => {
       const interaction = await run(ALICE, [NML_ROLE], "list");
 
@@ -386,6 +440,7 @@ describe("/event-kinds", () => {
           removeKind: () => undefined,
         },
         officerRoleIds: [KING_ROLE.id],
+        now: () => clock,
         logError: (message: string) => {
           logged.push(message);
         },

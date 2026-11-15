@@ -10,12 +10,14 @@ import {
   type AllianceKey,
   type ParseResult,
 } from "../domain/lookup-input.js";
+import { nextDuelReset } from "../domain/duel-plan.js";
 import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { isOfficer } from "../domain/officer.js";
 import type { AllianceRank } from "../domain/player.js";
 import type { EventStore } from "../storage/event-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { EventRole } from "./events.js";
+import { unixOf } from "./event-texts.js";
 
 /** The part of a discord.js chat-input interaction that /event-kinds uses: who ran it, their roles and the private reply. */
 export interface EventKindsInteraction {
@@ -32,6 +34,8 @@ export interface EventKindsContext {
   readonly links: Pick<LinkStore, "linkFor">;
   readonly events: Pick<EventStore, "listKinds" | "addKind" | "removeKind">;
   readonly officerRoleIds: readonly string[];
+  /** The clock, for the next Duel Plan in the kingdom's list. */
+  readonly now: () => Date;
   readonly logError: (message: string) => void;
 }
 
@@ -74,6 +78,8 @@ const messages = {
   empty: (label: string): string => `${label} has no Event Kinds yet.`,
   listed: (label: string, lines: readonly string[]): string =>
     [`Event Kinds of ${label}:`, ...lines].join("\n"),
+  allianceDuel: (nextReset: string): string =>
+    `- **Alliance Duel**: daily plan in #event-announcements at 00:00 Server Time, Monday to Saturday; next <t:${nextReset}:t> (<t:${nextReset}:R>)`,
 };
 
 /**
@@ -277,11 +283,11 @@ function list(
   const owner = listFor(interaction, standing);
   if (!owner.ok) return owner.refusal;
   const kinds = context.events.listKinds(owner.value);
-  if (kinds.length === 0) return messages.empty(labelOf(owner.value));
-  return messages.listed(
-    labelOf(owner.value),
-    kinds.map((kind) => `- ${describe(kind)}`),
-  );
+  const lines = kinds.map((kind) => `- ${describe(kind)}`);
+  // The kingdom's list always ends with the Alliance Duel: its Duel Plan is built in, not a stored kind.
+  if (owner.value === KINGDOM) lines.push(messages.allianceDuel(unixOf(nextDuelReset(context.now()))));
+  if (lines.length === 0) return messages.empty(labelOf(owner.value));
+  return messages.listed(labelOf(owner.value), lines);
 }
 
 function sameName(a: string, b: string): boolean {
