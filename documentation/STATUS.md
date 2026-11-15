@@ -135,6 +135,7 @@ One of the last steps before the user announces the release:
 ## Open questions
 
 - Wispbyte's disk persistence: answered yes in slice 001.
+- Royal City siege and City Rotation (#120): discovery half done ([discovery/royal-city-rotation.md](discovery/royal-city-rotation.md), branch `docs/royal-city-discovery`). Q1–Q4 answered; next: ask Q5–Q8, verify which Game API field shows the King title, then open the PR.
 - KvK battle plan (#117): discovery done ([discovery/kvk-battle-plan.md](discovery/kvk-battle-plan.md), 2026-11-15). Open: the proposed terms (War Council, Raid, Battle Plan, Fighter Class, …) are approved at `/speckit-specify`. Next: specify "Know who fights" (Availability Poll), then "Plan the Raid".
 
 ## Standing notes
