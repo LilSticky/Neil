@@ -94,7 +94,7 @@ async function refreshCard<T>(
     return;
   }
   if (result.kind === "allowance-spent") {
-    await followUpPrivately(press, { content: refusalMessage(result.resetsAt, context.allowance(), context.now()) });
+    await followUpPrivately(press, { content: refusalMessage(result.resetsAt, context.allowance()) });
     return;
   }
   if (result.kind !== "found") {
@@ -168,7 +168,7 @@ async function repeatTarget(
         caller,
         () => context.gameApi.chargedTo(caller).getPlayer(uid, "live"),
         (player, asOf, now) => playerCardMessage(player, asOf, now, ownerId),
-        (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
+        (failure) => ({ content: playerFailureText(failure, uid) }),
       );
       return;
     }

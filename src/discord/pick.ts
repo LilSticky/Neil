@@ -144,7 +144,7 @@ async function answerPick<T>(
   }
   if (result.kind === "allowance-spent") {
     await followUpPrivately(interaction, {
-      content: refusalMessage(result.resetsAt, context.allowance(), context.now()),
+      content: refusalMessage(result.resetsAt, context.allowance()),
     });
     return;
   }
@@ -183,7 +183,7 @@ async function pickPlayerMatch(
     caller,
     () => context.gameApi.chargedTo(caller).getPlayer(uid),
     (player, asOf, now) => playerCardMessage(player, asOf, now, ownerId),
-    (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
+    (failure) => ({ content: playerFailureText(failure, uid) }),
   );
 }
 
@@ -228,7 +228,7 @@ async function pickExileMatch(
     return;
   }
   if (result.kind !== "found") {
-    await followUpPrivately(interaction, { content: playerFailureText(result, uid, context.now()) });
+    await followUpPrivately(interaction, { content: playerFailureText(result, uid) });
     return;
   }
   const content = await recordFoundExile(result.value, result.asOf, reason, interaction.user.id, {
@@ -300,7 +300,7 @@ async function pickRosterMember(
     caller,
     () => context.gameApi.chargedTo(caller).getPlayer(entry.uid),
     (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id),
-    (failure, now) => ({ content: playerFailureText(failure, entry.uid, now) }),
+    (failure) => ({ content: playerFailureText(failure, entry.uid) }),
   );
 }
 

@@ -390,9 +390,9 @@ describe("thread messages for a uid that was looked up", () => {
 });
 
 describe("thread messages for the Daily Quota", () => {
-  test("a spent quota says when lookups work again with the time left, and that Neil will ping then", () => {
-    expect(quotaSpentMessage(RESETS_AT, NOW)).toEqual({
-      content: "I can't look players up again until 00:00 UTC (in 3 h 12 min). I'll ping you here then.",
+  test("a spent quota says when lookups work again as timestamps, and that Neil will ping then", () => {
+    expect(quotaSpentMessage(RESETS_AT)).toEqual({
+      content: "I can't look players up again until <t:1793404800:t> (<t:1793404800:R>). I'll ping you here then.",
       allowedMentions: { parse: [] },
     });
   });

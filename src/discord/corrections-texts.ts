@@ -5,12 +5,12 @@ import {
   type APIAllowedMentions,
   type APIButtonComponentWithCustomId,
 } from "discord.js";
-import { utcTime, timeLeft } from "./lookup-cards.js";
 import type { Uid } from "../domain/lookup-input.js";
 import type { Player } from "../domain/player.js";
 import type { ApprovableRank, MemberId } from "../domain/rank-approval.js";
 import { playerCardText, type ButtonMessage, type Message, type PrivateReply } from "./interview-texts.js";
 import { playerFailureText, type Failure } from "./lookup.js";
+import { timestamp } from "./timestamps.js";
 
 const NO_MENTIONS: APIAllowedMentions = { parse: [] };
 
@@ -102,15 +102,15 @@ export function memberGoneReply(memberId: MemberId): Message {
 }
 
 /** The private reply to /link when the Daily Quota is spent: when lookups work again. */
-function quotaSpentReply(resetsAt: Date, now: Date): Message {
+function quotaSpentReply(resetsAt: Date): Message {
   return replyText(
-    `I can't look players up again until ${utcTime(resetsAt)} (${timeLeft(resetsAt, now)}). Run /link again then.`,
+    `I can't look players up again until ${timestamp(resetsAt, "t")} (${timestamp(resetsAt, "R")}). Run /link again then.`,
   );
 }
 
 /** The private reply to /link when the Player for the uid could not be fetched: why, and when lookups work again. */
-export function linkLookupFailureReply(failure: Failure<Player>, uid: Uid, now: Date): Message {
-  return failure.kind === "quota-spent" ? quotaSpentReply(failure.resetsAt, now) : replyText(playerFailureText(failure, uid, now));
+export function linkLookupFailureReply(failure: Failure<Player>, uid: Uid): Message {
+  return failure.kind === "quota-spent" ? quotaSpentReply(failure.resetsAt) : replyText(playerFailureText(failure, uid));
 }
 
 /** The Officer Link card: the Player shown, and the Confirm and Cancel buttons of this confirmation. */

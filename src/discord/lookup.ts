@@ -148,23 +148,22 @@ interface QuotaFailure {
 }
 
 /** The private text for a lookup that the Daily Quota or the Quota Reserve kept from the Game API. */
-function quotaFailureText(failure: QuotaFailure, now: Date): string {
+function quotaFailureText(failure: QuotaFailure): string {
   return failure.kind === "quota-spent"
-    ? lookupMessages.quotaSpent(failure.resetsAt, now)
-    : lookupMessages.reserveKept(failure.resetsAt, now);
+    ? lookupMessages.quotaSpent(failure.resetsAt)
+    : lookupMessages.reserveKept(failure.resetsAt);
 }
 
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
 export function sharedPlayerFailureText(
   failure: Exclude<ChargedResult<Player>, { readonly kind: "found" | "not-found" | "not-prepared" }>,
-  now: Date,
 ): string {
   switch (failure.kind) {
     case "quota-spent":
     case "reserve-kept":
-      return quotaFailureText(failure, now);
+      return quotaFailureText(failure);
     case "allowance-spent":
-      return allowanceSpentText(failure.resetsAt, now);
+      return allowanceSpentText(failure.resetsAt);
     case "try-again":
       return lookupMessages.tryAgain;
     case "unavailable":
@@ -175,7 +174,7 @@ export function sharedPlayerFailureText(
 }
 
 /** The private text for a Player looked up by uid that gave no card. */
-export function playerFailureText(failure: Failure<Player>, uid: Uid, now: Date): string {
+export function playerFailureText(failure: Failure<Player>, uid: Uid): string {
   switch (failure.kind) {
     case "not-found":
       return lookupMessages.playerNotFound(uid);
@@ -183,7 +182,7 @@ export function playerFailureText(failure: Failure<Player>, uid: Uid, now: Date)
       // The tracker's answer for an unknown uid, but also for its own trouble (research R11).
       return lookupMessages.playerNotPrepared(uid);
     default:
-      return sharedPlayerFailureText(failure, now);
+      return sharedPlayerFailureText(failure);
   }
 }
 
@@ -218,7 +217,7 @@ function playerNameFailureMessage(
     case "not-prepared":
       return { content: lookupMessages.playerNameNotPrepared(name) };
     default:
-      return { content: sharedPlayerFailureText(failure, now) };
+      return { content: sharedPlayerFailureText(failure) };
   }
 }
 
@@ -255,7 +254,7 @@ export function allianceFailureMessage(
       return alliancePickList(key, failure.matches, ownerId, pickSessions, now);
     case "quota-spent":
     case "reserve-kept":
-      return { content: quotaFailureText(failure, now) };
+      return { content: quotaFailureText(failure) };
     case "not-prepared":
     case "try-again":
       return { content: lookupMessages.tryAgain };
@@ -357,7 +356,7 @@ export async function showLookup<T>(
   }
   if (result.kind === "allowance-spent") {
     await removePlaceholderAndTell(interaction, {
-      content: refusalMessage(result.resetsAt, context.allowance(), context.now()),
+      content: refusalMessage(result.resetsAt, context.allowance()),
     });
     return;
   }
@@ -401,7 +400,7 @@ async function lookUpPlayerByUid(
     caller,
     () => context.gameApi.chargedTo(caller).getPlayer(uid),
     (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id),
-    (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
+    (failure) => ({ content: playerFailureText(failure, uid) }),
   );
 }
 

@@ -27,6 +27,7 @@ import type {
   RosterEntry,
 } from "../domain/player.js";
 import {
+  asOfLine,
   compactNumber,
   footerFor,
   joinRequirementsText,
@@ -42,7 +43,6 @@ import {
   renderPlayerPickList,
   renderRosterComponents,
   timeAgo,
-  timeLeft,
   trackerPicture,
 } from "./lookup-cards.js";
 import { usageLine, withUsage } from "./usage-texts.js";
@@ -64,6 +64,8 @@ function kingdom(number: number): KingdomNumber {
 
 const FETCHED_AT = new Date("2026-10-30T14:05:00Z");
 const NOW = new Date("2026-10-30T16:00:00Z");
+/** The card line that says the data is from FETCHED_AT. */
+const FETCHED_AT_LINE = `As of <t:${(FETCHED_AT.getTime() / 1000).toString()}:f> (<t:${(FETCHED_AT.getTime() / 1000).toString()}:R>)`;
 
 const inAlliance: Player = {
   uid: uid("145563254785"),
@@ -127,7 +129,7 @@ describe("renderPlayerCard", () => {
 
   test("credits Last Asylum Tracker in the footer", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+      footer: { text: "Data from Last Asylum Tracker" },
     });
   });
 
@@ -219,7 +221,7 @@ describe("renderAllianceCard", () => {
 
   test("credits Last Asylum Tracker in the footer", () => {
     expect(renderAllianceCard(alliance, FETCHED_AT, NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+      footer: { text: "Data from Last Asylum Tracker" },
     });
   });
 
@@ -284,57 +286,36 @@ describe("renderAllianceCard with an empty leader name", () => {
   });
 });
 
-describe("timeLeft", () => {
-  const MINUTE_MS = 60_000;
-  const HOUR_MS = 60 * MINUTE_MS;
-
-  test.each([
-    { label: "3 h 12 min", ms: 3 * HOUR_MS + 12 * MINUTE_MS, text: "in 3 h 12 min" },
-    { label: "exactly 1 h", ms: HOUR_MS, text: "in 1 h 0 min" },
-    { label: "59 min 59 s, minutes rounded down", ms: HOUR_MS - 1000, text: "in 59 min" },
-    { label: "3 h 12 min 45 s, seconds dropped", ms: 3 * HOUR_MS + 12 * MINUTE_MS + 45_000, text: "in 3 h 12 min" },
-    { label: "exactly 1 min", ms: MINUTE_MS, text: "in 1 min" },
-    { label: "59 s, under a minute", ms: MINUTE_MS - 1000, text: "in under a minute" },
-    { label: "no time left", ms: 0, text: "in under a minute" },
-  ])("$label reads as $text", ({ ms, text }) => {
-    expect(timeLeft(new Date(NOW.getTime() + ms), NOW)).toBe(text);
-  });
-});
+/** 2026-10-31 00:00 UTC, the reset, as Discord's Unix seconds. */
+const RESET_UNIX = (Date.UTC(2026, 9, 31) / 1000).toString();
 
 describe("lookupMessages.quotaSpent", () => {
-  test("says the lookups are paused, names the Daily Quota and gives the reset time with the time left", () => {
-    expect(
-      lookupMessages.quotaSpent(new Date("2026-10-31T00:00:00Z"), new Date("2026-10-30T20:48:00Z")),
-    ).toBe(
-      "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 3 h 12 min).",
+  test("says the lookups are paused, names the Daily Quota and gives the reset as a time and a relative timestamp", () => {
+    expect(lookupMessages.quotaSpent(new Date("2026-10-31T00:00:00Z"))).toBe(
+      `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again <t:${RESET_UNIX}:t> (<t:${RESET_UNIX}:R>).`,
     );
   });
 });
 
 describe("lookupMessages.reserveKept", () => {
-  test("says the lookups are paused for today, the rest of the Daily Quota is kept for interviews, and gives the reset time with the time left", () => {
-    expect(
-      lookupMessages.reserveKept(new Date("2026-10-31T00:00:00Z"), new Date("2026-10-30T20:48:00Z")),
-    ).toBe(
-      "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 3 h 12 min).",
+  test("says the lookups are paused for today, the rest of the Daily Quota is kept for interviews, and gives the reset as timestamps", () => {
+    expect(lookupMessages.reserveKept(new Date("2026-10-31T00:00:00Z"))).toBe(
+      `Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again <t:${RESET_UNIX}:t> (<t:${RESET_UNIX}:R>).`,
     );
   });
 });
 
-describe("card footers say when the data was fetched", () => {
-  test.each([
-    {
-      label: "the Player card",
-      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
-    },
-    {
-      label: "the Alliance card",
-      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
-    },
-  ])("$label shows zero-padded UTC time for a fetch on today's UTC day", ({ render }) => {
-    expect(render(new Date("2026-10-30T09:05:00Z"), NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker · as of 09:05 UTC" },
-    });
+describe("cards say when the data was fetched, as timestamps in the description", () => {
+  const ASOF = new Date("2026-10-29T23:50:00Z");
+  const ASOF_UNIX = (ASOF.getTime() / 1000).toString();
+  const AS_OF_LINE = `As of <t:${ASOF_UNIX}:f> (<t:${ASOF_UNIX}:R>)`;
+
+  test("asOfLine gives the map time as a date-and-time and a relative timestamp", () => {
+    expect(asOfLine(ASOF)).toBe(AS_OF_LINE);
+  });
+
+  test("asOfLine gives nothing without a map time", () => {
+    expect(asOfLine(undefined)).toBeUndefined();
   });
 
   test.each([
@@ -346,58 +327,35 @@ describe("card footers say when the data was fetched", () => {
       label: "the Alliance card",
       render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
     },
-  ])("$label shows the day, English month and UTC time for a fetch on an earlier UTC day", ({ render }) => {
-    expect(render(new Date("2026-10-29T23:50:00Z"), NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
-    });
+  ])("$label ends its description with the as-of line and names only the source in the footer", ({ render }) => {
+    const card = render(ASOF, NOW);
+
+    expect(card.description?.split("\n").at(-1)).toBe(AS_OF_LINE);
+    expect(card.footer).toEqual({ text: "Data from Last Asylum Tracker" });
   });
 
-  test.each([
-    {
-      label: "the Player card",
-      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
-    },
-    {
-      label: "the Alliance card",
-      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
-    },
-  ])("$label counts a fetch from just before midnight UTC as an earlier day, right after midnight", ({ render }) => {
-    expect(render(new Date("2026-10-29T23:50:00Z"), new Date("2026-10-30T00:05:00Z"))).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC" },
-    });
-  });
-
-  test.each([
-    {
-      label: "the Player card",
-      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
-    },
-    {
-      label: "the Alliance card",
-      render: (asOf: Date, now: Date) => renderAllianceCard(alliance, asOf, now),
-    },
-  ])("$label writes the day of the month without a leading zero", ({ render }) => {
-    expect(render(new Date("2026-10-03T09:05:00Z"), NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker · as of 3 Oct 09:05 UTC" },
-    });
+  test("a Player card without details has the as-of line as its whole description", () => {
+    expect(renderPlayerCard(inAlliance, ASOF, NOW).description).toBe(AS_OF_LINE);
   });
 });
 
-describe("card footers without a map time", () => {
-  test("footerFor with no asOf credits the tracker and shows no as-of time", () => {
-    expect(footerFor(undefined, NOW)).toEqual({ text: "Data from Last Asylum Tracker" });
+describe("cards without a map time", () => {
+  test("footerFor credits the tracker", () => {
+    expect(footerFor()).toEqual({ text: "Data from Last Asylum Tracker" });
   });
 
-  test("an Alliance card with no asOf has the tracker credit and no as-of time", () => {
-    expect(renderAllianceCard(alliance, undefined, NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker" },
-    });
+  test("an Alliance card with no asOf has the tracker credit and no as-of line", () => {
+    const card = renderAllianceCard(alliance, undefined, NOW);
+
+    expect(card.footer).toEqual({ text: "Data from Last Asylum Tracker" });
+    expect(card.description ?? "").not.toContain("As of");
   });
 
-  test("a Player card with no asOf has the tracker credit and no as-of time", () => {
-    expect(renderPlayerCard(inAlliance, undefined, NOW)).toMatchObject({
-      footer: { text: "Data from Last Asylum Tracker" },
-    });
+  test("a Player card with no asOf has the tracker credit and no as-of line", () => {
+    const card = renderPlayerCard(inAlliance, undefined, NOW);
+
+    expect(card.footer).toEqual({ text: "Data from Last Asylum Tracker" });
+    expect(card.description ?? "").not.toContain("As of");
   });
 });
 
@@ -1102,22 +1060,23 @@ const fullPlayerCard: APIEmbed = {
   color: ACCENT_COLOR,
   author: { name: "Kingdom #330", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
   thumbnail: { url: `${TRACKER}/static/avatars/head_90002.png` },
-  description: "Last online 2 days ago",
+  description: `Last online 2 days ago\n${FETCHED_AT_LINE}`,
   fields: fullPlayerFields,
-  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+  footer: { text: "Data from Last Asylum Tracker" },
 };
 
 const noDetailsPlayerCard: APIEmbed = {
   title: "Vex",
   color: ACCENT_COLOR,
   author: { name: "Kingdom #330" },
+  description: FETCHED_AT_LINE,
   fields: [
     { name: "Might", value: "15,902,728", inline: true },
     { name: "Sanctuary level", value: "42", inline: true },
     { name: "Alliance", value: "[NML] Neil's Men", inline: true },
     { name: "Alliance Rank", value: "R5", inline: true },
   ],
-  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+  footer: { text: "Data from Last Asylum Tracker" },
 };
 
 describe("renderPlayerCard with details", () => {
@@ -1153,7 +1112,7 @@ describe("renderPlayerCard with details", () => {
   test("shows Online now as the description when the Game gives no Last Online time", () => {
     const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, lastOnlineAt: undefined } }, FETCHED_AT, NOW);
 
-    expect(card).toEqual({ ...fullPlayerCard, description: "Online now" });
+    expect(card).toEqual({ ...fullPlayerCard, description: `Online now\n${FETCHED_AT_LINE}` });
   });
 
   test("renders a Player whose details are all unknown as Online now, with no picture, badge or detail fields", () => {
@@ -1170,7 +1129,7 @@ describe("renderPlayerCard with details", () => {
 
     expect(renderPlayerCard({ ...inAlliance, details: allUnknown }, FETCHED_AT, NOW)).toEqual({
       ...noDetailsPlayerCard,
-      description: "Online now",
+      description: `Online now\n${FETCHED_AT_LINE}`,
     });
   });
 
@@ -1204,7 +1163,7 @@ describe("renderPlayerCard with details", () => {
 });
 
 describe("renderPlayerCard without details", () => {
-  test("shows today's card, with the Kingdom in the author line and no picture, description or Kingdom field", () => {
+  test("shows today's card, with the Kingdom in the author line and no picture or Kingdom field, and only the as-of line as description", () => {
     expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toEqual(noDetailsPlayerCard);
   });
 });
@@ -1339,22 +1298,23 @@ const fullAllianceCard: APIEmbed = {
   color: ACCENT_COLOR,
   author: { name: "Kingdom #1", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
   thumbnail: { url: `${TRACKER}/static/alliance/badge_103.png` },
-  description: "**Join Requirements:** Open to all",
+  description: `**Join Requirements:** Open to all\n${FETCHED_AT_LINE}`,
   fields: [...fullAllianceFields, EMPTY_ROSTER_FIELD],
-  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+  footer: { text: "Data from Last Asylum Tracker" },
 };
 
 const noDetailsAllianceCard: APIEmbed = {
   title: "[NML] No Man's Land",
   color: ACCENT_COLOR,
   author: { name: "Kingdom #1" },
+  description: FETCHED_AT_LINE,
   fields: [
     { name: "Might", value: "208,815,434", inline: true },
     { name: "Members", value: "52/100", inline: true },
     { name: "Leader", value: "DrLOL", inline: true },
     EMPTY_ROSTER_FIELD,
   ],
-  footer: { text: "Data from Last Asylum Tracker · as of 14:05 UTC" },
+  footer: { text: "Data from Last Asylum Tracker" },
 };
 
 describe("renderAllianceCard with details", () => {
@@ -1387,7 +1347,7 @@ describe("renderAllianceCard with details", () => {
     {
       label: "Join Requirements",
       details: { joinRequirements: undefined },
-      change: { description: undefined },
+      change: { description: FETCHED_AT_LINE },
     },
     { label: "Alliance badge", details: { badgePath: undefined }, change: { thumbnail: undefined } },
     {

@@ -51,7 +51,7 @@ const OFFICER_ROLE_ID = "700000000000000001";
 const ALLOWANCE = 3;
 /** The private refusal for RESETS_AT, read at NOW (seven hours and fifty-five minutes before the reset). */
 const REFUSAL_TEXT =
-  "Your Daily Allowance is spent: 3 of 3 Game API requests used today. Cached answers still work. It resets at 00:00 UTC (in 7 h 55 min).";
+  "Your Daily Allowance is spent: 3 of 3 Game API requests used today. Cached answers still work. It resets <t:1793404800:t> (<t:1793404800:R>).";
 const OWNER: LookupCaller = { memberId: OWNER_ID, officer: false };
 
 /** A failure reply followed by the usage line of the owner before the test's request, as the reply shows it. */
@@ -610,7 +610,7 @@ describe("handlePick for the owner choosing an Alliance match", () => {
 
 describe("handlePick when the Quota Reserve is kept for Onboarding Interviews", () => {
   const RESERVE_TEXT =
-    "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 7 h 55 min).";
+    "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again <t:1793404800:t> (<t:1793404800:R>).";
 
   test("tells the owner privately, with the reserve text, when a Player match is kept by the reserve", async () => {
     const sessions = new PickSessions();
@@ -1277,7 +1277,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OWNER, 5)}` },
           }),
         ],
       }) as unknown,
@@ -1329,7 +1329,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OWNER, 5)}` },
           }),
         ],
       }) as unknown,
@@ -1407,7 +1407,7 @@ describe("handlePick when the usage line cannot be read, for a Player the owner 
         embeds: [
           expect.objectContaining({
             title: "DrLOL",
-            footer: { text: "Data from Last Asylum Tracker · as of 16:05 UTC" },
+            footer: { text: "Data from Last Asylum Tracker" },
           }),
         ],
         allowedMentions: { parse: [] },

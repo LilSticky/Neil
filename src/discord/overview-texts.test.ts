@@ -294,9 +294,17 @@ describe("renderOverview: the Alliance Overview embed", () => {
     expect(text).not.toContain("300000000001");
   });
 
-  test("shows no as-of time in the footer, as an Alliance has no map time", () => {
+  test("shows no as-of line without a map time, and only the source in the footer", () => {
     const reply = renderOverview(allianceWith([alpha]), undefined, NOW, OWNER_ID, SESSION, 0);
 
+    expect(reply.embeds[0]?.description).toBeUndefined();
+    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker");
+  });
+
+  test("says when the data is from as timestamps in the overview's description, not in the footer", () => {
+    const reply = renderOverview(allianceWith([alpha]), FETCHED_AT, NOW, OWNER_ID, SESSION, 0);
+
+    expect(reply.embeds[0]?.description).toBe("As of <t:1793613600:f> (<t:1793613600:R>)");
     expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker");
   });
 

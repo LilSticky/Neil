@@ -19,8 +19,8 @@ describe("renderPingReply", () => {
       [
         "👋 Hi, I'm Neil and I'm online.",
         "Latency: 123 ms (gateway 45 ms)",
-        "Version: 2f7a537 (built 2026-10-29 14:02 UTC)",
-        "Data kept since 2026-10-29 12:00 UTC · start #3",
+        "Version: 2f7a537 (built <t:1793282551:f>)",
+        "Data kept since <t:1793275259:f> · start #3",
       ].join("\n"),
     );
   });

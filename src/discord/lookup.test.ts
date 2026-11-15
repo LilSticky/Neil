@@ -39,7 +39,7 @@ const DAY_MS = 86_400_000;
 const ALLOWANCE = 3;
 /** The private refusal for RESETS_AT, read at NOW (eight hours before the reset). */
 const REFUSAL_TEXT =
-  "Your Daily Allowance is spent: 3 of 3 Game API requests used today. Cached answers still work. It resets at 00:00 UTC (in 8 h 0 min).";
+  "Your Daily Allowance is spent: 3 of 3 Game API requests used today. Cached answers still work. It resets <t:1793404800:t> (<t:1793404800:R>).";
 const MEMBER: LookupCaller = { memberId: USER_ID, officer: false };
 
 function uid(text: string): Uid {
@@ -159,7 +159,7 @@ describe("handlePlayer", () => {
           embeds: [
             expect.objectContaining({
               title: "Vex",
-              footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
+              footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
@@ -169,7 +169,7 @@ describe("handlePlayer", () => {
     ]);
   });
 
-  test("shows the day of the fetch in the footer when the Player was fetched on an earlier UTC day", async () => {
+  test("shows when the Player was fetched as timestamps in the card's description, not in the footer", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     const { context } = contextReturning({
       kind: "found",
@@ -186,9 +186,8 @@ describe("handlePlayer", () => {
         options: {
           embeds: [
             expect.objectContaining({
-              footer: {
-                text: `Data from Last Asylum Tracker · as of 29 Oct 23:50 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}`,
-              },
+              description: expect.stringContaining("As of <t:1793317800:f> (<t:1793317800:R>)") as unknown,
+              footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
@@ -471,7 +470,7 @@ const privateFailures: readonly { readonly label: string; readonly result: Looku
     {
       label: "quota-spent",
       result: { kind: "quota-spent", resetsAt: RESETS_AT },
-      text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 8 h 0 min).",
+      text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again <t:1793404800:t> (<t:1793404800:R>).",
     },
     {
       label: "try-again",
@@ -683,7 +682,7 @@ describe("handleAlliance", () => {
           embeds: [
             expect.objectContaining({
               title: "[NML] No Man's Land",
-              footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
+              footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
           components: [lookAgainRow(`again:${USER_ID}:a:1:NML`)],
@@ -788,7 +787,7 @@ const allianceFailures: readonly {
   {
     label: "quota-spent",
     result: { kind: "quota-spent", resetsAt: RESETS_AT },
-    text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 8 h 0 min).",
+    text: "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again <t:1793404800:t> (<t:1793404800:R>).",
   },
   {
     label: "try-again",
@@ -1222,9 +1221,9 @@ describe("handlePlayer when the card cannot be sent", () => {
 describe("handlers when the Daily Quota is spent", () => {
   const LATER = new Date("2026-10-30T20:48:00Z");
   const spentText =
-    "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (in 3 h 12 min).";
+    "Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again <t:1793404800:t> (<t:1793404800:R>).";
 
-  test("/player tells the caller privately, with the time left counted from the context's now", async () => {
+  test("/player tells the caller privately, with the reset as timestamps", async () => {
     const interaction = new FakeLookupInteraction({ strings: { uid: UID } });
     const { context } = contextReturning({ kind: "quota-spent", resetsAt: RESETS_AT });
 
@@ -1244,7 +1243,7 @@ describe("handlers when the Daily Quota is spent", () => {
     ]);
   });
 
-  test("/alliance tells the caller privately, with the time left counted from the context's now", async () => {
+  test("/alliance tells the caller privately, with the reset as timestamps", async () => {
     const interaction = new FakeLookupInteraction({
       strings: { tag: "NML" },
       integers: { kingdom: 1 },
@@ -1271,7 +1270,7 @@ describe("handlers when the Daily Quota is spent", () => {
 describe("handlers when the Quota Reserve is kept for Onboarding Interviews", () => {
   const LATER = new Date("2026-10-30T20:48:00Z");
   const reserveText =
-    "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (in 3 h 12 min).";
+    "Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again <t:1793404800:t> (<t:1793404800:R>).";
 
   test.each([
     {
@@ -1706,7 +1705,7 @@ describe("handlePlayer shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(MEMBER, 5)}` },
           }),
         ],
       }) as unknown,
@@ -1725,7 +1724,7 @@ describe("handlePlayer shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(OFFICER, FAKE_USED_BEFORE)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OFFICER, FAKE_USED_BEFORE)}` },
           }),
         ],
       }) as unknown,
@@ -1773,7 +1772,7 @@ describe("handleAlliance shows the usage line on the Alliance card, read after t
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(MEMBER, 5)}` },
           }),
         ],
       }) as unknown,
@@ -1796,7 +1795,7 @@ describe("handlePlayer when the usage line cannot be read", () => {
           embeds: [
             expect.objectContaining({
               title: "Vex",
-              footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+              footer: { text: "Data from Last Asylum Tracker" },
             }),
           ],
           components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],

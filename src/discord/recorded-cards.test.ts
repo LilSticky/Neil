@@ -43,7 +43,7 @@ describe("cards from recorded Game API answers", () => {
       color: 0xb33a3a,
       author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
       thumbnail: { url: "https://lastasylumtracker.com/static/avatars/head_90002.png" },
-      description: "Last online 2 days ago",
+      description: "Last online 2 days ago\nAs of <t:1793190835:f> (<t:1793190835:R>)",
       fields: [
         { name: "Might", value: "15,902,728", inline: true },
         { name: "Kills", value: "4,420", inline: true },
@@ -55,7 +55,7 @@ describe("cards from recorded Game API answers", () => {
         { name: "Alliance Rank", value: "R5", inline: true },
         { name: "Location", value: "X:807 Y:846", inline: true },
       ],
-      footer: { text: "Data from Last Asylum Tracker · as of 28 Oct 12:33 UTC" },
+      footer: { text: "Data from Last Asylum Tracker" },
     });
   });
 

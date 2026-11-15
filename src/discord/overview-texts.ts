@@ -23,6 +23,7 @@ import type { Alliance, RosterEntry } from "../domain/player.js";
 import {
   CARD_COLOR,
   allianceLookAgainRow,
+  asOfLine,
   compactNumber,
   embedCharacters,
   escapeText,
@@ -165,13 +166,15 @@ export function renderOverview(
   const table = tablePage(alliance.roster, sort, page);
   const details = alliance.details;
   const thumbnail = thumbnailOf(details?.badgePath);
+  const asOfText = asOfLine(asOf);
   const overview: APIEmbed = {
     title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)} · Overview`),
     color: CARD_COLOR,
     author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
     ...(thumbnail === undefined ? {} : { thumbnail }),
+    ...(asOfText === undefined ? {} : { description: asOfText }),
     fields: [...overviewFields(alliance.roster, now), newerDataField(alliance.kingdom)],
-    footer: footerFor(asOf, now),
+    footer: footerFor(),
   };
   const embeds: APIEmbed[] = [overview, tableEmbed(table, sort, alliance, now, embedCharacters(overview))];
   const again = allianceLookAgainRow(alliance, "overview", ownerId);

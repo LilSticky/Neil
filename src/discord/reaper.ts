@@ -167,7 +167,7 @@ function nameFailureMessage(
     case "not-prepared":
       return { content: lookupMessages.playerNameNotPrepared(name) };
     default:
-      return { content: sharedPlayerFailureText(failure, context.now()) };
+      return { content: sharedPlayerFailureText(failure) };
   }
 }
 
@@ -424,7 +424,7 @@ export async function rankClosestFor(
   read: ClosestPlayerRead,
 ): Promise<ClosestOutcome> {
   const start = await closestOriginOf(given, memberId, context, read);
-  if (start.kind === "refused") return { kind: "text", content: sharedPlayerFailureText(start.refusal, context.now()) };
+  if (start.kind === "refused") return { kind: "text", content: sharedPlayerFailureText(start.refusal) };
   if (start.kind === "unmeasurable") return { kind: "text", content: reaperMessages.askXAndY };
   return { kind: "ranked", ranking: await rankClosest(start, given, context, read) };
 }

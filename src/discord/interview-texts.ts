@@ -13,7 +13,8 @@ import {
 import type { Uid } from "../domain/lookup-input.js";
 import type { AllianceRank, PickablePlayerMatch, Player } from "../domain/player.js";
 import type { ApprovableRank, MemberId, RankApproval } from "../domain/rank-approval.js";
-import { optionLabel, timeLeft, utcTime } from "./lookup-cards.js";
+import { optionLabel } from "./lookup-cards.js";
+import { timestamp } from "./timestamps.js";
 import { LINK_NOTE } from "./usage-texts.js";
 
 /** The Officer roles that are mentioned when a Member needs help or an Officer must approve. */
@@ -406,9 +407,9 @@ export function unavailableMessage(interviewId: number): ButtonMessage {
 }
 
 /** The thread message when the Daily Quota is spent: when lookups work again, and that Neil will ping then. */
-export function quotaSpentMessage(resetsAt: Date, now: Date): Message {
+export function quotaSpentMessage(resetsAt: Date): Message {
   return {
-    content: `I can't look players up again until ${utcTime(resetsAt)} (${timeLeft(resetsAt, now)}). I'll ping you here then.`,
+    content: `I can't look players up again until ${timestamp(resetsAt, "t")} (${timestamp(resetsAt, "R")}). I'll ping you here then.`,
     allowedMentions: noMentions(),
   };
 }
