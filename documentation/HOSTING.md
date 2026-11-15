@@ -32,6 +32,12 @@ copies of one bot both receive every `/ping`; only one can answer, the other log
 
 ## 3. Wispbyte server
 
+**Servers** (since 2026-11-15): production Neil runs on the **Premium** server `lap-330-neil` (`cf1d9cd9`, Node 26
+image, 1 GB). The free server `lap-test-neil` (`c5fd8257`), where Neil ran until then, is stopped; it is meant for a
+test instance of Neil (ADR 6), which needs its own Discord application and token first. A session can manage both
+through the Wispbyte MCP connection (startup values, `.env`, files, power), except binary files: `data/neil.db` is
+moved by hand in **Files**. Free servers only work while the AI pass runs and can't be started from the connection.
+
 **Account**: turn on two-factor authentication (Wispbyte's security advice).
 
 **Startup** tab: choose the Node.js **24** image, and set these **environment variables** (production
@@ -174,7 +180,7 @@ once, on 2026-10-29: the placeholder had no lockfile, so the server's `npm insta
 A crash is restarted by Wispbyte itself, but it gives up after two crashes within 60 seconds. A
 reinstall (if the panel offers one) wipes the folder, including `data/`; avoid it after the first setup.
 
-Free plan: log in to Wispbyte at least every two weeks to keep the server.
+Free plan (test server only): log in to Wispbyte at least every two weeks to keep the server.
 
 **Set up and verified 2026-10-29**: production bot "Neil" (Application ID `1565184120471027963`) on the
 test server (`819691545195577395`); the `deploy` placeholder confirmed Node 24.22.1, the Git checkout,
