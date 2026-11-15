@@ -358,7 +358,7 @@ async function turnRosterPage(
  * Opens a pick list for the asker that holds the Alliance, so the page buttons of an Alliance Overview can show it again;
  * the pick list belongs to the asker, not to the owner of the card. Returns its id.
  */
-function openOverviewSession(
+export function openOverviewSession(
   alliance: Alliance,
   asOf: Date | undefined,
   askerId: string,

@@ -1,5 +1,229 @@
-import { parseAllianceKey, parseKingdom, parseUid, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import { MessageFlags, type InteractionEditReplyOptions, type InteractionReplyOptions } from "discord.js";
 import type { Position } from "../domain/exile.js";
+import { parseAllianceKey, parseKingdom, parseUid, type AllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import type { LookupCaller } from "../game-api/allowance-keeper.js";
+import type { ChargedResult } from "../game-api/client.js";
+import type { LinkStore } from "../storage/link-store.js";
+import type { ReaperStore } from "../storage/reaper-store.js";
+import {
+  allianceCardMessage,
+  allianceFailureMessage,
+  allowedMentions,
+  answer,
+  callerOf,
+  errorText,
+  playerCardMessage,
+  playerFailureText,
+  replyPrivately,
+  withCallerUsage,
+  type CardMessage,
+  type Failure,
+  type LookupApi,
+  type PrivateMessage,
+} from "./lookup.js";
+import { lookupMessages } from "./lookup-cards.js";
+import { openOverviewSession } from "./pick.js";
+import type { PickSessions } from "./pick-sessions.js";
+import { renderOverview } from "./overview-texts.js";
+import { closestAnswer, type ReaperAnswer } from "./reaper-cards.js";
+import { rankClosestFor } from "./reaper.js";
+import { refusalMessage } from "./usage-texts.js";
+
+/** The part of a discord.js button press under a card that the Look again button reads and answers. */
+export interface LookAgainInteraction {
+  readonly customId: string;
+  readonly user: { readonly id: string };
+  memberRoleIds(): readonly string[];
+  deferUpdate(): Promise<unknown>;
+  editReply(options: InteractionEditReplyOptions): Promise<unknown>;
+  followUp(options: InteractionReplyOptions): Promise<unknown>;
+  reply(options: InteractionReplyOptions): Promise<unknown>;
+}
+
+/**
+ * What a Look again press needs: the Game API (charged for a card, uncharged for /reaper closest), the Links and REAPER
+ * for /reaper closest, the pick lists a card may open, the Daily Allowance and usage line, the clock and the error log.
+ */
+export interface LookAgainContext {
+  readonly gameApi: Pick<LookupApi, "getPlayer" | "getAlliance" | "chargedTo">;
+  readonly pickSessions: Pick<PickSessions, "open">;
+  readonly links: Pick<LinkStore, "linkFor">;
+  readonly reaper: Pick<ReaperStore, "inKingdom" | "refresh">;
+  readonly homeKingdom: KingdomNumber;
+  readonly now: () => Date;
+  readonly logError: (message: string) => void;
+  /** The Discord role ids that make a Member an Officer; an Officer's lookups are not limited. */
+  readonly officerRoleIds: readonly string[];
+  /** The Daily Allowance of today: the requests one Member's lookups may cause. */
+  readonly allowance: () => number;
+  /** The usage line of a caller, read after the request, so the count includes it. */
+  readonly usage: (caller: LookupCaller) => string;
+}
+
+const againMessages = {
+  notOwner: "Only the Member who ran this command can use this button. Run it yourself.",
+} as const;
+
+/** Privately tells the Member a follow-up; the card the Member pressed stays as it was. */
+async function followUpPrivately(press: LookAgainInteraction, message: PrivateMessage): Promise<void> {
+  await press.followUp({ ...message, flags: MessageFlags.Ephemeral, allowedMentions });
+}
+
+/**
+ * Asks the Game API again for a card, live and charged to the caller, and shows the answer in place of the pressed card.
+ * A refusal or a failure is told privately, and the card stays as it was. The reply is always shown with the usage line
+ * of the caller, the same as the lookup that made the card.
+ */
+async function refreshCard<T>(
+  press: LookAgainInteraction,
+  context: LookAgainContext,
+  caller: LookupCaller,
+  ask: () => Promise<ChargedResult<T>>,
+  card: (value: T, asOf: Date | undefined, now: Date) => CardMessage,
+  failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
+): Promise<void> {
+  let result: ChargedResult<T>;
+  try {
+    result = await ask();
+  } catch (error) {
+    context.logError(`Looking up again failed: ${errorText(error)}`);
+    await followUpPrivately(press, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
+    return;
+  }
+  if (result.kind === "allowance-spent") {
+    await followUpPrivately(press, { content: refusalMessage(result.resetsAt, context.allowance(), context.now()) });
+    return;
+  }
+  if (result.kind !== "found") {
+    await followUpPrivately(press, withCallerUsage(context, caller, failureMessage(result, context.now())));
+    return;
+  }
+  try {
+    const message = withCallerUsage(context, caller, card(result.value, result.asOf, context.now()));
+    await press.editReply({ ...message, components: message.components ?? [], allowedMentions });
+  } catch (error) {
+    context.logError(`Showing the card again failed: ${errorText(error)}`);
+    await followUpPrivately(press, withCallerUsage(context, caller, { content: lookupMessages.unavailable }));
+  }
+}
+
+/**
+ * Ranks /reaper closest again from the x and y the command gave (or the caller's Linked Player), with live and uncharged
+ * reads, and edits the pressed answer with the result, as the command answers it: the cards, or the text that says why
+ * there are none. A failed ranking is told privately.
+ */
+async function refreshClosest(press: LookAgainInteraction, context: LookAgainContext, given: Position | undefined): Promise<void> {
+  const ownerId = press.user.id;
+  let redrawn: ReaperAnswer;
+  try {
+    const outcome = await rankClosestFor(given, ownerId, context, "live");
+    redrawn =
+      outcome.kind === "text"
+        ? { content: outcome.content, allowedMentions }
+        : closestAnswer(outcome.ranking, context.now(), 0, undefined, ownerId);
+  } catch (error) {
+    context.logError(`Ranking REAPER again failed: ${errorText(error)}`);
+    await followUpPrivately(press, { content: lookupMessages.unavailable });
+    return;
+  }
+  try {
+    await press.editReply({ embeds: [], components: [], ...redrawn });
+  } catch (error) {
+    context.logError(`Showing REAPER again failed: ${errorText(error)}`);
+    await followUpPrivately(press, { content: lookupMessages.unavailable });
+  }
+}
+
+/** Repeats the lookup a Look again button stands for, as the Member who pressed it. */
+async function repeatTarget(
+  press: LookAgainInteraction,
+  target: LookAgainTarget,
+  context: LookAgainContext,
+  caller: LookupCaller,
+  ownerId: string,
+): Promise<void> {
+  switch (target.kind) {
+    case "player": {
+      const { uid } = target;
+      await refreshCard(
+        press,
+        context,
+        caller,
+        () => context.gameApi.chargedTo(caller).getPlayer(uid, "live"),
+        (player, asOf, now) => playerCardMessage(player, asOf, now, ownerId),
+        (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
+      );
+      return;
+    }
+    case "alliance": {
+      const { kingdom, tag } = target;
+      await refreshCard(
+        press,
+        context,
+        caller,
+        () => context.gameApi.chargedTo(caller).getAlliance(kingdom, tag, "live"),
+        (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions),
+        (failure, now) =>
+          allianceFailureMessage(
+            failure,
+            tag,
+            lookupMessages.allianceNotFound(tag, kingdom),
+            ownerId,
+            context.pickSessions,
+            now,
+          ),
+      );
+      return;
+    }
+    case "overview": {
+      const { kingdom, tag } = target;
+      await refreshCard(
+        press,
+        context,
+        caller,
+        () => context.gameApi.chargedTo(caller).getAlliance(kingdom, tag, "live"),
+        (alliance, asOf, now) =>
+          renderOverview(alliance, asOf, now, ownerId, openOverviewSession(alliance, asOf, ownerId, context.pickSessions, now), 0),
+        (failure, now) =>
+          failure.kind === "ambiguous"
+            ? { content: lookupMessages.tryAgain }
+            : allianceFailureMessage(
+                failure,
+                tag,
+                lookupMessages.allianceNotFound(tag, kingdom),
+                ownerId,
+                context.pickSessions,
+                now,
+              ),
+      );
+      return;
+    }
+    case "reaper":
+      await refreshClosest(press, context, target.origin);
+      return;
+  }
+}
+
+/**
+ * Answers a press of a Look again button: only the Member who ran the lookup may press it, and a custom id that cannot be
+ * read is told as unavailable. Otherwise the card is deferred at once (Discord's three seconds), then repeated live.
+ */
+export async function handleLookAgain(press: LookAgainInteraction, context: LookAgainContext): Promise<void> {
+  await answer("the Look again button", context, async () => {
+    const parsed = parseLookAgainCustomId(press.customId);
+    if (parsed === undefined) {
+      await replyPrivately(press, lookupMessages.unavailable);
+      return;
+    }
+    if (parsed.ownerId !== press.user.id) {
+      await replyPrivately(press, againMessages.notOwner);
+      return;
+    }
+    await press.deferUpdate();
+    const caller = callerOf(press, context.officerRoleIds);
+    await repeatTarget(press, parsed.target, context, caller, parsed.ownerId);
+  });
+}
 
 /**
  * What a Look again button repeats: a Player card, an Alliance card, an Alliance Overview, or /reaper closest (measured

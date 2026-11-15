@@ -61,17 +61,17 @@ None (no new dependency, no migration).
   window counted from `storedAt`; every found answer is stored. Remove `liveUsable` from `src/game-api/lookup-cache.ts`
   and `liveUsableFrom` from `src/game-api/client.ts` (+ `lookup-cache.test.ts`, `client.test.ts`): a live lookup after
   a cached copy makes a request; a copy lookup after a live one is answered from the cache.
-- [ ] T012 [US2] Look again handler `handleLookAgain` in `src/discord/look-again.ts` (+ `look-again.test.ts` with a
+- [x] T012 [US2] Look again handler `handleLookAgain` in `src/discord/look-again.ts` (+ `look-again.test.ts` with a
   fake interaction): not the owner → private `Only the Member who ran this command can use this button. Run it yourself.`;
   malformed id → private unavailable; else `deferUpdate`, run the target's lookup with `live` charged to the caller
   (`chargedTo(caller)`; Player → `getPlayer`, Alliance card → `getAlliance` first roster page with a new roster pick
   session, Overview → `getAlliance` rendered as the Overview), then `editReply` the same message with the new card
   (its own field and button when still old) and the usage line; a refusal or failure → private follow-up with the
   original lookup's text, the old card stays.
-- [ ] T013 [US2] `/reaper closest` carries the field (the measured Kingdom) and the button `again:<ownerId>:r[:x:y]`
+- [x] T013 [US2] `/reaper closest` carries the field (the measured Kingdom) and the button `again:<ownerId>:r[:x:y]`
   when any ranked position on the answer is old (`src/discord/reaper.ts`, `src/discord/reaper-texts.ts`) (+ tests);
   the press re-runs the ranking with `live`, uncharged reads, and updates the answer (in `look-again.ts`).
-- [ ] T014 [US2] Route custom ids starting with `again:` to `handleLookAgain` in `src/discord/client.ts` and wire its
+- [x] T014 [US2] Route custom ids starting with `again:` to `handleLookAgain` in `src/discord/client.ts` and wire its
   context in the composition root (`src/main.ts`) (+ `client.test.ts`).
 
 ## Phase 5: User Story 3 — Neil stops paying for live requests that bring nothing new (P2)

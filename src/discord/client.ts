@@ -106,6 +106,7 @@ import {
   type LookupInteraction,
 } from "./lookup.js";
 import { handleOverview, handlePick, type PickContext, type PickInteraction } from "./pick.js";
+import { handleLookAgain, type LookAgainContext, type LookAgainInteraction } from "./look-again.js";
 import { PickSessions } from "./pick-sessions.js";
 import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 import {
@@ -161,6 +162,8 @@ export interface CommandHandlers {
   readonly reaperPage: (button: ButtonInteraction) => Promise<void>;
   /** A button whose custom id starts with `overview:`, the page buttons of an Alliance Overview. */
   readonly overview: (press: ButtonInteraction) => Promise<void>;
+  /** A button whose custom id starts with `again:`, a Look again button under a card, an Overview or /reaper closest. */
+  readonly lookAgain: (press: ButtonInteraction) => Promise<void>;
   /** The /booty command: a Linked holder of an Alliance role asks for a Booty Call, privately, to confirm. */
   readonly booty: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /booty-alerts command: a Member chooses their Booty Alerts, privately. */
@@ -234,6 +237,8 @@ interface Services {
 const PICK_PREFIX = "pick:";
 /** The custom id prefix of every Alliance Overview page button. */
 const OVERVIEW_PREFIX = "overview:";
+/** The custom id prefix of every Look again button. */
+const AGAIN_PREFIX = "again:";
 /** The custom id prefix of every paged /reaper answer button. */
 const REAPER_PREFIX = "reaper:";
 /** The custom id prefix of every Booty Call button. */
@@ -481,6 +486,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.pick(interaction);
       } else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
         void handlers.overview(interaction);
+      } else if (interaction.customId.startsWith(AGAIN_PREFIX)) {
+        void handlers.lookAgain(interaction);
       } else if (interaction.customId.startsWith(REAPER_PREFIX)) {
         void handlers.reaperPage(interaction);
       } else if (interaction.customId.startsWith(BOOTY_PREFIX)) {
@@ -727,6 +734,30 @@ function lookupLike(command: ChatInputCommandInteraction): LookupInteraction {
     },
     reply: async (message) => {
       await command.reply(message);
+    },
+  };
+}
+
+/**
+ * The discord.js button press as a Look again button reads it: the custom id, the Member who pressed and their roles, and
+ * the reply methods. See buttonLike for why each method is passed on.
+ */
+function lookAgainLike(press: ButtonInteraction): LookAgainInteraction {
+  return {
+    customId: press.customId,
+    user: press.user,
+    memberRoleIds: () => memberRoleIds(press.member),
+    deferUpdate: async () => {
+      await press.deferUpdate();
+    },
+    editReply: async (options) => {
+      await press.editReply(options);
+    },
+    followUp: async (message) => {
+      await press.followUp(message);
+    },
+    reply: async (message) => {
+      await press.reply(message);
     },
   };
 }
@@ -1052,6 +1083,17 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     homeKingdom: options.homeKingdom,
     knownAlliances: options.knownAlliances,
   };
+  // The Look again button repeats a card, an Overview or /reaper closest, so it has what those lookups have.
+  const lookAgainContext: LookAgainContext = {
+    gameApi: options.gameApi,
+    pickSessions,
+    links: options.links,
+    reaper: options.reaper,
+    homeKingdom: options.homeKingdom,
+    now,
+    logError,
+    ...lookupRoles,
+  };
   // Interview and Rank Approval events wait here until ready and the channel check have passed; then they reach the services.
   let openServices: (services: Services) => void = () => undefined;
   const services = new Promise<Services>((resolve) => {
@@ -1102,6 +1144,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
       overview: (press) =>
         handleOverview(pickLike(press), { gameApi: options.gameApi, pickSessions, now, logError, ...lookupRoles }),
+      lookAgain: (press) => handleLookAgain(lookAgainLike(press), lookAgainContext),
       booty: async (interaction) =>
         answer("/booty", { logError }, async () => {
           const { bootyCalls } = await services;

@@ -91,11 +91,14 @@ export type ChargedResult<T> = LookupResult<T> | AllowanceSpent;
 /** A lookup that ended without a response to read. */
 type Ended = Failure | AllowanceSpent;
 
-/** The lookups of one Member: each is charged to the Member against the Daily Allowance, with the `lookup` purpose. */
+/**
+ * The lookups of one Member: each is charged to the Member against the Daily Allowance, with the `lookup` purpose. The
+ * Player and Alliance reads by key take a freshness, `copy` unless the Look again button asks for `live`.
+ */
 export interface ChargedLookups {
-  getPlayer(uid: Uid): Promise<ChargedResult<Player>>;
+  getPlayer(uid: Uid, freshness?: Freshness): Promise<ChargedResult<Player>>;
   findPlayer(name: PlayerName, kingdom: KingdomNumber | undefined): Promise<ChargedResult<Player>>;
-  getAlliance(kingdom: KingdomNumber, key: AllianceKey): Promise<ChargedResult<Alliance>>;
+  getAlliance(kingdom: KingdomNumber, key: AllianceKey, freshness?: Freshness): Promise<ChargedResult<Alliance>>;
   findAlliance(name: AllianceKey): Promise<ChargedResult<Alliance>>;
 }
 
@@ -349,14 +352,15 @@ export class GameApiClient {
 
   /**
    * The lookups of one Member. Each is charged to the Member against the Daily Allowance before its request is
-   * counted against the Daily Quota; a cached answer is free. The purpose is always `lookup`, and the freshness always
-   * `copy`: a charged lookup only shows the data.
+   * counted against the Daily Quota; a cached answer is free. The purpose is always `lookup`. The freshness is `copy`
+   * unless a Player or Alliance is asked live (the Look again button): a live lookup skips the cache and is charged too.
    */
   chargedTo(caller: LookupCaller): ChargedLookups {
     return {
-      getPlayer: (uid) => this.playerLookup(uid, "lookup", caller, "copy"),
+      getPlayer: (uid, freshness: Freshness = "copy") => this.playerLookup(uid, "lookup", caller, freshness),
       findPlayer: (name, kingdom) => this.playerNameLookup(name, kingdom, "lookup", caller, "copy"),
-      getAlliance: (kingdom, key) => this.allianceLookup(kingdom, key, "lookup", caller, "copy"),
+      getAlliance: (kingdom, key, freshness: Freshness = "copy") =>
+        this.allianceLookup(kingdom, key, "lookup", caller, freshness),
       findAlliance: (name) => this.allianceNameLookup(name, "lookup", caller, "copy"),
     };
   }

@@ -21,6 +21,7 @@ import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
 import { FakeReaperPageInteraction } from "./__fakes__/reaper-page-interaction.js";
 import { embedCharacters, lookupMessages, renderPlayerCard } from "./lookup-cards.js";
+import { lookAgainCustomId } from "./look-again.js";
 import { handleReaperClosest, handleReaperPage, type ReaperClosestContext } from "./reaper.js";
 import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 
@@ -761,7 +762,7 @@ describe("handleReaperClosest", () => {
       await handleReaperClosest(interaction, context);
 
       expect(cardTitlesOf(embedsOf(answerOf(interaction)))).toEqual(["E1", "E2", "E3"]);
-      expect(JSON.stringify(answerOf(interaction).components ?? [])).not.toContain("custom_id");
+      expect(JSON.stringify(answerOf(interaction).components ?? [])).not.toContain("\"custom_id\":\"reaper:");
     });
 
     test("a page button by the owner redraws page 2 from the stored ranking, with no Game API request", async () => {
@@ -865,3 +866,130 @@ function updateOf(press: FakeReaperPageInteraction): InteractionUpdateOptions {
   if (last === undefined) throw new Error("the page button did not redraw the answer");
   return last;
 }
+
+/** A map time an hour before NOW: old. */
+const LONG_AGO = new Date("2026-11-04T15:00:00Z");
+/** A map time two minutes before NOW: fresh. */
+const JUST_NOW = new Date("2026-11-04T15:58:00Z");
+
+/** A Game API read that gives each Player the map time it is given, and a Player not in `players` is not found. */
+function readsAging(oldUid: Uid | undefined, players: readonly Player[]): GetPlayer {
+  return (uid) => {
+    const player = players.find((candidate) => candidate.uid === uid);
+    const asOf = uid === oldUid ? LONG_AGO : JUST_NOW;
+    const result: LookupResult<Player> =
+      player === undefined ? { kind: "not-found" } : { kind: "found", value: player, asOf };
+    return Promise.resolve(result);
+  };
+}
+
+describe("handleReaperClosest: the Newer data field and the Look again button", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let store: ReaperStore;
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-reaper-hint-"));
+    db = openDatabase(dataDir);
+    store = new ReaperStore(db);
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test("shows the Newer data field with the Kingdom measured from the caller's Linked Player, when a shown position is old", async () => {
+    store.add({ ...exileOf(NEAR, "Near", { x: 1, y: 0 }), kingdom: OTHER_KINGDOM });
+    const { context } = closestContext(store, {
+      link: CALLER_LINK,
+      read: readsAging(NEAR, [
+        playerOf(CALLER_UID, "Caller", OTHER_KINGDOM, { x: 0, y: 0 }),
+        playerOf(NEAR, "Near", OTHER_KINGDOM, { x: 1, y: 0 }),
+      ]),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(JSON.stringify(answerOf(interaction))).toContain(
+      "[Kingdom 12 map](https://lastasylumtracker.com/map?kid=12)",
+    );
+  });
+
+  test("shows the Look again button with the coordinates given, when a shown position is old", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    const { context } = closestContext(store, { read: readsAging(NEAR, [playerOf(NEAR, "Near", HOME, { x: 1, y: 0 })]) });
+    const interaction = new FakeReaperInteraction({ integers: { x: 10, y: 20 } }, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    const customId = lookAgainCustomId(CALLER_ID, { kind: "reaper", origin: { x: 10, y: 20 } });
+    expect(customId).toBe(`again:${CALLER_ID}:r:10:20`);
+    expect(JSON.stringify(answerOf(interaction).components ?? [])).toContain(`"custom_id":"${customId}"`);
+  });
+
+  test("shows the Look again button without coordinates when the caller measures from the Linked Player, and a shown position is old", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    const { context } = closestContext(store, {
+      link: CALLER_LINK,
+      read: readsAging(NEAR, [playerOf(CALLER_UID, "Caller", HOME, { x: 0, y: 0 }), playerOf(NEAR, "Near", HOME, { x: 1, y: 0 })]),
+    });
+    const interaction = new FakeReaperInteraction({}, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    const customId = lookAgainCustomId(CALLER_ID, { kind: "reaper" });
+    expect(customId).toBe(`again:${CALLER_ID}:r`);
+    expect(JSON.stringify(answerOf(interaction).components ?? [])).toContain(`"custom_id":"${customId}"`);
+  });
+
+  test("shows neither the Newer data field nor the button when every shown position is fresh", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
+    const { context } = closestContext(store, {
+      read: readsAging(undefined, [playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }), playerOf(MID, "Mid", HOME, { x: 0, y: 2 })]),
+    });
+    const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(JSON.stringify(answerOf(interaction))).not.toContain("Newer data");
+    expect(answerOf(interaction).components ?? []).toEqual([]);
+  });
+
+  test("shows the hint when a shown position is only its stored position, older than 5 minutes", async () => {
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    const { context } = closestContext(store, { read: () => Promise.reject(new Error("the Game API timed out")) });
+    const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(JSON.stringify(answerOf(interaction))).toContain("Newer data");
+    expect(JSON.stringify(answerOf(interaction).components ?? [])).toContain(
+      `"custom_id":"${lookAgainCustomId(CALLER_ID, { kind: "reaper", origin: { x: 0, y: 0 } })}"`,
+    );
+  });
+
+  test("shows neither when the only old position is of an Exile beyond the first page", async () => {
+    store.add(exileOf(FAR, "Far", { x: 3, y: 4 }));
+    store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
+    store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
+    store.add(exileOf(BEYOND, "Beyond", { x: 10, y: 0 }));
+    const { context } = closestContext(store, {
+      read: readsAging(BEYOND, [
+        playerOf(NEAR, "Near", HOME, { x: 1, y: 0 }),
+        playerOf(MID, "Mid", HOME, { x: 0, y: 2 }),
+        playerOf(FAR, "Far", HOME, { x: 3, y: 4 }),
+        playerOf(BEYOND, "Beyond", HOME, { x: 10, y: 0 }),
+      ]),
+    });
+    const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
+
+    await handleReaperClosest(interaction, context);
+
+    expect(titlesOf(exileEmbedsOf(interaction))).toEqual(["Near", "Mid", "Far"]);
+    expect(JSON.stringify(answerOf(interaction))).not.toContain("Newer data");
+    expect(answerOf(interaction).components ?? []).toEqual([]);
+  });
+});
