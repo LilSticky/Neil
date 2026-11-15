@@ -1,6 +1,6 @@
 import { ButtonStyle, ComponentType, } from "discord.js";
 import { TABLE_PAGE_SIZE, figureOf, lastSeen, leastActive, overviewOf, tablePage, topBy, } from "../domain/alliance-overview.js";
-import { CARD_COLOR, compactNumber, embedCharacters, escapeText, fitTitle, footerFor, kingdomAuthor, thumbnailOf, } from "./lookup-cards.js";
+import { CARD_COLOR, allianceLookAgainRow, compactNumber, embedCharacters, escapeText, fitTitle, footerFor, kingdomAuthor, newerDataField, thumbnailOf, } from "./lookup-cards.js";
 /** The table sorts, in the order of the table's columns and of the sort buttons. */
 const TABLE_SORTS = ["might", "weeklyActivity", "dailyHonor", "dailyTech", "lastOnline"];
 /** The short key of each sort, as it appears in the custom ids. */
@@ -87,9 +87,10 @@ function sortButtonId(sessionId, sort) {
 }
 /**
  * The Alliance Overview of an Alliance fetched at one moment and shown at another: the overview embed and one page of
- * the member table, sorted by `sort`. The table's rows are cut so the whole reply stays within Discord's limits.
+ * the member table, sorted by `sort`. The overview always says where current data is, and ends with the Look again
+ * button of `ownerId`, the Member who opened it. The table's rows are cut so the whole reply stays within Discord's limits.
  */
-export function renderOverview(alliance, asOf, now, sessionId, page, sort = "might") {
+export function renderOverview(alliance, asOf, now, ownerId, sessionId, page, sort = "might") {
     const table = tablePage(alliance.roster, sort, page);
     const details = alliance.details;
     const thumbnail = thumbnailOf(details?.badgePath);
@@ -98,11 +99,19 @@ export function renderOverview(alliance, asOf, now, sessionId, page, sort = "mig
         color: CARD_COLOR,
         author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
         ...(thumbnail === undefined ? {} : { thumbnail }),
-        fields: overviewFields(alliance.roster, now),
+        fields: [...overviewFields(alliance.roster, now), newerDataField(alliance.kingdom)],
         footer: footerFor(asOf, now),
     };
     const embeds = [overview, tableEmbed(table, sort, alliance, now, embedCharacters(overview))];
-    return { embeds, components: [sortRow(sessionId, sort), ...pageRows(sessionId, sort, table.page, table.pageCount)] };
+    const again = allianceLookAgainRow(alliance, "overview", ownerId);
+    return {
+        embeds,
+        components: [
+            sortRow(sessionId, sort),
+            ...pageRows(sessionId, sort, table.page, table.pageCount),
+            ...(again === undefined ? [] : [again]),
+        ],
+    };
 }
 /** A field of the overview that sits in a row of three with its neighbours. */
 function inlineField(name, value) {

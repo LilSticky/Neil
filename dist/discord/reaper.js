@@ -12,14 +12,17 @@ function positionOf(player) {
     const location = player.details?.location;
     return location === undefined ? undefined : { x: location.x, y: location.y };
 }
-/** The Exile a found Player makes: its position when the Game read one, the reason and the adder. */
+/**
+ * The Exile a found Player makes: its position when the Game read one, the reason and the adder. The position is read at
+ * the Player's map time, or at the moment of the addition when the Game gives none.
+ */
 function exileOf(player, asOf, reason, adderId, addedAt) {
     const position = positionOf(player);
     return {
         uid: player.uid,
         name: player.name,
         kingdom: player.kingdom,
-        lastPosition: position === undefined ? undefined : { position, at: asOf },
+        lastPosition: position === undefined ? undefined : { position, at: asOf ?? addedAt },
         reason,
         addedAt,
         addedBy: adderId,
@@ -115,6 +118,10 @@ export async function handleReaperAdd(interaction, context) {
 }
 /** How many Exiles are read from the Game API at once. */
 const READS_AT_ONCE = 4;
+/** Whether a read was refused by the Daily Quota, the Quota Reserve or the Daily Allowance. */
+function isRefusal(result) {
+    return result.kind === "quota-spent" || result.kind === "reserve-kept" || result.kind === "allowance-spent";
+}
 /** Reads REAPER for a /reaper answer; a read that throws is logged and gives undefined, which the answer tells as unavailable. */
 function readOrLog(command, read, logError) {
     try {
@@ -125,25 +132,26 @@ function readOrLog(command, read, logError) {
         return undefined;
     }
 }
-/** Reads one Player with the lookup purpose; a read that throws is logged and told as unavailable. */
-async function readPlayer(uid, context) {
+/** Reads one Player through `read`; a read that throws is logged and told as unavailable. */
+async function readPlayer(uid, read, logError) {
     try {
-        return await context.gameApi.getPlayer(uid, "lookup", "copy");
+        return await read(uid);
     }
     catch (error) {
-        context.logError(`Reading an Exile for REAPER failed: ${errorText(error)}`);
+        logError(`Reading an Exile for REAPER failed: ${errorText(error)}`);
         return { kind: "unavailable", reason: "unexpected" };
     }
 }
-/** The REAPER row a fresh read of a Player leaves behind. */
-function refreshOf(player, asOf) {
-    return { name: player.name, kingdom: player.kingdom, position: positionOf(player), readAt: asOf };
+/** The REAPER row a fresh read of a Player leaves behind, read at its map time or else at the moment of the read. */
+function refreshOf(player, asOf, now) {
+    return { name: player.name, kingdom: player.kingdom, position: positionOf(player), readAt: asOf ?? now };
 }
 /**
- * Reads the Exiles at most READS_AT_ONCE at a time, from one shared queue. A found read refreshes its row; a quota
- * refusal stops the queue, so the Exiles not yet read keep their stored positions.
+ * Reads the Exiles at most READS_AT_ONCE at a time, from one shared queue. A found read refreshes its row; a refusal (the
+ * Daily Quota, the Quota Reserve or the Daily Allowance) stops the queue, so the Exiles not yet read keep their stored
+ * positions.
  */
-async function readExiles(exiles, context) {
+async function readExiles(exiles, context, read) {
     const queue = exiles.values();
     const reads = new Map();
     const state = { refusal: undefined };
@@ -153,12 +161,12 @@ async function readExiles(exiles, context) {
             if (next.done === true)
                 return;
             const { uid } = next.value;
-            const result = await readPlayer(uid, context);
+            const result = await readPlayer(uid, read, context.logError);
             if (result.kind === "found") {
                 reads.set(uid, { player: result.value, asOf: result.asOf });
-                context.reaper.refresh(uid, refreshOf(result.value, result.asOf));
+                context.reaper.refresh(uid, refreshOf(result.value, result.asOf, context.now()));
             }
-            else if (result.kind === "quota-spent" || result.kind === "reserve-kept") {
+            else if (isRefusal(result)) {
                 state.refusal = result;
             }
         }
@@ -170,30 +178,30 @@ async function readExiles(exiles, context) {
  * Builds the ranking for /reaper closest without rendering it: the Exiles of one Kingdom read through the Game API,
  * ranked by distance from the origin. The caller's own Exile (when the caller has a Link) is left out.
  */
-export async function rankClosest(origin, kingdom, callerUid, context) {
-    const exiles = context.reaper.inKingdom(kingdom);
-    const { reads, refusal } = await readExiles(exiles, context);
+async function rankClosest(start, given, context, read) {
+    const exiles = context.reaper.inKingdom(start.kingdom);
+    const { reads, refusal } = await readExiles(exiles, context, read);
     const candidates = exiles.map((exile) => ({ exile, player: reads.get(exile.uid)?.player }));
-    const { ranking, leftOut } = rankExiles(origin, kingdom, callerUid, candidates);
-    return { origin, kingdom, ranking, reads, leftOut, refusal };
+    const { ranking, leftOut } = rankExiles(start.origin, start.kingdom, start.callerUid, candidates);
+    return { origin: start.origin, given, kingdom: start.kingdom, ranking, reads, leftOut, refusal };
 }
 /**
  * x and y win over the Linked Player's position. Without a Link the Kingdom is the Home Kingdom, and so it is when the
  * Linked Player cannot be read but x and y are given. A caller with no Link and no x and y, or whose Linked Player
- * cannot be read and who gives no x and y, has no origin; when the quota kept that read, the refusal is returned.
+ * cannot be read and who gives no x and y, has no origin; when a refusal kept that read, the refusal is returned.
  */
-async function closestOriginOf(given, memberId, context) {
+async function closestOriginOf(given, memberId, context, read) {
     const link = context.links.linkFor(memberId);
     if (link === undefined) {
         if (given === undefined)
             return { kind: "unmeasurable" };
         return { kind: "measured", origin: given, kingdom: context.homeKingdom, callerUid: undefined };
     }
-    const caller = await readPlayer(link.uid, context);
+    const caller = await readPlayer(link.uid, read, context.logError);
     if (caller.kind !== "found") {
         if (given !== undefined)
             return { kind: "measured", origin: given, kingdom: context.homeKingdom, callerUid: link.uid };
-        if (caller.kind === "quota-spent" || caller.kind === "reserve-kept")
+        if (isRefusal(caller))
             return { kind: "refused", refusal: caller };
         return { kind: "unmeasurable" };
     }
@@ -201,6 +209,26 @@ async function closestOriginOf(given, memberId, context) {
     if (origin === undefined)
         return { kind: "unmeasurable" };
     return { kind: "measured", origin, kingdom: caller.value.kingdom, callerUid: link.uid };
+}
+/**
+ * The ranking of /reaper closest for the Member, measured from the x and y given or else from the Linked Player. Every
+ * read goes through `read`; a Member who is refused, or has no origin, gets the text that says so instead.
+ */
+export async function rankClosestFor(given, memberId, context, read) {
+    const start = await closestOriginOf(given, memberId, context, read);
+    if (start.kind === "refused")
+        return { kind: "text", content: sharedPlayerFailureText(start.refusal, context.now()) };
+    if (start.kind === "unmeasurable")
+        return { kind: "text", content: reaperMessages.askXAndY };
+    return { kind: "ranked", ranking: await rankClosest(start, given, context, read) };
+}
+/**
+ * The paged session of a /reaper closest answer: opened when all is asked and the ranking fills more than one page;
+ * undefined for a single page, which has no page buttons.
+ */
+export function closestSessionOf(ranking, all, ownerId, pages, now) {
+    const paged = all && reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE) > 1;
+    return paged ? pages.open(ownerId, { kind: "closest", ranking }, now) : undefined;
 }
 /** Answers /reaper closest, privately. Mismatched coordinates are refused before any Game API request. With all, the answer is paged. */
 export async function handleReaperClosest(interaction, context) {
@@ -214,20 +242,16 @@ export async function handleReaperClosest(interaction, context) {
         const given = x === null || y === null ? undefined : { x, y };
         const all = interaction.options.getBoolean("all") === true;
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        const start = await closestOriginOf(given, interaction.user.id, context);
-        if (start.kind === "refused") {
-            await interaction.editReply({ content: sharedPlayerFailureText(start.refusal, context.now()), allowedMentions });
+        const read = (uid) => context.gameApi.getPlayer(uid, "lookup", "copy");
+        const outcome = await rankClosestFor(given, interaction.user.id, context, read);
+        if (outcome.kind === "text") {
+            await interaction.editReply({ content: outcome.content, allowedMentions });
             return;
         }
-        if (start.kind === "unmeasurable") {
-            await interaction.editReply({ content: reaperMessages.askXAndY, allowedMentions });
-            return;
-        }
-        const ranking = await rankClosest(start.origin, start.kingdom, start.callerUid, context);
+        const { ranking } = outcome;
         const now = context.now();
-        const paged = all && reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE) > 1;
-        const sessionId = paged ? context.pages.open(interaction.user.id, { kind: "closest", ranking }, now) : undefined;
-        await interaction.editReply(closestAnswer(ranking, now, 0, sessionId));
+        const sessionId = closestSessionOf(ranking, all, interaction.user.id, context.pages, now);
+        await interaction.editReply(closestAnswer(ranking, now, 0, sessionId, interaction.user.id));
     });
 }
 /** Answers /reaper list, privately: every Exile of REAPER, newest first, 8 per page. */
@@ -274,7 +298,7 @@ export async function handleReaperPage(interaction, context) {
         }
         const { content } = session;
         const redraw = content.kind === "closest"
-            ? closestAnswer(content.ranking, context.now(), parsed.page, parsed.sessionId)
+            ? closestAnswer(content.ranking, context.now(), parsed.page, parsed.sessionId, session.ownerId)
             : listAnswer(content.exiles, parsed.page, parsed.sessionId);
         await interaction.update(redraw);
     });

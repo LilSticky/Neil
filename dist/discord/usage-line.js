@@ -22,6 +22,6 @@ export function withUsage(message, line) {
         return { ...message, embeds: [{ ...first, footer: { ...first.footer, text } }, ...rest] };
     }
     const content = message.content;
-    return { ...message, content: content === undefined ? line : `${content}\n${line}` };
+    return { ...message, content: content === undefined || content === null ? line : `${content}\n${line}` };
 }
 //# sourceMappingURL=usage-line.js.map

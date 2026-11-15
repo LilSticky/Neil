@@ -30,6 +30,7 @@ import { handleLink, handleLinkButton, handleRank, handleUnlink, PendingLinkConf
 import { handlePing } from "./ping.js";
 import { answer, handleAlliance, handlePlayer, replyPrivately, } from "./lookup.js";
 import { handleOverview, handlePick } from "./pick.js";
+import { handleLookAgain } from "./look-again.js";
 import { PickSessions } from "./pick-sessions.js";
 import { ReaperPages } from "./reaper-pages.js";
 import { handleReaperAdd, handleReaperClosest, handleReaperList, handleReaperPage, } from "./reaper.js";
@@ -44,6 +45,8 @@ import { handleHelp } from "./help.js";
 const PICK_PREFIX = "pick:";
 /** The custom id prefix of every Alliance Overview page button. */
 const OVERVIEW_PREFIX = "overview:";
+/** The custom id prefix of every Look again button. */
+const AGAIN_PREFIX = "again:";
 /** The custom id prefix of every paged /reaper answer button. */
 const REAPER_PREFIX = "reaper:";
 /** The custom id prefix of every Booty Call button. */
@@ -283,6 +286,9 @@ export function createClient(handlers, options) {
             else if (interaction.customId.startsWith(OVERVIEW_PREFIX)) {
                 void handlers.overview(interaction);
             }
+            else if (interaction.customId.startsWith(AGAIN_PREFIX)) {
+                void handlers.lookAgain(interaction);
+            }
             else if (interaction.customId.startsWith(REAPER_PREFIX)) {
                 void handlers.reaperPage(interaction);
             }
@@ -476,6 +482,29 @@ function lookupLike(command) {
         },
         reply: async (message) => {
             await command.reply(message);
+        },
+    };
+}
+/**
+ * The discord.js button press as a Look again button reads it: the custom id, the Member who pressed and their roles, and
+ * the reply methods. See buttonLike for why each method is passed on.
+ */
+function lookAgainLike(press) {
+    return {
+        customId: press.customId,
+        user: press.user,
+        memberRoleIds: () => memberRoleIds(press.member),
+        deferUpdate: async () => {
+            await press.deferUpdate();
+        },
+        editReply: async (options) => {
+            await press.editReply(options);
+        },
+        followUp: async (message) => {
+            await press.followUp(message);
+        },
+        reply: async (message) => {
+            await press.reply(message);
         },
     };
 }
@@ -782,6 +811,18 @@ export async function connect(token, options) {
         homeKingdom: options.homeKingdom,
         knownAlliances: options.knownAlliances,
     };
+    // The Look again button repeats a card, an Overview or /reaper closest, so it has what those lookups have.
+    const lookAgainContext = {
+        gameApi: options.gameApi,
+        pickSessions,
+        links: options.links,
+        reaper: options.reaper,
+        pages: reaperPages,
+        homeKingdom: options.homeKingdom,
+        now,
+        logError,
+        ...lookupRoles,
+    };
     // Interview and Rank Approval events wait here until ready and the channel check have passed; then they reach the services.
     let openServices = () => undefined;
     const services = new Promise((resolve) => {
@@ -820,6 +861,7 @@ export async function connect(token, options) {
         reaperAutocomplete: (interaction) => answer("/reaper autocomplete", { logError }, () => handleReaperAutocomplete(interaction, { reaper: options.reaper })),
         reaperPage: (button) => handleReaperPage(button, { pages: reaperPages, now, logError }),
         overview: (press) => handleOverview(pickLike(press), { gameApi: options.gameApi, pickSessions, now, logError, ...lookupRoles }),
+        lookAgain: (press) => handleLookAgain(lookAgainLike(press), lookAgainContext),
         booty: async (interaction) => answer("/booty", { logError }, async () => {
             const { bootyCalls } = await services;
             await bootyCalls.onCommand(bootyCommandLike(interaction));

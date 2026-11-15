@@ -1,10 +1,12 @@
 import { ButtonStyle, ComponentType, escapeMarkdown, } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { lastSeen } from "../domain/alliance-overview.js";
+import { mapPageOf } from "../domain/data-age.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import { parseAllianceKey } from "../domain/lookup-input.js";
 import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 import { listedAllianceMatches, listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
+import { lookAgainCustomId } from "./look-again.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
 import { USAGE_SEPARATOR, usageLine } from "./usage-line.js";
 const FOOTER_SOURCE = "Data from Last Asylum Tracker";
@@ -18,6 +20,10 @@ const LARGEST_USAGE_COUNT = 1_000_000;
 export const LONGEST_USAGE_LINE_LENGTH = Math.max(usageLine({ used: LARGEST_USAGE_COUNT, allowance: LARGEST_USAGE_COUNT, officer: true }).length, usageLine({ used: LARGEST_USAGE_COUNT, allowance: LARGEST_USAGE_COUNT, officer: false }).length);
 /** The room a usage line takes in a card's footer: the separator, then the line. */
 const USAGE_FOOTER_ROOM = USAGE_SEPARATOR.length + LONGEST_USAGE_LINE_LENGTH;
+/** The room the Newer data field takes at its longest (a Kingdom of four digits), which an old card leaves free. */
+const NEWER_DATA_ROOM = 200;
+const NEWER_DATA_NAME = "Newer data";
+const TRACKER_MAP_LINK = "[tracker map](https://lastasylumtracker.com/map)";
 const ROSTER_FIELD = "Roster";
 const EMPTY_ROSTER_TEXT = "The tracker lists no members.";
 /** Discord's limit on a select menu option's label. */
@@ -118,10 +124,12 @@ export function utcTime(moment) {
     return `${twoDigits(moment.getUTCHours())}:${twoDigits(moment.getUTCMinutes())} UTC`;
 }
 /**
- * The card footer: the source and when the game sent the data, in UTC. Data from today shows the time only; an earlier
- * day shows the day and English month too.
+ * The card footer: the source and, when the game gave a map time, when it was, in UTC. Data from today shows the time
+ * only; an earlier day shows the day and English month too. Without a map time the footer names the source alone.
  */
 export function footerFor(asOf, now) {
+    if (asOf === undefined)
+        return { text: FOOTER_SOURCE };
     const time = utcTime(asOf);
     const when = utcDayOf(asOf) === utcDayOf(now)
         ? time
@@ -346,7 +354,48 @@ export function renderAllianceCard(alliance, asOf, now, page = 0) {
         footer: footerFor(asOf, now),
     };
     const shown = pageOf(sortRoster(alliance.roster), page);
-    return { ...embed, fields: [...fields, ...rosterSection(shown, embedCharacters(embed) + USAGE_FOOTER_ROOM)] };
+    const fixed = embedCharacters(embed) + USAGE_FOOTER_ROOM + NEWER_DATA_ROOM;
+    return { ...embed, fields: [...fields, ...rosterSection(shown, fixed)] };
+}
+/**
+ * The Newer data field: how to get current data when a card's map time is old. It names the Kingdom's map, which the
+ * Member updates on the tracker's site, or the tracker's map when the Kingdom is unknown.
+ */
+export function newerDataField(kingdom) {
+    const map = kingdom === undefined ? TRACKER_MAP_LINK : `[Kingdom ${kingdom.toString()} map](${mapPageOf(kingdom)})`;
+    return {
+        name: NEWER_DATA_NAME,
+        value: `Use **Update Map** on the ${map}, wait until it has finished, then press 🔄 Look again.`,
+    };
+}
+/** A card with the Newer data field as its last field. */
+export function withNewerData(card, kingdom) {
+    return { ...card, fields: [...(card.fields ?? []), newerDataField(kingdom)] };
+}
+/** The action row of one Look again button, a secondary button labelled Look again, under the given custom id. */
+export function lookAgainRow(customId) {
+    return {
+        type: ComponentType.ActionRow,
+        components: [
+            {
+                type: ComponentType.Button,
+                style: ButtonStyle.Secondary,
+                label: "Look again",
+                emoji: { name: "🔄" },
+                custom_id: customId,
+            },
+        ],
+    };
+}
+/**
+ * The Look again row of an Alliance card (`alliance`) or of its Overview (`overview`), for the Member who ran the lookup.
+ * Undefined when the tag cannot be named in a custom id.
+ */
+export function allianceLookAgainRow(alliance, kind, ownerId) {
+    const key = parseAllianceKey(alliance.tag);
+    if (!key.ok)
+        return undefined;
+    return lookAgainRow(lookAgainCustomId(ownerId, { kind, kingdom: alliance.kingdom, tag: key.value }));
 }
 /** The Player pick list's note when matches were left out. */
 const PLAYER_PICK_LIMIT_NOTE = "Only the first 25 are listed; add a kingdom to narrow it.";
@@ -505,14 +554,15 @@ export function renderRosterComponents(entries, page, sessionId) {
     return rows;
 }
 /**
- * The components under an Alliance card: the roster menu and its page buttons, then an "Overview" button for any Member.
- * The button's custom id names the pick session, the Kingdom and the tag, so a press can find the Alliance again. An
- * empty roster has no components at all, and neither has an Alliance whose tag cannot be named in a custom id.
+ * The components under an Alliance card: the roster menu and its page buttons, then an "Overview" button for any Member,
+ * then the Look again button of the owner. The Overview button's custom id names the pick session, the Kingdom and the
+ * tag, so a press can find the Alliance again. An empty roster has no menu and no Overview button, and an Alliance
+ * whose tag cannot be named in a custom id has no Overview or Look again button.
  */
-export function renderAllianceComponents(alliance, page, sessionId) {
+export function renderAllianceComponents(alliance, page, sessionId, ownerId) {
     const rows = renderRosterComponents(alliance.roster, page, sessionId);
     const key = parseAllianceKey(alliance.tag);
-    if (rows.length === 0 || !key.ok)
+    if (!key.ok)
         return rows;
     const overview = {
         type: ComponentType.Button,
@@ -520,6 +570,8 @@ export function renderAllianceComponents(alliance, page, sessionId) {
         label: "Overview",
         custom_id: `pick:${sessionId}:overview:${alliance.kingdom.toString()}:${key.value}`,
     };
-    return [...rows, { type: ComponentType.ActionRow, components: [overview] }];
+    const overviewRows = rows.length === 0 ? [] : [{ type: ComponentType.ActionRow, components: [overview] }];
+    const again = allianceLookAgainRow(alliance, "alliance", ownerId);
+    return [...rows, ...overviewRows, ...(again === undefined ? [] : [again])];
 }
 //# sourceMappingURL=lookup-cards.js.map

@@ -1,7 +1,9 @@
 import { ButtonStyle, ComponentType, } from "discord.js";
+import { isOld } from "../domain/data-age.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import { allowedMentions, sharedPlayerFailureText } from "./lookup.js";
-import { CARD_COLOR, escapeText, fitTitle, kingdomAuthor, renderPlayerCard } from "./lookup-cards.js";
+import { CARD_COLOR, escapeText, fitTitle, kingdomAuthor, lookAgainRow, renderPlayerCard, withNewerData, } from "./lookup-cards.js";
+import { lookAgainCustomId } from "./look-again.js";
 import { clampReaperPage, reaperPageCount, reaperPageOf, reaperPageCustomId } from "./reaper-pages.js";
 import { reaperMessages } from "./reaper-texts.js";
 /** How many of the closest Exiles one page of /reaper closest shows. */
@@ -93,18 +95,42 @@ function noCardsText(ranking, now) {
     return reaperMessages.noExilesInKingdom(ranking.kingdom);
 }
 /**
- * The answer to /reaper closest on one page: the header and up to 3 Exile cards with the page buttons; or the text when
- * none can be shown.
+ * The map time a shown Exile's position is as of: the stored time of a stored position, else the read's map time, or
+ * now when the Game gave none. Undefined (so old) only when a stored position has no time.
  */
-export function closestAnswer(ranking, now, page, sessionId) {
+function positionAsOf(entry, reads, now) {
+    if (entry.stale)
+        return entry.exile.lastPosition?.at;
+    return reads.get(entry.exile.uid)?.asOf ?? now;
+}
+/**
+ * The Look again button of a /reaper closest answer: it repeats the answer from the x and y the command gave, if any, and
+ * keeps the paging when the answer is paged.
+ */
+function closestLookAgainRow(ranking, ownerId, all) {
+    const target = ranking.given === undefined ? { kind: "reaper", all } : { kind: "reaper", all, origin: ranking.given };
+    return lookAgainRow(lookAgainCustomId(ownerId, target));
+}
+/**
+ * The answer to /reaper closest on one page: the header and up to 3 Exile cards with the page buttons; or the text when
+ * none can be shown. When a position shown is old, the header carries the Newer data field and the answer the Look again
+ * button of `ownerId`, the Member who ran the command.
+ */
+export function closestAnswer(ranking, now, page, sessionId, ownerId) {
     if (ranking.ranking.length === 0)
         return { content: noCardsText(ranking, now), allowedMentions };
     const pageCount = reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE);
     const current = clampReaperPage(page, pageCount);
-    const cards = reaperPageOf(ranking.ranking, current, CLOSEST_PAGE_SIZE).map((entry) => closestCard(entry, ranking.reads, now));
+    const shown = reaperPageOf(ranking.ranking, current, CLOSEST_PAGE_SIZE);
+    const cards = shown.map((entry) => closestCard(entry, ranking.reads, now));
+    const old = shown.some((entry) => isOld(positionAsOf(entry, ranking.reads, now), now));
+    const header = closestHeader(ranking);
     return {
-        embeds: [closestHeader(ranking), ...cards],
-        components: pageButtonsOf(sessionId, current, pageCount),
+        embeds: [old ? withNewerData(header, ranking.kingdom) : header, ...cards],
+        components: [
+            ...pageButtonsOf(sessionId, current, pageCount),
+            ...(old ? [closestLookAgainRow(ranking, ownerId, sessionId !== undefined)] : []),
+        ],
         allowedMentions,
     };
 }

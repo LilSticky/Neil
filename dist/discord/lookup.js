@@ -1,11 +1,13 @@
 import { MessageFlags, } from "discord.js";
 import { matchAlliances } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { isOld } from "../domain/data-age.js";
 import { isOfficer } from "../domain/officer.js";
+import { lookAgainCustomId } from "./look-again.js";
 import { parseAllianceKey, parseKingdom, parsePlayerName, parseUid, } from "../domain/lookup-input.js";
 import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js";
-import { lookupMessages, renderAllianceCard, renderAllianceComponents, renderAlliancePickList, renderCloseAlliancePickList, renderPlayerCard, renderPlayerPickList, } from "./lookup-cards.js";
-import { refusalMessage, withUsage } from "./usage-texts.js";
+import { allianceLookAgainRow, lookAgainRow, lookupMessages, renderAllianceCard, renderAllianceComponents, renderAlliancePickList, renderCloseAlliancePickList, renderPlayerCard, renderPlayerPickList, withNewerData, } from "./lookup-cards.js";
+import { allowanceSpentText, refusalMessage, withUsage } from "./usage-texts.js";
 /**
  * Adds the caller's usage line to a reply that is about to be shown. Every reply of a charged lookup goes through here, so
  * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
@@ -40,6 +42,8 @@ export function sharedPlayerFailureText(failure, now) {
         case "quota-spent":
         case "reserve-kept":
             return quotaFailureText(failure, now);
+        case "allowance-spent":
+            return allowanceSpentText(failure.resetsAt, now);
         case "try-again":
             return lookupMessages.tryAgain;
         case "unavailable":
@@ -109,21 +113,33 @@ export function allianceFailureMessage(failure, key, notFound, ownerId, pickSess
             return { content: lookupMessages.unavailable };
     }
 }
-/** The public reply that shows a Player: the Player card. */
-export function playerCardMessage(player, asOf, now) {
-    return { embeds: [renderPlayerCard(player, asOf, now)] };
+/**
+ * The public reply that shows a Player: the Player card. When its map time is old, the card says where current data is
+ * and carries the Look again button of `ownerId`, the Member who ran the lookup.
+ */
+export function playerCardMessage(player, asOf, now, ownerId) {
+    const card = renderPlayerCard(player, asOf, now);
+    if (!isOld(asOf, now))
+        return { embeds: [card] };
+    return {
+        embeds: [withNewerData(card, player.kingdom)],
+        components: [lookAgainRow(lookAgainCustomId(ownerId, { kind: "player", uid: player.uid }))],
+    };
 }
 /**
- * The public reply that shows an Alliance: its card and, when the roster has members, the roster menu under it. The
- * menu's pick list is opened for the caller, with the roster in the order the card lists it.
+ * The public reply that shows an Alliance: its card, the roster menu under it when the roster has members, and the Look
+ * again button of `ownerId`. The card always says where current data is. The menu's pick list is opened for the owner,
+ * with the roster in the order the card lists it.
  */
 export function allianceCardMessage(alliance, asOf, now, ownerId, pickSessions) {
-    const embeds = [renderAllianceCard(alliance, asOf, now)];
-    if (alliance.roster.length === 0)
-        return { embeds };
+    const embeds = [withNewerData(renderAllianceCard(alliance, asOf, now), alliance.kingdom)];
+    if (alliance.roster.length === 0) {
+        const again = allianceLookAgainRow(alliance, "alliance", ownerId);
+        return { embeds, components: again === undefined ? [] : [again] };
+    }
     const entries = sortRoster(alliance.roster);
     const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, asOf }, now);
-    return { embeds, components: renderAllianceComponents(alliance, 0, sessionId) };
+    return { embeds, components: renderAllianceComponents(alliance, 0, sessionId, ownerId) };
 }
 /** The text of a thrown value, for a log line. */
 export function errorText(error) {
@@ -198,7 +214,7 @@ async function lookUpPlayerByUid(interaction, context, text) {
     }
     const uid = parsed.value;
     const caller = callerOf(interaction, context.officerRoleIds);
-    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(uid), playerCardMessage, (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
+    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(uid), (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id), (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
 }
 async function lookUpPlayerByName(interaction, context, text) {
     const name = parsePlayerName(text);
@@ -214,7 +230,7 @@ async function lookUpPlayerByName(interaction, context, text) {
     const playerName = name.value;
     const playerKingdom = kingdom.value;
     const caller = callerOf(interaction, context.officerRoleIds);
-    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).findPlayer(playerName, playerKingdom), playerCardMessage, (failure, now) => playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now));
+    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).findPlayer(playerName, playerKingdom), (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id), (failure, now) => playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now));
 }
 /**
  * Answers /player: a uid or a name (with an optional Kingdom), never both. Invalid input is answered privately at
