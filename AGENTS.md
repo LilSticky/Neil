@@ -44,7 +44,7 @@ Ask only about domain, dictionary or scope questions.
 - **Slices by capability, not technology.** Name a slice after what it lets a Member or Officer do
   ("Look up a player"), never after a layer ("API client", "caching"). Slash commands, the Game API
   client, cache and storage are adapters inside a slice.
-- **Spec Kit per slice**, on branch `NNN-slice-name` from `main`: `/speckit-specify` →
+- **Spec Kit per slice**, on branch `NNN-slice-name` from `develop`: `/speckit-specify` →
   `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` → `/speckit-implement`.
 - **The loop**: spec → failing test → implementation → code review, repeated until green.
 - **TDD for all code** (`tdd` skill): `test-first` agent for red, `implementer` for green. The TDD guard
@@ -58,11 +58,19 @@ Ask only about domain, dictionary or scope questions.
   last used. Set up once per clone: `git config core.hooksPath .githooks` and
   `git config neil.author "LilSticky <58908604+LilSticky@users.noreply.github.com>"`. A deliberate
   switch is confirmed by typing `yes`, or without a terminal with `NEIL_AUTHOR_CONFIRM=<email>`.
-- **Pull requests**: every branch reaches `main` through a pull request (`gh pr create`), never a local
+- **Branches** ([ADR 16](documentation/adr/0016-develop-branch-and-test-environment.md)): `develop` is the
+  integration branch and the default; `main` is production. Every branch starts from `develop` and returns to it.
+- **Pull requests**: every branch reaches `develop` through a pull request (`gh pr create`), never a local
   merge or direct push. The body lists every issue it touches: `Closes #N` / `Refs #N`.
-- **Merging**: when the Definition of Done gate is green and CI passes, squash-merge yourself
-  (`gh pr merge --squash --delete-branch`), then switch to `main`, pull, and have the `housekeeper`
-  clean up local Git state. If you merge with something red, say so in the PR and in STATUS.
+- **Merging**: when CI passes, squash-merge into `develop` yourself (`gh pr merge --squash --delete-branch`),
+  then switch to `develop`, pull, and have the `housekeeper` clean up local Git state. CI deploys `develop`
+  to test Neil (`deploy-test`); the user restarts `lap-test-neil`.
+- **Testing on test Neil**: run the slice's checks against the `-test` build through Neil Police
+  ([NEIL-POLICE.md](documentation/NEIL-POLICE.md) section 3a): set up with Police, hand the user only what Discord
+  reserves to people (slash commands, buttons, joining), verify every result through Police, record it in `tasks.md`.
+- **Releases**: a pull request `develop` → `main` listing the slices and their checks, merged with a **merge
+  commit** (`gh pr merge --merge`) once the user approved it. CI deploys `main` and fast-forwards `develop`.
+  If something is merged red, say so in the PR and in STATUS.
 - **Talking to the user**: work autonomously. Ask only about domain questions, dictionary changes and
   scope changes, always through interactive prompts, and keep chat output short. Detail belongs in files.
 
@@ -85,7 +93,7 @@ it, checks the diff and test result, and commits.
 - **Hand-off through files**: prompts name a task ID in `tasks.md` and the files involved; agents read
   the repository rather than the chat, and report in 5 lines or fewer.
 - **One working tree per session.** Extra parallel work goes into its own worktree
-  (`git worktree add ../Neil-<topic> -b <branch> origin/main`).
+  (`git worktree add ../Neil-<topic> -b <branch> origin/develop`).
 - Escalate to a stronger model only when an agent fails twice on the same task.
 
 ## Code conventions

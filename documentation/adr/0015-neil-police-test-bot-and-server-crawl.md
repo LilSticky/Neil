@@ -4,7 +4,7 @@ Date: 2026-11-15
 
 ## Status
 
-Accepted
+Accepted. Partly superseded by [ADR 17](0017-neil-police-acts-on-the-test-server.md) (permissions on the test server)
 
 ## Context
 

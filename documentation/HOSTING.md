@@ -1,14 +1,16 @@
 # Hosting
 
-How Neil runs: one bot application, Neil, on Wispbyte (ADR 6), and locally for development with the same
-token while the Wispbyte server is stopped.
+How Neil runs (ADR 6, [ADR 16](adr/0016-develop-branch-and-test-environment.md)): two bot applications on two
+Wispbyte servers. **Neil Test** runs the `develop` build on the test server, and locally for development with the
+same token while its Wispbyte server is stopped. **Neil** runs the `main` build, for the real server from the release.
 Why it is set up this way: [specs/001-greet-the-test-server/research.md](../specs/001-greet-the-test-server/research.md)
 (R1, R2, R8). Setting up the Discord server itself (roles, channels, permissions): [SERVER-SETUP.md](SERVER-SETUP.md). Never paste tokens into chats, issues or commits.
 
 ## 1. Discord application (once)
 
-In the [Discord developer portal](https://discord.com/developers/applications), one application: Neil.
-There is no separate test bot.
+In the [Discord developer portal](https://discord.com/developers/applications), two applications set up alike:
+**Neil Test** (test server, `lap-test-neil`, the local `.env`) and **Neil** (real server, `lap-330-neil`). Each has its
+own token and Application ID, and each needs `npm run commands:register` with its own settings.
 
 1. **New Application**, give it a name.
 2. **General Information**: copy the **Application ID** → `DISCORD_APPLICATION_ID`.
@@ -32,9 +34,15 @@ copies of one bot both receive every `/ping`; only one can answer, the other log
 
 ## 3. Wispbyte server
 
-**Servers** (since 2026-11-15): production Neil runs on the **Premium** server `lap-330-neil` (`cf1d9cd9`, Node 26
-image, 1 GB). The free server `lap-test-neil` (`c5fd8257`), where Neil ran until then, is stopped; it is meant for a
-test instance of Neil (ADR 6), which needs its own Discord application and token first. A session can manage both
+**Servers** (since 2026-11-15, ADR 16):
+
+| Server | Tier | Install Branch | Bot | Discord server |
+|---|---|---|---|---|
+| `lap-test-neil` (`c5fd8257`) | free, Node 24, 512 MB | `deploy-test` | Neil Test | test server |
+| `lap-330-neil` (`cf1d9cd9`) | Premium, Node 26, 1 GB | `deploy` | Neil | real server; stopped until the release |
+
+The checkout on `lap-test-neil` predates the switch: its `.git/config` makes local `deploy` track
+`refs/heads/deploy-test`, so `git pull` follows the test build. A session can manage both
 through the Wispbyte MCP connection (startup values, `.env`, files, power), except binary files: `data/neil.db` is
 moved by hand in **Files**. Free servers only work while the AI pass runs and can't be started from the connection.
 
@@ -133,12 +141,14 @@ from the file manager. Afterwards every start runs `git pull` (Auto Update), `np
 
 ## 4. Deploys
 
-Every push to `main` with green checks runs the CI `deploy` job: it builds and adds **one new commit**
-to the `deploy` branch (never a force-push, or the server's `git pull` breaks). That commit holds only
+Every push to `main` or `develop` with green checks runs the CI `deploy` job: it builds and adds **one new commit**
+to `deploy` (from `main`) or `deploy-test` (from `develop`, version followed by `-test`), never a force-push, or the
+server's `git pull` breaks. After a release, the `restart-develop` job fast-forwards `develop` to `main`. That commit holds only
 `dist/`, a `package.json` without dev dependencies, a matching `package-lock.json`, `build-info.json`
 (short commit sha and build time, shown by `/ping`) and a `.gitignore`. It never holds `.env` or `data/`.
 
-After a deploy, click **Restart** in the panel: the server pulls the commit, installs the runtime
+After a deploy, click **Restart** on that server's panel (`lap-test-neil` for `develop`; a session can restart
+`lap-330-neil` itself): the server pulls the commit, installs the runtime
 packages, and starts Neil. `/ping` then shows the new version. Restarts can't be automated:
 Wispbyte's restart needs a browser login behind a bot check, not an API key.
 
@@ -162,7 +172,7 @@ Intents) **before** the Restart that deploys the slice: without it Neil cannot l
 **Links before slice 018**: at each start, Neil opens an Interview and gives the Onboarding Role to up to 10 online Members who
 have no Link in the database it runs on. Link the Members on Wispbyte first, or those Linked only elsewhere are treated as newcomers.
 
-**Running locally**: there is only one bot application, so **Stop** the Wispbyte server before
+**Running locally**: the local `.env` holds Neil Test's settings, so **Stop** `lap-test-neil` before
 `npm run dev`, and **Start** it again when done.
 
 A local Neil and the Wispbyte Neil each have their own `data/neil.db`, but act on the same server. The startup sweeps

@@ -11,7 +11,7 @@ with a new one and update both statuses here.
 | 3 | [Framework-free domain with adapters](0003-framework-free-domain-with-adapters.md) | Accepted |
 | 4 | [Daily quota budget for the Game API](0004-daily-quota-budget-for-the-game-api.md) | Accepted |
 | 5 | [SQLite for Links, interviews and quota](0005-sqlite-storage.md) | Accepted |
-| 6 | [Test and production server, production hosted on Wispbyte](0006-two-servers-deployed-from-main.md) | Accepted |
+| 6 | [Test and production server, production hosted on Wispbyte](0006-two-servers-deployed-from-main.md) | Partly superseded by 16 |
 | 7 | [Personal data of Links and Onboarding Interviews](0007-personal-data-of-links-and-interviews.md) | Accepted |
 | 8 | [Neil creates and manages its own roles](0008-neil-creates-managed-roles.md) | Accepted |
 | 9 | [Personal data of REAPER](0009-personal-data-of-reaper.md) | Accepted |
@@ -20,4 +20,6 @@ with a new one and update both statuses here.
 | 12 | [The setup script runs under temporary Administrator](0012-setup-script-runs-under-temporary-administrator.md) | Accepted |
 | 13 | [Personal data of Booty Alerts](0013-personal-data-of-booty-alerts.md) | Accepted |
 | 14 | [Reading scheduled events, and what Event Reminders store](0014-reading-scheduled-events.md) | Accepted |
-| 15 | [Neil Police: a test bot and a one-time server crawl](0015-neil-police-test-bot-and-server-crawl.md) | Accepted |
+| 15 | [Neil Police: a test bot and a one-time server crawl](0015-neil-police-test-bot-and-server-crawl.md) | Partly superseded by 17 |
+| 16 | [An integration branch `develop` and a hosted test Neil](0016-develop-branch-and-test-environment.md) | Accepted |
+| 17 | [Neil Police acts on the test server](0017-neil-police-acts-on-the-test-server.md) | Accepted |

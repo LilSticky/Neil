@@ -91,7 +91,8 @@ Rationale: frequent, visible progress keeps momentum.
   major). The stack stays on current major versions.
 - Two Discord servers: a **test server** for development and acceptance, and the **production server**.
   Guild IDs, role IDs and channel IDs are configuration, never hard-coded.
-- Hosting: Wispbyte (ADR 6). The bot is built in CI and deployed from `main`.
+- Hosting: Wispbyte (ADR 6, ADR 16). The bot is built in CI: `develop` is deployed to a test instance on the test
+  server, `main` to production.
 - Configuration and secrets come from environment variables, validated at startup; the bot refuses to
   start with invalid configuration.
 
@@ -103,11 +104,13 @@ Rationale: frequent, visible progress keeps momentum.
   and decisions that change scope.
 - A slice is Done only when ALL of these hold (the gate):
   1. Typecheck, lint and tests are green, locally and in CI.
-  2. It was exercised on the test server, and the check is recorded in the slice's `tasks.md`.
+  2. It was exercised on the test server against the `develop` build, and the check is recorded in the
+     slice's `tasks.md`.
   3. STATUS, ROADMAP, DICTIONARY and any affected ADRs are updated.
-  4. It is committed on the slice branch and merged into `main` through a pull request that references
-     its issues.
-- When the gate is green, the agent squash-merges the pull request itself.
+  4. It is committed on the slice branch, merged into `develop` through a pull request that references
+     its issues, and reached `main` through a release pull request.
+- The agent squash-merges a slice pull request into `develop` itself once CI is green, then runs check 2 there.
+  A release pull request (`develop` → `main`) needs the user's approval and is merged with a merge commit.
 
 ## Governance
 
@@ -118,4 +121,4 @@ Rationale: frequent, visible progress keeps momentum.
 - Every spec, plan and implementation MUST be checked against these principles (the Constitution Check
   in `/speckit-plan`); any deviation MUST be justified in the plan or rejected.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-11-06 (setup script exception, ADR 12)
+**Version**: 1.2.0 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-11-15 (develop and test Neil, ADR 16)
