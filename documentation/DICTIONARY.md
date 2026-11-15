@@ -46,6 +46,7 @@ discovery.
 ## Alliance Duel (AD)
 * An event in which Alliances fight each other
 * Has its own group of channels, seen by the PvP and Events roles, with no announcement channel of its own
+* Runs Monday to Saturday in Server Time, each day rewarding different actions; Sunday has no Duel day. Neil posts a Duel Plan for each Duel day
 
 ## Kingdom vs Kingdom (KvK)
 * An event in which the Kingdom fights another Kingdom
@@ -89,6 +90,10 @@ discovery.
 * The Game API re-reading a whole Kingdom's map; a Player's Might, Location, Alliance and other game data change only through it
 * Started only by someone using Update Map on the Game API's site, at most once per 30 minutes per Kingdom; Neil cannot start one
 * A Player's "as of" time is the last Map Refresh that changed them (Game API `map_updated_at`); an Alliance has none
+
+## Server Time
+* The game's clock: UTC-2, not UTC
+* The game's daily reset is at 00:00 Server Time, which is 02:00 UTC. Neil shows Server Time moments as Discord timestamps, so each reader sees them in their own clock
 
 ## Kingdom
 * A game server, identified by its number
@@ -239,6 +244,11 @@ discovery.
 * One message from Neil, at one of the Event Kind's lead times before the Event's start or Sign-up Deadline. It mentions the Members who marked the Discord event Interested
 * Marking Interested is how a Member asks for reminders about that one Event. There is nothing else to opt in to
 * Each Reminder goes out at most once per Event
+
+## Duel Plan
+* Neil's card in `#event-announcements` at each daily reset, Monday to Saturday in Server Time: what scores in the Alliance Duel today, and what to save for a later day
+* Mentions nobody. Posted at most once per Duel day; if Neil was off at the reset, later that day, never on a later day
+* Its texts live in the repository, one per Duel day, and change through a pull request. The kingdom's Event Kinds list shows it as a built-in Alliance Duel line
 
 # Onboarding
 

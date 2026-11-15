@@ -248,4 +248,25 @@ describe("EventStore", () => {
       expect(store.hasInvitationsOff(BOB)).toBe(true);
     });
   });
+
+  describe("Duel Plan posts", () => {
+    test("a Server day is not posted until it is recorded, and recording it twice keeps one row", () => {
+      const store = new EventStore(db);
+      expect(store.duelPlanPostedOn("2026-11-16")).toBe(false);
+
+      store.recordDuelPlanPosted("2026-11-16", "2026-11-16T02:00:00.000Z");
+      store.recordDuelPlanPosted("2026-11-16", "2026-11-16T02:01:00.000Z");
+
+      expect(store.duelPlanPostedOn("2026-11-16")).toBe(true);
+      expect(store.duelPlanPostedOn("2026-11-17")).toBe(false);
+      expect(db.prepare("SELECT COUNT(*) AS count FROM duel_plan_posts").get()).toEqual({ count: 1 });
+    });
+
+    test("refuses a Server day that is not a YYYY-MM-DD date", () => {
+      const store = new EventStore(db);
+      expect(() => {
+        store.recordDuelPlanPosted("Monday", "2026-11-16T02:00:00.000Z");
+      }).toThrow();
+    });
+  });
 });

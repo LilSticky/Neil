@@ -43,6 +43,7 @@ States: `planned` · `in progress` · `in review` · `done`
 | 030 | Set up the forums | the owner get finished forums from the setup: tags, default reaction, recommended permissions and Neil's pinned how-to post [#87](https://github.com/LilSticky/Neil/issues/87) | Server Layout | setup script, `server-layout.json` | done (manual check passed 2026-11-08) |
 | 031 | Act on fresh game data | Members and Officers get roles, nicknames, Links, Rank Approvals and Booty Calls from live game data, and cards show how old the tracker's data is [#95](https://github.com/LilSticky/Neil/issues/95) | Game API | Game API client, cache | merged red (manual check needs the deploy) |
 | 032 | Show how old game data is | any Member see when a Player last changed on the map, and get a link to Update Map and a 🔄 Look again button on old cards; Neil stops paying for live requests that bring nothing new [#100](https://github.com/LilSticky/Neil/issues/100) | Game API | Game API client, cache, cards | merged red (manual check needs the deploy) |
+| 033 | Know today in the Alliance Duel | every Member see, each Duel day at the daily reset, what scores today and what to save for later, in a Duel Plan card in `#event-announcements` ([#109](https://github.com/LilSticky/Neil/issues/109)) | Alliance Duel, Server Time, Duel Plan, Event Kind | `src/duel-plan.ts`, one-minute Event tick, `/event-kinds list`, migration 16 | in review; manual check needs the deploy and the six day texts |
 
 ## Later (unordered)
 

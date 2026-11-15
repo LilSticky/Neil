@@ -34,7 +34,9 @@ import type { ReaperStore } from "../storage/reaper-store.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import type { EventStore } from "../storage/event-store.js";
+import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
+import { createDuelPlanPoster } from "./duel-plan.js";
 import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
@@ -1162,6 +1164,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           links: options.links,
           events: options.events,
           officerRoleIds: options.officerRoleIds,
+          now,
           logError,
         }),
       bootyAlerts: (interaction) =>
@@ -1481,6 +1484,14 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    // The Duel Plan goes to #event-announcements on the same one-minute tick as the Event Reminders.
+    const duelPlan = createDuelPlanPoster({
+      server: eventServer,
+      events: options.events,
+      plan: DUEL_PLAN,
+      now,
+      logError,
+    });
     openServices({
       interviews,
       rankApprovals,
@@ -1573,16 +1584,20 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
-    // The Events ahead are invited at startup; the reminders are ticked once a minute, until disconnect stops them.
+    // The Events ahead are invited at startup; the reminders, then the Duel Plan, are ticked once a minute, until disconnect
+    // stops them.
     void eventInvitations.onStartup();
     // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
     let reminderTickRunning = false;
     const reminderTimer = setInterval(() => {
       if (reminderTickRunning) return;
       reminderTickRunning = true;
-      void eventReminders.tick().finally(() => {
-        reminderTickRunning = false;
-      });
+      void eventReminders
+        .tick()
+        .then(() => duelPlan.tick())
+        .finally(() => {
+          reminderTickRunning = false;
+        });
     }, REMINDER_TICK_MS);
     stopEventReminders = () => {
       clearInterval(reminderTimer);
