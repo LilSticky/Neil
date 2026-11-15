@@ -1089,6 +1089,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     pickSessions,
     links: options.links,
     reaper: options.reaper,
+    pages: reaperPages,
     homeKingdom: options.homeKingdom,
     now,
     logError,

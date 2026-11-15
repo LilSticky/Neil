@@ -275,6 +275,18 @@ describe("/booty and its Booty Call", () => {
       expect(buttonIdsOf(asked)).toContain(`booty:cancel:${ALICE}`);
     });
 
+    test("the posted card carries no Newer data field and no Look again button", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      const asked = await askBooty(ALICE);
+
+      await press(confirmIdOf(asked), ALICE);
+
+      expect(server.posts).toHaveLength(1);
+      const posted = JSON.stringify(server.posts[0]?.message ?? null);
+      expect(posted).not.toContain("Newer data");
+      expect(posted).not.toContain("again:");
+    });
+
     test("a Confirm within the minute posts the card in the channel", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       const asked = await askBooty(ALICE);

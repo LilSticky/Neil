@@ -241,7 +241,7 @@ export class GameApiClient {
         this.players.store(key, result.value, result.asOf, this.now());
         this.sawPlayer(result.value);
       }
-      return orStale(result, foundBy(this.players.getStale(key)));
+      return orStale(result, freshness, foundBy(this.players.getStale(key)));
     });
   }
 
@@ -301,15 +301,15 @@ export class GameApiClient {
         this.alliances.store(cacheKey, result.value, result.asOf, this.now());
         this.sawAlliance(result.value);
       }
-      return orStale(result, foundBy(this.alliances.getStale(cacheKey)));
+      return orStale(result, freshness, foundBy(this.alliances.getStale(cacheKey)));
     });
   }
 
   /**
    * The name lookups' cache flow: a copy lookup takes a cached answer within the cache window; a live lookup never
    * reads the cache. Otherwise one request, shared by concurrent callers with the same purpose, freshness and charge.
-   * A found answer and a match list are cached; a failure is not. A spent or reserved quota, or a spent Daily
-   * Allowance, answers with a stale entry.
+   * A found answer and a match list are cached; a failure is not. A copy lookup whose quota or allowance is spent answers
+   * with a stale entry; a live lookup is refused instead.
    */
   private async byName<T>(
     cache: LookupCache<NameAnswer<T>>,
@@ -332,7 +332,7 @@ export class GameApiClient {
         cache.store(key, { kind: "ambiguous", matches: result.matches }, undefined, receivedAt);
       }
       const stale = cache.getStale(key);
-      return orStale(result, stale === undefined ? undefined : answerOf(stale));
+      return orStale(result, freshness, stale === undefined ? undefined : answerOf(stale));
     });
   }
 
@@ -717,12 +717,16 @@ export class GameApiClient {
 }
 
 /**
- * A spent Daily Quota, one kept back by the Quota Reserve, or a spent Daily Allowance answers with the cached answer,
- * however old, when there is one.
+ * A copy lookup whose Daily Quota, Quota Reserve or Daily Allowance is spent is answered with the cached answer, however
+ * old, when there is one. A live lookup asks for data now, so its refusal is the answer and no cached copy stands in.
  */
-function orStale<T>(result: ChargedResult<T>, stale: LookupResult<T> | undefined): ChargedResult<T> {
+function orStale<T>(
+  result: ChargedResult<T>,
+  freshness: Freshness,
+  stale: LookupResult<T> | undefined,
+): ChargedResult<T> {
   const spent = result.kind === "quota-spent" || result.kind === "reserve-kept" || result.kind === "allowance-spent";
-  if (!spent || stale === undefined) return result;
+  if (!spent || freshness === "live" || stale === undefined) return result;
   return stale;
 }
 

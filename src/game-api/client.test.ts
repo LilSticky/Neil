@@ -2245,9 +2245,35 @@ const CHARGED_LOOKUPS: readonly ChargedLookup[] = [
 ];
 
 /** The Quota states a cached copy is answered in: the Quota Reserve is kept, or the Daily Quota is spent. */
-const SPENT_QUOTA: readonly { readonly label: string; readonly used: number }[] = [
-  { label: "the Quota Reserve is kept", used: DEFAULT_LIMIT - QUOTA_RESERVE },
-  { label: "the Daily Quota is spent", used: DEFAULT_LIMIT },
+const SPENT_QUOTA: readonly {
+  readonly label: string;
+  readonly used: number;
+  /** The refusal a lookup that may not reach the tracker gets, when no cached copy stands in for it. */
+  readonly refusal: "reserve-kept" | "quota-spent";
+}[] = [
+  { label: "the Quota Reserve is kept", used: DEFAULT_LIMIT - QUOTA_RESERVE, refusal: "reserve-kept" },
+  { label: "the Daily Quota is spent", used: DEFAULT_LIMIT, refusal: "quota-spent" },
+];
+
+/** The charged lookups that take a freshness, with the body the tracker answers them with and the path without a query. */
+const CHARGED_LIVE_LOOKUPS: readonly {
+  readonly name: string;
+  readonly path: string;
+  readonly body: Readonly<Record<string, unknown>>;
+  readonly call: (lookups: ChargedLookups, freshness: Freshness) => Promise<ChargedResult<Player | Alliance>>;
+}[] = [
+  {
+    name: "charged getPlayer",
+    path: PLAYER_PATH,
+    body: playerInAlliance,
+    call: (lookups, freshness) => lookups.getPlayer(parsedUid(PLAYER_UID_TEXT), freshness),
+  },
+  {
+    name: "charged getAlliance",
+    path: ALLIANCE_PATH,
+    body: alliance,
+    call: (lookups, freshness) => lookups.getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), freshness),
+  },
 ];
 
 describe("GameApiClient cache by freshness", () => {
@@ -2347,10 +2373,10 @@ describe("GameApiClient cache by freshness", () => {
     },
   );
 
-  describe.each(SPENT_QUOTA)("with a copy in the cache when $label", ({ used }) => {
-    test.each(FRESHNESS_LOOKUPS)(
-      "$name with live answers the cached copy with its old asOf, and sends no request",
-      async ({ body, call, asOf }) => {
+  describe.each(SPENT_QUOTA)("with a copy in the cache when $label", ({ used, refusal }) => {
+    test.each(UNCHARGED_LOOKUPS)(
+      "$name with live is refused, and is not answered from the cached copy, and sends no request",
+      async ({ body, call }) => {
         const store = new FakeQuotaStore();
         const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
         const client = clientWith(fetch, now, quotaOn(store, now));
@@ -2361,7 +2387,41 @@ describe("GameApiClient cache by freshness", () => {
         const live = await call(client, "live");
 
         expect(sent).toHaveLength(1);
-        expect(live).toMatchObject({ kind: "found", asOf });
+        expect(live).toEqual({ kind: refusal, resetsAt: NEXT_MIDNIGHT_UTC });
+      },
+    );
+
+    test.each(UNCHARGED_LOOKUPS)(
+      "$name with copy past the TTL is still answered from the cached copy, with its old asOf, and sends no request",
+      async ({ body, call, asOf }) => {
+        const store = new FakeQuotaStore();
+        const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
+        const client = clientWith(fetch, now, quotaOn(store, now));
+
+        await call(client, "copy");
+        store.save({ ...todaysQuota(undefined, FIXED_NOW), used });
+        clock = new Date(FIXED_NOW.getTime() + CACHE_TTL_MS + 1_000);
+        const copy = await call(client, "copy");
+
+        expect(sent).toHaveLength(1);
+        expect(copy).toMatchObject({ kind: "found", asOf });
+      },
+    );
+
+    test.each(CHARGED_LIVE_LOOKUPS)(
+      "$name with live is refused, and is not answered from the cached copy, and sends no request",
+      async ({ body, call, path }) => {
+        const store = new FakeQuotaStore();
+        const { fetch, sent } = fakeFetch(() => jsonResponse(200, { ...body, age_seconds: TWO_HOURS_IN_SECONDS }));
+        const lookups = clientWith(fetch, now, quotaOn(store, now)).chargedTo(CALLER);
+
+        await call(lookups, "copy");
+        store.save({ ...todaysQuota(undefined, FIXED_NOW), used });
+        clock = new Date(FIXED_NOW.getTime() + 60_000);
+        const live = await call(lookups, "live");
+
+        expect(sent.map((request) => request.url)).toEqual([path]);
+        expect(live).toEqual({ kind: refusal, resetsAt: NEXT_MIDNIGHT_UTC });
       },
     );
   });

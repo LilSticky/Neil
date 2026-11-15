@@ -33,7 +33,9 @@ export const CLOSEST_PAGE_SIZE = 3;
 export const LIST_PAGE_SIZE = 8;
 
 /** What a /reaper answer edits in: the text, the embeds, the page buttons and the mentions it may ping. */
-export type ReaperAnswer = Pick<InteractionEditReplyOptions, "content" | "embeds" | "components" | "allowedMentions">;
+export type ReaperAnswer = Pick<InteractionEditReplyOptions, "content" | "components" | "allowedMentions"> & {
+  readonly embeds?: readonly APIEmbed[];
+};
 
 /** The page buttons under a paged answer: Previous, the page and Next. None when there is one page or no session. */
 export function pageButtonsOf(
@@ -133,10 +135,17 @@ function positionAsOf(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, no
   return reads.get(entry.exile.uid)?.asOf ?? now;
 }
 
-/** The Look again button of a /reaper closest answer: it repeats the answer from the x and y the command gave, if any. */
-function closestLookAgainRow(ranking: ClosestRanking, ownerId: string): APIActionRowComponent<APIButtonComponentWithCustomId> {
+/**
+ * The Look again button of a /reaper closest answer: it repeats the answer from the x and y the command gave, if any, and
+ * keeps the paging when the answer is paged.
+ */
+function closestLookAgainRow(
+  ranking: ClosestRanking,
+  ownerId: string,
+  all: boolean,
+): APIActionRowComponent<APIButtonComponentWithCustomId> {
   const target: LookAgainTarget =
-    ranking.given === undefined ? { kind: "reaper" } : { kind: "reaper", origin: ranking.given };
+    ranking.given === undefined ? { kind: "reaper", all } : { kind: "reaper", all, origin: ranking.given };
   return lookAgainRow(lookAgainCustomId(ownerId, target));
 }
 
@@ -163,7 +172,7 @@ export function closestAnswer(
     embeds: [old ? withNewerData(header, ranking.kingdom) : header, ...cards],
     components: [
       ...pageButtonsOf(sessionId, current, pageCount),
-      ...(old ? [closestLookAgainRow(ranking, ownerId)] : []),
+      ...(old ? [closestLookAgainRow(ranking, ownerId, sessionId !== undefined)] : []),
     ],
     allowedMentions,
   };

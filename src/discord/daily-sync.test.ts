@@ -385,6 +385,23 @@ describe("runDailySync", () => {
     expect(linesAbout(h, ANA)[0]).toContain("R4");
   });
 
+  test("its log lines carry no Newer data field and no Look again button, even for a roster whose map time is 44 minutes old", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", {
+      kind: "found",
+      value: allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")]),
+      asOf: new Date(NOW.getTime() - 44 * 60_000),
+    });
+
+    await runDailySync(h.deps);
+
+    expect(linesAbout(h, ANA)).toHaveLength(1);
+    const logged = JSON.stringify(h.logs);
+    expect(logged).not.toContain("Newer data");
+    expect(logged).not.toContain("again:");
+  });
+
   test("applies a changed Player Name to the nickname", async () => {
     const member = syncedAnaInNml(h);
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(ANA_UID, "Scout", "R4")])));

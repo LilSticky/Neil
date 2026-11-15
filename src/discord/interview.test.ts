@@ -1071,6 +1071,18 @@ describe("createInterviews", () => {
       expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: foundCardMessage(interviewId, PLAYER) });
     });
 
+    test("posts the found card with no Newer data field and no Look again button, even when its map time is 44 minutes old", async () => {
+      const interviewId = await joinedMember(h);
+      h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: new Date(NOW.getTime() - 44 * 60_000) });
+
+      await submitUid(h, interviewId, UID_DIGITS);
+
+      const posted = JSON.stringify(h.channels.posts.at(-1) ?? null);
+      expect(posted).toContain(PLAYER.name);
+      expect(posted).not.toContain("Newer data");
+      expect(posted).not.toContain("again:");
+    });
+
     test("looks the uid up from the copy, with no live request", async () => {
       const interviewId = await joinedMember(h);
       h.gameApi.answerWith({ kind: "found", value: PLAYER, asOf: NOW });

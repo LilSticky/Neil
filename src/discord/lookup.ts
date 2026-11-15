@@ -45,7 +45,7 @@ import {
   withNewerData,
 } from "./lookup-cards.js";
 import type { PickSessions } from "./pick-sessions.js";
-import { refusalMessage, withUsage } from "./usage-texts.js";
+import { allowanceSpentText, refusalMessage, withUsage } from "./usage-texts.js";
 
 /** The part of the Game API client the lookup commands use: the lookups charged to a caller, and the uncharged reads. */
 export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAlliance" | "findAlliance" | "chargedTo">;
@@ -97,7 +97,7 @@ export interface LookupReplyContext {
  * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
  * line cannot be read, the failure is logged and the reply is given without the line: the Member still gets the answer.
  */
-export function withCallerUsage<M extends { readonly content?: string; readonly embeds?: readonly APIEmbed[] }>(
+export function withCallerUsage<M extends { readonly content?: string | null; readonly embeds?: readonly APIEmbed[] }>(
   context: Pick<LookupContext, "usage" | "logError">,
   caller: LookupCaller,
   message: M,
@@ -156,13 +156,15 @@ function quotaFailureText(failure: QuotaFailure, now: Date): string {
 
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
 export function sharedPlayerFailureText(
-  failure: Exclude<Failure<Player>, { readonly kind: "not-found" | "not-prepared" }>,
+  failure: Exclude<ChargedResult<Player>, { readonly kind: "found" | "not-found" | "not-prepared" }>,
   now: Date,
 ): string {
   switch (failure.kind) {
     case "quota-spent":
     case "reserve-kept":
       return quotaFailureText(failure, now);
+    case "allowance-spent":
+      return allowanceSpentText(failure.resetsAt, now);
     case "try-again":
       return lookupMessages.tryAgain;
     case "unavailable":

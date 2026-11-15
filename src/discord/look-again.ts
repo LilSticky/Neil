@@ -26,7 +26,8 @@ import { openOverviewSession } from "./pick.js";
 import type { PickSessions } from "./pick-sessions.js";
 import { renderOverview } from "./overview-texts.js";
 import { closestAnswer, type ReaperAnswer } from "./reaper-cards.js";
-import { rankClosestFor } from "./reaper.js";
+import { closestSessionOf, rankClosestFor } from "./reaper.js";
+import type { ReaperPageContent, ReaperPages } from "./reaper-pages.js";
 import { refusalMessage } from "./usage-texts.js";
 
 /** The part of a discord.js button press under a card that the Look again button reads and answers. */
@@ -41,14 +42,16 @@ export interface LookAgainInteraction {
 }
 
 /**
- * What a Look again press needs: the Game API (charged for a card, uncharged for /reaper closest), the Links and REAPER
- * for /reaper closest, the pick lists a card may open, the Daily Allowance and usage line, the clock and the error log.
+ * What a Look again press needs: the Game API, charged to the Member who pressed, the Links and REAPER for /reaper closest,
+ * the pick lists a card may open, the paged answers a /reaper closest press keeps, the Daily Allowance and usage line, the
+ * clock and the error log.
  */
 export interface LookAgainContext {
   readonly gameApi: Pick<LookupApi, "getPlayer" | "getAlliance" | "chargedTo">;
   readonly pickSessions: Pick<PickSessions, "open">;
   readonly links: Pick<LinkStore, "linkFor">;
   readonly reaper: Pick<ReaperStore, "inKingdom" | "refresh">;
+  readonly pages: Pick<ReaperPages<ReaperPageContent>, "open">;
   readonly homeKingdom: KingdomNumber;
   readonly now: () => Date;
   readonly logError: (message: string) => void;
@@ -107,20 +110,34 @@ async function refreshCard<T>(
   }
 }
 
+/** The /reaper closest target of a Look again button. */
+type ClosestTarget = Extract<LookAgainTarget, { readonly kind: "reaper" }>;
+
 /**
- * Ranks /reaper closest again from the x and y the command gave (or the caller's Linked Player), with live and uncharged
- * reads, and edits the pressed answer with the result, as the command answers it: the cards, or the text that says why
- * there are none. A failed ranking is told privately.
+ * Ranks /reaper closest again from the x and y the command gave (or the caller's Linked Player), with live reads charged to
+ * the Member who pressed, and edits the pressed answer with the result, as the command answers it: the cards, paged again
+ * when the press keeps all, or the text that says why there are none. The usage line of the caller is shown with it. A
+ * failed ranking is told privately.
  */
-async function refreshClosest(press: LookAgainInteraction, context: LookAgainContext, given: Position | undefined): Promise<void> {
+async function refreshClosest(
+  press: LookAgainInteraction,
+  context: LookAgainContext,
+  caller: LookupCaller,
+  target: ClosestTarget,
+): Promise<void> {
   const ownerId = press.user.id;
   let redrawn: ReaperAnswer;
   try {
-    const outcome = await rankClosestFor(given, ownerId, context, "live");
-    redrawn =
-      outcome.kind === "text"
-        ? { content: outcome.content, allowedMentions }
-        : closestAnswer(outcome.ranking, context.now(), 0, undefined, ownerId);
+    const lookups = context.gameApi.chargedTo(caller);
+    const outcome = await rankClosestFor(target.origin, ownerId, context, (uid) => lookups.getPlayer(uid, "live"));
+    if (outcome.kind === "text") {
+      redrawn = { content: outcome.content, allowedMentions };
+    } else {
+      const now = context.now();
+      const sessionId = closestSessionOf(outcome.ranking, target.all === true, ownerId, context.pages, now);
+      redrawn = closestAnswer(outcome.ranking, now, 0, sessionId, ownerId);
+    }
+    redrawn = withCallerUsage(context, caller, redrawn);
   } catch (error) {
     context.logError(`Ranking REAPER again failed: ${errorText(error)}`);
     await followUpPrivately(press, { content: lookupMessages.unavailable });
@@ -199,7 +216,7 @@ async function repeatTarget(
       return;
     }
     case "reaper":
-      await refreshClosest(press, context, target.origin);
+      await refreshClosest(press, context, caller, target);
       return;
   }
 }
@@ -227,13 +244,13 @@ export async function handleLookAgain(press: LookAgainInteraction, context: Look
 
 /**
  * What a Look again button repeats: a Player card, an Alliance card, an Alliance Overview, or /reaper closest (measured
- * from `origin` when the command gave one).
+ * from `origin` when the command gave one, and paged when `all` is set).
  */
 export type LookAgainTarget =
   | { readonly kind: "player"; readonly uid: Uid }
   | { readonly kind: "alliance"; readonly kingdom: KingdomNumber; readonly tag: AllianceKey }
   | { readonly kind: "overview"; readonly kingdom: KingdomNumber; readonly tag: AllianceKey }
-  | { readonly kind: "reaper"; readonly origin?: Position };
+  | { readonly kind: "reaper"; readonly origin?: Position; readonly all?: boolean };
 
 /** A Look again button read back from its custom id: the Member who may press it, and what it repeats. */
 export interface LookAgainPress {
@@ -248,8 +265,8 @@ const PLAYER_ID = /^again:(\d+):p:(\d+)$/;
 const ALLIANCE_ID = /^again:(\d+):a:(\d+):(.+)$/;
 /** `again:{owner}:o:{kingdom}:{tag}`: an Alliance Overview. */
 const OVERVIEW_ID = /^again:(\d+):o:(\d+):(.+)$/;
-/** `again:{owner}:r` or `again:{owner}:r:{x}:{y}`: /reaper closest, with or without an origin. */
-const REAPER_ID = /^again:(\d+):r(?::(-?\d+):(-?\d+))?$/;
+/** `again:{owner}:r` or `again:{owner}:ra` (all pages), each with or without `:{x}:{y}`: /reaper closest. */
+const REAPER_ID = /^again:(\d+):r(a?)(?::(-?\d+):(-?\d+))?$/;
 
 /** The custom id of a Look again button: `again:<ownerId>:<kind>...`, short enough for Discord's 100 characters. */
 export function lookAgainCustomId(ownerId: string, target: LookAgainTarget): string {
@@ -260,10 +277,10 @@ export function lookAgainCustomId(ownerId: string, target: LookAgainTarget): str
       return `${PREFIX}:${ownerId}:a:${target.kingdom.toString()}:${target.tag}`;
     case "overview":
       return `${PREFIX}:${ownerId}:o:${target.kingdom.toString()}:${target.tag}`;
-    case "reaper":
-      return target.origin === undefined
-        ? `${PREFIX}:${ownerId}:r`
-        : `${PREFIX}:${ownerId}:r:${target.origin.x.toString()}:${target.origin.y.toString()}`;
+    case "reaper": {
+      const head = `${PREFIX}:${ownerId}:r${target.all === true ? "a" : ""}`;
+      return target.origin === undefined ? head : `${head}:${target.origin.x.toString()}:${target.origin.y.toString()}`;
+    }
   }
 }
 
@@ -276,7 +293,7 @@ export function parseLookAgainCustomId(customId: string): LookAgainPress | undef
   const overview = OVERVIEW_ID.exec(customId);
   if (overview !== null) return alliancePressOf("overview", overview[1], overview[2], overview[3]);
   const reaper = REAPER_ID.exec(customId);
-  if (reaper !== null) return reaperPressOf(reaper[1], reaper[2], reaper[3]);
+  if (reaper !== null) return reaperPressOf(reaper[1], reaper[2], reaper[3], reaper[4]);
   return undefined;
 }
 
@@ -300,13 +317,24 @@ function alliancePressOf(
 
 function reaperPressOf(
   ownerId: string | undefined,
+  allText: string | undefined,
   xText: string | undefined,
   yText: string | undefined,
 ): LookAgainPress | undefined {
   if (ownerId === undefined) return undefined;
-  if (xText === undefined || yText === undefined) return { ownerId, target: { kind: "reaper" } };
+  const all = allText === "a";
+  if (xText === undefined || yText === undefined) return { ownerId, target: reaperTargetOf(all, undefined) };
   const x = Number(xText);
   const y = Number(yText);
   if (!Number.isSafeInteger(x) || !Number.isSafeInteger(y)) return undefined;
-  return { ownerId, target: { kind: "reaper", origin: { x, y } } };
+  return { ownerId, target: reaperTargetOf(all, { x, y }) };
+}
+
+/** The /reaper closest target, with `all` and the origin only when they are set. */
+function reaperTargetOf(all: boolean, origin: Position | undefined): LookAgainTarget {
+  return {
+    kind: "reaper",
+    ...(all ? { all } : {}),
+    ...(origin === undefined ? {} : { origin }),
+  };
 }

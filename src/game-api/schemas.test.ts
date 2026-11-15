@@ -578,6 +578,7 @@ const UNUSABLE_MAP_TIMES: readonly { readonly label: string; readonly value: unk
   { label: "a map time that is text", value: "1794694391" },
   { label: "a map time that is infinite", value: Number.POSITIVE_INFINITY },
   { label: "a map time that is not a number", value: Number.NaN },
+  { label: "a map time beyond the range of a date", value: 9e12 },
 ];
 
 describe("playerBodySchema map_updated_at", () => {

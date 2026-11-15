@@ -9,7 +9,6 @@ import {
   type InteractionReplyOptions,
 } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RequestPurpose } from "../domain/daily-quota.js";
 import { exileReasonOf, type Exile, type Position } from "../domain/exile.js";
 import type { Link } from "../domain/link.js";
 import {
@@ -21,8 +20,9 @@ import {
   type Uid,
 } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
-import { type Alliance, type Freshness, type LookupResult, type Player, type RosterEntry } from "../domain/player.js";
+import { type Alliance, type LookupResult, type Player, type RosterEntry } from "../domain/player.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
+import type { ChargedResult } from "../game-api/client.js";
 import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeGameApi } from "./__fakes__/game-api.js";
@@ -37,6 +37,7 @@ import {
   type LookAgainTarget,
 } from "./look-again.js";
 import { PickSessions } from "./pick-sessions.js";
+import { ReaperPages, type ReaperPageContent } from "./reaper-pages.js";
 import { refusalMessage } from "./usage-texts.js";
 
 const OWNER_ID = "310000000000000001";
@@ -70,6 +71,8 @@ const TARGETS: readonly { readonly label: string; readonly target: LookAgainTarg
   { label: "an Alliance Overview", target: { kind: "overview", kingdom: kingdom(330), tag: tag("NML") } },
   { label: "/reaper closest without coordinates", target: { kind: "reaper" } },
   { label: "/reaper closest with coordinates", target: { kind: "reaper", origin: { x: 12, y: 34 } } },
+  { label: "/reaper closest with all:true without coordinates", target: { kind: "reaper", all: true } },
+  { label: "/reaper closest with all:true and coordinates", target: { kind: "reaper", all: true, origin: { x: 12, y: 34 } } },
 ];
 
 describe("lookAgainCustomId", () => {
@@ -96,6 +99,16 @@ describe("lookAgainCustomId", () => {
   test("writes /reaper closest with coordinates as the owner, then r, x and y", () => {
     expect(lookAgainCustomId(OWNER_ID, { kind: "reaper", origin: { x: 12, y: 34 } })).toBe(`again:${OWNER_ID}:r:12:34`);
   });
+
+  test("writes /reaper closest with all:true without coordinates as the owner, then ra alone", () => {
+    expect(lookAgainCustomId(OWNER_ID, { kind: "reaper", all: true })).toBe(`again:${OWNER_ID}:ra`);
+  });
+
+  test("writes /reaper closest with all:true and coordinates as the owner, then ra, x and y", () => {
+    expect(lookAgainCustomId(OWNER_ID, { kind: "reaper", all: true, origin: { x: 12, y: 34 } })).toBe(
+      `again:${OWNER_ID}:ra:12:34`,
+    );
+  });
 });
 
 describe("parseLookAgainCustomId", () => {
@@ -117,6 +130,8 @@ describe("parseLookAgainCustomId", () => {
     { label: "an Alliance card without a tag", customId: `again:${OWNER_ID}:a:330` },
     { label: "an Alliance card with an empty tag", customId: `again:${OWNER_ID}:a:330:` },
     { label: "a /reaper closest with only x", customId: `again:${OWNER_ID}:r:12` },
+    { label: "a /reaper closest with all:true and only x", customId: `again:${OWNER_ID}:ra:12` },
+    { label: "a /reaper closest with all:true and an x that is not a number", customId: `again:${OWNER_ID}:ra:x:34` },
     { label: "a Player card with a uid that is not digits", customId: `again:${OWNER_ID}:p:14556abc` },
     { label: "an Alliance card with a Kingdom that is not a number", customId: `again:${OWNER_ID}:a:kingdom:NML` },
     { label: "an Overview with a Kingdom that is not a number", customId: `again:${OWNER_ID}:o:x3:NML` },
@@ -140,7 +155,8 @@ describe("Look again custom ids", () => {
 
 // ---- handleLookAgain: the press of a Look again button ----
 
-type GetPlayer = (uid: Uid, purpose: RequestPurpose, freshness?: Freshness) => Promise<LookupResult<Player>>;
+/** One Player read of the Look again press on /reaper closest, as the Game API answers a charged read. */
+type ReadPlayer = (uid: Uid) => Promise<ChargedResult<Player>>;
 
 const HOME = kingdom(330);
 const ALLIANCE_KEY = tag("NML");
@@ -229,6 +245,7 @@ function contextWith(answers: Answers = {}) {
     usage: usage.usage,
     links: { linkFor: vi.fn<(memberId: MemberId) => Link | undefined>(() => undefined) },
     reaper: { inKingdom: () => [], refresh: () => undefined },
+    pages: new ReaperPages<ReaperPageContent>(),
     homeKingdom: HOME,
   };
   return { context, gameApi, pickSessions, logged };
@@ -442,6 +459,21 @@ describe("handleLookAgain on an Alliance card", () => {
     expect(JSON.stringify(editOf(press).components ?? [])).toContain(`"custom_id":"${ALLIANCE_ID}"`);
   });
 
+  test("answers privately that lookups are not working when the Game API call throws, and edits nothing", async () => {
+    const { context, gameApi, logged } = contextWith({ alliance: allianceFound(NML, undefined) });
+    gameApi.charged.getAlliance.mockRejectedValueOnce(new Error("the Game API timed out"));
+    const press = pressOf(ALLIANCE_ID);
+
+    await handleLookAgain(press, context);
+
+    expect(methodsOf(press)).toEqual(["deferUpdate", "followUp"]);
+    expect(followUpOf(press)).toMatchObject({
+      content: `${lookupMessages.unavailable}\n${LINE}`,
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(logged).toHaveLength(1);
+  });
+
   test("answers privately with the Alliance's not-found text, and leaves the card as it was", async () => {
     const { context } = contextWith({ alliance: { kind: "not-found" } });
     const press = pressOf(ALLIANCE_ID);
@@ -489,6 +521,21 @@ describe("handleLookAgain on an Alliance Overview", () => {
     await handleLookAgain(press, context);
 
     expect(JSON.stringify(editOf(press).components ?? [])).toContain(`"custom_id":"${OVERVIEW_ID}"`);
+  });
+
+  test("answers privately that lookups are not working when the Game API call throws, and edits nothing", async () => {
+    const { context, gameApi, logged } = contextWith({ alliance: allianceFound(NML, undefined) });
+    gameApi.charged.getAlliance.mockRejectedValueOnce(new Error("the Game API timed out"));
+    const press = pressOf(OVERVIEW_ID);
+
+    await handleLookAgain(press, context);
+
+    expect(methodsOf(press)).toEqual(["deferUpdate", "followUp"]);
+    expect(followUpOf(press)).toMatchObject({
+      content: `${lookupMessages.unavailable}\n${LINE}`,
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(logged).toHaveLength(1);
   });
 
   test("answers privately with the Alliance's not-found text, and leaves the Overview as it was", async () => {
@@ -558,25 +605,29 @@ describe("handleLookAgain on /reaper closest", () => {
     };
   }
 
-  /** The context of a press on /reaper closest: REAPER is the test store, and every Player read goes through `read`. */
-  function reaperContextOf(options: { readonly link?: Link; readonly read: GetPlayer }) {
+  /**
+   * The context of a press on /reaper closest: REAPER is the test store, and every Player read is a charged read of the
+   * Member who pressed (`charged`), with the paged answers a press of all:true keeps.
+   */
+  function reaperContextOf(options: { readonly link?: Link; readonly read: ReadPlayer }) {
     const { context: base, gameApi } = contextWith();
-    const getPlayer = vi.fn<GetPlayer>(options.read);
+    gameApi.charged.getPlayer.mockImplementation(options.read);
     const linkFor = vi.fn<(memberId: MemberId) => Link | undefined>((memberId) =>
       memberId === OWNER_ID ? options.link : undefined,
     );
     const context: LookAgainContext = {
       ...base,
-      gameApi: { getPlayer, getAlliance: gameApi.getAlliance, chargedTo: gameApi.chargedTo },
+      gameApi: { getPlayer: gameApi.getPlayer, getAlliance: gameApi.getAlliance, chargedTo: gameApi.chargedTo },
       links: { linkFor },
       reaper: store,
+      pages: new ReaperPages<ReaperPageContent>(),
     };
-    return { context, getPlayer, chargedTo: gameApi.chargedTo };
+    return { context, charged: gameApi.charged, chargedTo: gameApi.chargedTo, uncharged: gameApi.getPlayer };
   }
 
-  test("defers the update, then ranks the Exiles again with live, uncharged reads, and edits the answer", async () => {
+  test("defers the update, then ranks the Exiles again with live reads, each charged to the Member who pressed", async () => {
     store.add(exileAt(NEAR, "Near", { x: 1, y: 0 }));
-    const { context, getPlayer, chargedTo } = reaperContextOf({
+    const { context, charged, chargedTo, uncharged } = reaperContextOf({
       read: () => Promise.resolve(playerFound(playerAt(NEAR, "Near", { x: 1, y: 0 }), FRESH_AS_OF)),
     });
     const press = pressOf(lookAgainCustomId(OWNER_ID, { kind: "reaper", origin: { x: 0, y: 0 } }));
@@ -584,12 +635,13 @@ describe("handleLookAgain on /reaper closest", () => {
     await handleLookAgain(press, context);
 
     expect(methodsOf(press)).toEqual(["deferUpdate", "editReply"]);
-    expect(getPlayer).toHaveBeenCalledWith(NEAR, "lookup", "live");
-    expect(chargedTo).not.toHaveBeenCalled();
+    expect(chargedTo).toHaveBeenCalledWith(OWNER);
+    expect(charged.getPlayer).toHaveBeenCalledWith(NEAR, "live");
+    expect(uncharged).not.toHaveBeenCalled();
     expect(JSON.stringify(embedsOf(editOf(press)))).toContain("Near");
   });
 
-  test("reads the caller's own Linked Player live too, when the press gives no coordinates", async () => {
+  test("reads the caller's own Linked Player live and charged too, when the press gives no coordinates", async () => {
     const link: Link = {
       memberId: OWNER_ID,
       uid: CALLER_UID,
@@ -598,7 +650,7 @@ describe("handleLookAgain on /reaper closest", () => {
       madeBy: { kind: "in-game-proof" },
     };
     store.add(exileAt(NEAR, "Near", { x: 1, y: 0 }));
-    const { context, getPlayer } = reaperContextOf({
+    const { context, charged, uncharged } = reaperContextOf({
       link,
       read: (uidValue) =>
         Promise.resolve(
@@ -611,7 +663,59 @@ describe("handleLookAgain on /reaper closest", () => {
 
     await handleLookAgain(press, context);
 
-    expect(getPlayer).toHaveBeenCalledWith(CALLER_UID, "lookup", "live");
+    expect(charged.getPlayer).toHaveBeenCalledWith(CALLER_UID, "live");
+    expect(uncharged).not.toHaveBeenCalled();
+  });
+
+  test("stops the reads once the Daily Allowance refuses one, so the Exiles not read are not asked for", async () => {
+    const LAST_EXILE = uid("145563254789");
+    const exiles = [
+      uid("145563254780"),
+      uid("145563254781"),
+      uid("145563254782"),
+      uid("145563254783"),
+      uid("145563254784"),
+      LAST_EXILE,
+    ];
+    exiles.forEach((exiled, index) => {
+      store.add(exileAt(exiled, `Exile ${index.toString()}`, { x: index, y: 0 }));
+    });
+    const { context, charged } = reaperContextOf({
+      read: () => Promise.resolve({ kind: "allowance-spent", resetsAt: RESETS_AT }),
+    });
+    const press = pressOf(lookAgainCustomId(OWNER_ID, { kind: "reaper", origin: { x: 0, y: 0 } }));
+
+    await handleLookAgain(press, context);
+
+    expect(charged.getPlayer.mock.calls.length).toBeGreaterThan(0);
+    expect(charged.getPlayer.mock.calls.length).toBeLessThan(exiles.length);
+    expect(store.find(LAST_EXILE)?.lastPosition).toEqual({ position: { x: 5, y: 0 }, at: EARLIER });
+  });
+
+  test("shows the usage line of the Member who pressed on the redrawn answer", async () => {
+    store.add(exileAt(NEAR, "Near", { x: 1, y: 0 }));
+    const { context } = reaperContextOf({
+      read: () => Promise.resolve(playerFound(playerAt(NEAR, "Near", { x: 1, y: 0 }), FRESH_AS_OF)),
+    });
+    const press = pressOf(lookAgainCustomId(OWNER_ID, { kind: "reaper", origin: { x: 0, y: 0 } }));
+
+    await handleLookAgain(press, context);
+
+    expect(JSON.stringify(editOf(press))).toContain(LINE);
+  });
+
+  test("keeps the paging of an all:true answer: the redrawn first page has its page buttons", async () => {
+    [0, 1, 2, 3].forEach((index) => {
+      store.add(exileAt(uid(`14556325479${index.toString()}`), `Exile ${index.toString()}`, { x: index + 1, y: 0 }));
+    });
+    const { context } = reaperContextOf({
+      read: () => Promise.resolve({ kind: "not-found" }),
+    });
+    const press = pressOf(lookAgainCustomId(OWNER_ID, { kind: "reaper", all: true, origin: { x: 0, y: 0 } }));
+
+    await handleLookAgain(press, context);
+
+    expect(JSON.stringify(editOf(press).components ?? [])).toMatch(/"custom_id":"reaper:[^"]+:page:1"/);
   });
 
   test("keeps the Newer data field with the measured Kingdom, and the button, while a shown position is still old", async () => {
