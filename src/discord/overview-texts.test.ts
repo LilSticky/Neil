@@ -213,8 +213,8 @@ describe("renderOverview: the Alliance Overview embed", () => {
     const embed = overviewOf([alpha, beta]).embeds[0];
 
     expect(fieldValue(embed, "Weekly Activity")).toBe("sum 500 · average 250");
-    expect(fieldValue(embed, "Daily Honor")).toBe("sum 100 · average 50");
-    expect(fieldValue(embed, "Daily Tech")).toBe("sum 5,000 · average 2,500");
+    expect(fieldValue(embed, "Daily Honor (game day)")).toBe("sum 100 · average 50");
+    expect(fieldValue(embed, "Daily Tech (game day)")).toBe("sum 5,000 · average 2,500");
   });
 
   test("leaves a member without data out of the totals, which then count only the others", () => {
@@ -258,8 +258,8 @@ describe("renderOverview: the Alliance Overview embed", () => {
     const embed = overviewOf(roster).embeds[0];
 
     expect(fieldValue(embed, "Top Weekly Activity")).toBe("1. Di · 90\n2. Ben · 70\n3. Gi · 60\n4. Ed · 50\n5. Ann · 30");
-    expect(fieldValue(embed, "Top Daily Honor")).toBe("1. Gi · 7\n2. Fi · 6\n3. Ed · 5\n4. Di · 4\n5. Cy · 3");
-    expect(fieldValue(embed, "Top Daily Tech")).toBe("1. Gi · 11\n2. Fi · 10\n3. Ed · 9\n4. Di · 8\n5. Cy · 7");
+    expect(fieldValue(embed, "Top Daily Honor (game day)")).toBe("1. Gi · 7\n2. Fi · 6\n3. Ed · 5\n4. Di · 4\n5. Cy · 3");
+    expect(fieldValue(embed, "Top Daily Tech (game day)")).toBe("1. Gi · 11\n2. Fi · 10\n3. Ed · 9\n4. Di · 8\n5. Cy · 7");
   });
 
   test("lists the 5 Least Active by Weekly Activity, lowest first, and not the members without data", () => {
@@ -356,14 +356,14 @@ describe("renderOverview: the Alliance card's look", () => {
 
     expect(fields.map(({ name, inline }) => ({ name, inline }))).toEqual([
       { name: "Weekly Activity", inline: true },
-      { name: "Daily Honor", inline: true },
-      { name: "Daily Tech", inline: true },
+      { name: "Daily Honor (game day)", inline: true },
+      { name: "Daily Tech (game day)", inline: true },
       { name: "Online now", inline: true },
       { name: "Online in the last 24 hours", inline: true },
       { name: "No data", inline: true },
       { name: "Top Weekly Activity", inline: true },
-      { name: "Top Daily Honor", inline: true },
-      { name: "Top Daily Tech", inline: true },
+      { name: "Top Daily Honor (game day)", inline: true },
+      { name: "Top Daily Tech (game day)", inline: true },
       { name: "Least Active", inline: false },
       { name: "Newer data", inline: undefined },
     ]);
