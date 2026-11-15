@@ -40,7 +40,8 @@ What the crawl stores about Members, and for how long:
   whether they are a bot and whether they are still pending the server's rules screening;
 - the last 100 audit-log entries: who did what to whom, as ids, with the changed values (such as a nickname);
 - webhook objects without their tokens; invites without their inviter; events, emojis, stickers and integrations without
-  the user who made them;
+  the user object of who made them. Discord's plain id references stay (an event's `creator_id`, a thread's
+  `owner_id`, an automod rule's `creator_id`), as does an integration's `account` (the bot or linked channel it is for);
 - no message content and no message history.
 
 The snapshot stays on the owner's PC under `data/`, which git ignores. It is never committed, posted or sent to a service.
