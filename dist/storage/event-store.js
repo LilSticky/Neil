@@ -32,7 +32,8 @@ const kindRow = z.object({
 });
 const CORRUPT_MESSAGE = "the Events in neil.db is corrupt; fix or remove it by hand";
 /**
- * Keeps the Events, their Event Reminders, the Event Kinds and the Event Invitations Off in neil.db. A row that does not
+ * Keeps the Events, their Event Reminders, the Event Kinds, the Event Invitations Off and the days a Duel Plan was posted
+ * in neil.db. A row that does not
  * read is refused, not reset.
  */
 export class EventStore {
@@ -119,6 +120,14 @@ export class EventStore {
     /** Removes the owner's Event Kind whose name matches ignoring case; a name not listed changes nothing. */
     removeKind(owner, name) {
         this.db.prepare("DELETE FROM event_kinds WHERE owner = ? AND name = ?").run(owner, name);
+    }
+    /** Whether the Duel Plan of this Server Time day (YYYY-MM-DD) was already handled: posted, or logged as not posted. */
+    duelPlanPostedOn(serverDay) {
+        return this.db.prepare("SELECT 1 AS found FROM duel_plan_posts WHERE server_day = ?").get(serverDay) !== undefined;
+    }
+    /** Records the Duel Plan of this Server Time day as handled; recording it again keeps the first time. */
+    recordDuelPlanPosted(serverDay, at) {
+        this.db.prepare("INSERT INTO duel_plan_posts (server_day, posted_at) VALUES (?, ?) ON CONFLICT (server_day) DO NOTHING").run(serverDay, at);
     }
     /** Switches the Member's Event Invitations off. */
     setInvitationsOff(memberId) {

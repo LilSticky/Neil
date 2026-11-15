@@ -186,6 +186,12 @@ const migrations = [
    CREATE TABLE event_invitations_off (
      member_id TEXT PRIMARY KEY CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*')
    )`,
+    // Migration 16: the Server Time days a Duel Plan was handled on (slice 033), so a Duel day is posted at most once, also
+    // across restarts.
+    `CREATE TABLE duel_plan_posts (
+     server_day TEXT PRIMARY KEY CHECK (server_day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+     posted_at TEXT NOT NULL
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

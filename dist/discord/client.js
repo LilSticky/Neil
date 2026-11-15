@@ -2,7 +2,9 @@ import { ChannelType, Client, Events, GatewayIntentBits, GuildMember, Partials, 
 import { z } from "zod";
 import { cameOnline } from "../domain/interview-start.js";
 import { editorOf } from "../storage/reaper-editor.js";
+import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
+import { createDuelPlanPoster } from "./duel-plan.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
@@ -875,6 +877,7 @@ export async function connect(token, options) {
             links: options.links,
             events: options.events,
             officerRoleIds: options.officerRoleIds,
+            now,
             logError,
         }),
         bootyAlerts: (interaction) => handleBootyAlerts(bootyAlertsLike(interaction), {
@@ -1158,6 +1161,14 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The Duel Plan goes to #event-announcements on the same one-minute tick as the Event Reminders.
+        const duelPlan = createDuelPlanPoster({
+            server: eventServer,
+            events: options.events,
+            plan: DUEL_PLAN,
+            now,
+            logError,
+        });
         openServices({
             interviews,
             rankApprovals,
@@ -1246,7 +1257,8 @@ export async function connect(token, options) {
                 clearInterval(timer);
             };
         });
-        // The Events ahead are invited at startup; the reminders are ticked once a minute, until disconnect stops them.
+        // The Events ahead are invited at startup; the reminders, then the Duel Plan, are ticked once a minute, until disconnect
+        // stops them.
         void eventInvitations.onStartup();
         // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
         let reminderTickRunning = false;
@@ -1254,7 +1266,10 @@ export async function connect(token, options) {
             if (reminderTickRunning)
                 return;
             reminderTickRunning = true;
-            void eventReminders.tick().finally(() => {
+            void eventReminders
+                .tick()
+                .then(() => duelPlan.tick())
+                .finally(() => {
                 reminderTickRunning = false;
             });
         }, REMINDER_TICK_MS);

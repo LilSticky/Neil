@@ -1,3 +1,4 @@
+import { nextServerReset } from "../domain/server-time.js";
 import { CARD_COLOR, escapeText, fitTitle } from "./lookup-cards.js";
 import { textWithMentions } from "./mentions.js";
 /** The most guides an invitation card shows. */
@@ -6,7 +7,7 @@ const MAX_GUIDES = 10;
 const GUIDE_LINK = /https?:\/\/\S*[^\s.,;:!?)]/g;
 const INVITATION_LEAD = "📅 A new Event is on. Neil has put its card below.";
 /** Discord's Unix seconds for a moment, as <t:…> takes them. */
-function unixOf(moment) {
+export function unixOf(moment) {
     return Math.floor(moment.getTime() / 1000).toString();
 }
 function discordEventLinkOf(guildId, event) {
@@ -39,5 +40,36 @@ function reminderTextOf(guildId, reminder) {
         return `⏰ ${name} starts <t:${unixOf(event.start)}:R>. Event: ${link}`;
     const deadline = unixOf(reminder.signUpDeadline);
     return `📝 Sign-up for ${name} closes <t:${deadline}:F> (<t:${deadline}:R>). Event: ${link}`;
+}
+/** The Duel days as the Duel Plan card names them. */
+const DUEL_DAY_NAMES = {
+    monday: "Monday",
+    tuesday: "Tuesday",
+    wednesday: "Wednesday",
+    thursday: "Thursday",
+    friday: "Friday",
+    saturday: "Saturday",
+};
+/** The Duel day as people read it: Monday to Saturday. */
+export function duelDayName(day) {
+    return DUEL_DAY_NAMES[day];
+}
+/**
+ * The Duel Plan card of a Duel day: what scores today, what to save for later (left out when empty), and when the Duel
+ * day ends, as a Discord timestamp each reader sees in their own clock. It mentions nobody.
+ */
+export function duelPlanMessage(day, entry, now) {
+    const end = unixOf(nextServerReset(now));
+    const fields = [{ name: "Scores today", value: entry.scores.trim() }];
+    const save = entry.save.trim();
+    if (save.length > 0)
+        fields.push({ name: "Save for later", value: save });
+    const card = {
+        color: CARD_COLOR,
+        title: `Alliance Duel: ${duelDayName(day)}`,
+        description: `This Duel day ends <t:${end}:t> (<t:${end}:R>).`,
+        fields,
+    };
+    return { embeds: [card], allowedMentions: { parse: [] } };
 }
 //# sourceMappingURL=event-texts.js.map

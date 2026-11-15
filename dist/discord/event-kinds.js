@@ -1,8 +1,10 @@
 import { MessageFlags } from "discord.js";
 import { parseLeadTimes, } from "../domain/events.js";
 import { parseAllianceKey, } from "../domain/lookup-input.js";
+import { nextDuelReset } from "../domain/duel-plan.js";
 import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { isOfficer } from "../domain/officer.js";
+import { unixOf } from "./event-texts.js";
 /** The owner of the kingdom's list. Alliance lists are keyed by their tag. */
 const KINGDOM = "kingdom";
 const messages = {
@@ -18,6 +20,7 @@ const messages = {
     notListed: (name, label) => `"${name}" is not listed for ${label}. Nothing was removed.`,
     empty: (label) => `${label} has no Event Kinds yet.`,
     listed: (label, lines) => [`Event Kinds of ${label}:`, ...lines].join("\n"),
+    allianceDuel: (nextReset) => `- **Alliance Duel**: daily plan in #event-announcements at 00:00 Server Time, Monday to Saturday; next <t:${nextReset}:t> (<t:${nextReset}:R>)`,
 };
 /**
  * Answers /event-kinds privately. `add` records an Event Kind under its name, replacing one of the same name; `remove`
@@ -184,9 +187,13 @@ function list(interaction, context, standing) {
     if (!owner.ok)
         return owner.refusal;
     const kinds = context.events.listKinds(owner.value);
-    if (kinds.length === 0)
+    const lines = kinds.map((kind) => `- ${describe(kind)}`);
+    // The kingdom's list always ends with the Alliance Duel: its Duel Plan is built in, not a stored kind.
+    if (owner.value === KINGDOM)
+        lines.push(messages.allianceDuel(unixOf(nextDuelReset(context.now()))));
+    if (lines.length === 0)
         return messages.empty(labelOf(owner.value));
-    return messages.listed(labelOf(owner.value), kinds.map((kind) => `- ${describe(kind)}`));
+    return messages.listed(labelOf(owner.value), lines);
 }
 function sameName(a, b) {
     return a.toLowerCase() === b.toLowerCase();
