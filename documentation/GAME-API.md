@@ -105,7 +105,7 @@ no approximate (fuzzy) name search in the API; Neil matches Known Alliances itse
 - **`alliance_members[]`**: the player's whole alliance roster, same fields as below, including
   `rank_label`. The player's own rank is their row in it. Since slice 026 Neil also reads `online` and
   `last_online_at` here, so a Booty Call learns who is online with one request.
-- `ranks`: `{}` in the sample; **not the alliance rank**. Ignore it.
+- `ranks`: the Player's places on the Kingdom leaderboards, e.g. `{"power":{"rank":3,"score":"103886869"},"kills":{…},"heroes":{…}}` (seen 2026-11-15 on Kingdom 330; `{}` in older samples). **Not the alliance rank, and no title**: the API has no field for the King or the Royal City.
 - `history[]`: earlier observations (nick, power, alliance, coordinates, `change_flags`)
 - Image paths are relative (`/static/…`) to the tracker's site.
 
