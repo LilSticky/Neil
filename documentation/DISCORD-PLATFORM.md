@@ -4,7 +4,7 @@ summary: What Discord's official developer docs say about intents, permissions, 
 audience: [tech]
 tags: [discord, intents, permissions, rate-limits, interactions, slash-commands, scheduled-events]
 owner: Neil maintainers
-reviewed: 2026-11-14
+reviewed: 2026-11-15
 visibility: public
 ---
 
@@ -141,6 +141,33 @@ Sources: <https://docs.discord.com/developers/resources/message>,
 - Button label ≤ 80 (design advice: ≤ 34–38); link buttons have a `url` (≤ 512) and no `custom_id`.
 - Select: ≤ 25 options, label/value/description ≤ 100, placeholder ≤ 150.
 - Text input (modals only): value up to 4000 chars, placeholder ≤ 100.
+
+## Dates and times: Discord timestamps
+
+Source: <https://docs.discord.com/developers/reference#message-formatting> (timestamp styles), read on 2026-11-15.
+
+- A timestamp is written `<t:UNIX:STYLE>`, with UNIX in whole seconds. Discord shows it in each reader's own time
+  zone and language. Styles: `t` short time (16:20), `T` long time (16:20:30), `d` short date (20/04/2021), `D` long
+  date (20 April 2021), `f` short date and time, `F` long date and time with weekday, `R` relative ("in 2 hours",
+  "3 days ago"); without a style Discord uses `f`.
+- It renders in message content, embed descriptions and embed field values. It does **not** render in embed titles,
+  footers, author names, field names, or button and select labels: there it shows as the raw `<t:…>` text.
+
+**Neil's rule**: every date or time Neil posts is a Discord timestamp, so each Member reads it in their own time zone
+and sees how long until or since. A moment is usually shown as an absolute style followed by the relative one, such
+as `<t:…:t> (<t:…:R>)` for a reset or `<t:…:F> (<t:…:R>)` for an Event start; a day alone uses `D`. Every text
+builds them through `src/discord/timestamps.ts` (`timestamp(moment, style)`, `unixOf(moment)`). A time that must go
+where Discord does not render timestamps moves to the description or a field value: the cards' "As of …" line sits
+at the end of the description, not in the footer.
+
+Exceptions, which stay plain text:
+
+- **Footers**: the usage line ("… resets 00:00 UTC") sits in a card footer, so it keeps plain UTC text.
+- **A UTC day that names a counting period**: /quota's header ("Daily Quota for YYYY-MM-DD (UTC)") and the Daily
+  Sync log line name the UTC day that is counted. A date timestamp would show a different date to readers west or
+  east of UTC.
+- **A recurring time of day in the Member's own zone**: the Booty Alert window is an HH:MM the Member chose in their
+  time zone, not a moment, so it stays as HH:MM.
 
 ## Members, nicknames and DMs
 

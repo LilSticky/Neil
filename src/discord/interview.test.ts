@@ -1587,7 +1587,7 @@ describe("createInterviews", () => {
         failedAttempts: 0,
         resumesAt: resetsAt,
       });
-      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: quotaSpentMessage(resetsAt, NOW) });
+      expect(h.channels.posts.at(-1)).toEqual({ threadId: THREAD, message: quotaSpentMessage(resetsAt) });
     });
   });
 

@@ -310,7 +310,7 @@ export function handleLink(interaction: LinkInteraction, deps: LinkCommandDeps):
     if (!(await deps.isOnServer(memberId))) return interaction.editReply(memberGoneReply(memberId));
     const now = deps.now();
     const result = await deps.gameApi.getPlayer(uid.value, "onboarding-interview");
-    if (result.kind !== "found") return interaction.editReply(linkLookupFailureReply(result, uid.value, now));
+    if (result.kind !== "found") return interaction.editReply(linkLookupFailureReply(result, uid.value));
     const confirmationId = deps.confirmations.add(
       {
         officerId: caller.memberId,

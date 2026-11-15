@@ -10,7 +10,6 @@ import {
   type InteractionUpdateOptions,
 } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { utcDayOf } from "../domain/daily-quota.js";
 import { exileReasonOf, type Exile, type ExileReason } from "../domain/exile.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import { openDatabase } from "../storage/database.js";
@@ -174,7 +173,7 @@ describe("handleReaperList", () => {
     expect(getPlayer).not.toHaveBeenCalled();
   });
 
-  test("gives each Exile a line with its name, Kingdom, reason and the day it was added", async () => {
+  test("gives each Exile a line with its name, Kingdom, reason and the day it was added as a date timestamp", async () => {
     store.add(exileOf(uidOf("145563254701"), "Far", OTHER_KINGDOM, EARLIER, "Greedy"));
     const { context } = listContext(store, pages);
     const interaction = new FakeReaperInteraction({}, VIEWER_ID);
@@ -185,7 +184,7 @@ describe("handleReaperList", () => {
     expect(line).toContain("Far");
     expect(line).toContain("12");
     expect(line).toContain("Greedy");
-    expect(line).toContain(utcDayOf(EARLIER));
+    expect(line).toContain("exiled <t:1793534400:D>");
   });
 
   test("lists the newest Exile first", async () => {

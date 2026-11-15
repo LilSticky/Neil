@@ -5,6 +5,7 @@ import { nextServerReset } from "../domain/server-time.js";
 import type { Event } from "./events.js";
 import { CARD_COLOR, escapeText, fitTitle } from "./lookup-cards.js";
 import { textWithMentions } from "./mentions.js";
+import { unixOf } from "./timestamps.js";
 
 /** The most guides an invitation card shows. */
 const MAX_GUIDES = 10;
@@ -16,11 +17,6 @@ const INVITATION_LEAD = "📅 A new Event is on. Neil has put its card below.";
 export type EventReminder =
   | { readonly event: Event; readonly target: "start" }
   | { readonly event: Event; readonly target: "signup"; readonly signUpDeadline: Date };
-
-/** Discord's Unix seconds for a moment, as <t:…> takes them. */
-export function unixOf(moment: Date): string {
-  return Math.floor(moment.getTime() / 1000).toString();
-}
 
 function discordEventLinkOf(guildId: string, event: Event): string {
   return `https://discord.com/events/${guildId}/${event.id}`;

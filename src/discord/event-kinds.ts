@@ -17,7 +17,7 @@ import type { AllianceRank } from "../domain/player.js";
 import type { EventStore } from "../storage/event-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { EventRole } from "./events.js";
-import { unixOf } from "./event-texts.js";
+import { unixOf } from "./timestamps.js";
 
 /** The part of a discord.js chat-input interaction that /event-kinds uses: who ran it, their roles and the private reply. */
 export interface EventKindsInteraction {

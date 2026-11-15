@@ -335,7 +335,7 @@ describe("handleReaperAdd", () => {
 
     await handleReaperAdd(interaction, context);
 
-    expect(repliesOf(interaction)).toEqual([lookupMessages.quotaSpent(RESETS_AT, NOW)]);
+    expect(repliesOf(interaction)).toEqual([lookupMessages.quotaSpent(RESETS_AT)]);
     expect(store.all()).toEqual([]);
   });
 

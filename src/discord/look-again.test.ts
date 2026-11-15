@@ -376,7 +376,7 @@ describe("handleLookAgain on a Player card", () => {
     {
       label: "the Daily Quota is spent",
       result: { kind: "quota-spent", resetsAt: RESETS_AT },
-      text: lookupMessages.quotaSpent(RESETS_AT, NOW),
+      text: lookupMessages.quotaSpent(RESETS_AT),
     },
     { label: "the Player is not found", result: { kind: "not-found" }, text: lookupMessages.playerNotFound(UID) },
     { label: "the tracker is busy", result: { kind: "try-again" }, text: lookupMessages.tryAgain },
@@ -401,7 +401,7 @@ describe("handleLookAgain on a Player card", () => {
 
     expect(methodsOf(press)).toEqual(["deferUpdate", "followUp"]);
     expect(followUpOf(press)).toMatchObject({
-      content: refusalMessage(RESETS_AT, ALLOWANCE, NOW),
+      content: refusalMessage(RESETS_AT, ALLOWANCE),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -495,7 +495,7 @@ describe("handleLookAgain on an Alliance card", () => {
 
     expect(methodsOf(press)).toEqual(["deferUpdate", "followUp"]);
     expect(followUpOf(press)).toMatchObject({
-      content: refusalMessage(RESETS_AT, ALLOWANCE, NOW),
+      content: refusalMessage(RESETS_AT, ALLOWANCE),
       flags: MessageFlags.Ephemeral,
     });
   });

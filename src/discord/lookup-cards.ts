@@ -14,7 +14,6 @@ import {
 import { sortRoster } from "../domain/alliance-rank.js";
 import { lastSeen } from "../domain/alliance-overview.js";
 import { mapPageOf } from "../domain/data-age.js";
-import { utcDayOf } from "../domain/daily-quota.js";
 import { parseAllianceKey, type AllianceKey, type KingdomNumber, type PlayerName } from "../domain/lookup-input.js";
 import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
 import {
@@ -32,6 +31,7 @@ import {
   type RosterEntry,
 } from "../domain/player.js";
 import { lookAgainCustomId } from "./look-again.js";
+import { timestamp } from "./timestamps.js";
 import { clampPage, pageCount, pageOf } from "./pick-sessions.js";
 import { USAGE_SEPARATOR, usageLine } from "./usage-line.js";
 
@@ -57,7 +57,6 @@ const ROSTER_FIELD = "Roster";
 const EMPTY_ROSTER_TEXT = "The tracker lists no members.";
 /** Discord's limit on a select menu option's label. */
 const OPTION_LABEL_MAX_LENGTH = 100;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 /** The accent color both cards use. */
 export const CARD_COLOR = 0xb33a3a;
@@ -75,10 +74,6 @@ const COMPACT_UNITS = [
 const BILLION = 1_000_000_000;
 
 const LANGUAGE_NAMES = new Intl.DisplayNames(["en"], { type: "language" });
-
-function twoDigits(value: number): string {
-  return value.toString().padStart(2, "0");
-}
 
 /** A number with thousands separators, as the cards show full numbers. */
 function thousands(value: number): string {
@@ -142,31 +137,21 @@ export function joinRequirementsText(requirements: JoinRequirements): string {
   return parts.join(" · ");
 }
 
-/** The time from now until a moment, as "in 3 h 12 min", "in 59 min" or "in under a minute"; seconds are dropped. */
-export function timeLeft(until: Date, now: Date): string {
-  const ms = Math.max(0, until.getTime() - now.getTime());
-  if (ms < MINUTE_MS) return "in under a minute";
-  const hours = Math.floor(ms / HOUR_MS);
-  const minutes = Math.floor((ms % HOUR_MS) / MINUTE_MS);
-  return hours > 0 ? `in ${hours.toString()} h ${minutes.toString()} min` : `in ${minutes.toString()} min`;
+/** The card footer: the source of the data. Discord shows no timestamps in footers, so the map time is in the description. */
+export function footerFor(): { readonly text: string } {
+  return { text: FOOTER_SOURCE };
 }
 
-/** A moment as "HH:MM UTC". Formatted by hand so no locale changes it. */
-export function utcTime(moment: Date): string {
-  return `${twoDigits(moment.getUTCHours())}:${twoDigits(moment.getUTCMinutes())} UTC`;
+/** The last line of a card's description: when the game gave the map time, as a timestamp. Nothing without a map time. */
+export function asOfLine(asOf: Date | undefined): string | undefined {
+  if (asOf === undefined) return undefined;
+  return `As of ${timestamp(asOf, "f")} (${timestamp(asOf, "R")})`;
 }
 
-/**
- * The card footer: the source and, when the game gave a map time, when it was, in UTC. Data from today shows the time
- * only; an earlier day shows the day and English month too. Without a map time the footer names the source alone.
- */
-export function footerFor(asOf: Date | undefined, now: Date): { readonly text: string } {
-  if (asOf === undefined) return { text: FOOTER_SOURCE };
-  const time = utcTime(asOf);
-  const when = utcDayOf(asOf) === utcDayOf(now)
-    ? time
-    : `${asOf.getUTCDate().toString()} ${MONTHS[asOf.getUTCMonth()] ?? ""} ${time}`;
-  return { text: `${FOOTER_SOURCE} · as of ${when}` };
+/** Description lines joined, the ones that are not there left out; undefined when no line is there. */
+function descriptionOf(...lines: readonly (string | undefined)[]): string | undefined {
+  const shown = lines.filter((line): line is string => line !== undefined);
+  return shown.length === 0 ? undefined : shown.join("\n");
 }
 
 /** Escapes Game API and user text for Discord markdown; discord.js leaves a lone `~` alone, so it is escaped here. */
@@ -278,15 +263,15 @@ export function renderPlayerCard(player: Player, asOf: Date | undefined, now: Da
     ),
   );
   const thumbnail = thumbnailOf(details?.avatarPath);
-  const lastOnline = onlineText(details, now);
+  const description = descriptionOf(onlineText(details, now), asOfLine(asOf));
   return {
     title: fitTitle(escapeText(player.name)),
     color: CARD_COLOR,
     author: kingdomAuthor(player.kingdom, details?.kingdomBadgePath),
     ...(thumbnail === undefined ? {} : { thumbnail }),
-    ...(lastOnline === undefined ? {} : { description: lastOnline }),
+    ...(description === undefined ? {} : { description }),
     fields,
-    footer: footerFor(asOf, now),
+    footer: footerFor(),
   };
 }
 
@@ -406,14 +391,18 @@ export function renderAllianceCard(alliance: Alliance, asOf: Date | undefined, n
   ];
   const thumbnail = thumbnailOf(details?.badgePath);
   const joinRequirements = shownWhenKnown(details?.joinRequirements, joinRequirementsText);
+  const description = descriptionOf(
+    joinRequirements === undefined ? undefined : `**Join Requirements:** ${joinRequirements}`,
+    asOfLine(asOf),
+  );
   const embed: APIEmbed = {
     title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)}`),
     color: CARD_COLOR,
     author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
     ...(thumbnail === undefined ? {} : { thumbnail }),
-    ...(joinRequirements === undefined ? {} : { description: `**Join Requirements:** ${joinRequirements}` }),
+    ...(description === undefined ? {} : { description }),
     fields,
-    footer: footerFor(asOf, now),
+    footer: footerFor(),
   };
   const shown = pageOf(sortRoster(alliance.roster), page);
   const fixed = embedCharacters(embed) + USAGE_FOOTER_ROOM + NEWER_DATA_ROOM;
@@ -490,10 +479,10 @@ export const lookupMessages = {
     `Couldn't find a player named "${escapeText(name)}". Check the name; if it's right, the tracker may be busy, so try again later.`,
   allianceNotFound: (key: AllianceKey, kingdom: KingdomNumber): string =>
     `No alliance "${escapeText(key)}" in kingdom #${kingdom.toString()}.`,
-  quotaSpent: (resetsAt: Date, now: Date): string =>
-    `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
-  reserveKept: (resetsAt: Date, now: Date): string =>
-    `Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again at 00:00 UTC (${timeLeft(resetsAt, now)}).`,
+  quotaSpent: (resetsAt: Date): string =>
+    `Lookups are paused: Neil has used today's Daily Quota of Game API requests. They work again ${timestamp(resetsAt, "t")} (${timestamp(resetsAt, "R")}).`,
+  reserveKept: (resetsAt: Date): string =>
+    `Lookups are paused for today: the rest of the Daily Quota is kept for interviewing new members. They work again ${timestamp(resetsAt, "t")} (${timestamp(resetsAt, "R")}).`,
   tryAgain: "The game tracker is busy right now. Try again in a moment.",
   unavailable: "Lookups are not working right now. Please tell an Officer.",
   showing: (label: string): string => `Showing ${escapeText(label)}.`,

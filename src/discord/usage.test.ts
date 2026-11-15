@@ -18,7 +18,7 @@ const NOW = new Date("2026-10-30T18:48:00Z");
 const SHARED_LINES = [
   "A lookup costs a request when Neil has not answered it in the last 10 minutes; cached answers are free.",
   "Onboarding is never charged.",
-  "Resets at 00:00 UTC (in 5 h 12 min).",
+  "Resets <t:1793404800:t> (<t:1793404800:R>).",
 ];
 
 /** An interaction that records its private replies and reports the given role IDs for the caller. */

@@ -358,7 +358,7 @@ describe("handleReaperClosest", () => {
     expect(headerText).toContain("Neil cannot see shields reliably");
   });
 
-  test("shows each of the 3 closest Exiles with coordinates, distance, reason and the date exiled", async () => {
+  test("shows each of the 3 closest Exiles with coordinates, distance, reason and the date exiled as a timestamp", async () => {
     store.add(exileOf(FAR, "Far", { x: 3, y: 4 }));
     store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
     store.add(exileOf(MID, "Mid", { x: 0, y: 2 }));
@@ -379,7 +379,7 @@ describe("handleReaperClosest", () => {
     expect(fieldValue(far, "Coordinates")).toBe("X:3 Y:4");
     expect(fieldValue(far, "Distance")).toContain("5");
     expect(fieldValue(far, "Reason")).toBe("Reason of Far");
-    expect(fieldValue(far, "Exiled on")).toBeDefined();
+    expect(fieldValue(far, "Exiled on")).toBe("<t:1793534400:D>");
   });
 
   test("shows each Exile with the player card as /player shows it", async () => {
@@ -409,7 +409,7 @@ describe("handleReaperClosest", () => {
     expect(titlesOf(exileEmbedsOf(interaction))).toEqual(["Near", "Far"]);
   });
 
-  test("marks an Exile that could not be read with its stored position and the date of it", async () => {
+  test("marks an Exile that could not be read with its stored position and when it was read, as a timestamp", async () => {
     store.add(exileOf(NEAR, "Near", { x: 1, y: 0 }));
     const { context } = closestContext(store, { read: () => Promise.reject(new Error("the Game API timed out")) });
     const interaction = new FakeReaperInteraction({ integers: { x: 0, y: 0 } }, CALLER_ID);
@@ -418,7 +418,7 @@ describe("handleReaperClosest", () => {
 
     const [near] = exileEmbedsOf(interaction);
     expect(near).toBeDefined();
-    expect(JSON.stringify(near)).toContain("position as of");
+    expect(JSON.stringify(near)).toContain("X:1 Y:0 (position as of <t:1793534400:f>)");
     expect(JSON.stringify(near)).toContain("Near");
   });
 
@@ -445,8 +445,8 @@ describe("handleReaperClosest", () => {
   });
 
   test.each([
-    { refusal: { kind: "quota-spent", resetsAt: RESETS_AT }, text: lookupMessages.quotaSpent(RESETS_AT, NOW) },
-    { refusal: { kind: "reserve-kept", resetsAt: RESETS_AT }, text: lookupMessages.reserveKept(RESETS_AT, NOW) },
+    { refusal: { kind: "quota-spent", resetsAt: RESETS_AT }, text: lookupMessages.quotaSpent(RESETS_AT) },
+    { refusal: { kind: "reserve-kept", resetsAt: RESETS_AT }, text: lookupMessages.reserveKept(RESETS_AT) },
   ] as const)(
     "says the usual quota text, not the ask for x and y, when the caller's Linked Player is refused as $refusal.kind and no x and y are given",
     async ({ refusal, text }) => {
@@ -494,7 +494,7 @@ describe("handleReaperClosest", () => {
 
     await handleReaperClosest(interaction, context);
 
-    expect(repliesOf(interaction)).toEqual([lookupMessages.quotaSpent(RESETS_AT, NOW)]);
+    expect(repliesOf(interaction)).toEqual([lookupMessages.quotaSpent(RESETS_AT)]);
   });
 
   test("stores the name, Kingdom and position of an Exile from its fresh read, keeping reason, date and adder", async () => {
