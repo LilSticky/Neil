@@ -35,7 +35,7 @@ import {
   unreadableUsage,
   usageLineFor,
 } from "./__fakes__/usage.js";
-import { lookupMessages, renderAllianceCard, renderAllianceComponents } from "./lookup-cards.js";
+import { lookAgainRow, lookupMessages, renderAllianceCard, renderAllianceComponents, withNewerData } from "./lookup-cards.js";
 import { renderOverview, type OverviewReply } from "./overview-texts.js";
 import { handleOverview, handlePick, type PickContext } from "./pick.js";
 import { PickSessions } from "./pick-sessions.js";
@@ -339,12 +339,35 @@ const ALLIANCE_MATCHES: readonly Match[] = [
 ];
 
 function openRoster(sessions: PickSessions): string {
-  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, asOf: OPENED_AT }, OPENED_AT);
+  return sessions.open(OWNER_ID, { kind: "roster", entries: ROSTER, alliance: allianceNmx, asOf: undefined }, OPENED_AT);
 }
 
 function openAlliances(sessions: PickSessions): string {
   return sessions.open(OWNER_ID, { kind: "alliances", matches: ALLIANCE_MATCHES }, OPENED_AT);
 }
+
+describe("handlePick for the owner choosing a Player match whose map time is old", () => {
+  test("posts the Player card with a Look again button for the owner who picked it", async () => {
+    const sessions = new PickSessions();
+    const pickId = openPickList(sessions);
+    const interaction = new FakePickInteraction({
+      customId: `pick:${pickId}:select`,
+      userId: OWNER_ID,
+      values: ["1"],
+    });
+    const asOf = new Date(NOW.getTime() - 44 * 60_000);
+    const { context } = contextWith(sessions, { kind: "found", value: drLol, asOf });
+
+    await handlePick(interaction, context);
+
+    expect(interaction.calls.find((call) => call.method === "followUp")).toEqual({
+      method: "followUp",
+      options: expect.objectContaining({
+        components: [lookAgainRow(`again:${OWNER_ID}:p:93159425`)],
+      }) as unknown,
+    });
+  });
+});
 
 describe("handlePick page buttons of a roster", () => {
   test("updates the message to the roster menu of that page, without asking the Game API", async () => {
@@ -362,7 +385,7 @@ describe("handlePick page buttons of a roster", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          components: renderAllianceComponents(allianceNmx, 1, pickId),
+          components: renderAllianceComponents(allianceNmx, 1, pickId, OWNER_ID),
         }) as unknown,
       },
     ]);
@@ -535,7 +558,7 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -553,7 +576,7 @@ describe("handlePick for the owner choosing an Alliance match", () => {
       method: "followUp",
       options: expect.objectContaining({
         embeds: [expect.objectContaining({ title: "[NMX] No Man's Land" })],
-        components: renderAllianceComponents(allianceNmx, 0, NEW_PICK_ID),
+        components: renderAllianceComponents(allianceNmx, 0, NEW_PICK_ID, OWNER_ID),
       }) as unknown,
     });
     const followUp = interaction.calls[1];
@@ -572,14 +595,14 @@ describe("handlePick for the owner choosing an Alliance match", () => {
     const { context } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
 
     expect(open).toHaveBeenCalledWith(
       OWNER_ID,
-      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, asOf: NOW },
+      { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, asOf: undefined },
       NOW,
     );
   });
@@ -688,7 +711,7 @@ describe("handlePick for the owner choosing a close Known Alliance", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -712,7 +735,7 @@ describe("handlePick for the owner choosing a close Known Alliance", () => {
     const { context, getAlliance } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -753,7 +776,7 @@ const UNKNOWN_SESSION_ID = "deadbeef";
 
 /** The Overview button of an Alliance card under a pick session; its custom id is what a press carries. */
 function overviewButtonOf(sessionId: string, alliance: Alliance): APIButtonComponentWithCustomId {
-  const button = renderAllianceComponents(alliance, 0, sessionId)
+  const button = renderAllianceComponents(alliance, 0, sessionId, OWNER_ID)
     .flatMap((row) => row.components)
     .find(
       (component): component is APIButtonComponentWithCustomId =>
@@ -793,7 +816,7 @@ describe("handlePick for the Overview button of an Alliance card while its pick 
       {
         method: "reply",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, pickId, 0)),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, OWNER_ID, pickId, 0)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         }) as unknown,
@@ -814,7 +837,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
     const { context, getAlliance, getPlayer } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -830,7 +853,7 @@ describe("handlePick for the Overview button of an Alliance card whose pick sess
       {
         method: "editReply",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, NOW, NOW, UNKNOWN_SESSION_ID, 0)),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, OWNER_ID, UNKNOWN_SESSION_ID, 0)),
         }) as unknown,
       },
     ]);
@@ -872,7 +895,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might")),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, OWNER_ID, overviewId, 1, "might")),
         }) as unknown,
       },
     ]);
@@ -891,7 +914,7 @@ describe("handleOverview page buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 1, "might")),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, OWNER_ID, overviewId, 1, "might")),
         }) as unknown,
       },
     ]);
@@ -933,7 +956,7 @@ describe("handleOverview sort buttons of an Alliance Overview", () => {
       {
         method: "update",
         options: expect.objectContaining({
-          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, OPENED_AT, NOW, overviewId, 0, "dailyHonor")),
+          embeds: overviewEmbedsWithLine(renderOverview(allianceNmx, undefined, NOW, OWNER_ID, overviewId, 0, "dailyHonor")),
         }) as unknown,
       },
     ]);
@@ -1151,7 +1174,7 @@ describe("handlePick for the owner choosing an Alliance match, charged to the ca
     const { context, gameApi } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -1210,7 +1233,7 @@ describe("handlePick for the Overview button of an Alliance card, charged to the
     const { context, gameApi } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
 
     await handlePick(interaction, context);
@@ -1268,11 +1291,11 @@ describe("handlePick shows the usage line, read after the request", () => {
     const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
     getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: NOW });
+      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: undefined });
     });
 
     await handlePick(interaction, context);
@@ -1282,7 +1305,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OWNER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OWNER, 5)}` },
           }),
         ],
       }) as unknown,
@@ -1322,11 +1345,11 @@ describe("handlePick shows the usage line, read after the request", () => {
     const { context, getAlliance, usage } = contextWith(sessions, { kind: "not-found" }, NOW, {
       kind: "found",
       value: allianceNmx,
-      asOf: NOW,
+      asOf: undefined,
     });
     getAlliance.mockImplementation(() => {
       usage.used += 1;
-      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: NOW });
+      return Promise.resolve({ kind: "found", value: allianceNmx, asOf: undefined });
     });
 
     await handlePick(interaction, context);
@@ -1337,7 +1360,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: expect.arrayContaining([
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:05 UTC · ${usageLineFor(OTHER_MEMBER, 5)}` },
+            footer: { text: `Data from Last Asylum Tracker · ${usageLineFor(OTHER_MEMBER, 5)}` },
           }),
         ]) as unknown,
       }) as unknown,
@@ -1357,7 +1380,7 @@ describe("handlePick shows the usage line, read after the request", () => {
       options: expect.objectContaining({
         embeds: [
           expect.objectContaining({
-            footer: { text: `Data from Last Asylum Tracker · as of 16:00 UTC · ${LINE_BEFORE}` },
+            footer: { text: `Data from Last Asylum Tracker · ${LINE_BEFORE}` },
           }),
         ],
       }) as unknown,
@@ -1436,8 +1459,8 @@ describe("handlePick when the usage line cannot be read, for a roster page turn"
       {
         method: "update",
         options: {
-          embeds: [renderAllianceCard(allianceNmx, OPENED_AT, NOW, 1)],
-          components: renderAllianceComponents(allianceNmx, 1, pickId),
+          embeds: [withNewerData(renderAllianceCard(allianceNmx, undefined, NOW, 1), allianceNmx.kingdom)],
+          components: renderAllianceComponents(allianceNmx, 1, pickId, OWNER_ID),
         },
       },
     ]);

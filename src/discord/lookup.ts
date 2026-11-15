@@ -8,9 +8,11 @@ import {
 } from "discord.js";
 import { matchAlliances, type KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import { isOld } from "../domain/data-age.js";
 import { isOfficer } from "../domain/officer.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { ChargedResult, GameApiClient } from "../game-api/client.js";
+import { lookAgainCustomId } from "./look-again.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -31,6 +33,8 @@ import {
   type Player,
 } from "../domain/player.js";
 import {
+  allianceLookAgainRow,
+  lookAgainRow,
   lookupMessages,
   renderAllianceCard,
   renderAllianceComponents,
@@ -38,9 +42,10 @@ import {
   renderCloseAlliancePickList,
   renderPlayerCard,
   renderPlayerPickList,
+  withNewerData,
 } from "./lookup-cards.js";
 import type { PickSessions } from "./pick-sessions.js";
-import { refusalMessage, withUsage } from "./usage-texts.js";
+import { allowanceSpentText, refusalMessage, withUsage } from "./usage-texts.js";
 
 /** The part of the Game API client the lookup commands use: the lookups charged to a caller, and the uncharged reads. */
 export type LookupApi = Pick<GameApiClient, "getPlayer" | "findPlayer" | "getAlliance" | "findAlliance" | "chargedTo">;
@@ -92,7 +97,7 @@ export interface LookupReplyContext {
  * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
  * line cannot be read, the failure is logged and the reply is given without the line: the Member still gets the answer.
  */
-export function withCallerUsage<M extends { readonly content?: string; readonly embeds?: readonly APIEmbed[] }>(
+export function withCallerUsage<M extends { readonly content?: string | null; readonly embeds?: readonly APIEmbed[] }>(
   context: Pick<LookupContext, "usage" | "logError">,
   caller: LookupCaller,
   message: M,
@@ -151,13 +156,15 @@ function quotaFailureText(failure: QuotaFailure, now: Date): string {
 
 /** The texts every Player lookup shares: the quota, a busy tracker and a broken lookup. */
 export function sharedPlayerFailureText(
-  failure: Exclude<Failure<Player>, { readonly kind: "not-found" | "not-prepared" }>,
+  failure: Exclude<ChargedResult<Player>, { readonly kind: "found" | "not-found" | "not-prepared" }>,
   now: Date,
 ): string {
   switch (failure.kind) {
     case "quota-spent":
     case "reserve-kept":
       return quotaFailureText(failure, now);
+    case "allowance-spent":
+      return allowanceSpentText(failure.resetsAt, now);
     case "try-again":
       return lookupMessages.tryAgain;
     case "unavailable":
@@ -257,27 +264,39 @@ export function allianceFailureMessage(
   }
 }
 
-/** The public reply that shows a Player: the Player card. */
-export function playerCardMessage(player: Player, asOf: Date, now: Date): CardMessage {
-  return { embeds: [renderPlayerCard(player, asOf, now)] };
+/**
+ * The public reply that shows a Player: the Player card. When its map time is old, the card says where current data is
+ * and carries the Look again button of `ownerId`, the Member who ran the lookup.
+ */
+export function playerCardMessage(player: Player, asOf: Date | undefined, now: Date, ownerId: string): CardMessage {
+  const card = renderPlayerCard(player, asOf, now);
+  if (!isOld(asOf, now)) return { embeds: [card] };
+  return {
+    embeds: [withNewerData(card, player.kingdom)],
+    components: [lookAgainRow(lookAgainCustomId(ownerId, { kind: "player", uid: player.uid }))],
+  };
 }
 
 /**
- * The public reply that shows an Alliance: its card and, when the roster has members, the roster menu under it. The
- * menu's pick list is opened for the caller, with the roster in the order the card lists it.
+ * The public reply that shows an Alliance: its card, the roster menu under it when the roster has members, and the Look
+ * again button of `ownerId`. The card always says where current data is. The menu's pick list is opened for the owner,
+ * with the roster in the order the card lists it.
  */
 export function allianceCardMessage(
   alliance: Alliance,
-  asOf: Date,
+  asOf: Date | undefined,
   now: Date,
   ownerId: string,
   pickSessions: Pick<PickSessions, "open">,
 ): CardMessage {
-  const embeds = [renderAllianceCard(alliance, asOf, now)];
-  if (alliance.roster.length === 0) return { embeds };
+  const embeds = [withNewerData(renderAllianceCard(alliance, asOf, now), alliance.kingdom)];
+  if (alliance.roster.length === 0) {
+    const again = allianceLookAgainRow(alliance, "alliance", ownerId);
+    return { embeds, components: again === undefined ? [] : [again] };
+  }
   const entries = sortRoster(alliance.roster);
   const sessionId = pickSessions.open(ownerId, { kind: "roster", entries, alliance, asOf }, now);
-  return { embeds, components: renderAllianceComponents(alliance, 0, sessionId) };
+  return { embeds, components: renderAllianceComponents(alliance, 0, sessionId, ownerId) };
 }
 
 /** The text of a thrown value, for a log line. */
@@ -323,7 +342,7 @@ export async function showLookup<T>(
   context: LookupReplyContext,
   caller: LookupCaller,
   ask: () => Promise<ChargedResult<T>>,
-  card: (value: T, asOf: Date, now: Date) => CardMessage,
+  card: (value: T, asOf: Date | undefined, now: Date) => CardMessage,
   failureMessage: (failure: Failure<T>, now: Date) => PrivateMessage,
   placeholder?: InteractionDeferReplyOptions,
 ): Promise<void> {
@@ -381,7 +400,7 @@ async function lookUpPlayerByUid(
     context,
     caller,
     () => context.gameApi.chargedTo(caller).getPlayer(uid),
-    playerCardMessage,
+    (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id),
     (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
   );
 }
@@ -410,7 +429,7 @@ async function lookUpPlayerByName(
     context,
     caller,
     () => context.gameApi.chargedTo(caller).findPlayer(playerName, playerKingdom),
-    playerCardMessage,
+    (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id),
     (failure, now) =>
       playerNameFailureMessage(failure, playerName, playerKingdom, interaction.user.id, context.pickSessions, now),
   );

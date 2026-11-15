@@ -23,7 +23,7 @@ export function usageLine({ used, allowance, officer }: UsageLineInput): string 
 
 /** The part of a reply that carries text and embeds, which a usage line can be added to. */
 interface UsageCarrier {
-  readonly content?: string;
+  readonly content?: string | null;
   readonly embeds?: readonly APIEmbed[];
 }
 
@@ -39,5 +39,5 @@ export function withUsage<M extends UsageCarrier>(message: M, line: string): M {
     return { ...message, embeds: [{ ...first, footer: { ...first.footer, text } }, ...rest] };
   }
   const content = message.content;
-  return { ...message, content: content === undefined ? line : `${content}\n${line}` };
+  return { ...message, content: content === undefined || content === null ? line : `${content}\n${line}` };
 }

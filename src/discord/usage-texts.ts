@@ -38,4 +38,12 @@ export function refusalMessage(resetsAt: Date, allowance: number, now: Date): st
   return `Your Daily Allowance is spent: ${used} of ${used} Game API requests used today. Cached answers still work. It resets at ${utcTime(resetsAt)} (${timeLeft(resetsAt, now)}).`;
 }
 
+/**
+ * The private text of a read that the Daily Allowance kept from the Game API, where the count of requests is not at hand:
+ * the allowance is spent, cached answers still work, and the reset with the time left until it.
+ */
+export function allowanceSpentText(resetsAt: Date, now: Date): string {
+  return `Your Daily Allowance is spent. Cached answers still work. It resets at ${utcTime(resetsAt)} (${timeLeft(resetsAt, now)}).`;
+}
+
 export { usageLine, withUsage, type UsageLineInput } from "./usage-line.js";

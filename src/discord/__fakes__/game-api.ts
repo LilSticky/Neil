@@ -12,9 +12,9 @@ export interface GameApiAnswers {
   readonly refusedUntil?: Date | undefined;
 }
 
-type ChargedGetPlayer = (uid: Uid) => Promise<ChargedResult<Player>>;
+type ChargedGetPlayer = (uid: Uid, freshness?: Freshness) => Promise<ChargedResult<Player>>;
 type ChargedFindPlayer = (name: PlayerName, kingdom: KingdomNumber | undefined) => Promise<ChargedResult<Player>>;
-type ChargedGetAlliance = (kingdom: KingdomNumber, key: AllianceKey) => Promise<ChargedResult<Alliance>>;
+type ChargedGetAlliance = (kingdom: KingdomNumber, key: AllianceKey, freshness?: Freshness) => Promise<ChargedResult<Alliance>>;
 type ChargedFindAlliance = (name: AllianceKey) => Promise<ChargedResult<Alliance>>;
 
 type GetPlayer = (uid: Uid, purpose: RequestPurpose, freshness?: Freshness) => Promise<LookupResult<Player>>;

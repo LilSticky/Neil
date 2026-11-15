@@ -613,7 +613,7 @@ describe("handleRank: the name and roles it re-applies make one Game API lookup,
     });
 
     expect(h.gameApi.lookups).toEqual([{ uid: LINKED_UID, purpose: "lookup" }]);
-    expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+    expect(h.gameApi.lookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
   });
 
   test("a Linked Guest with no rank in the game gets /rank as any Link: the rank is stored and the name and roles are re-applied", async () => {
@@ -1263,6 +1263,17 @@ describe("handleLink: the Player is shown for confirmation", () => {
     expect(contentOf(interaction.replies[0])).toContain(FOUND_UID);
     expect(interaction.replies[0]?.buttonIds).toHaveLength(2);
     expect(interaction.replies[0]?.buttonIds.every((id) => id.startsWith("link:"))).toBe(true);
+  });
+
+  test("shows the Player with no Newer data field and no Look again button, even when its map time is 44 minutes old", async () => {
+    h.gameApi.answer = { kind: "found", value: PLAYER_RANKED, asOf: new Date(NOW.getTime() - 44 * 60_000) };
+    const interaction = new FakeLinkInteraction(OFFICER, OFFICER_ROLE_IDS, { member: HANDED_OFF, uid: FOUND_UID });
+
+    await handleLink(interaction, linkDeps(h));
+
+    expect(contentOf(interaction.replies[0])).toContain("Vera");
+    expect(contentOf(interaction.replies[0])).not.toContain("Newer data");
+    expect(interaction.replies[0]?.buttonIds.some((id) => id.startsWith("again:"))).toBe(false);
   });
 
   test("stores nothing before the Officer confirms", async () => {

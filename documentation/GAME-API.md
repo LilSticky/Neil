@@ -47,9 +47,10 @@ Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's
 - Header `x-cache`: `hit` (copy under 60 min), `stale` (older, refresh queued), `miss` (first lookup, waited for the
   game), `live` (`?fresh=1`).
 - Answers come gzip-compressed (`content-encoding: gzip`); Node's fetch decodes them.
-- Since slice 031, Neil asks with `?fresh=1` when it acts on an answer (Link, corrections, Interview, nickname and roles,
-  Daily Sync, Booty Call) and takes the copy when it only shows one (`/player`, `/alliance`, picks, Alliance Overview,
-  REAPER). The answer's time (`asOf`) is the receive moment minus `age_seconds`. **This is the wrong clock**, see below.
+- Since slice 032, Neil takes the tracker's copy for every lookup and asks with `?fresh=1` only when a Member presses
+  🔄 Look again on a card (after using Update Map); that press also skips Neil's own cache. A Player's "as of" is their
+  `map_updated_at`; an Alliance has none. Neil no longer reads `age_seconds` (slice 031 used it, the wrong clock, see
+  below).
 
 ### Two clocks: the answer copy and the map refresh
 
@@ -74,7 +75,7 @@ Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's
   12:59, although their data was confirmed at 22:58. So `map_updated_at` is an upper bound on age, not the age.
 - Consequence for Neil: the card's "as of" (receive moment minus `age_seconds`) shows when the tracker copied its
   answer, e.g. "as of 03:01 UTC" for data that may be much older, and `?fresh=1` costs a request without fresher game
-  data. Tracked in a GitHub issue.
+  data. Fixed in slice 032 (issue #100).
 
 ## Endpoints
 

@@ -337,7 +337,7 @@ describe("runDailySync", () => {
     expect(h.gameApi.requests).toEqual([{ kind: "roster", kingdom: 330, tag: "NML", purpose: "sync" }]);
   });
 
-  test("reads the roster and the Player of the sync live, not from the copy", async () => {
+  test("reads the roster and the Player of the sync from the copy, with no live request", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
     joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
     h.gameApi.answerRoster(HOME, "NML", found(allianceOf("NML", HOME, [rosterRow(BEN_UID, "Lupa", "R3")])));
@@ -345,7 +345,7 @@ describe("runDailySync", () => {
 
     await runDailySync(h.deps);
 
-    expect(h.gameApi.requests.map((request) => request.freshness ?? "live")).toEqual(["live", "live"]);
+    expect(h.gameApi.requests.map((request) => request.freshness ?? "copy")).toEqual(["copy", "copy"]);
   });
 
   test("looks up by uid a Linked Player who is no longer in the roster of their last Alliance", async () => {
@@ -383,6 +383,23 @@ describe("runDailySync", () => {
     expect(h.links.linkFor(ANA)?.allianceRank).toEqual(GAME_R4);
     expect(linesAbout(h, ANA)).toHaveLength(1);
     expect(linesAbout(h, ANA)[0]).toContain("R4");
+  });
+
+  test("its log lines carry no Newer data field and no Look again button, even for a roster whose map time is 44 minutes old", async () => {
+    linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
+    joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
+    h.gameApi.answerRoster(HOME, "NML", {
+      kind: "found",
+      value: allianceOf("NML", HOME, [rosterRow(ANA_UID, "Rogue", "R4")]),
+      asOf: new Date(NOW.getTime() - 44 * 60_000),
+    });
+
+    await runDailySync(h.deps);
+
+    expect(linesAbout(h, ANA)).toHaveLength(1);
+    const logged = JSON.stringify(h.logs);
+    expect(logged).not.toContain("Newer data");
+    expect(logged).not.toContain("again:");
   });
 
   test("applies a changed Player Name to the nickname", async () => {

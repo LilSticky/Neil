@@ -196,14 +196,17 @@ function byKingdomThenName(a: Match, b: Match): number {
 }
 
 /**
- * Whether a lookup needs data the Game sends now (`live`, for a caller that acts on the answer) or accepts the tracker's
- * copy (`copy`, for a caller that only shows it).
+ * How fresh a lookup's answer must be. `copy` (default) may be answered from Neil's cache within the cache window.
+ * `live` skips Neil's cache and asks the tracker with `?fresh=1`; only the Look again button asks so.
  */
 export type Freshness = "live" | "copy";
 
-/** What the Game API client returns for every lookup; an API failure is a value, never a throw. */
+/**
+ * What the Game API client returns for every lookup; an API failure is a value, never a throw. A found Player's `asOf`
+ * is its map time; it is undefined for an Alliance and for a Player whose map time the Game does not give.
+ */
 export type LookupResult<T> =
-  | { readonly kind: "found"; readonly value: T; readonly asOf: Date }
+  | { readonly kind: "found"; readonly value: T; readonly asOf: Date | undefined }
   | { readonly kind: "not-found" }
   | { readonly kind: "ambiguous"; readonly matches: readonly Match[] }
   | { readonly kind: "quota-spent"; readonly resetsAt: Date }

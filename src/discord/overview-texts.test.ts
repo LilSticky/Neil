@@ -3,11 +3,14 @@ import { describe, expect, test } from "vitest";
 import type { TableSort } from "../domain/alliance-overview.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
 import type { Alliance, AllianceDetails, RosterEntry } from "../domain/player.js";
+import { lookAgainRow } from "./lookup-cards.js";
 import { overviewCustomId, parseOverviewCustomId, renderOverview, type OverviewReply } from "./overview-texts.js";
 
 const NOW = new Date("2026-11-02T12:00:00Z");
 const FETCHED_AT = new Date("2026-11-02T10:00:00Z");
 const SESSION = "a1b2c3d4e5f60718";
+/** The Member who opened the Overview: the owner of its Look again button. */
+const OWNER_ID = "310000000000000002";
 const DESCRIPTION_MAX_LENGTH = 4096;
 const FIELD_VALUE_MAX_LENGTH = 1024;
 const MESSAGE_MAX_LENGTH = 6000;
@@ -93,12 +96,12 @@ function allianceWith(roster: readonly RosterEntry[]): Alliance {
 
 /** The Alliance Overview of a roster, fetched at FETCHED_AT and shown at NOW, on the given page, sorted by Might. */
 function overviewOf(roster: readonly RosterEntry[], page = 0): OverviewReply {
-  return renderOverview(allianceWith(roster), FETCHED_AT, NOW, SESSION, page);
+  return renderOverview(allianceWith(roster), FETCHED_AT, NOW, OWNER_ID, SESSION, page);
 }
 
 /** The Alliance Overview of a roster on the given page and sort. */
 function overviewSorted(roster: readonly RosterEntry[], sort: TableSort, page = 0): OverviewReply {
-  return renderOverview(allianceWith(roster), FETCHED_AT, NOW, SESSION, page, sort);
+  return renderOverview(allianceWith(roster), FETCHED_AT, NOW, OWNER_ID, SESSION, page, sort);
 }
 
 const alpha = member("179060285441", "Alpha", {
@@ -158,6 +161,30 @@ function buttonsOf(components: readonly APIActionRowComponent<APIButtonComponent
   return components.flatMap((row) => row.components);
 }
 
+describe("renderOverview: the Newer data field and the Look again button", () => {
+  test("ends the overview embed with the Newer data field for the Alliance's Kingdom", () => {
+    const reply = renderOverview(allianceWith([alpha]), undefined, NOW, OWNER_ID, SESSION, 0);
+
+    expect(reply.embeds[0]?.fields?.at(-1)).toEqual({
+      name: "Newer data",
+      value:
+        "Use **Update Map** on the [Kingdom 1 map](https://lastasylumtracker.com/map?kid=1), wait until it has finished, then press 🔄 Look again.",
+    });
+  });
+
+  test("shows the Newer data field whatever the time of the answer, even a fresh one", () => {
+    const reply = renderOverview(allianceWith([alpha]), NOW, NOW, OWNER_ID, SESSION, 0);
+
+    expect(reply.embeds[0]?.fields?.at(-1)).toMatchObject({ name: "Newer data" });
+  });
+
+  test("ends the components with a Look again row for the opener, after the table's button rows", () => {
+    const reply = renderOverview(allianceWith([alpha, beta]), FETCHED_AT, NOW, OWNER_ID, SESSION, 0);
+
+    expect(reply.components.at(-1)).toEqual(lookAgainRow(`again:${OWNER_ID}:o:1:NML`));
+  });
+});
+
 describe("renderOverview: the Alliance Overview embed", () => {
   test("titles the overview with the Alliance's tag and name", () => {
     const reply = overviewOf([alpha, beta, gamma]);
@@ -168,7 +195,7 @@ describe("renderOverview: the Alliance Overview embed", () => {
   test("escapes the tag and the name in the title, and a lone ~, as the card titles do", () => {
     const alliance: Alliance = { ...allianceWith([alpha]), tag: "N*L", name: "Tilde ~ Clan" };
 
-    const reply = renderOverview(alliance, FETCHED_AT, NOW, SESSION, 0);
+    const reply = renderOverview(alliance, FETCHED_AT, NOW, OWNER_ID, SESSION, 0);
 
     expect(reply.embeds[0]?.title).toBe("[N\\*L] Tilde \\~ Clan · Overview");
   });
@@ -176,7 +203,7 @@ describe("renderOverview: the Alliance Overview embed", () => {
   test("cuts a title longer than Discord's 256 characters, ending with an ellipsis", () => {
     const alliance: Alliance = { ...allianceWith([alpha]), name: "N".repeat(300) };
 
-    const title = renderOverview(alliance, FETCHED_AT, NOW, SESSION, 0).embeds[0]?.title ?? "";
+    const title = renderOverview(alliance, FETCHED_AT, NOW, OWNER_ID, SESSION, 0).embeds[0]?.title ?? "";
 
     expect(title.length).toBeLessThanOrEqual(TITLE_MAX_LENGTH);
     expect(title.endsWith("…")).toBe(true);
@@ -267,17 +294,12 @@ describe("renderOverview: the Alliance Overview embed", () => {
     expect(text).not.toContain("300000000001");
   });
 
-  test("shows when the roster was fetched in the footer, in UTC, as the card does", () => {
-    const reply = overviewOf([alpha]);
+  test("shows no as-of time in the footer, as an Alliance has no map time", () => {
+    const reply = renderOverview(allianceWith([alpha]), undefined, NOW, OWNER_ID, SESSION, 0);
 
-    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker · as of 10:00 UTC");
+    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker");
   });
 
-  test("shows the day and the month of a roster fetched on an earlier day", () => {
-    const reply = renderOverview(allianceWith([alpha]), new Date("2026-10-30T16:00:00Z"), NOW, SESSION, 0);
-
-    expect(reply.embeds[0]?.footer?.text).toBe("Data from Last Asylum Tracker · as of 30 Oct 16:00 UTC");
-  });
 
   test("keeps the whole reply within the message limit when names escape to twice their length and figures are long", () => {
     const roster = Array.from({ length: 30 }, (_, index) =>
@@ -306,7 +328,7 @@ describe("renderOverview: the Alliance card's look", () => {
   });
 
   test("shows the Kingdom in the author line with the Kingdom badge beside it, and the Alliance badge as the thumbnail", () => {
-    const reply = renderOverview({ ...allianceWith([alpha]), details: allianceDetails }, FETCHED_AT, NOW, SESSION, 0);
+    const reply = renderOverview({ ...allianceWith([alpha]), details: allianceDetails }, FETCHED_AT, NOW, OWNER_ID, SESSION, 0);
 
     expect(reply.embeds[0]).toMatchObject({
       author: { name: "Kingdom #1", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
@@ -335,6 +357,7 @@ describe("renderOverview: the Alliance card's look", () => {
       { name: "Top Daily Honor", inline: true },
       { name: "Top Daily Tech", inline: true },
       { name: "Least Active", inline: false },
+      { name: "Newer data", inline: undefined },
     ]);
   });
 });
@@ -458,7 +481,7 @@ describe("renderOverview: the table embed", () => {
   });
 
   test("gives the table the card's color and the Kingdom author with its badge, and no thumbnail", () => {
-    const reply = renderOverview({ ...allianceWith([alpha]), details: allianceDetails }, FETCHED_AT, NOW, SESSION, 0);
+    const reply = renderOverview({ ...allianceWith([alpha]), details: allianceDetails }, FETCHED_AT, NOW, OWNER_ID, SESSION, 0);
 
     expect(reply.embeds[1]).toMatchObject({
       color: ACCENT_COLOR,
@@ -567,12 +590,12 @@ describe("renderOverview: the sort and page buttons", () => {
   test("shows the sort row on a single page, and no page row", () => {
     const reply = overviewOf([alpha, beta]);
 
-    expect(reply.components).toHaveLength(1);
+    expect(reply.components).toHaveLength(2);
     expect(reply.components[0]?.components).toHaveLength(SORTS.length);
   });
 
   test("adds the page row when the table takes more than one page", () => {
-    expect(overviewOf(thirtyRanked, 0).components).toHaveLength(2);
+    expect(overviewOf(thirtyRanked, 0).components).toHaveLength(3);
   });
 
   test("on the first of two pages, Previous is disabled and Next turns to page 2 in the same sort", () => {
@@ -595,7 +618,8 @@ describe("renderOverview: the sort and page buttons", () => {
   test.each([0, 1])("on page %i, the sort and page buttons together have their own custom ids, as Discord requires", (page) => {
     const ids = buttonsOf(overviewOf(thirtyRanked, page).components).map((button) => button.custom_id);
 
-    expect(ids).toHaveLength(SORTS.length + 3);
+    // The sort buttons, Previous, the page label, Next, and the Look again button of the owner.
+    expect(ids).toHaveLength(SORTS.length + 4);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

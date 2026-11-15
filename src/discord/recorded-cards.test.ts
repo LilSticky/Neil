@@ -55,7 +55,7 @@ describe("cards from recorded Game API answers", () => {
         { name: "Alliance Rank", value: "R5", inline: true },
         { name: "Location", value: "X:807 Y:846", inline: true },
       ],
-      footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+      footer: { text: "Data from Last Asylum Tracker · as of 28 Oct 12:33 UTC" },
     });
   });
 
@@ -74,7 +74,7 @@ describe("cards from recorded Game API answers", () => {
       author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
       thumbnail: { url: "https://lastasylumtracker.com/static/alliance/badge_103.png" },
       description: "**Join Requirements:** Open to all",
-      footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
+      footer: { text: "Data from Last Asylum Tracker" },
     });
     // The roster fields follow these seven; their rows are covered in lookup-cards.test.ts.
     expect(card.fields?.slice(0, 7)).toMatchObject([
