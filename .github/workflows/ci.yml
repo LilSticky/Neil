@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 permissions:
   contents: read
@@ -23,15 +23,18 @@ jobs:
       - run: npm run test
       - run: npm run build
 
-  # A green main becomes one new commit on the deploy branch, which Wispbyte pulls on start (research R1).
+  # A green main becomes one new commit on `deploy` (production), a green develop one on `deploy-test` (test Neil);
+  # each Wispbyte server pulls its branch on start (research R1, ADR 16).
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     needs: checks
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      TARGET: ${{ github.ref == 'refs/heads/main' && 'deploy' || 'deploy-test' }}
     concurrency:
-      group: deploy
+      group: deploy-${{ github.ref_name }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -44,8 +47,8 @@ jobs:
       - run: npm run build
       - name: Assemble the deploy commit on top of origin/deploy
         run: |
-          git fetch --no-tags origin deploy
-          git worktree add --detach out origin/deploy
+          git fetch --no-tags origin "$TARGET"
+          git worktree add --detach out "origin/$TARGET"
           find out -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -r dist package-lock.json out/
           # Runtime dependencies only, so Wispbyte's npm install needs no build tools.
@@ -56,7 +59,7 @@ jobs:
             pkg.scripts = { start: pkg.scripts.start };
             fs.writeFileSync("out/package.json", JSON.stringify(pkg, null, 2) + "\n");
             fs.writeFileSync("out/build-info.json", JSON.stringify({
-              version: process.env.GITHUB_SHA.slice(0, 7),
+              version: process.env.GITHUB_SHA.slice(0, 7) + (process.env.TARGET === "deploy" ? "" : "-test"),
               builtAt: new Date().toISOString(),
             }) + "\n");
           '
@@ -69,5 +72,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "deploy: ${GITHUB_SHA::7}"
-          git push origin HEAD:deploy
+          git commit -m "$TARGET: ${GITHUB_SHA::7}"
+          git push origin "HEAD:$TARGET"
+
+  # After a release (develop merged into main with a merge commit), develop starts anew from main: a fast-forward,
+  # never a force-push. If develop moved on during the release, it is left alone and the run says so (ADR 16).
+  restart-develop:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fast-forward develop to main
+        run: |
+          git fetch --no-tags origin develop
+          if git merge-base --is-ancestor origin/develop HEAD; then
+            git push origin HEAD:develop
+          else
+            echo "::warning::develop has commits that are not in main; it was not moved. Release them first."
+          fi

@@ -4,7 +4,8 @@ Neil Police is a second Discord application, separate from Neil. It lets a Claud
 through an MCP server, so Neil's real output can be checked. It also runs a **crawl** that records a server's existing
 layout, once on the real server before the release. Why and what it stores: [ADR 15](adr/0015-neil-police-test-bot-and-server-crawl.md).
 
-Police only reads. It never runs Neil's code, and Neil never uses Police's token.
+On the test server Police also acts, to set up and drive test cases ([ADR 17](adr/0017-neil-police-acts-on-the-test-server.md)).
+It never runs Neil's code, Neil never uses Police's token, and the MCP server never reaches another server.
 
 ## 1. Set up the application (once)
 
@@ -27,9 +28,13 @@ NEIL_POLICE_GUILD_IDS=test-server-id
 
 Open, with the Client ID filled in:
 
-`https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions=66688`
+`https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions=17910416362688`
 
-`66688` = View Channels + Read Message History + View Audit Log. Police gets no other rights. A channel Police's role
+`17910416362688` = View Channels, Read Message History, View Audit Log, Send Messages, Send Messages in Threads, Create
+Public Threads, Embed Links, Add Reactions, Manage Nicknames, Manage Roles, Manage Events, Create Events (ADR 17). No
+Administrator, Kick, Ban, Timeout, Manage Channels, Manage Server or Manage Webhooks. In **Server Settings → Roles**,
+place Police's role **above** the Managed Roles and **below** Neil Test's role, so it can change Members' roles but
+never Neil Test. To widen an earlier invite, open the link again: Discord updates the permissions. A channel Police's role
 cannot see stays hidden from it: since 2026-11-16, Discord sends obfuscated channels to bots that cannot view them. To
 check such a channel, add Police's role to it on the test server.
 
@@ -48,8 +53,22 @@ It refuses to start, and says why, when `NEIL_POLICE_TOKEN` or `NEIL_POLICE_GUIL
 
 Claude Code asks once to enable the project's MCP server, then asks before each tool until you allow it. Allow the
 read-only ones (`discord_list_*`, `discord_get_*`, `discord_read_messages`, `discord_search_*`, `discord_fetch_pinned_messages`,
-`discord_audit_permissions`) in your own `.claude/settings.local.json` if you like. Police's permissions refuse writes
-anyway.
+`discord_audit_permissions`) in your own `.claude/settings.local.json` if you like. Writes stay behind a prompt unless
+you allow them too.
+
+## 3a. Test cases on test Neil
+
+After a `develop` deploy and the restart of `lap-test-neil`, a session checks the slice against the `-test` build:
+
+1. **Before**: confirm the running build (Neil's start line in `#neil-log`, or the user's `/ping`), and record the
+   starting state through Police (roles, nickname, threads, channel messages).
+2. **Arrange** with Police: scheduled events, roles, nicknames, messages, reactions. Name everything Police creates
+   `[test]` so it can be found and cleaned up.
+3. **Act**: what Discord reserves to people (slash commands, buttons, select menus, modals, joining the server) goes to
+   the user as numbered steps, one test case at a time.
+4. **Assert** through Police: Neil's messages and embeds, thread contents, roles, nicknames, `#neil-log` lines, the audit
+   log. Compare with the expected result in the slice's `quickstart.md` or [TEST-RUN.md](TEST-RUN.md).
+5. **Record** pass or fail per case in the slice's `tasks.md`, then clean up what Police created.
 
 Typical checks: read an Interview thread (`discord_list_channel_threads`, `discord_read_messages`), a Member's roles and
 nickname (`discord_get_member_info`), a channel's overwrites (`discord_get_channel_permissions`), the audit log.

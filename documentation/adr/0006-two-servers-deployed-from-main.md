@@ -4,7 +4,7 @@ Date: 2026-10-29
 
 ## Status
 
-Accepted
+Accepted. Partly superseded by [ADR 16](0016-develop-branch-and-test-environment.md)
 
 ## Context
 
