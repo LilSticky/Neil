@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "commands:register": "tsx scripts/register-commands.ts",
-    "server:setup": "tsx scripts/setup-server.ts"
+    "server:setup": "tsx scripts/setup-server.ts",
+    "server:crawl": "tsx scripts/crawl-server.ts"
   },
   "dependencies": {
     "discord.js": "^14.27.0",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@pasympa/discord-mcp": "2.3.0",
     "@types/node": "^24.19.2",
     "eslint": "^10.13.0",
     "tsx": "^4.23.15",
