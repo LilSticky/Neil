@@ -25,6 +25,8 @@ export function grantedRoleBits(name) {
 }
 export const EVERYONE_TARGET = "@everyone";
 export const BOT_TARGET = "Neil";
+/** Neil Police's role on the test server; never named in the layout, only added by the setup plan (issue #127). */
+export const POLICE_TARGET = "Neil Police";
 const KINGDOM_PLACEHOLDER = "#<Home Kingdom>";
 const KING_ROLE = "King";
 const TRANSLATION_BOT_ROLE = "Interaction Bot";

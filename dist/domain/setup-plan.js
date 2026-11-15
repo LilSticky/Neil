@@ -1,18 +1,24 @@
 import { tagOfAllianceRole } from "./managed-roles.js";
-import { BOT_TARGET, EVERYONE_TARGET, expandLayout, permissionBits, } from "./server-layout.js";
+import { BOT_TARGET, EVERYONE_TARGET, POLICE_TARGET, expandLayout, permissionBits, } from "./server-layout.js";
 /** Roles of the layout that may hold any permission without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
+/** What Neil Police's role may do in a channel hidden from @everyone: see it and read its history, nothing more. */
+const POLICE_OVERWRITE = { target: POLICE_TARGET, allow: ["ViewChannel", "ReadMessageHistory"], deny: [] };
 /** The variation selector that turns an emoji into its emoji presentation (U+FE0F). */
 const VARIATION_SELECTOR = /\uFE0F/gu;
 /** The state of a forum the plan creates: no tags, no reaction and no posts. */
 const NO_FORUM_STATE = { tags: [], reaction: undefined, postsReadable: true, howTo: undefined, otherPinned: false };
 /**
  * The steps and findings that make a server match the layout (data-model.md, Setup plan). Reads nothing but its arguments
- * and writes nothing. The `[TAG]` roles of the server give the Alliance areas.
+ * and writes nothing. The `[TAG]` roles of the server give the Alliance areas. With `policeRoleId` (the test server only),
+ * every category and channel hidden from @everyone also gets an overwrite letting Neil Police's role see it (issue #127).
  */
-export function planSetup(layout, server, homeKingdom) {
+export function planSetup(layout, server, homeKingdom, policeRoleId) {
     const allianceRoleNames = allianceRoleNamesOf(server);
-    const expanded = expandLayout(layout, homeKingdom, allianceRoleNames);
+    const policeRoleThere = policeRoleId !== undefined && server.roles.some((role) => role.id === policeRoleId);
+    const findings = policeRoleId !== undefined && !policeRoleThere ? [{ kind: "police-role-missing", roleId: policeRoleId }] : [];
+    const laidOut = expandLayout(layout, homeKingdom, allianceRoleNames);
+    const expanded = policeRoleThere ? withPolice(laidOut) : laidOut;
     const plan = {
         server,
         missingExternalRoles: new Set(),
@@ -22,9 +28,10 @@ export function planSetup(layout, server, homeKingdom) {
         topicSteps: [],
         descriptionSteps: [],
         forumSteps: [],
-        findings: [],
+        findings,
         rolePermissions: layout.rolePermissions ?? {},
         claimed: new Set(),
+        policeRoleId: policeRoleThere ? policeRoleId : undefined,
     };
     planRoles(plan, expanded);
     planRolePermissions(plan, layout.rolePermissions ?? {});
@@ -43,6 +50,21 @@ export function planSetup(layout, server, homeKingdom) {
             ...plan.forumSteps,
         ],
         findings: plan.findings,
+    };
+}
+/**
+ * The expanded layout with Neil Police's overwrite on every category and channel hidden from @everyone. Added after the
+ * expansion, so the topics and descriptions stay as the layout gives them.
+ */
+function withPolice(layout) {
+    const addPolice = (overwrites) => wantsHiddenFromEveryone(overwrites) ? [...overwrites, POLICE_OVERWRITE] : overwrites;
+    return {
+        ...layout,
+        categories: layout.categories.map((category) => ({
+            ...category,
+            overwrites: addPolice(category.overwrites),
+            channels: category.channels.map((channel) => ({ ...channel, overwrites: addPolice(channel.overwrites) })),
+        })),
     };
 }
 /** The names of the server's `[TAG]` roles, which give the Alliance areas. */
@@ -300,7 +322,7 @@ function typeMatches(actual, expected, hasCommunity) {
  */
 function checkOverwrites(plan, existing, wanted, steps) {
     const { server } = plan;
-    const wantedIds = new Set(wanted.map((overwrite) => targetIdOf(server, overwrite.target)));
+    const wantedIds = new Set(wanted.map((overwrite) => targetIdOf(plan, overwrite.target)));
     for (const overwrite of existing.overwrites) {
         if (!wantedIds.has(overwrite.targetId)) {
             plan.findings.push({ kind: "extra-overwrite", name: existing.name, target: describeTarget(server, overwrite.targetId) });
@@ -309,13 +331,13 @@ function checkOverwrites(plan, existing, wanted, steps) {
     const hidesFromEveryone = wantsHiddenFromEveryone(wanted) && !isHiddenFromEveryone(server, existing);
     if (hidesFromEveryone)
         plan.findings.push({ kind: "hides-from-everyone", name: existing.name });
-    const missing = wanted.filter((overwrite) => isMissing(server, existing, overwrite));
+    const missing = wanted.filter((overwrite) => isMissing(plan, existing, overwrite));
     if (missing.length > 0) {
         steps.push({ kind: "correct-overwrites", id: existing.id, name: existing.name, hidesFromEveryone, overwrites: missing });
     }
 }
-function isMissing(server, existing, wanted) {
-    const id = targetIdOf(server, wanted.target);
+function isMissing(plan, existing, wanted) {
+    const id = targetIdOf(plan, wanted.target);
     const current = existing.overwrites.find((overwrite) => overwrite.targetId === id);
     return (wanted.allow.some((permission) => !(current?.allow.includes(permission) ?? false)) ||
         wanted.deny.some((permission) => !(current?.deny.includes(permission) ?? false)));
@@ -331,9 +353,12 @@ function usable(plan, overwrites) {
     return overwrites.filter((overwrite) => !plan.missingExternalRoles.has(overwrite.target));
 }
 /** The server id of a wanted target; undefined when no single role of that name exists (yet). */
-function targetIdOf(server, target) {
+function targetIdOf(plan, target) {
+    const { server } = plan;
     if (target === EVERYONE_TARGET)
         return server.everyoneId;
+    if (target === POLICE_TARGET)
+        return plan.policeRoleId;
     if (target === BOT_TARGET)
         return server.botUserId;
     const found = lookup(server.roles.filter((role) => role.name === target));
