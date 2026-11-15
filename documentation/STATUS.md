@@ -7,7 +7,7 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
-Docs (2026-11-14): the tracker's game data changes only when someone presses Update Map on its site (30 min cooldown per Kingdom and per IP); `age_seconds` and `?fresh=1` concern only its answer copy. GAME-API.md Freshness corrected; the wrong "as of" clock and the value of `?fresh=1` are issue [#100](https://github.com/LilSticky/Neil/issues/100) (needs a scope decision).
+Slice 032, Show how old game data is ([specs](../specs/032-show-how-old-game-data-is/), issue [#100](https://github.com/LilSticky/Neil/issues/100)): the tracker's game data changes only when someone uses Update Map on its site (Map Refresh, 30 min cooldown per Kingdom and per IP); `age_seconds` and `?fresh=1` only concern its answer copy. The user's decisions (2026-11-14): a Player card's "as of" is the Player's `map_updated_at`; Alliance cards and the Overview show none; every lookup card older than 5 minutes (Alliances always) carries a "Newer data" field with the Kingdom's map link and a 🔄 Look again button that repeats the lookup live (charged like a lookup; `/reaper closest` uncharged); `?fresh=1` is gone everywhere else. New term Map Refresh. No migration, no new command. T001–T015 done; review, audit and the manual check ([quickstart.md](../specs/032-show-how-old-game-data-is/quickstart.md)) next.
 
 Docs (2026-11-14): [DISCORD-PLATFORM.md](DISCORD-PLATFORM.md) collects Discord's official rules and limits (intents, role hierarchy, rate limits, interactions, commands, components, scheduled events) and where Neil depends on them. **Watch:** Discord obfuscates channels a bot cannot view from 2026-11-16; check scheduled events and channel lookups after that date.
 

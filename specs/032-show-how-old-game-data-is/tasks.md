@@ -85,7 +85,7 @@ None (no new dependency, no migration).
 
 ## Phase 6: Polish
 
-- [ ] T016 [P] `documentation/GAME-API.md` Freshness: how Neil uses `map_updated_at` and `?fresh=1` after this slice
+- [x] T016 [P] `documentation/GAME-API.md` Freshness: how Neil uses `map_updated_at` and `?fresh=1` after this slice
   (FR-012); `documentation/ROADMAP.md` and `documentation/STATUS.md`.
 - [ ] T017 Review (`bot-reviewer`) and fixes; spec audit (`spec-auditor`) into `review.md` and `audit.md`.
 - [ ] T018 Manual check on the test server per [quickstart.md](quickstart.md) after the deploy.
