@@ -1,4 +1,5 @@
 import {
+  ButtonStyle,
   ComponentType,
   type APIActionRowComponent,
   type APIButtonComponentWithCustomId,
@@ -27,9 +28,12 @@ import type {
 } from "../domain/player.js";
 import {
   compactNumber,
+  footerFor,
   joinRequirementsText,
   languageName,
+  lookAgainRow,
   lookupMessages,
+  newerDataField,
   renderAllianceCard,
   renderAllianceComponents,
   renderAlliancePickList,
@@ -42,6 +46,9 @@ import {
   trackerPicture,
 } from "./lookup-cards.js";
 import { usageLine, withUsage } from "./usage-texts.js";
+
+/** The Member who ran the lookup: the owner of every Look again button in these tests. */
+const OWNER_ID = "310000000000000001";
 
 function uid(text: string): Uid {
   const parsed = parseUid(text);
@@ -372,6 +379,24 @@ describe("card footers say when the data was fetched", () => {
   ])("$label writes the day of the month without a leading zero", ({ render }) => {
     expect(render(new Date("2026-10-03T09:05:00Z"), NOW)).toMatchObject({
       footer: { text: "Data from Last Asylum Tracker · as of 3 Oct 09:05 UTC" },
+    });
+  });
+});
+
+describe("card footers without a map time", () => {
+  test("footerFor with no asOf credits the tracker and shows no as-of time", () => {
+    expect(footerFor(undefined, NOW)).toEqual({ text: "Data from Last Asylum Tracker" });
+  });
+
+  test("an Alliance card with no asOf has the tracker credit and no as-of time", () => {
+    expect(renderAllianceCard(alliance, undefined, NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker" },
+    });
+  });
+
+  test("a Player card with no asOf has the tracker credit and no as-of time", () => {
+    expect(renderPlayerCard(inAlliance, undefined, NOW)).toMatchObject({
+      footer: { text: "Data from Last Asylum Tracker" },
     });
   });
 });
@@ -976,15 +1001,68 @@ describe("renderAllianceComponents", () => {
   const SESSION_ID = "a1b2c3d4";
 
   test("puts an Overview button in a row after the roster menu, its custom id starting with the pick session, for any Member", () => {
-    const rows = renderAllianceComponents({ ...alliance, roster: rosterMembers(3) }, 0, SESSION_ID);
+    const rows = renderAllianceComponents({ ...alliance, roster: rosterMembers(3) }, 0, SESSION_ID, OWNER_ID);
 
     expect(rows[0]).toMatchObject({ components: [{ type: ComponentType.StringSelect }] });
-    expect(buttonsWithCustomIdOf(rows.slice(1))).toEqual([
+    expect(buttonsWithCustomIdOf(rows.slice(1, -1))).toEqual([
       expect.objectContaining({
         label: "Overview",
         custom_id: expect.stringMatching(new RegExp(`^pick:${SESSION_ID}:overview`)) as unknown,
       }) as unknown,
     ]);
+  });
+
+  test("ends with a Look again row for the owner, after the Overview row, for an Alliance with a roster", () => {
+    const rows = renderAllianceComponents({ ...alliance, roster: rosterMembers(3) }, 0, SESSION_ID, OWNER_ID);
+
+    expect(rows.at(-1)).toEqual(lookAgainRow(`again:${OWNER_ID}:a:1:NML`));
+  });
+
+  test("still ends with the Look again row for the owner when the roster is empty", () => {
+    const rows = renderAllianceComponents({ ...alliance, roster: [] }, 0, SESSION_ID, OWNER_ID);
+
+    expect(rows).toEqual([lookAgainRow(`again:${OWNER_ID}:a:1:NML`)]);
+  });
+});
+
+describe("newerDataField", () => {
+  test("names the Kingdom's map, linked to its Kingdom page, when the Kingdom is known", () => {
+    expect(newerDataField(kingdom(330))).toEqual({
+      name: "Newer data",
+      value:
+        "Use **Update Map** on the [Kingdom 330 map](https://lastasylumtracker.com/map?kid=330), wait until it has finished, then press 🔄 Look again.",
+    });
+  });
+
+  test("links the tracker's map page when the Kingdom is unknown", () => {
+    expect(newerDataField(undefined)).toEqual({
+      name: "Newer data",
+      value:
+        "Use **Update Map** on the [tracker map](https://lastasylumtracker.com/map), wait until it has finished, then press 🔄 Look again.",
+    });
+  });
+});
+
+describe("lookAgainRow", () => {
+  const CUSTOM_ID = `again:${OWNER_ID}:p:145563254785`;
+
+  test("is one action row holding one secondary button labelled Look again with the 🔄 emoji", () => {
+    const row = lookAgainRow(CUSTOM_ID);
+
+    expect(row.type).toBe(ComponentType.ActionRow);
+    expect(row.components).toHaveLength(1);
+    expect(row.components[0]).toMatchObject({
+      type: ComponentType.Button,
+      style: ButtonStyle.Secondary,
+      label: "Look again",
+      emoji: { name: "🔄" },
+    });
+  });
+
+  test("gives the button the custom id it was made with", () => {
+    const row = lookAgainRow(CUSTOM_ID);
+
+    expect(row.components[0]).toMatchObject({ custom_id: CUSTOM_ID });
   });
 });
 

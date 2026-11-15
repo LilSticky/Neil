@@ -570,3 +570,36 @@ describe("allianceBodySchema age_seconds", () => {
     expect(parsed.data?.age_seconds).toBeUndefined();
   });
 });
+
+const UNUSABLE_MAP_TIMES: readonly { readonly label: string; readonly value: unknown }[] = [
+  { label: "a null map time", value: null },
+  { label: "a map time of 0", value: 0 },
+  { label: "a negative map time", value: -1 },
+  { label: "a map time that is text", value: "1794694391" },
+  { label: "a map time that is infinite", value: Number.POSITIVE_INFINITY },
+  { label: "a map time that is not a number", value: Number.NaN },
+  { label: "a map time beyond the range of a date", value: 9e12 },
+];
+
+describe("playerBodySchema map_updated_at", () => {
+  test("reads a map time of fractional Unix seconds as it is", () => {
+    const parsed = playerBodySchema.safeParse({ ...playerInAlliance, map_updated_at: 1794694391.8899426 });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.map_updated_at).toBe(1794694391.8899426);
+  });
+
+  test("reads a missing map time as undefined, and still accepts the body", () => {
+    const parsed = playerBodySchema.safeParse(withoutField(playerInAlliance, "map_updated_at"));
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.map_updated_at).toBeUndefined();
+  });
+
+  test.each(UNUSABLE_MAP_TIMES)("reads $label as undefined, and still accepts the body", ({ value }) => {
+    const parsed = playerBodySchema.safeParse({ ...playerInAlliance, map_updated_at: value });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.map_updated_at).toBeUndefined();
+  });
+});

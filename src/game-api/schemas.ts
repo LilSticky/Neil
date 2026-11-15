@@ -30,6 +30,12 @@ const MAX_DATE_SECONDS = 8_640_000_000_000;
 const unixSecondsSchema = z.number().int().positive().max(MAX_DATE_SECONDS).optional().catch(undefined);
 
 /**
+ * When the Game's map last changed, in Unix seconds (fractional); a finite number above zero and within the range of a
+ * Date, any other value reads as undefined.
+ */
+const mapUpdatedAtSchema = z.number().positive().max(MAX_DATE_SECONDS).optional().catch(undefined);
+
+/**
  * A picture path under /static/, of a picture extension (see PICTURE_PATH_PATTERN); any other value reads as undefined.
  */
 const picturePathSchema = z.string().regex(PICTURE_PATH_PATTERN).optional().catch(undefined);
@@ -69,6 +75,8 @@ export const playerBodySchema = z.object({
   vip: wholeCountSchema,
   likes: wholeCountSchema,
   last_online_at: unixSecondsSchema,
+  /** When the Game's map last changed; unreadable reads as undefined, and the body is still accepted. */
+  map_updated_at: mapUpdatedAtSchema,
   language: languageSchema,
   x: wholeCountSchema,
   y: wholeCountSchema,

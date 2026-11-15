@@ -84,6 +84,7 @@ function handlers() {
     bootyButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
+    lookAgain: vi.fn(() => Promise.resolve()),
     memberJoined: vi.fn(() => Promise.resolve()),
     memberLeft: vi.fn(() => Promise.resolve()),
     memberOnline: vi.fn(() => Promise.resolve()),
@@ -460,6 +461,20 @@ describe("createClient", () => {
 
     expect(routed.overview).toHaveBeenCalledWith(interaction);
     expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with again: to the Look again handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "again:310000000000000001:p:145563254785");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.lookAgain).toHaveBeenCalledWith(interaction);
+    expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.overview).not.toHaveBeenCalled();
+    expect(routed.reaperPage).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
   });
 

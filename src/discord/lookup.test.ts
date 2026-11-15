@@ -23,9 +23,9 @@ import {
   usageLineFor,
   FAKE_USED_BEFORE,
 } from "./__fakes__/usage.js";
-import { lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
+import { lookAgainRow, lookupMessages, renderAllianceComponents } from "./lookup-cards.js";
 import type { PickChoice } from "./pick-sessions.js";
-import { callerOf, handleAlliance, handlePlayer } from "./lookup.js";
+import { allianceCardMessage, callerOf, handleAlliance, handlePlayer, playerCardMessage } from "./lookup.js";
 
 const UID = "145563254785";
 const USER_ID = "310000000000000001";
@@ -162,6 +162,7 @@ describe("handlePlayer", () => {
               footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
+          components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
           allowedMentions: { parse: [] },
         },
       },
@@ -190,6 +191,7 @@ describe("handlePlayer", () => {
               },
             }),
           ],
+          components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
           allowedMentions: { parse: [] },
         },
       },
@@ -348,6 +350,7 @@ describe("handlePlayer with a uid, a name or neither", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "Vex" })],
+          components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
           allowedMentions: { parse: [] },
         },
       },
@@ -683,6 +686,7 @@ describe("handleAlliance", () => {
               footer: { text: `Data from Last Asylum Tracker · as of 15:20 UTC · ${usageLineFor(MEMBER, FAKE_USED_BEFORE)}` },
             }),
           ],
+          components: [lookAgainRow(`again:${USER_ID}:a:1:NML`)],
           allowedMentions: { parse: [] },
         },
       },
@@ -867,7 +871,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID),
+          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID, USER_ID),
           allowedMentions: { parse: [] },
         },
       },
@@ -887,7 +891,9 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
     expect(pickSessions.open).not.toHaveBeenCalled();
     expect(interaction.calls).toHaveLength(2);
     const reply = interaction.calls[1];
-    expect(reply?.method === "editReply" ? reply.options.components ?? [] : undefined).toEqual([]);
+    expect(reply?.method === "editReply" ? reply.options.components ?? [] : undefined).toEqual([
+      lookAgainRow(`again:${USER_ID}:a:1:NML`),
+    ]);
   });
 });
 
@@ -923,7 +929,7 @@ describe("handleAlliance by the Alliance's full name", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID),
+          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID, USER_ID),
           allowedMentions: { parse: [] },
         },
       },
@@ -1195,6 +1201,7 @@ describe("handlePlayer when the card cannot be sent", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "Vex" })],
+          components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
           allowedMentions: { parse: [] },
         },
       },
@@ -1334,6 +1341,7 @@ describe("handleAlliance when the card cannot be sent", () => {
         method: "editReply",
         options: {
           embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
+          components: [lookAgainRow(`again:${USER_ID}:a:1:NML`)],
           allowedMentions: { parse: [] },
         },
       },
@@ -1444,6 +1452,86 @@ function refusingAllianceContext() {
   };
   return { gameApi, context };
 }
+
+/** The Newer data field of a card for Kingdom 330 and for Kingdom 1, as the Member reads it. */
+const NEWER_DATA_KINGDOM_330 = {
+  name: "Newer data",
+  value:
+    "Use **Update Map** on the [Kingdom 330 map](https://lastasylumtracker.com/map?kid=330), wait until it has finished, then press 🔄 Look again.",
+};
+const NEWER_DATA_KINGDOM_1 = {
+  name: "Newer data",
+  value:
+    "Use **Update Map** on the [Kingdom 1 map](https://lastasylumtracker.com/map?kid=1), wait until it has finished, then press 🔄 Look again.",
+};
+
+/** The names of the fields of a card's first embed. */
+function fieldNamesOf(embeds: readonly { readonly fields?: readonly { readonly name: string }[] }[]): string[] {
+  return (embeds[0]?.fields ?? []).map((field) => field.name);
+}
+
+describe("playerCardMessage with the map time of the answer", () => {
+  test("ends with the Newer data field and a Look again button for the owner when the map time is 44 minutes old", () => {
+    const asOf = new Date(NOW.getTime() - 44 * 60_000);
+
+    const message = playerCardMessage(player, asOf, NOW, USER_ID);
+
+    expect(message.embeds[0]?.fields?.at(-1)).toEqual(NEWER_DATA_KINGDOM_330);
+    expect(message.components).toEqual([lookAgainRow(`again:${USER_ID}:p:${UID}`)]);
+  });
+
+  test("ends with the Newer data field and a Look again button for the owner when the map time is unknown", () => {
+    const message = playerCardMessage(player, undefined, NOW, USER_ID);
+
+    expect(message.embeds[0]?.fields?.at(-1)).toEqual(NEWER_DATA_KINGDOM_330);
+    expect(message.components).toEqual([lookAgainRow(`again:${USER_ID}:p:${UID}`)]);
+  });
+
+  test("shows neither the Newer data field nor a Look again button when the map time is 2 minutes old", () => {
+    const asOf = new Date(NOW.getTime() - 2 * 60_000);
+
+    const message = playerCardMessage(player, asOf, NOW, USER_ID);
+
+    expect(fieldNamesOf(message.embeds)).not.toContain("Newer data");
+    expect(message.components ?? []).toEqual([]);
+  });
+});
+
+describe("handlePlayer's card when the map time is old", () => {
+  test("edits the reply to the card with the Look again button for the Member who ran the command", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { uid: UID } }, USER_ID);
+    const { context } = contextReturning({ kind: "found", value: player, asOf: FETCHED_AT });
+
+    await handlePlayer(interaction, context);
+
+    expect(interaction.calls.at(-1)).toEqual({
+      method: "editReply",
+      options: expect.objectContaining({
+        components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
+      }) as unknown,
+    });
+  });
+});
+
+describe("allianceCardMessage with the Newer data field and the Look again button", () => {
+  test("ends the card with the Newer data field for the Alliance's Kingdom, even when the answer is fresh", () => {
+    const message = allianceCardMessage(alliance, NOW, NOW, USER_ID, pickSessionsSpy());
+
+    expect(message.embeds[0]?.fields?.at(-1)).toEqual(NEWER_DATA_KINGDOM_1);
+  });
+
+  test("ends the components with a Look again row for the owner, after the roster menu, when the roster has members", () => {
+    const message = allianceCardMessage(allianceWithRoster, FETCHED_AT, NOW, USER_ID, pickSessionsSpy());
+
+    expect(message.components?.at(-1)).toEqual(lookAgainRow(`again:${USER_ID}:a:1:NML`));
+  });
+
+  test("carries only the Look again row for the owner when the roster is empty", () => {
+    const message = allianceCardMessage(alliance, FETCHED_AT, NOW, USER_ID, pickSessionsSpy());
+
+    expect(message.components).toEqual([lookAgainRow(`again:${USER_ID}:a:1:NML`)]);
+  });
+});
 
 describe("callerOf", () => {
   test("names the Member who ran the command, not an Officer, when the Member holds no Officer role", () => {
@@ -1711,6 +1799,7 @@ describe("handlePlayer when the usage line cannot be read", () => {
               footer: { text: "Data from Last Asylum Tracker · as of 15:20 UTC" },
             }),
           ],
+          components: [lookAgainRow(`again:${USER_ID}:p:${UID}`)],
           allowedMentions: { parse: [] },
         },
       },

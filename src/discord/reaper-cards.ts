@@ -2,16 +2,27 @@ import {
   ButtonStyle,
   ComponentType,
   type APIActionRowComponent,
+  type APIButtonComponentWithCustomId,
   type APIComponentInMessageActionRow,
   type APIEmbed,
   type APIEmbedField,
   type InteractionEditReplyOptions,
 } from "discord.js";
+import { isOld } from "../domain/data-age.js";
 import { utcDayOf } from "../domain/daily-quota.js";
 import type { Exile, ExileRanking, RankedExile } from "../domain/exile.js";
 import type { Uid } from "../domain/lookup-input.js";
 import { allowedMentions, sharedPlayerFailureText } from "./lookup.js";
-import { CARD_COLOR, escapeText, fitTitle, kingdomAuthor, renderPlayerCard } from "./lookup-cards.js";
+import {
+  CARD_COLOR,
+  escapeText,
+  fitTitle,
+  kingdomAuthor,
+  lookAgainRow,
+  renderPlayerCard,
+  withNewerData,
+} from "./lookup-cards.js";
+import { lookAgainCustomId, type LookAgainTarget } from "./look-again.js";
 import type { ClosestRanking, FreshRead } from "./reaper.js";
 import { clampReaperPage, reaperPageCount, reaperPageOf, reaperPageCustomId } from "./reaper-pages.js";
 import { reaperMessages } from "./reaper-texts.js";
@@ -22,7 +33,9 @@ export const CLOSEST_PAGE_SIZE = 3;
 export const LIST_PAGE_SIZE = 8;
 
 /** What a /reaper answer edits in: the text, the embeds, the page buttons and the mentions it may ping. */
-export type ReaperAnswer = Pick<InteractionEditReplyOptions, "content" | "embeds" | "components" | "allowedMentions">;
+export type ReaperAnswer = Pick<InteractionEditReplyOptions, "content" | "components" | "allowedMentions"> & {
+  readonly embeds?: readonly APIEmbed[];
+};
 
 /** The page buttons under a paged answer: Previous, the page and Next. None when there is one page or no session. */
 export function pageButtonsOf(
@@ -114,24 +127,53 @@ function noCardsText(ranking: ClosestRanking, now: Date): string {
 }
 
 /**
+ * The map time a shown Exile's position is as of: the stored time of a stored position, else the read's map time, or
+ * now when the Game gave none. Undefined (so old) only when a stored position has no time.
+ */
+function positionAsOf(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, now: Date): Date | undefined {
+  if (entry.stale) return entry.exile.lastPosition?.at;
+  return reads.get(entry.exile.uid)?.asOf ?? now;
+}
+
+/**
+ * The Look again button of a /reaper closest answer: it repeats the answer from the x and y the command gave, if any, and
+ * keeps the paging when the answer is paged.
+ */
+function closestLookAgainRow(
+  ranking: ClosestRanking,
+  ownerId: string,
+  all: boolean,
+): APIActionRowComponent<APIButtonComponentWithCustomId> {
+  const target: LookAgainTarget =
+    ranking.given === undefined ? { kind: "reaper", all } : { kind: "reaper", all, origin: ranking.given };
+  return lookAgainRow(lookAgainCustomId(ownerId, target));
+}
+
+/**
  * The answer to /reaper closest on one page: the header and up to 3 Exile cards with the page buttons; or the text when
- * none can be shown.
+ * none can be shown. When a position shown is old, the header carries the Newer data field and the answer the Look again
+ * button of `ownerId`, the Member who ran the command.
  */
 export function closestAnswer(
   ranking: ClosestRanking,
   now: Date,
   page: number,
   sessionId: string | undefined,
+  ownerId: string,
 ): ReaperAnswer {
   if (ranking.ranking.length === 0) return { content: noCardsText(ranking, now), allowedMentions };
   const pageCount = reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE);
   const current = clampReaperPage(page, pageCount);
-  const cards = reaperPageOf(ranking.ranking, current, CLOSEST_PAGE_SIZE).map((entry) =>
-    closestCard(entry, ranking.reads, now),
-  );
+  const shown = reaperPageOf(ranking.ranking, current, CLOSEST_PAGE_SIZE);
+  const cards = shown.map((entry) => closestCard(entry, ranking.reads, now));
+  const old = shown.some((entry) => isOld(positionAsOf(entry, ranking.reads, now), now));
+  const header = closestHeader(ranking);
   return {
-    embeds: [closestHeader(ranking), ...cards],
-    components: pageButtonsOf(sessionId, current, pageCount),
+    embeds: [old ? withNewerData(header, ranking.kingdom) : header, ...cards],
+    components: [
+      ...pageButtonsOf(sessionId, current, pageCount),
+      ...(old ? [closestLookAgainRow(ranking, ownerId, sessionId !== undefined)] : []),
+    ],
     allowedMentions,
   };
 }

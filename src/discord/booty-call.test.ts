@@ -275,6 +275,18 @@ describe("/booty and its Booty Call", () => {
       expect(buttonIdsOf(asked)).toContain(`booty:cancel:${ALICE}`);
     });
 
+    test("the posted card carries no Newer data field and no Look again button", async () => {
+      enrol(ALICE, ALICE_UID, [NML_ROLE]);
+      const asked = await askBooty(ALICE);
+
+      await press(confirmIdOf(asked), ALICE);
+
+      expect(server.posts).toHaveLength(1);
+      const posted = JSON.stringify(server.posts[0]?.message ?? null);
+      expect(posted).not.toContain("Newer data");
+      expect(posted).not.toContain("again:");
+    });
+
     test("a Confirm within the minute posts the card in the channel", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       const asked = await askBooty(ALICE);
@@ -347,22 +359,13 @@ describe("/booty and its Booty Call", () => {
       expect(game.lookups).toEqual([{ uid: ALICE_UID, purpose: "lookup" }]);
     });
 
-    test("the roster's Player is read live, not from the copy", async () => {
+    test("the roster's Player is read from the copy, with no live request", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
       roster(rosterEntry(ALICE_UID, "Alice Game", { online: true }));
 
       await bootyCallBy(ALICE);
 
-      expect(game.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
-    });
-
-    test("the roster's Player is read live, not from the copy", async () => {
-      enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
-      roster(rosterEntry(ALICE_UID, "Alice Game", { online: true }));
-
-      await bootyCallBy(ALICE);
-
-      expect(game.lookups.map((lookup) => lookup.freshness ?? "live")).toEqual(["live"]);
+      expect(game.lookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
     });
 
     test("a Member who chose Only when online is mentioned while the game says they are online", async () => {

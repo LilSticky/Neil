@@ -15,7 +15,7 @@ export type PickChoice =
       readonly kind: "roster";
       readonly entries: readonly RosterEntry[];
       readonly alliance: Alliance;
-      readonly asOf: Date;
+      readonly asOf: Date | undefined;
     };
 
 /** A pick list as the bot remembers it: who opened it, what it offers, the page shown and when. */
