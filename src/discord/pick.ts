@@ -21,6 +21,7 @@ import {
   playerPickLabel,
   renderAllianceCard,
   renderAllianceComponents,
+  withNewerData,
 } from "./lookup-cards.js";
 import { parseOverviewCustomId, renderOverview, type OverviewReply } from "./overview-texts.js";
 import {
@@ -174,13 +175,14 @@ async function pickPlayerMatch(
 
   await showPicked(interaction, playerPickLabel(match));
   const uid = parsedUid.value;
+  const ownerId = interaction.user.id;
   const caller = callerOf(interaction, context.officerRoleIds);
   await answerPick(
     interaction,
     context,
     caller,
     () => context.gameApi.chargedTo(caller).getPlayer(uid),
-    playerCardMessage,
+    (player, asOf, now) => playerCardMessage(player, asOf, now, ownerId),
     (failure, now) => ({ content: playerFailureText(failure, uid, now) }),
   );
 }
@@ -297,7 +299,7 @@ async function pickRosterMember(
     context,
     caller,
     () => context.gameApi.chargedTo(caller).getPlayer(entry.uid),
-    playerCardMessage,
+    (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id),
     (failure, now) => ({ content: playerFailureText(failure, entry.uid, now) }),
   );
 }
@@ -346,8 +348,8 @@ async function turnRosterPage(
   const caller = callerOf(interaction, context.officerRoleIds);
   await interaction.update(
     withCallerUsage(context, caller, {
-      embeds: [renderAllianceCard(choice.alliance, choice.asOf, context.now(), page)],
-      components: renderAllianceComponents(choice.alliance, page, session.id),
+      embeds: [withNewerData(renderAllianceCard(choice.alliance, choice.asOf, context.now(), page), choice.alliance.kingdom)],
+      components: renderAllianceComponents(choice.alliance, page, session.id, interaction.user.id),
     }),
   );
 }
@@ -380,11 +382,11 @@ function overviewUnderCard(
 ): OverviewReply {
   const heldId = card.overviews.get(askerId);
   if (heldId !== undefined && pickSessions.get(heldId, now) !== "expired") {
-    return renderOverview(alliance, asOf, now, heldId, 0);
+    return renderOverview(alliance, asOf, now, askerId, heldId, 0);
   }
   const sessionId = openOverviewSession(alliance, asOf, askerId, pickSessions, now);
   pickSessions.linkOverview(card.id, askerId, sessionId);
-  return renderOverview(alliance, asOf, now, sessionId, 0);
+  return renderOverview(alliance, asOf, now, askerId, sessionId, 0);
 }
 
 /**
@@ -437,7 +439,7 @@ async function pressOverview(
     caller,
     () => context.gameApi.chargedTo(caller).getAlliance(kingdomNumber, tag),
     (alliance, asOf, now) =>
-      renderOverview(alliance, asOf, now, openOverviewSession(alliance, asOf, askerId, context.pickSessions, now), 0),
+      renderOverview(alliance, asOf, now, askerId, openOverviewSession(alliance, asOf, askerId, context.pickSessions, now), 0),
     (failure, now) =>
       failure.kind === "ambiguous"
         ? { content: lookupMessages.tryAgain }
@@ -502,7 +504,11 @@ export async function handleOverview(interaction: PickInteraction, context: Pick
     const caller = callerOf(interaction, context.officerRoleIds);
     await sendOverview(interaction, context, () =>
       interaction.update(
-        withCallerUsage(context, caller, renderOverview(alliance, asOf, context.now(), session.id, parsed.page, parsed.sort)),
+        withCallerUsage(
+          context,
+          caller,
+          renderOverview(alliance, asOf, context.now(), interaction.user.id, session.id, parsed.page, parsed.sort),
+        ),
       ),
     );
   });

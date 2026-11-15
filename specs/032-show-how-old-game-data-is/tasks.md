@@ -44,17 +44,17 @@ None (no new dependency, no migration).
 **Independent test**: a card with a 44-minute-old map time carries the "Newer data" field with the Kingdom link and the
 🔄 Look again button; a 2-minute-old one carries neither; a press makes one live request and updates the card.
 
-- [ ] T008 [US2] Card pieces in `src/discord/lookup-cards.ts` (+ test): `newerDataField(kingdom | undefined)` →
+- [x] T008 [US2] Card pieces in `src/discord/lookup-cards.ts` (+ test): `newerDataField(kingdom | undefined)` →
   `{ name: "Newer data", value: "Use **Update Map** on the [Kingdom 330 map](https://lastasylumtracker.com/map?kid=330), wait until it has finished, then press 🔄 Look again." }`
   (without a Kingdom: `[tracker map](https://lastasylumtracker.com/map)`); `lookAgainRow(customId)` → one action row
   with a secondary button, label `Look again`, emoji 🔄. Custom ids per data-model.md: `again:<ownerId>:p:<uid>`,
   `again:<ownerId>:a:<kingdom>:<tag>`, `again:<ownerId>:o:<kingdom>:<tag>`, `again:<ownerId>:r` or
   `again:<ownerId>:r:<x>:<y>`; `lookAgainCustomId(...)` and `parseLookAgainCustomId(id)` (malformed → undefined) in
   `src/discord/look-again.ts` (+ test). Custom ids ≤ 100 characters.
-- [ ] T009 [US2] Player cards carry the field (Player's Kingdom) and the button when `isOld(asOf, now)`
+- [x] T009 [US2] Player cards carry the field (Player's Kingdom) and the button when `isOld(asOf, now)`
   (`playerCardMessage` in `src/discord/lookup.ts`, used by `/player` and picks in `src/discord/pick.ts`) (+ tests:
   44 min old → both; 2 min old → neither; unknown → both). The owner id is the caller's.
-- [ ] T010 [US2] Alliance cards and the Alliance Overview always carry the field (the Alliance's Kingdom) and the button
+- [x] T010 [US2] Alliance cards and the Alliance Overview always carry the field (the Alliance's Kingdom) and the button
   (`allianceCardMessage` in `src/discord/lookup.ts`, `renderAllianceComponents`, `renderOverview` and their callers in
   `src/discord/pick.ts`) (+ tests). The button row goes below the existing rows.
 - [x] T011 [US2] Game API client: `live` skips Neil's cache and asks with `?fresh=1`; `copy` reads the cache within the
