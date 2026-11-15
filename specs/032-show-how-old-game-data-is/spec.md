@@ -34,6 +34,8 @@ Not live yet: no backwards compatibility.
   Alliance Overview, REAPER); not the Interview, corrections, Daily Sync or Booty Call.
 - Q: A dictionary term for the tracker's map re-read? → A: Map Refresh (added to DICTIONARY.md).
 - Q: The button's label? → A: "🔄 Look again".
+- Q: A Look again press on `/reaper closest` re-reads every Exile live; who pays? → A: the presser: each live read counts
+  against their Daily Allowance like `/player` (review finding, 2026-11-15).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -139,6 +141,11 @@ button of User Story 2 asks live, because then the Member has just refreshed the
 - **FR-007**: A button press MUST count as one lookup against the presser's Daily Allowance and the Daily Quota, and MUST
   be refused like any lookup when the allowance or the Quota Reserve forbids it.
 - **FR-008**: Only the Member who ran the lookup MAY use the button.
+- **FR-008a**: A press on `/reaper closest` MUST charge each live Exile read to the presser's Daily Allowance; reads
+  refused by the allowance or the Quota Reserve stop, and the Exiles not read keep their stored positions. It keeps the
+  answer's paging (`all`).
+- **FR-008b**: A live lookup refused by the Daily Quota or the Quota Reserve MUST be refused, not answered from Neil's
+  stale cache.
 - **FR-009**: Neil MUST NOT ask the tracker for live data anywhere except the button.
 - **FR-010**: Neil's own cache MUST answer every lookup except the button from any entry within the cache window
   (`GAME_API_CACHE_MINUTES`); the live/copy distinction of slice 031 goes.

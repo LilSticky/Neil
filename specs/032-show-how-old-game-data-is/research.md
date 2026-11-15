@@ -55,3 +55,4 @@
   must store a time). `/reaper closest` carries the hint (Home Kingdom or the measured Kingdom) and the button when any
   ranked position on the page is old. `/reaper add` shows no game data and gets neither; `/reaper list` shows stored
   data, not a lookup, and keeps only its times.
+- **Amended 2026-11-15** (review, user decision): a Look again press on `/reaper closest` charges each live read to the presser's Daily Allowance and keeps `all` paging.

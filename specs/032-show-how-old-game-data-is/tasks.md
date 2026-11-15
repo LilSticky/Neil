@@ -87,6 +87,11 @@ None (no new dependency, no migration).
 
 - [x] T016 [P] `documentation/GAME-API.md` Freshness: how Neil uses `map_updated_at` and `?fresh=1` after this slice
   (FR-012); `documentation/ROADMAP.md` and `documentation/STATUS.md`.
+- [ ] T019 Review fixes (review.md items 1–3, 6; audit.md gaps): `/reaper closest` press charged to the presser (FR-008a)
+  and keeps `all` paging (custom id `again:<ownerId>:r[a][:x:y]`); a live lookup refused by quota is refused, not stale
+  (FR-008b, `src/game-api/client.ts`); `mapUpdatedAtSchema` bounded like `unixSecondsSchema`; tests for FR-011 (no field
+  or button on Interview, corrections, Daily Sync, Booty Call replies), a thrown Game API error on the Alliance and
+  Overview press, and a Kingdom-less Player card hint.
 - [ ] T017 Review (`bot-reviewer`) and fixes; spec audit (`spec-auditor`) into `review.md` and `audit.md`.
 - [ ] T018 Manual check on the test server per [quickstart.md](quickstart.md) after the deploy.
 
