@@ -30,7 +30,7 @@ the same day:
 - `develop` is the integration branch and the repository's default branch. Every slice, fix, docs or chore branch
   starts from `develop` and returns to it through a pull request, squash-merged by the agent once CI is green.
 - `main` is production. It receives only **release pull requests** from `develop`, merged with a **merge commit** (not
-  squashed), after the user approves them (`main` requires one review). The slices keep their own commits on `main`.
+  squashed), after the user approves them in the session (GitHub cannot require a review of one's own pull requests, so `main` has none; the ruleset "main: releases only" requires a pull request, green `checks` and a merge commit). The slices keep their own commits on `main`.
 - After a release, CI fast-forwards `develop` to `main` (job `restart-develop`): `develop` starts anew without a
   force-push. If `develop` moved on during the release, CI leaves it and warns.
 
