@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { REST } from "discord.js";
 import { z } from "zod";
-import { parseLayout, runSetup } from "../src/discord/server-setup.js";
+import { parseLayout, policeSetupFor, runSetup } from "../src/discord/server-setup.js";
 import { createRestSetupServer } from "../src/discord/setup-server-rest.js";
 import { formatStartupError } from "../src/startup.js";
 
@@ -34,6 +34,7 @@ try {
     strict: true,
   });
   const settings = readSettings(process.env);
+  const police = policeSetupFor(process.env, settings.DISCORD_GUILD_ID);
   const layout = parseLayout(readFileSync(values.layout, "utf8"));
   const rest = new REST().setToken(settings.DISCORD_TOKEN);
   const { report, exitCode } = await runSetup({
@@ -42,6 +43,7 @@ try {
     apply: values.apply,
     port: createRestSetupServer(rest, settings.DISCORD_GUILD_ID),
     secrets: [settings.DISCORD_TOKEN],
+    police,
   });
   console.log(report);
   process.exitCode = exitCode;
