@@ -7,6 +7,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Tooling (2026-11-15): **Neil Police**, a separate read-only Discord application, lets sessions read the test server through the MCP server `@pasympa/discord-mcp` (pinned, under Police's token only, limited to `NEIL_POLICE_GUILD_IDS`), and `npm run server:crawl -- --guild <id>` records a server's channels, roles, members and settings under `data/crawl/` ([NEIL-POLICE.md](NEIL-POLICE.md), ADR 15). The user's decisions: temporary Administrator for one crawl of the real server, then Police is removed; last activity only, no message history. **Open:** the user adds `NEIL_POLICE_TOKEN` and `NEIL_POLICE_GUILD_IDS` to `.env`, invites Police to the test server, and later runs the one crawl of the real server.
+
 Docs (2026-11-14): the tracker's game data changes only when someone presses Update Map on its site (30 min cooldown per Kingdom and per IP); `age_seconds` and `?fresh=1` concern only its answer copy. GAME-API.md Freshness corrected; the wrong "as of" clock and the value of `?fresh=1` are issue [#100](https://github.com/LilSticky/Neil/issues/100) (needs a scope decision).
 
 Docs (2026-11-14): [DISCORD-PLATFORM.md](DISCORD-PLATFORM.md) collects Discord's official rules and limits (intents, role hierarchy, rate limits, interactions, commands, components, scheduled events) and where Neil depends on them. **Watch:** Discord obfuscates channels a bot cannot view from 2026-11-16; check scheduled events and channel lookups after that date.
