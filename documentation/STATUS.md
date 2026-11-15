@@ -133,6 +133,7 @@ One of the last steps before the user announces the release:
 ## Open questions
 
 - Wispbyte's disk persistence: answered yes in slice 001.
+- KvK battle plan (#117): discovery done ([discovery/kvk-battle-plan.md](discovery/kvk-battle-plan.md), 2026-11-15). Open: the proposed terms (War Council, Siege, Battle Plan, Fighter Class, …) await dictionary approval; whether "Know who fights" (Availability) comes before "Plan the Siege".
 
 ## Standing notes
 
