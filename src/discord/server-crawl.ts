@@ -1,0 +1,623 @@
+// Neil Police's read of one server (ADR 15, documentation/NEIL-POLICE.md): REST calls only, changes nothing. crawlServer
+// reads the server into a snapshot; summarizeCrawl writes it as Markdown, never with a Member's name. Every reply is
+// checked with zod before it is kept.
+import { ChannelType, Routes } from "discord.js";
+import { z } from "zod";
+
+/** The part of discord.js's REST the crawl uses. The REST object of the script fits it; the tests fake it. */
+export interface CrawlRest {
+  get(route: string, options?: { query?: URLSearchParams }): Promise<unknown>;
+}
+
+/** A part of the snapshot: read, or refused with its reason (Discord's status and message, or "unexpected response"). */
+export type Section<T> = { readable: true; data: T } | { readable: false; reason: string };
+
+export interface CrawlMember {
+  id: string;
+  username: string;
+  displayName: string | null;
+  nickname: string | null;
+  roleIds: string[];
+  joinedAt: string | null;
+  boostingSince: string | null;
+  timeoutUntil: string | null;
+  bot: boolean;
+  pending: boolean;
+}
+
+export interface CrawlChannel {
+  id: string;
+  name: string;
+  type: number;
+  parentId: string | null;
+  position: number;
+  lastMessageId: string | null;
+  overwrites: { id: string; type: number; allow: string; deny: string }[];
+  raw: Record<string, unknown>;
+}
+
+export interface CrawlRole {
+  id: string;
+  name: string;
+  position: number;
+  permissions: string;
+  managed: boolean;
+  raw: Record<string, unknown>;
+}
+
+export interface ServerSnapshot {
+  guildId: string;
+  /** ISO time of the crawl. */
+  crawledAt: string;
+  guild: { id: string; name: string; raw: Record<string, unknown> };
+  channels: CrawlChannel[];
+  roles: CrawlRole[];
+  members: Section<CrawlMember[]>;
+  activeThreads: Section<unknown[]>;
+  /** Keyed by channel id: the first page of the public archived threads of each text, announcement, forum and media channel. */
+  archivedThreads: Record<string, Section<{ threads: unknown[]; hasMore: boolean }>>;
+  scheduledEvents: Section<unknown[]>;
+  emojis: Section<unknown[]>;
+  stickers: Section<unknown[]>;
+  autoModerationRules: Section<unknown[]>;
+  invites: Section<unknown[]>;
+  webhooks: Section<unknown[]>;
+  integrations: Section<unknown[]>;
+  auditLog: Section<unknown[]>;
+  welcomeScreen: Section<unknown>;
+  onboarding: Section<unknown>;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Replies, checked at the boundary
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** A decimal number kept as text: permissions and snowflakes. */
+const decimal = z.string().regex(/^\d+$/);
+
+const guildRead = z.looseObject({ id: z.string(), name: z.string() });
+
+const overwriteRead = z.object({ id: z.string(), type: z.number().int(), allow: decimal, deny: decimal });
+const channelRead = z.looseObject({
+  id: z.string(),
+  name: z.string().nullish(),
+  type: z.number().int(),
+  parent_id: z.string().nullish(),
+  position: z.number().int().default(0),
+  last_message_id: decimal.nullish(),
+  permission_overwrites: z.array(overwriteRead).default([]),
+});
+type ChannelRead = z.infer<typeof channelRead>;
+
+const roleRead = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  position: z.number().int(),
+  permissions: decimal,
+  managed: z.boolean().default(false),
+});
+type RoleRead = z.infer<typeof roleRead>;
+
+/** One member as Discord sends it. The fields the snapshot drops (avatar, flags, and the like) are left out by zod. */
+const memberRead = z.object({
+  user: z.object({
+    id: z.string(),
+    username: z.string(),
+    global_name: z.string().nullish(),
+    bot: z.boolean().default(false),
+  }),
+  nick: z.string().nullish(),
+  roles: z.array(z.string()),
+  joined_at: z.string().nullish(),
+  premium_since: z.string().nullish(),
+  communication_disabled_until: z.string().nullish(),
+  pending: z.boolean().default(false),
+});
+type MemberRead = z.infer<typeof memberRead>;
+
+/**
+ * A list of Discord objects: each must have the given fields. The dropped fields (personal or secret ones) are removed,
+ * and the rest of each object is kept as Discord sent it.
+ */
+function listOf(shape: Record<string, z.ZodType>, ...dropped: string[]) {
+  return z.array(z.looseObject(shape)).transform((items) => items.map((item) => without(item, dropped)));
+}
+
+function without(item: Record<string, unknown>, dropped: readonly string[]): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(item).filter(([key]) => !dropped.includes(key)));
+}
+
+const activeThreadsRead = z.object({ threads: listOf({ id: z.string() }) }).transform((reply) => reply.threads);
+const archivedThreadsRead = z
+  .object({ threads: listOf({ id: z.string() }), has_more: z.boolean() })
+  .transform((reply) => ({ threads: reply.threads, hasMore: reply.has_more }));
+const auditLogRead = z
+  .object({ audit_log_entries: listOf({ id: z.string(), action_type: z.number().int() }) })
+  .transform((reply) => reply.audit_log_entries);
+const scheduledEventsRead = listOf({ id: z.string() }, "creator");
+const emojisRead = listOf({ id: z.string() }, "user");
+const stickersRead = listOf({ id: z.string() }, "user");
+const autoModerationRulesRead = listOf({ id: z.string() });
+const invitesRead = listOf({ code: z.string() }, "inviter", "target_user");
+const webhooksRead = listOf({ id: z.string() }, "token", "url", "user");
+const integrationsRead = listOf({ id: z.string() }, "user");
+const welcomeScreenRead = z.looseObject({});
+const onboardingRead = z.looseObject({});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Reading one route
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** An HTTP refusal (discord.js's DiscordAPIError and HTTPError carry a numeric status and a message) as its reason. */
+function refusalOf(error: unknown): string | undefined {
+  const refusal = z.object({ status: z.number(), message: z.string() }).safeParse(error);
+  return refusal.success ? `${String(refusal.data.status)} ${refusal.data.message}` : undefined;
+}
+
+type Asked = { refused: false; response: unknown } | { refused: true; reason: string };
+
+/** Asks one route, with its query string when it has one. A refusal with an HTTP status is an answer; any other error is rethrown. */
+async function askRoute(rest: CrawlRest, route: string, params?: Record<string, string>): Promise<Asked> {
+  try {
+    const response = await rest.get(route, params === undefined ? undefined : { query: new URLSearchParams(params) });
+    return { refused: false, response };
+  } catch (error) {
+    const reason = refusalOf(error);
+    if (reason === undefined) throw error;
+    return { refused: true, reason };
+  }
+}
+
+/** A section the crawl cannot do without: a refusal or a reply that is not as expected throws, naming the section. */
+async function readRequired<T>(
+  rest: CrawlRest,
+  section: string,
+  route: string,
+  schema: z.ZodType<T>,
+  params?: Record<string, string>,
+): Promise<T> {
+  const asked = await askRoute(rest, route, params);
+  if (asked.refused) throw new Error(`cannot read ${section}: ${asked.reason}`);
+  return schema.parse(asked.response);
+}
+
+/** An optional section: a refusal is recorded as its reason, and a reply that is not as expected as "unexpected response". */
+async function readOptional<T>(
+  rest: CrawlRest,
+  route: string,
+  schema: z.ZodType<T>,
+  params?: Record<string, string>,
+): Promise<Section<T>> {
+  const asked = await askRoute(rest, route, params);
+  if (asked.refused) return { readable: false, reason: asked.reason };
+  const parsed = schema.safeParse(asked.response);
+  return parsed.success ? { readable: true, data: parsed.data } : { readable: false, reason: "unexpected response" };
+}
+
+/** The Members, in pages of 1000: each page after the first asks for the members after the last id of the page before. */
+const MEMBER_PAGE = 1000;
+async function readMembers(rest: CrawlRest, guildId: string): Promise<Section<CrawlMember[]>> {
+  const members: MemberRead[] = [];
+  let after = "0";
+  for (;;) {
+    const page = await readOptional(rest, Routes.guildMembers(guildId), z.array(memberRead), {
+      limit: String(MEMBER_PAGE),
+      after,
+    });
+    if (!page.readable) return page;
+    members.push(...page.data);
+    const last = page.data.at(-1);
+    if (page.data.length < MEMBER_PAGE || last === undefined) break;
+    after = last.user.id;
+  }
+  return { readable: true, data: members.map(memberOf) };
+}
+
+function memberOf(member: MemberRead): CrawlMember {
+  return {
+    id: member.user.id,
+    username: member.user.username,
+    displayName: member.user.global_name ?? null,
+    nickname: member.nick ?? null,
+    roleIds: member.roles,
+    joinedAt: member.joined_at ?? null,
+    boostingSince: member.premium_since ?? null,
+    timeoutUntil: member.communication_disabled_until ?? null,
+    bot: member.user.bot,
+    pending: member.pending,
+  };
+}
+
+function channelOf(channel: ChannelRead): CrawlChannel {
+  return {
+    id: channel.id,
+    name: channel.name ?? "",
+    type: channel.type,
+    parentId: channel.parent_id ?? null,
+    position: channel.position,
+    lastMessageId: channel.last_message_id ?? null,
+    overwrites: channel.permission_overwrites,
+    raw: channel,
+  };
+}
+
+function roleOf(role: RoleRead): CrawlRole {
+  return {
+    id: role.id,
+    name: role.name,
+    position: role.position,
+    permissions: role.permissions,
+    managed: role.managed,
+    raw: role,
+  };
+}
+
+/** A category's channel type as a plain number, so the comparisons with the channel types read Discord's numbers. */
+const CATEGORY_TYPE: number = ChannelType.GuildCategory;
+
+/** The channel kinds whose public archived threads the crawl reads: text, announcement, forum and media. */
+const ARCHIVABLE_TYPES = new Set<number>([
+  ChannelType.GuildText,
+  ChannelType.GuildAnnouncement,
+  ChannelType.GuildForum,
+  ChannelType.GuildMedia,
+]);
+
+/** Reads one server with REST calls only, and returns what the summary and the snapshot need. */
+export async function crawlServer(rest: CrawlRest, guildId: string, now: Date): Promise<ServerSnapshot> {
+  const guild = await readRequired(rest, "guild", Routes.guild(guildId), guildRead, { with_counts: "true" });
+  const channels = await readRequired(rest, "channels", Routes.guildChannels(guildId), z.array(channelRead));
+  const roles = await readRequired(rest, "roles", Routes.guildRoles(guildId), z.array(roleRead));
+
+  const archivedThreads: ServerSnapshot["archivedThreads"] = {};
+  for (const channel of channels) {
+    if (!ARCHIVABLE_TYPES.has(channel.type)) continue;
+    archivedThreads[channel.id] = await readOptional(
+      rest,
+      Routes.channelThreads(channel.id, "public"),
+      archivedThreadsRead,
+      { limit: "100" },
+    );
+  }
+
+  return {
+    guildId,
+    crawledAt: now.toISOString(),
+    guild: { id: guild.id, name: guild.name, raw: guild },
+    channels: channels.map(channelOf),
+    roles: roles.map(roleOf),
+    members: await readMembers(rest, guildId),
+    activeThreads: await readOptional(rest, Routes.guildActiveThreads(guildId), activeThreadsRead),
+    archivedThreads,
+    scheduledEvents: await readOptional(rest, Routes.guildScheduledEvents(guildId), scheduledEventsRead, {
+      with_user_count: "true",
+    }),
+    emojis: await readOptional(rest, Routes.guildEmojis(guildId), emojisRead),
+    stickers: await readOptional(rest, Routes.guildStickers(guildId), stickersRead),
+    autoModerationRules: await readOptional(rest, Routes.guildAutoModerationRules(guildId), autoModerationRulesRead),
+    invites: await readOptional(rest, Routes.guildInvites(guildId), invitesRead),
+    webhooks: await readOptional(rest, Routes.guildWebhooks(guildId), webhooksRead),
+    integrations: await readOptional(rest, Routes.guildIntegrations(guildId), integrationsRead),
+    auditLog: await readOptional(rest, Routes.guildAuditLog(guildId), auditLogRead, { limit: "100" }),
+    welcomeScreen: await readOptional(rest, Routes.guildWelcomeScreen(guildId), welcomeScreenRead),
+    onboarding: await readOptional(rest, Routes.guildOnboarding(guildId), onboardingRead),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Summary
+// ---------------------------------------------------------------------------------------------------------------------
+
+const DISCORD_EPOCH = 1420070400000n;
+
+const CHANNEL_TYPE_NAMES = new Map<number, string>([
+  [ChannelType.GuildText, "text"],
+  [ChannelType.GuildVoice, "voice"],
+  [ChannelType.GuildCategory, "category"],
+  [ChannelType.GuildAnnouncement, "announcement"],
+  [ChannelType.GuildStageVoice, "stage"],
+  [ChannelType.GuildForum, "forum"],
+  [ChannelType.GuildMedia, "media"],
+]);
+
+/** The permissions the roles table names, by Discord's permission bit. */
+const KEY_PERMISSIONS: { name: string; bit: number }[] = [
+  { name: "Administrator", bit: 3 },
+  { name: "Manage Server", bit: 5 },
+  { name: "Manage Channels", bit: 4 },
+  { name: "Manage Roles", bit: 28 },
+  { name: "Manage Nicknames", bit: 27 },
+  { name: "Kick Members", bit: 1 },
+  { name: "Ban Members", bit: 2 },
+  { name: "Mention Everyone", bit: 17 },
+  { name: "Manage Messages", bit: 13 },
+  { name: "View Audit Log", bit: 7 },
+  { name: "Create Events", bit: 44 },
+  { name: "Manage Events", bit: 33 },
+];
+
+/** The guild settings the summary shows, when the guild carries them. */
+const SETTING_KEYS = [
+  "verification_level",
+  "mfa_level",
+  "explicit_content_filter",
+  "default_message_notifications",
+  "preferred_locale",
+  "premium_tier",
+  "premium_subscription_count",
+  "features",
+];
+const settingValue = z.union([z.string(), z.number(), z.array(z.string())]);
+
+/** Markdown of a snapshot: the server's settings, what could not be read, roles, channels, Members, threads and counts. */
+export function summarizeCrawl(snapshot: ServerSnapshot): string {
+  const lines = [
+    `# ${snapshot.guild.name}`,
+    "",
+    crawlLine(snapshot),
+    "",
+    "## Server settings",
+    ...settingsLines(snapshot.guild.raw),
+    "",
+    "## Not readable",
+    ...notReadableLines(snapshot),
+    "",
+    "## Roles",
+    ...rolesLines(snapshot),
+    "",
+    "## Channels",
+    ...channelLines(snapshot),
+    "",
+    "## Members",
+    ...membersLines(snapshot),
+    "",
+    "## Threads",
+    ...threadLines(snapshot),
+    "",
+    "## Other",
+    ...otherLines(snapshot),
+  ];
+  return `${lines.join("\n")}\n`;
+}
+
+function crawlLine(snapshot: ServerSnapshot): string {
+  const parts = [`Crawled ${snapshot.crawledAt}`, `guild ${snapshot.guildId}`];
+  const count = snapshot.guild.raw.approximate_member_count;
+  if (typeof count === "number") parts.push(`about ${String(count)} members`);
+  return parts.join(" · ");
+}
+
+function settingsLines(raw: Record<string, unknown>): string[] {
+  return SETTING_KEYS.flatMap((key) => {
+    const value = settingValue.safeParse(raw[key]);
+    if (!value.success) return [];
+    const text = Array.isArray(value.data) ? value.data.join(", ") : String(value.data);
+    return text === "" ? [] : [`- ${key.replaceAll("_", " ")}: ${text}`];
+  });
+}
+
+/** Every part of the snapshot that could not be read, with its reason; the archived threads by channel. */
+function sectionsOf(snapshot: ServerSnapshot): [string, Section<unknown>][] {
+  const named: [string, Section<unknown>][] = [
+    ["members", snapshot.members],
+    ["activeThreads", snapshot.activeThreads],
+    ["scheduledEvents", snapshot.scheduledEvents],
+    ["emojis", snapshot.emojis],
+    ["stickers", snapshot.stickers],
+    ["autoModerationRules", snapshot.autoModerationRules],
+    ["invites", snapshot.invites],
+    ["webhooks", snapshot.webhooks],
+    ["integrations", snapshot.integrations],
+    ["auditLog", snapshot.auditLog],
+    ["welcomeScreen", snapshot.welcomeScreen],
+    ["onboarding", snapshot.onboarding],
+  ];
+  for (const [channelId, section] of Object.entries(snapshot.archivedThreads)) {
+    named.push([`archivedThreads ${channelHeadingOf(snapshot, channelId)}`, section]);
+  }
+  return named;
+}
+
+function notReadableLines(snapshot: ServerSnapshot): string[] {
+  const failures = sectionsOf(snapshot).flatMap(([name, section]) =>
+    section.readable ? [] : [`- ${name}: ${section.reason}`],
+  );
+  return failures.length === 0 ? ["Everything was readable."] : failures;
+}
+
+function rolesLines(snapshot: ServerSnapshot): string[] {
+  const rows = [...snapshot.roles]
+    .sort((a, b) => b.position - a.position)
+    .map((role) => [
+      String(role.position),
+      role.name.replaceAll("|", "\\|"),
+      membersWithRole(snapshot, role),
+      role.managed ? "yes" : "no",
+      keyPermissionsOf(role.permissions),
+    ]);
+  return [
+    "| Position | Role | Members | Managed | Key permissions |",
+    "| --- | --- | --- | --- | --- |",
+    ...rows.map((cells) => `| ${cells.join(" | ")} |`),
+  ];
+}
+
+/** The Members who have the role; @everyone (the role whose id is the guild's) is every Member. "?" when the Members are unreadable. */
+function membersWithRole(snapshot: ServerSnapshot, role: CrawlRole): string {
+  const members = snapshot.members;
+  if (!members.readable) return "?";
+  if (role.id === snapshot.guildId) return String(members.data.length);
+  return String(members.data.filter((member) => member.roleIds.includes(role.id)).length);
+}
+
+function keyPermissionsOf(permissions: string): string {
+  const bits = BigInt(permissions);
+  const names = KEY_PERMISSIONS.filter(({ bit }) => (bits & (1n << BigInt(bit))) !== 0n).map(({ name }) => name);
+  return names.length === 0 ? "–" : names.join(", ");
+}
+
+function byPosition(a: { position: number }, b: { position: number }): number {
+  return a.position - b.position;
+}
+
+/** Channels outside any category first, then each category with its channels; each group by position. */
+function channelLines(snapshot: ServerSnapshot): string[] {
+  const channels = snapshot.channels;
+  const categories = channels.filter((channel) => channel.type === CATEGORY_TYPE).sort(byPosition);
+  const categoryIds = new Set(categories.map((category) => category.id));
+  const outside = channels
+    .filter(
+      (channel) =>
+        channel.type !== CATEGORY_TYPE &&
+        (channel.parentId === null || !categoryIds.has(channel.parentId)),
+    )
+    .sort(byPosition);
+
+  const lines = outside.map(channelLine);
+  for (const category of categories) {
+    if (lines.length > 0) lines.push("");
+    lines.push(`### ${nameOrHidden(category.name)}`);
+    const inside = channels.filter((channel) => channel.parentId === category.id).sort(byPosition);
+    lines.push(...inside.map(channelLine));
+  }
+  return lines;
+}
+
+function channelLine(channel: CrawlChannel): string {
+  const kind = CHANNEL_TYPE_NAMES.get(channel.type) ?? `type ${String(channel.type)}`;
+  const activity = channel.lastMessageId === null ? "never" : dayOfSnowflake(channel.lastMessageId);
+  return `- ${channelHeading(channel)} (${kind}) · overwrites: ${String(channel.overwrites.length)} · last activity: ${activity}`;
+}
+
+/** The day of a snowflake's timestamp: the bits above the worker, process and increment ones. */
+function dayOfSnowflake(id: string): string {
+  const millis = Number((BigInt(id) >> 22n) + DISCORD_EPOCH);
+  return new Date(millis).toISOString().slice(0, 10);
+}
+
+function nameOrHidden(name: string): string {
+  return name === "" ? "(hidden)" : name;
+}
+
+function channelHeading(channel: CrawlChannel): string {
+  return channel.name === "" ? "(hidden)" : `#${channel.name}`;
+}
+
+function channelHeadingOf(snapshot: ServerSnapshot, channelId: string): string {
+  const channel = snapshot.channels.find((candidate) => candidate.id === channelId);
+  return channel === undefined ? channelId : channelHeading(channel);
+}
+
+function membersLines(snapshot: ServerSnapshot): string[] {
+  const members = snapshot.members;
+  if (!members.readable) return ["Not readable."];
+  const list = members.data;
+  const crawledAt = Date.parse(snapshot.crawledAt);
+
+  const figures: [string, number][] = [
+    ["Total", list.length],
+    ["Humans", list.filter((member) => !member.bot).length],
+    ["Bots", list.filter((member) => member.bot).length],
+    ["Pending", list.filter((member) => member.pending).length],
+    ["With a nickname", list.filter((member) => member.nickname !== null).length],
+    [
+      "With no role besides @everyone",
+      list.filter((member) => member.roleIds.every((id) => id === snapshot.guildId)).length,
+    ],
+    ["Boosting", list.filter((member) => member.boostingSince !== null).length],
+    [
+      "Timed out",
+      list.filter((member) => member.timeoutUntil !== null && Date.parse(member.timeoutUntil) > crawledAt).length,
+    ],
+  ];
+
+  const joins = new Map<string, number>();
+  for (const member of list) {
+    if (member.joinedAt === null) continue;
+    const month = member.joinedAt.slice(0, 7);
+    joins.set(month, (joins.get(month) ?? 0) + 1);
+  }
+  const monthLines = [...joins]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, count]) => `- ${month}: ${String(count)}`);
+
+  return [
+    ...figures.map(([label, figure]) => `- ${label}: ${String(figure)}`),
+    "Joins per month:",
+    ...monthLines,
+  ];
+}
+
+function threadLines(snapshot: ServerSnapshot): string[] {
+  const active = snapshot.activeThreads;
+  const lines = [
+    active.readable
+      ? `- Active threads: ${String(active.data.length)}`
+      : `- Active threads: not readable (${active.reason})`,
+  ];
+  const archived = Object.entries(snapshot.archivedThreads).flatMap(([channelId, section]) => {
+    if (!section.readable || section.data.threads.length === 0) return [];
+    const more = section.data.hasMore ? ", + more" : "";
+    return [`  - ${channelHeadingOf(snapshot, channelId)}: ${String(section.data.threads.length)}${more}`];
+  });
+  return archived.length === 0 ? lines : [...lines, "- Archived threads (first page):", ...archived];
+}
+
+function otherLines(snapshot: ServerSnapshot): string[] {
+  return [
+    countLine("Scheduled events", snapshot.scheduledEvents),
+    countLine("Emojis", snapshot.emojis),
+    countLine("Stickers", snapshot.stickers),
+    ...listLines("Auto moderation rules", snapshot.autoModerationRules, (rule) => textOf(fieldOf(rule, "name"))),
+    ...listLines("Invites", snapshot.invites, (invite) => {
+      const channel = channelHeadingOf(snapshot, textOf(fieldOf(invite, "channel_id")));
+      return `${textOf(fieldOf(invite, "code"))}: ${channel}, uses ${textOf(fieldOf(invite, "uses"))}`;
+    }),
+    ...listLines("Webhooks", snapshot.webhooks, (webhook) => {
+      const channel = channelHeadingOf(snapshot, textOf(fieldOf(webhook, "channel_id")));
+      return `${textOf(fieldOf(webhook, "name"))}: ${channel}`;
+    }),
+    ...listLines(
+      "Integrations",
+      snapshot.integrations,
+      (integration) => `${textOf(fieldOf(integration, "name"))} (${textOf(fieldOf(integration, "type"))})`,
+    ),
+    ...auditLogLines(snapshot.auditLog),
+  ];
+}
+
+function countLine(label: string, section: Section<unknown[]>): string {
+  return section.readable
+    ? `- ${label}: ${String(section.data.length)}`
+    : `- ${label}: not readable (${section.reason})`;
+}
+
+/** A count and one indented line per item; a section that cannot be read is one line saying so. */
+function listLines(label: string, section: Section<unknown[]>, describe: (item: unknown) => string): string[] {
+  if (!section.readable) return [`- ${label}: not readable (${section.reason})`];
+  return [`- ${label}: ${String(section.data.length)}`, ...section.data.map((item) => `  - ${describe(item)}`)];
+}
+
+function auditLogLines(section: Section<unknown[]>): string[] {
+  if (!section.readable) return [`- Audit log: not readable (${section.reason})`];
+  const kinds = new Map<string, number>();
+  for (const entry of section.data) {
+    const kind = textOf(fieldOf(entry, "action_type"));
+    kinds.set(kind, (kinds.get(kind) ?? 0) + 1);
+  }
+  const perKind = [...kinds]
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([kind, count]) => `  - action type ${kind}: ${String(count)}`);
+  return [`- Audit log: ${String(section.data.length)} entries`, ...perKind];
+}
+
+/** A field of one of the snapshot's Discord objects, which the snapshot keeps as unknown; undefined when it is absent. */
+function fieldOf(item: unknown, key: string): unknown {
+  const record = z.looseObject({}).safeParse(item);
+  return record.success ? record.data[key] : undefined;
+}
+
+/** A value as text for the summary; "?" when it is not a string or a number. */
+function textOf(value: unknown): string {
+  return typeof value === "string" || typeof value === "number" ? String(value) : "?";
+}
