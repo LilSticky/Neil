@@ -32,6 +32,18 @@ Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's
 - Since slice 003 Neil adopts the body's `quota` (else the headers) after every answer; on the test server
   (2026-10-30) the adopted `used` matched the tracker's own count, including requests made outside Neil.
 
+## Two days: the quota day and the game day
+
+- **Server Time is UTC-2 all year**, with no daylight saving (the user, 2026-11-15; evidence: at 18:00 CET the game
+  showed 15:00). The game's daily reset is at 00:00 Server Time, which is **02:00 UTC**.
+- `daily_honor` and `daily_tech` follow the **game day**: they start again at 02:00 UTC.
+- The **quota day** stays the UTC day: the tracker's quota resets at 00:00 UTC (see Quota).
+- The Daily Sync runs at `SYNC_HOUR_UTC` = 3 (01:00 Server Time), so it reads the daily values just after they reset,
+  when they are near 0. A scoreboard needs a read before 02:00 UTC
+  ([#113](https://github.com/LilSticky/Neil/issues/113)).
+- In code, `src/domain/server-time.ts` (`serverDayOf`, `nextServerReset`) is the game day, and `utcDayOf` in
+  `src/domain/daily-quota.ts` is the quota day.
+
 ## Freshness
 
 **Changed 2026-11-14** (the tracker's "much faster responses" update; verified the same day on
@@ -115,7 +127,7 @@ no approximate (fuzzy) name search in the API; Neil matches Known Alliances itse
   `leader_id`, `leader_name`, `bulletin`, `updated_at`
 - `members[]`: `uid`, `nick_name`, `power`, `lv`, `kid`, `kills`, **`rank_code` (101–105) and
   `rank_label` (`"R1"`–`"R5"`; titled R4s read e.g. `"R4 – Diplomat"`, `"R4 – Militarist"`, seen 2026-11-01; some player answers omit `rank_label` in `alliance_members`)**, `online`, `last_online_at`, `joined_at`, `active` (weekly activity, used by the Alliance Overview, slice 008),
-  `daily_honor`, `daily_tech`, `aid`. `null` means the roster did not include it.
+  `daily_honor`, `daily_tech` (per game day, see Two days), `aid`. `null` means the roster did not include it.
 
 ### Rank
 

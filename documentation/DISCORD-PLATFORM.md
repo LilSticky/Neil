@@ -141,6 +141,10 @@ Sources: <https://docs.discord.com/developers/resources/message>,
 - Button label ≤ 80 (design advice: ≤ 34–38); link buttons have a `url` (≤ 512) and no `custom_id`.
 - Select: ≤ 25 options, label/value/description ≤ 100, placeholder ≤ 150.
 - Text input (modals only): value up to 4000 chars, placeholder ≤ 100.
+- Discord timestamps `<t:UNIX:STYLE>` render in each reader's local time zone. They work in message content, embed
+  descriptions and field values, but not in embed titles, field names or footers. Neil uses them for Server Time
+  moments, for example the end of a Duel day (`nextServerReset`). Card footers still show UTC
+  ([#124](https://github.com/LilSticky/Neil/issues/124)).
 
 ## Members, nicknames and DMs
 

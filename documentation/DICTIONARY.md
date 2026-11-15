@@ -94,6 +94,7 @@ discovery.
 ## Server Time
 * The game's clock: UTC-2, not UTC
 * The game's daily reset is at 00:00 Server Time, which is 02:00 UTC. Neil shows Server Time moments as Discord timestamps, so each reader sees them in their own clock
+* The offset never changes: no daylight saving (confirmed by the user 2026-11-15)
 
 ## Kingdom
 * A game server, identified by its number
@@ -144,10 +145,10 @@ discovery.
 * A Player's activity points in their Alliance this week (Game API `active`)
 
 ## Daily Honor
-* A Player's honor contribution to their Alliance today (Game API `daily_honor`)
+* A Player's honor contribution to their Alliance on the current game day (since the last daily reset, 00:00 Server Time) (Game API `daily_honor`)
 
 ## Daily Tech
-* A Player's tech contribution to their Alliance today (Game API `daily_tech`)
+* A Player's tech contribution to their Alliance on the current game day (since the last daily reset, 00:00 Server Time) (Game API `daily_tech`)
 
 ## Least Active
 * The members of an Alliance with the lowest Weekly Activity

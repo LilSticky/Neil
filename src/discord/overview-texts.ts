@@ -72,8 +72,8 @@ const SORT_CUSTOM_ID = /^overview:([0-9a-f]+):sort:([a-z]+)$/;
 const LEGACY_CUSTOM_ID = /^overview:([0-9a-f]+):(\d+)$/;
 const ACTIVITY_LABELS: Readonly<Record<ActivityKind, string>> = {
   weeklyActivity: "Weekly Activity",
-  dailyHonor: "Daily Honor",
-  dailyTech: "Daily Tech",
+  dailyHonor: "Daily Honor (game day)",
+  dailyTech: "Daily Tech (game day)",
 };
 const ACTIVITY_KINDS: readonly ActivityKind[] = ["weeklyActivity", "dailyHonor", "dailyTech"];
 const LIST_LENGTH = 5;
