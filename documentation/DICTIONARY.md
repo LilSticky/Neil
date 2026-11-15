@@ -13,7 +13,7 @@ discovery.
 * Not the same as a game alliance member; see Player
 
 ## Officer
-* A Member with the Moderator or King Discord role (both role IDs in configuration)
+* A Member with the Moderator or King Discord role (both role IDs in configuration); see King
 * Manages other Members: approves, corrects roles, sees the Daily Quota
 
 ## Managed Role
@@ -101,6 +101,11 @@ discovery.
 
 ## Home Kingdom
 * The one Kingdom this Discord server is for (330, in configuration)
+
+## King
+* The leader of the Alliance that holds a Kingdom's Royal City in the game, and the King Discord role that this Player's Member holds
+* Changes hands every Friday at the Royal City siege. How depends on the Kingdom: some rotate the Royal City peacefully among their top Alliances (on Kingdom 330 the top 3), others fight over it
+* An Officer while holding the role; not a fixed post, so lasting duties belong to a role that does not change weekly
 
 ## Home Kingdom Member
 * A Member whose Linked Player is in the Home Kingdom

@@ -25,11 +25,11 @@ which Alliances have read the plan or how many fighters each brings.
 
 | Word | Meanings in play | Settled |
 |------|------------------|---------|
-| King | (1) the Discord role that makes an Officer, (2) the in-game title | **(1) in Neil.** The in-game title gets its own term if ever needed (Q8) |
+| King | (1) the Discord role that makes an Officer, (2) the in-game title | **Both, one concept** (answer 14): the in-game King's Member holds the King role. It changes hands every Friday, hence the fixed War Council |
 | RSVP | (1) an Alliance's answer to a Battle Plan, (2) Discord's "Interested", (3) the in-game Sign-up | Split into **Plan Confirmation** and **Availability** (section 4); neither is Sign-up or Interested |
 | class / bracket | (1) Troop Bracket (troop tier, a role), (2) the fighting class Whale / Dolphin / Seal / Small Fry | Different concepts: the **Fighter Class** is suggested *from* Troop Bracket and Might, but chosen by the Member |
 | plan | (1) the War Council's Battle Plan in Neil, (2) a `kvk-tactics` post tagged `Plan` | (1). The forum stays for discussion |
-| time | Server Time (UTC-2), the reader's local time, UTC (Neil's Daily Quota) | Siege times are entered and shown in Server Time, plus a Discord timestamp |
+| time | Server Time (UTC-2), the reader's local time, UTC (Neil's Daily Quota) | Raid times are entered and shown in Server Time, plus a Discord timestamp |
 
 ## 3. Event storming
 
@@ -38,12 +38,12 @@ Alliance's leaders), Home Kingdom Members (answer Availability), King (supervise
 
 | Command | By | Domain event |
 |---------|----|--------------|
-| Draft / edit the Battle Plan for this week's Siege | War Council | Battle Plan drafted / amended |
+| Draft / edit the Battle Plan for this week's Raid | War Council | Battle Plan drafted / amended |
 | Publish the Battle Plan | War Council | Battle Plan published (Availability Polls opened) |
 | Confirm the plan for the Alliance | R5, or R4 when no R5 answers | Plan confirmed |
 | Answer the Availability Poll (available? Fighter Class) | Linked Member | Availability given / changed |
-| Cancel the Siege | War Council | Siege cancelled |
-| (clock) | Neil | Plan Deadline missed, Confirmation chased, Availability summed up, Siege Reminder sent, Phase started |
+| Cancel the Raid | War Council | Raid cancelled |
+| (clock) | Neil | Plan Deadline missed, Confirmation chased, Availability summed up, Raid Reminder sent, Phase started |
 
 **Policies**
 - When the Plan Deadline passes and no Battle Plan is published, mention the War Council in `kvk-leaders`.
@@ -55,7 +55,7 @@ Alliance's leaders), Home Kingdom Members (answer Availability), King (supervise
   confirms or picks another.
 - Availability totals per Alliance and Fighter Class are kept up to date for the War Council and the Alliance's
   leaders. Small Fry are counted apart and left out of the strategy totals.
-- On Siege day: a Siege Reminder before the start, then one at each Phase, mentioning the Alliances assigned to it.
+- On Raid day: a Raid Reminder before the start, then one at each Phase, mentioning the Alliances assigned to it.
 
 **Read models**
 - **Plan card** (public): objectives, phases with times (Server Time + Discord timestamp), assignments per Alliance,
@@ -65,45 +65,45 @@ Alliance's leaders), Home Kingdom Members (answer Availability), King (supervise
 - **Availability summary**: per Alliance, the number of available Whales, Dolphins and Seals (Small Fry apart); a
   Kingdom total.
 
-**Aggregate**: **Siege** (one per KvK week), holding its Battle Plan, deadlines, Plan Confirmations, Availability and
+**Aggregate**: **Raid** (one per KvK week), holding its Battle Plan, deadlines, Plan Confirmations, Availability and
 the record of reminders sent.
 
 Candidate invariants
 - Only War Council holders draft, publish, amend or cancel a Battle Plan.
-- One Siege per KvK week, in a fixed weekly window (time in configuration, Server Time).
+- One Raid per KvK week, in a fixed weekly window (time in configuration, Server Time).
 - Confirmations and Availability open only once the plan is published.
-- One Plan Confirmation per Alliance per Siege, by its R5 or, failing that, an R4.
-- One Availability answer per Member per Siege; it can change until the Siege starts.
+- One Plan Confirmation per Alliance per Raid, by its R5 or, failing that, an R4.
+- One Availability answer per Member per Raid; it can change until the Raid starts.
 - Each reminder or chase goes out at most once (as in 028). Neil stores instants; Server Time is only how they show.
 
 ## 4. Proposed terms (for the user's approval before DICTIONARY.md changes)
 
 - **War Council**: the Discord role (ID in configuration, given by the owners) whose holders write and publish Battle
   Plans. Independent of the King role; not an Officer role.
-- **Siege**: the Home Kingdom's one fight window of a KvK week, at a fixed time in Server Time.
-- **Battle Plan**: the War Council's structured plan for one Siege: Objectives, Phases, Assignments and notes.
+- **Raid**: the Home Kingdom's one fight window of a KvK week, at a fixed time in Server Time.
+- **Battle Plan**: the War Council's structured plan for one Raid: Objectives, Phases, Assignments and notes.
 - **Objective**: a target in a Battle Plan. Always offered: the enemy Kingdom's Royal City, its four Cannon Towers
   (north, east, south, west) and enemy sanctuaries; the War Council may add others.
-- **Phase**: a timed step of a Siege in a Battle Plan; each Phase gets a Siege Reminder.
+- **Phase**: a timed step of a Raid in a Battle Plan; each Phase gets a Raid Reminder.
 - **Assignment**: which Alliance takes which Objective or role in which Phase. An Alliance with an Assignment is *on
   the plan*.
 - **Plan Confirmation**: an Alliance's acknowledgement that it has read the Battle Plan, by its R5 or else an R4.
 - **Availability Poll**: Neil's poll in an Alliance's `alliance-chat` asking which Members will fight, and as what.
-- **Fighter Class**: how much a Player can carry in a Siege: Whale (heavy spender, very strong, T9/T10, leads charges
+- **Fighter Class**: how much a Player can carry in a Raid: Whale (heavy spender, very strong, T9/T10, leads charges
   and holds key Objectives), Dolphin (light spender or very active free player, T9, supports Whales, holds side
   Objectives), Seal (casual or free player, T8 and below, supports Dolphins and fills rallies), Small Fry (not part of
   the strategy). Chosen by the Member; Neil suggests one from Troop Bracket and Might.
-- **Plan Deadline**, **Confirmation Deadline**: fixed offsets before the Siege (configuration).
+- **Plan Deadline**, **Confirmation Deadline**: fixed offsets before the Raid (configuration).
 - **Confirmation Chase**: Neil's mention of on-plan Alliances' leaders who haven't confirmed yet.
-- **Siege Reminder**: a message before the Siege's start or at a Phase, mentioning the assigned Alliances.
+- **Raid Reminder**: a message before the Raid's start or at a Phase, mentioning the assigned Alliances.
 - **Server Time**: the game's clock, UTC-2 all year (#123).
 
-Dictionary entries this touches: Kingdom vs Kingdom (gains Siege), Officer (King = the Discord role).
+Dictionary entries this touches: Kingdom vs Kingdom (gains Raid). King was added on 2026-11-15 (answer 14).
 
 ## 5. Slicing (proposal)
 
-1. **Plan the Siege** (first cut, section 7): Battle Plan, Plan Deadline, plan card, Plan Confirmation and chase,
-   Siege Reminders per Phase.
+1. **Plan the Raid** (first cut, section 7): Battle Plan, Plan Deadline, plan card, Plan Confirmation and chase,
+   Raid Reminders per Phase.
 2. **Know who fights**: Availability Poll in every `alliance-chat`, Fighter Class suggestion, Availability summary.
    Could come first if the War Council needs the numbers to write the plan (see section 7, open point).
 3. **Read the battle plan in my language**: translated copies, if Interaction Bot doesn't translate Neil's posts.
@@ -113,7 +113,7 @@ Dictionary entries this touches: Kingdom vs Kingdom (gains Siege), Officer (King
 ## 6. The user's answers (2026-11-15)
 
 1. **Plan form**: a structured plan in Neil (not a forum link, not free text alone).
-2. **Siege**: one fixed window per KvK week.
+2. **Raid**: one fixed window per KvK week.
 3. **RSVP**: what matters is not yes/no but **who fights in which capacity**. R5s poll their Alliance; a rough count
    per Fighter Class (Whale, Dolphin, Seal; Small Fry don't matter) is enough. These counts are an elementary input to
    the strategy.
@@ -125,26 +125,27 @@ Dictionary entries this touches: Kingdom vs Kingdom (gains Siege), Officer (King
    be added.
 7. **Channels**: plan card in `kvk-announcements`; confirmations, totals and chases in a new closed `kvk-leaders`.
 8. **Timing**: fixed offsets from configuration for the Plan Deadline and Confirmation Deadline, chases at set lead
-   times; on Siege day a reminder before the start and one per Phase, mentioning the assigned Alliances.
-9. **Time and King**: Server Time is fixed UTC-2 all year and Siege times are entered in it, plus Discord timestamps;
-   "King" in Neil means the Discord role.
+   times; on Raid day a reminder before the start and one per Phase, mentioning the assigned Alliances.
+9. **Time and King**: Server Time is fixed UTC-2 all year and Raid times are entered in it, plus Discord timestamps;
+   "King" in Neil means the Discord role (corrected by answer 14).
 10. **Suggestion**: Troop Bracket plus Might (thresholds in configuration); the Member confirms or picks another class.
 11. **Small Fry**: asked too, counted apart, left out of the strategy totals.
-12. **Order**: "Know who fights" (Availability Poll, Fighter Class) comes **first**, then "Plan the Siege".
+12. **Order**: "Know who fights" (Availability Poll, Fighter Class) comes **first**, then "Plan the Raid".
 13. **Terms**: approved at `/speckit-specify`, not before.
+14. **King and Raid** (later the same day): King is both the in-game title and the Discord role its holder gets; it changes at the Royal City siege every Friday (on Kingdom 330 by City Rotation, #120; other Kingdoms may fight over it or rotate among more Alliances). Added to DICTIONARY.md. Saturday's KvK fight window is called a **Raid**, not a Siege, so it is never confused with Friday's Royal City siege.
 
 ## 7. Smallest first cut (proposal)
 
-**"Plan the Siege"**:
-1. The weekly Siege window is configuration (Server Time). A War Council holder drafts this week's Battle Plan with
-   `/siege-plan …` (Objectives from the fixed list plus custom ones, Phases with times, Assignments, notes) and
+**"Plan the Raid"**:
+1. The weekly Raid window is configuration (Server Time). A War Council holder drafts this week's Battle Plan with
+   `/raid-plan …` (Objectives from the fixed list plus custom ones, Phases with times, Assignments, notes) and
    publishes it.
 2. If nothing is published by the Plan Deadline, Neil mentions the War Council in `kvk-leaders`.
 3. On publishing: the plan card goes to `kvk-announcements` (times in Server Time plus `<t:…>`), the confirmation card
    to `kvk-leaders`. Every Home Kingdom Alliance's R5 (or R4) can press "Read and confirmed".
 4. On-plan Alliances that haven't confirmed are mentioned at fixed lead times before the Confirmation Deadline; at the
    deadline the War Council gets the missing list. Off-plan Alliances are asked once.
-5. Siege Reminders before the start and at each Phase, mentioning the assigned Alliances' leaders.
+5. Raid Reminders before the start and at each Phase, mentioning the assigned Alliances' leaders.
 6. Everything is logged in `#neil-log` and survives a restart.
 
 **Order (answer 12)**: "Know who fights" (slice 2 above) is built first; this cut follows it.
