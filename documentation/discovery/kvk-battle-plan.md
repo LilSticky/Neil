@@ -130,6 +130,8 @@ Dictionary entries this touches: Kingdom vs Kingdom (gains Siege), Officer (King
    "King" in Neil means the Discord role.
 10. **Suggestion**: Troop Bracket plus Might (thresholds in configuration); the Member confirms or picks another class.
 11. **Small Fry**: asked too, counted apart, left out of the strategy totals.
+12. **Order**: "Know who fights" (Availability Poll, Fighter Class) comes **first**, then "Plan the Siege".
+13. **Terms**: approved at `/speckit-specify`, not before.
 
 ## 7. Smallest first cut (proposal)
 
@@ -145,8 +147,7 @@ Dictionary entries this touches: Kingdom vs Kingdom (gains Siege), Officer (King
 5. Siege Reminders before the start and at each Phase, mentioning the assigned Alliances' leaders.
 6. Everything is logged in `#neil-log` and survives a restart.
 
-**Open point for the spec**: slice 2 (Availability) may need to come *before* slice 1, since the counts per Fighter
-Class are what the War Council plans with. Ask at `/speckit-specify`.
+**Order (answer 12)**: "Know who fights" (slice 2 above) is built first; this cut follows it.
 
 Needs a Server Layout change (`kvk-leaders`, Neil's post right in `kvk-announcements`, War Council role).
 
