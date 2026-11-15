@@ -22,7 +22,12 @@ Add to `.env` (git-ignored). Neil ignores these, and Wispbyte never needs them:
 NEIL_POLICE_TOKEN=police-bot-token
 # Servers the MCP server may read: the test server only
 NEIL_POLICE_GUILD_IDS=test-server-id
+# Police's role on the test server, for the setup script (section 2)
+NEIL_POLICE_ROLE_ID=police-role-id
 ```
+
+To copy the role ID, switch on Developer Mode (User Settings → Advanced), then open **Server Settings → Roles**, right-click
+Police's role and choose **Copy Role ID**.
 
 ## 2. Invite Police to the test server
 
@@ -35,8 +40,13 @@ Public Threads, Embed Links, Add Reactions, Manage Nicknames, Manage Roles, Mana
 Administrator, Kick, Ban, Timeout, Manage Channels, Manage Server or Manage Webhooks. In **Server Settings → Roles**,
 place Police's role **above** the Managed Roles and **below** Neil Test's role, so it can change Members' roles but
 never Neil Test. To widen an earlier invite, open the link again: Discord updates the permissions. A channel Police's role
-cannot see stays hidden from it: since 2026-11-16, Discord sends obfuscated channels to bots that cannot view them. To
-check such a channel, add Police's role to it on the test server.
+cannot see stays hidden from it: since 2026-11-16, Discord sends obfuscated channels to bots that cannot view them.
+
+To let Police see the closed channels (`#neil-log`, `#moderators`, `nap-leaders` and every other category or channel hidden
+from @everyone), set `NEIL_POLICE_ROLE_ID` (section 1) and run `npm run server:setup -- --apply` against the test server. The
+run gives Police's role **View Channel** and **Read Message History** on every category and channel the layout hides from
+@everyone, and nothing more. It does so only when `DISCORD_GUILD_ID` is listed in `NEIL_POLICE_GUILD_IDS`: against any
+other server it says so in one line and gives Police nothing. Private Interview threads stay hidden unless Police is added.
 
 ## 3. The MCP server
 
@@ -67,7 +77,7 @@ After a `develop` deploy and the restart of `lap-test-neil`, a session checks th
 3. **Act**: what Discord reserves to people (slash commands, buttons, select menus, modals, joining the server) goes to
    the user as numbered steps, one test case at a time.
 4. **Assert** through Police: Neil's messages and embeds, thread contents, roles, nicknames, `#neil-log` lines, the audit
-   log. Compare with the expected result in the slice's `quickstart.md` or [TEST-RUN.md](TEST-RUN.md).
+   log. `#neil-log` and the other closed channels are readable once the setup run of section 2 gave Police its overwrites. Compare with the expected result in the slice's `quickstart.md` or [TEST-RUN.md](TEST-RUN.md).
 5. **Record** pass or fail per case in the slice's `tasks.md`, then clean up what Police created.
 
 Typical checks: read an Interview thread (`discord_list_channel_threads`, `discord_read_messages`), a Member's roles and
