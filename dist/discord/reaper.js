@@ -65,7 +65,7 @@ function nameFailureMessage(failure, name, kingdom, adderId, reason, context) {
         case "not-prepared":
             return { content: lookupMessages.playerNameNotPrepared(name) };
         default:
-            return { content: sharedPlayerFailureText(failure, context.now()) };
+            return { content: sharedPlayerFailureText(failure) };
     }
 }
 /** Looks the name up for /reaper add; a refused or broken lookup is logged and told as unavailable. */
@@ -217,7 +217,7 @@ async function closestOriginOf(given, memberId, context, read) {
 export async function rankClosestFor(given, memberId, context, read) {
     const start = await closestOriginOf(given, memberId, context, read);
     if (start.kind === "refused")
-        return { kind: "text", content: sharedPlayerFailureText(start.refusal, context.now()) };
+        return { kind: "text", content: sharedPlayerFailureText(start.refusal) };
     if (start.kind === "unmeasurable")
         return { kind: "text", content: reaperMessages.askXAndY };
     return { kind: "ranked", ranking: await rankClosest(start, given, context, read) };

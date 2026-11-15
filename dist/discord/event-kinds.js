@@ -4,7 +4,7 @@ import { parseAllianceKey, } from "../domain/lookup-input.js";
 import { nextDuelReset } from "../domain/duel-plan.js";
 import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { isOfficer } from "../domain/officer.js";
-import { unixOf } from "./event-texts.js";
+import { unixOf } from "./timestamps.js";
 /** The owner of the kingdom's list. Alliance lists are keyed by their tag. */
 const KINGDOM = "kingdom";
 const messages = {

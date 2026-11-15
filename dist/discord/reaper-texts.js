@@ -1,8 +1,9 @@
-import { utcDayOf } from "../domain/daily-quota.js";
-import { escapeText, fitEscaped, utcTime } from "./lookup-cards.js";
+import { escapeText, fitEscaped } from "./lookup-cards.js";
+import { timestamp } from "./timestamps.js";
 /**
  * An escaped Exile name is cut to 50 characters where a line or a confirmation shows it. With a reason of 200 characters
- * escaped to 400, eight list lines of this size stay within a 4,096-character embed description.
+ * escaped to 400, eight list lines of this size (about 500 characters each, the "exiled" day a 16-character
+ * Discord timestamp) stay within a 4,096-character embed description.
  */
 const NAME_MAX_LENGTH = 50;
 /** The escaped name of an Exile, cut to NAME_MAX_LENGTH. */
@@ -44,13 +45,13 @@ export const reaperMessages = {
     /** Coordinates as "X:3 Y:4"; a stored position also says when it was read. */
     coordinates: (position, readAt) => readAt === undefined
         ? coordinates(position)
-        : `${coordinates(position)} (position as of ${utcDayOf(readAt)} ${utcTime(readAt)})`,
+        : `${coordinates(position)} (position as of ${timestamp(readAt, "f")})`,
     /** A distance rounded to one decimal place, the ".0" dropped. */
     distance: (value) => (Math.round(value * 10) / 10).toString(),
     empty: "REAPER is empty.",
     listTitle: "Exiles in REAPER",
     /** One Exile of the list: name, Kingdom, reason and the day it was added. */
-    listLine: (exile) => `**${fittedName(exile.name)}** · Kingdom ${exile.kingdom.toString()} · ${escapeText(exile.reason)} · exiled ${utcDayOf(exile.addedAt)}`,
+    listLine: (exile) => `**${fittedName(exile.name)}** · Kingdom ${exile.kingdom.toString()} · ${escapeText(exile.reason)} · exiled ${timestamp(exile.addedAt, "D")}`,
     pageExpired: "This list has expired, run /reaper again.",
     pageNotYours: "Only the Member who ran /reaper can turn its pages.",
     previous: "◀ Previous",

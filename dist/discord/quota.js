@@ -1,7 +1,8 @@
 import { MessageFlags } from "discord.js";
 import { isOfficer } from "../domain/officer.js";
 import { leftForLookups, nextReset, remaining, utcDayOf } from "../domain/daily-quota.js";
-import { lookupMessages, timeLeft, utcTime } from "./lookup-cards.js";
+import { lookupMessages } from "./lookup-cards.js";
+import { timestamp } from "./timestamps.js";
 const NOT_OFFICER_TEXT = "/quota is for Officers (Moderator or King).";
 /** The most Members the Most requests today list shows. */
 const MOST_LISTED = 10;
@@ -23,12 +24,12 @@ function renderQuotaReply(quota, quotaReserve, now, allowance) {
     const reset = nextReset(now);
     const confirmed = quota.confirmedAt === undefined
         ? "Not confirmed by the Game API yet today."
-        : `Last confirmed by the Game API at ${utcTime(quota.confirmedAt)}.`;
+        : `Last confirmed by the Game API ${timestamp(quota.confirmedAt, "t")} (${timestamp(quota.confirmedAt, "R")}).`;
     return [
         `Daily Quota for ${utcDayOf(now)} (UTC)`,
         `Used: ${quota.used.toLocaleString("en-US")} · Remaining: ${remaining(quota).toLocaleString("en-US")} · Limit: ${quota.limit.toLocaleString("en-US")}${spent}`,
         `Quota Reserve: ${quotaReserve.toLocaleString("en-US")} (for Onboarding Interviews) · Left for lookups: ${leftForLookups(quota, quotaReserve).toLocaleString("en-US")}`,
-        `Resets at 00:00 UTC (${timeLeft(reset, now)}).`,
+        `Resets ${timestamp(reset, "t")} (${timestamp(reset, "R")}).`,
         confirmed,
         ...renderAllowanceLines(allowance),
     ].join("\n");

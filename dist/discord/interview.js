@@ -759,7 +759,7 @@ async function announce(deps, transition, uid) {
             await deps.channels.post(interview.threadId, unavailableMessage(interview.id));
             return;
         case "paused":
-            await deps.channels.post(interview.threadId, quotaSpentMessage(event.resumesAt, deps.now()));
+            await deps.channels.post(interview.threadId, quotaSpentMessage(event.resumesAt));
             return;
         default:
             return;

@@ -1,7 +1,7 @@
 import { ButtonStyle, ComponentType, MessageFlags, } from "discord.js";
-import { utcTime, timeLeft } from "./lookup-cards.js";
 import { playerCardText } from "./interview-texts.js";
 import { playerFailureText } from "./lookup.js";
+import { timestamp } from "./timestamps.js";
 const NO_MENTIONS = { parse: [] };
 /** The text of a reply; the command defers it privately, so only the Member who ran it sees it. */
 function replyText(content) {
@@ -74,12 +74,12 @@ export function memberGoneReply(memberId) {
     return replyText(`<@${memberId}> is not on the server, so they can't be Linked.`);
 }
 /** The private reply to /link when the Daily Quota is spent: when lookups work again. */
-function quotaSpentReply(resetsAt, now) {
-    return replyText(`I can't look players up again until ${utcTime(resetsAt)} (${timeLeft(resetsAt, now)}). Run /link again then.`);
+function quotaSpentReply(resetsAt) {
+    return replyText(`I can't look players up again until ${timestamp(resetsAt, "t")} (${timestamp(resetsAt, "R")}). Run /link again then.`);
 }
 /** The private reply to /link when the Player for the uid could not be fetched: why, and when lookups work again. */
-export function linkLookupFailureReply(failure, uid, now) {
-    return failure.kind === "quota-spent" ? quotaSpentReply(failure.resetsAt, now) : replyText(playerFailureText(failure, uid, now));
+export function linkLookupFailureReply(failure, uid) {
+    return failure.kind === "quota-spent" ? quotaSpentReply(failure.resetsAt) : replyText(playerFailureText(failure, uid));
 }
 /** The Officer Link card: the Player shown, and the Confirm and Cancel buttons of this confirmation. */
 export function linkCardMessage(confirmationId, memberId, player) {

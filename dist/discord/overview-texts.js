@@ -1,6 +1,6 @@
 import { ButtonStyle, ComponentType, } from "discord.js";
 import { TABLE_PAGE_SIZE, figureOf, lastSeen, leastActive, overviewOf, tablePage, topBy, } from "../domain/alliance-overview.js";
-import { CARD_COLOR, allianceLookAgainRow, compactNumber, embedCharacters, escapeText, fitTitle, footerFor, kingdomAuthor, newerDataField, thumbnailOf, } from "./lookup-cards.js";
+import { CARD_COLOR, allianceLookAgainRow, asOfLine, compactNumber, embedCharacters, escapeText, fitTitle, footerFor, kingdomAuthor, newerDataField, thumbnailOf, } from "./lookup-cards.js";
 /** The table sorts, in the order of the table's columns and of the sort buttons. */
 const TABLE_SORTS = ["might", "weeklyActivity", "dailyHonor", "dailyTech", "lastOnline"];
 /** The short key of each sort, as it appears in the custom ids. */
@@ -94,13 +94,15 @@ export function renderOverview(alliance, asOf, now, ownerId, sessionId, page, so
     const table = tablePage(alliance.roster, sort, page);
     const details = alliance.details;
     const thumbnail = thumbnailOf(details?.badgePath);
+    const asOfText = asOfLine(asOf);
     const overview = {
         title: fitTitle(`[${escapeText(alliance.tag)}] ${escapeText(alliance.name)} · Overview`),
         color: CARD_COLOR,
         author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
         ...(thumbnail === undefined ? {} : { thumbnail }),
+        ...(asOfText === undefined ? {} : { description: asOfText }),
         fields: [...overviewFields(alliance.roster, now), newerDataField(alliance.kingdom)],
-        footer: footerFor(asOf, now),
+        footer: footerFor(),
     };
     const embeds = [overview, tableEmbed(table, sort, alliance, now, embedCharacters(overview))];
     const again = allianceLookAgainRow(alliance, "overview", ownerId);

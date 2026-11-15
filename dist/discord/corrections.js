@@ -150,7 +150,7 @@ export function handleLink(interaction, deps) {
         const now = deps.now();
         const result = await deps.gameApi.getPlayer(uid.value, "onboarding-interview");
         if (result.kind !== "found")
-            return interaction.editReply(linkLookupFailureReply(result, uid.value, now));
+            return interaction.editReply(linkLookupFailureReply(result, uid.value));
         const confirmationId = deps.confirmations.add({
             officerId: caller.memberId,
             officerRoleIds: officerRoleIdsOf(deps.officerRoles),

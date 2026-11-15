@@ -1,5 +1,6 @@
 import { ButtonStyle, ComponentType, escapeMarkdown, MessageFlags, TextInputStyle, } from "discord.js";
-import { optionLabel, timeLeft, utcTime } from "./lookup-cards.js";
+import { optionLabel } from "./lookup-cards.js";
+import { timestamp } from "./timestamps.js";
 import { LINK_NOTE } from "./usage-texts.js";
 const THREAD_NAME_MAX_LENGTH = 100;
 const MAX_TRIES = 5;
@@ -301,9 +302,9 @@ export function unavailableMessage(interviewId) {
     return giveUidMessage("The game tracker isn't answering right now. Try again in a few minutes.", interviewId, noMentions());
 }
 /** The thread message when the Daily Quota is spent: when lookups work again, and that Neil will ping then. */
-export function quotaSpentMessage(resetsAt, now) {
+export function quotaSpentMessage(resetsAt) {
     return {
-        content: `I can't look players up again until ${utcTime(resetsAt)} (${timeLeft(resetsAt, now)}). I'll ping you here then.`,
+        content: `I can't look players up again until ${timestamp(resetsAt, "t")} (${timestamp(resetsAt, "R")}). I'll ping you here then.`,
         allowedMentions: noMentions(),
     };
 }

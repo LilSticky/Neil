@@ -48,7 +48,7 @@ async function answerPick(interaction, context, caller, ask, card, failureMessag
     }
     if (result.kind === "allowance-spent") {
         await followUpPrivately(interaction, {
-            content: refusalMessage(result.resetsAt, context.allowance(), context.now()),
+            content: refusalMessage(result.resetsAt, context.allowance()),
         });
         return;
     }
@@ -76,7 +76,7 @@ async function pickPlayerMatch(interaction, match, context) {
     const uid = parsedUid.value;
     const ownerId = interaction.user.id;
     const caller = callerOf(interaction, context.officerRoleIds);
-    await answerPick(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(uid), (player, asOf, now) => playerCardMessage(player, asOf, now, ownerId), (failure, now) => ({ content: playerFailureText(failure, uid, now) }));
+    await answerPick(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(uid), (player, asOf, now) => playerCardMessage(player, asOf, now, ownerId), (failure) => ({ content: playerFailureText(failure, uid) }));
 }
 /**
  * The owner picked a Player of the /reaper add pick list: the Player is looked up by uid, stored as an Exile with the
@@ -112,7 +112,7 @@ async function pickExileMatch(interaction, match, reason, context) {
         return;
     }
     if (result.kind !== "found") {
-        await followUpPrivately(interaction, { content: playerFailureText(result, uid, context.now()) });
+        await followUpPrivately(interaction, { content: playerFailureText(result, uid) });
         return;
     }
     const content = await recordFoundExile(result.value, result.asOf, reason, interaction.user.id, {
@@ -150,7 +150,7 @@ async function pickRosterMember(interaction, shownEntries, value, context) {
         return;
     }
     const caller = callerOf(interaction, context.officerRoleIds);
-    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(entry.uid), (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id), (failure, now) => ({ content: playerFailureText(failure, entry.uid, now) }));
+    await showLookup(interaction, context, caller, () => context.gameApi.chargedTo(caller).getPlayer(entry.uid), (player, asOf, now) => playerCardMessage(player, asOf, now, interaction.user.id), (failure) => ({ content: playerFailureText(failure, entry.uid) }));
 }
 /**
  * Answers a select menu of a pick list: the match or roster member the value names, by the kind of pick list. A roster

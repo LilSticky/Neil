@@ -1,15 +1,12 @@
 import { nextServerReset } from "../domain/server-time.js";
 import { CARD_COLOR, escapeText, fitTitle } from "./lookup-cards.js";
 import { textWithMentions } from "./mentions.js";
+import { unixOf } from "./timestamps.js";
 /** The most guides an invitation card shows. */
 const MAX_GUIDES = 10;
 /** An http or https link; it does not take the punctuation that ends a sentence after it. */
 const GUIDE_LINK = /https?:\/\/\S*[^\s.,;:!?)]/g;
 const INVITATION_LEAD = "📅 A new Event is on. Neil has put its card below.";
-/** Discord's Unix seconds for a moment, as <t:…> takes them. */
-export function unixOf(moment) {
-    return Math.floor(moment.getTime() / 1000).toString();
-}
 function discordEventLinkOf(guildId, event) {
     return `https://discord.com/events/${guildId}/${event.id}`;
 }

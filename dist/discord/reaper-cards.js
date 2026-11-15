@@ -1,11 +1,11 @@
 import { ButtonStyle, ComponentType, } from "discord.js";
 import { isOld } from "../domain/data-age.js";
-import { utcDayOf } from "../domain/daily-quota.js";
 import { allowedMentions, sharedPlayerFailureText } from "./lookup.js";
 import { CARD_COLOR, escapeText, fitTitle, kingdomAuthor, lookAgainRow, renderPlayerCard, withNewerData, } from "./lookup-cards.js";
 import { lookAgainCustomId } from "./look-again.js";
 import { clampReaperPage, reaperPageCount, reaperPageOf, reaperPageCustomId } from "./reaper-pages.js";
 import { reaperMessages } from "./reaper-texts.js";
+import { timestamp } from "./timestamps.js";
 /** How many of the closest Exiles one page of /reaper closest shows. */
 export const CLOSEST_PAGE_SIZE = 3;
 /** How many Exiles one page of /reaper list shows. */
@@ -72,7 +72,7 @@ function closestCard(entry, reads, now) {
         },
         { name: reaperMessages.fields.distance, value: reaperMessages.distance(entry.distance), inline: true },
         { name: reaperMessages.fields.reason, value: escapeText(exile.reason), inline: false },
-        { name: reaperMessages.fields.exiledOn, value: utcDayOf(exile.addedAt), inline: true },
+        { name: reaperMessages.fields.exiledOn, value: timestamp(exile.addedAt, "D"), inline: true },
     ];
     const read = reads.get(exile.uid);
     if (read === undefined) {
@@ -87,9 +87,9 @@ function closestCard(entry, reads, now) {
     return { ...card, fields: [...(card.fields ?? []), ...reaperFields] };
 }
 /** The text that replaces the cards when no Exile can be shown: the refusal, else why every Exile was left out, else none. */
-function noCardsText(ranking, now) {
+function noCardsText(ranking) {
     if (ranking.refusal !== undefined)
-        return sharedPlayerFailureText(ranking.refusal, now);
+        return sharedPlayerFailureText(ranking.refusal);
     if (leftOutTotal(ranking.leftOut) > 0)
         return reaperMessages.allLeftOut(ranking.leftOut);
     return reaperMessages.noExilesInKingdom(ranking.kingdom);
@@ -118,7 +118,7 @@ function closestLookAgainRow(ranking, ownerId, all) {
  */
 export function closestAnswer(ranking, now, page, sessionId, ownerId) {
     if (ranking.ranking.length === 0)
-        return { content: noCardsText(ranking, now), allowedMentions };
+        return { content: noCardsText(ranking), allowedMentions };
     const pageCount = reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE);
     const current = clampReaperPage(page, pageCount);
     const shown = reaperPageOf(ranking.ranking, current, CLOSEST_PAGE_SIZE);
