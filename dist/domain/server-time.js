@@ -1,6 +1,7 @@
 /**
  * Server Time: the game's clock, UTC-2. The game's daily reset is at 00:00 Server Time, which is 02:00 UTC. This is the
- * only place the offset is written down.
+ * only place the offset is written down. The offset never changes: the game has no daylight saving (confirmed by the
+ * user 2026-11-15).
  */
 export const SERVER_TIME_OFFSET_MINUTES = -120;
 const MINUTE_MS = 60_000;

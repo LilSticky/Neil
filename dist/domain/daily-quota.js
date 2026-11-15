@@ -1,11 +1,11 @@
 /** The limit assumed until the Game API reports one. */
 export const DEFAULT_LIMIT = 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-/** The UTC day a moment falls on. */
+/** The UTC day (the quota day) a moment falls on. For the game day use `serverDayOf` in `./server-time.js`. */
 export function utcDayOf(now) {
     return now.toISOString().slice(0, 10);
 }
-/** The next 00:00 UTC strictly after a moment. */
+/** The next 00:00 UTC (the quota reset) strictly after a moment. For the game's reset use `nextServerReset` in `./server-time.js`. */
 export function nextReset(now) {
     const startOfDay = Date.parse(`${utcDayOf(now)}T00:00:00Z`);
     return new Date(startOfDay + MS_PER_DAY);
