@@ -5,6 +5,7 @@ import { editorOf } from "../storage/reaper-editor.js";
 import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createDuelPlanPoster } from "./duel-plan.js";
+import { createHandoverReminders } from "./handover-reminders.js";
 import { createCityRotation } from "./city-rotation.js";
 import { cityRotationServerOf } from "./city-rotation-server.js";
 import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
@@ -1299,6 +1300,17 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The Handover Reminders go to #nap-leaders, and the next Holding Alliance to #home-kingdom-announcements, on the same
+        // one-minute tick as the Event Reminders.
+        const handoverReminders = createHandoverReminders({
+            server: eventServer,
+            rotation: options.cityRotation,
+            handovers: options.handovers,
+            mode: options.cityRotationMode,
+            siegeTime: options.royalCitySiegeTime,
+            now,
+            logError,
+        });
         // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
         const cityRotation = createCityRotation({
             store: options.cityRotation,
@@ -1446,8 +1458,8 @@ export async function connect(token, options) {
                 clearInterval(timer);
             };
         });
-        // The Events ahead are invited at startup; the reminders, the Duel Plan, then the City Rotation are ticked once a minute, until disconnect
-        // stops them.
+        // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation
+        // and the Raid clock are ticked once a minute, until disconnect stops them.
         void eventInvitations.onStartup();
         // The pinned City Rotation card is brought up to date once at startup.
         void cityRotation.refreshCard();
@@ -1460,6 +1472,7 @@ export async function connect(token, options) {
             void eventReminders
                 .tick()
                 .then(() => duelPlan.tick())
+                .then(() => handoverReminders.tick())
                 .then(() => cityRotation.tick())
                 .then(() => raidClock.tick())
                 .then(() => availabilityClock.tick())

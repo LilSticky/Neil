@@ -5,6 +5,10 @@ import { listEveryMember } from "./member-listing.js";
 const SUBSCRIBER_PAGE_SIZE = 100;
 /** The channel the Event invitations go to for a Kingdom Event. */
 const ANNOUNCEMENTS_CHANNEL = "event-announcements";
+/** The R5s' and the King's room, where the Handover Reminders go. */
+const NAP_LEADERS_CHANNEL = "nap-leaders";
+/** The announcement channel for the whole Home Kingdom, where the next Holding Alliance is announced. */
+const KINGDOM_ANNOUNCEMENTS_CHANNEL = "home-kingdom-announcements";
 /** The channel of an Alliance, in its category, that its Alliance Events go to. */
 const ALLIANCE_CHAT_CHANNEL = "alliance-chat";
 /** Every Member of the guild, read over REST page by page. */
@@ -14,7 +18,7 @@ function listAllMembers(guild) {
     ]);
 }
 function isPostable(channel) {
-    return channel.type === ChannelType.GuildText;
+    return channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement;
 }
 /** The first cached channel that is a guild text channel with this name and, when given, this category name. */
 function findTextChannel(guild, name, categoryName) {
@@ -23,9 +27,9 @@ function findTextChannel(guild, name, categoryName) {
         (categoryName === undefined || channel.parent?.name === categoryName));
 }
 /**
- * The Discord server as the Event invitations and reminders use it: role holders and roles, the announcement and alliance
- * channels, posts, #neil-log (through `log`, with mentions off), scheduled events, Interested Members and presence on the
- * server. Member lists are read over REST, page by page, and the Interested Members page by 100.
+ * The Discord server as the Event invitations and reminders and the Handover Reminders use it: role holders and roles,
+ * the announcement, alliance, #nap-leaders and #home-kingdom-announcements channels, posts, #neil-log (through `log`,
+ * with mentions off), scheduled events, Interested Members and presence on the server. Member lists are read over REST, page by page, and the Interested Members page by 100.
  */
 export function eventServerOf(guild, options) {
     return {
@@ -48,13 +52,19 @@ export function eventServerOf(guild, options) {
         announcementsChannelId() {
             return findTextChannel(guild, ANNOUNCEMENTS_CHANNEL)?.id;
         },
+        napLeadersChannelId() {
+            return findTextChannel(guild, NAP_LEADERS_CHANNEL)?.id;
+        },
+        kingdomAnnouncementsChannelId() {
+            return [...guild.channels.cache.values()].find((channel) => channel.type === ChannelType.GuildAnnouncement && channel.name === KINGDOM_ANNOUNCEMENTS_CHANNEL)?.id;
+        },
         allianceChatId(tag) {
             return findTextChannel(guild, ALLIANCE_CHAT_CHANNEL, allianceRoleName(tag))?.id;
         },
         async post(channelId, message) {
             const channel = await guild.channels.fetch(channelId);
             if (channel === null || !isPostable(channel)) {
-                throw new Error(`The channel ${channelId} is not a guild text channel.`);
+                throw new Error(`The channel ${channelId} is not a guild text or announcement channel.`);
             }
             const sent = await channel.send(message);
             return sent.url;

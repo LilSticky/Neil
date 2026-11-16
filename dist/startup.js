@@ -92,6 +92,7 @@ export async function start(deps) {
             syncHourUtc: config.syncHourUtc,
             syncShare: config.syncShare,
             cityRotation: store.cityRotation,
+            handovers: store.handovers,
             royalCitySiegeTime: config.royalCitySiegeTime,
             cityRotationMode: config.cityRotationMode,
         });
