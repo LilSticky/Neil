@@ -40,7 +40,7 @@ siege as a Discord timestamp. It pings nobody.
 
 ### Edge cases
 
-- Each post goes out at most once per siege, across repeated ticks and restarts (migration 19, `handover_posts`).
+- Each post goes out at most once per siege, across repeated ticks and restarts (migration 20, `handover_posts`).
 - Neil was off at a post's moment: sent late while the siege is ahead; the 24-hour reminder is dropped once the 1-hour
   one is due; the announcement still goes out.
 - Nothing is posted in Contested mode, without `ROYAL_CITY_SIEGE_TIME` (paused), without a City Rotation, or when the

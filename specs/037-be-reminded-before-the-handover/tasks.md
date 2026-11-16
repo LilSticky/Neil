@@ -8,7 +8,7 @@
 
 - [x] T001 [P] `dueHandoverPosts` and `HANDOVER_REMINDER_LEADS` in `src/domain/handover.ts` (+ test): before the 24-hour
   mark, at it, late, at the 1-hour mark, the dropped 24-hour reminder, from the siege on.
-- [x] T002 [P] Migration 19 and `HandoverStore` (+ tests): one row per siege and kind, a reopened database.
+- [x] T002 [P] Migration 20 and `HandoverStore` (+ tests): one row per siege and kind, a reopened database.
 
 ## Phase 2: User Stories 1 and 2 (P1)
 

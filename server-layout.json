@@ -579,7 +579,7 @@
         {
           "name": "kvk-leaders",
           "type": "text",
-          "description": "The KvK leaders' room: Battle Plan confirmations, chases and deadlines.",
+          "description": "The KvK leaders' room: Battle Plan confirmations, chases and deadlines, and the Availability totals per Alliance and Fighter Class.",
           "seenBy": [
             "R5",
             "R4",

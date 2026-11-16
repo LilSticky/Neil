@@ -1,6 +1,8 @@
 import { z } from "zod";
+import type { FighterClassThreshold, FighterClassThresholds } from "./domain/availability.js";
 import type { CityRotationMode, SiegeTime } from "./domain/city-rotation.js";
 import { parseKingdom, type KingdomNumber } from "./domain/lookup-input.js";
+import { isTroopBracket, tierOf, type TroopBracket } from "./domain/troop-bracket.js";
 
 export interface Configuration {
   readonly discordToken: string;
@@ -39,6 +41,8 @@ export interface Configuration {
   readonly raidPlanDeadlineHours: number;
   /** The Confirmation Deadline, in whole hours before the Raid start; always fewer than the Plan Deadline's. */
   readonly raidConfirmationDeadlineHours: number;
+  /** What each Fighter Class needs for Neil's suggestion (slice 036): a Troop Bracket or a Might; Whale above Dolphin above Seal. */
+  readonly fighterClassThresholds: FighterClassThresholds;
 }
 
 export class ConfigError extends Error {
@@ -99,6 +103,74 @@ const raidDeadlinesOrderRule =
 const raidStartRequiredRule = "required when DISCORD_WAR_COUNCIL_ROLE_ID is set";
 const DEFAULT_RAID_PLAN_DEADLINE_HOURS = 24;
 const DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS = 2;
+
+const fighterBracketRule = "must be a Troop Bracket from T1 to T10";
+const fighterMightRule = "must be a whole number of at least 1";
+const DEFAULT_FIGHTER_CLASS_THRESHOLDS: FighterClassThresholds = {
+  whale: { bracket: "T10", might: 150_000_000 },
+  dolphin: { bracket: "T9", might: 60_000_000 },
+  seal: { bracket: "T7", might: 20_000_000 },
+};
+
+/** A Fighter Class's Troop Bracket, T1 to T10. */
+const fighterBracket = z
+  .string()
+  .transform((value, ctx): TroopBracket => {
+    if (isTroopBracket(value)) return value;
+    ctx.addIssue({ code: "custom", message: fighterBracketRule });
+    return z.NEVER;
+  })
+  .optional();
+
+/** A Fighter Class's Might, a whole number of at least 1. */
+const fighterMight = z
+  .string()
+  .regex(/^\d+$/, fighterMightRule)
+  .refine((value) => Number(value) >= 1 && Number(value) <= Number.MAX_SAFE_INTEGER, fighterMightRule)
+  .transform(Number)
+  .optional();
+
+/** The Fighter Class thresholds from the settings, each missing one at its default. */
+function fighterClassThresholdsOf(data: {
+  readonly FIGHTER_WHALE_BRACKET?: TroopBracket | undefined;
+  readonly FIGHTER_WHALE_MIGHT?: number | undefined;
+  readonly FIGHTER_DOLPHIN_BRACKET?: TroopBracket | undefined;
+  readonly FIGHTER_DOLPHIN_MIGHT?: number | undefined;
+  readonly FIGHTER_SEAL_BRACKET?: TroopBracket | undefined;
+  readonly FIGHTER_SEAL_MIGHT?: number | undefined;
+}): FighterClassThresholds {
+  const defaults = DEFAULT_FIGHTER_CLASS_THRESHOLDS;
+  return {
+    whale: { bracket: data.FIGHTER_WHALE_BRACKET ?? defaults.whale.bracket, might: data.FIGHTER_WHALE_MIGHT ?? defaults.whale.might },
+    dolphin: {
+      bracket: data.FIGHTER_DOLPHIN_BRACKET ?? defaults.dolphin.bracket,
+      might: data.FIGHTER_DOLPHIN_MIGHT ?? defaults.dolphin.might,
+    },
+    seal: { bracket: data.FIGHTER_SEAL_BRACKET ?? defaults.seal.bracket, might: data.FIGHTER_SEAL_MIGHT ?? defaults.seal.might },
+  };
+}
+
+/** The settings of a class that is not strictly above the next lower one, with the rule each breaks. */
+function fighterOrderProblems(
+  higher: { readonly name: string; readonly threshold: FighterClassThreshold },
+  lower: { readonly name: string; readonly threshold: FighterClassThreshold },
+): { readonly setting: string; readonly message: string }[] {
+  const problems: { readonly setting: string; readonly message: string }[] = [];
+  const className = (name: string): string => name.charAt(0) + name.slice(1).toLowerCase();
+  if (tierOf(higher.threshold.bracket) <= tierOf(lower.threshold.bracket)) {
+    problems.push({
+      setting: `FIGHTER_${higher.name}_BRACKET`,
+      message: `must be above FIGHTER_${lower.name}_BRACKET: a ${className(higher.name)} needs more than a ${className(lower.name)}`,
+    });
+  }
+  if (higher.threshold.might <= lower.threshold.might) {
+    problems.push({
+      setting: `FIGHTER_${higher.name}_MIGHT`,
+      message: `must be above FIGHTER_${lower.name}_MIGHT: a ${className(higher.name)} needs more than a ${className(lower.name)}`,
+    });
+  }
+  return problems;
+}
 
 /** Whole hours from `min` to `max`, as text. */
 function hoursSetting(min: number, max: number, rule: string) {
@@ -184,6 +256,12 @@ const schema = z.object({
     .optional(),
   RAID_PLAN_DEADLINE_HOURS: hoursSetting(1, 144, raidPlanDeadlineRule),
   RAID_CONFIRMATION_DEADLINE_HOURS: hoursSetting(0, 143, raidConfirmationDeadlineRule),
+  FIGHTER_WHALE_BRACKET: fighterBracket,
+  FIGHTER_WHALE_MIGHT: fighterMight,
+  FIGHTER_DOLPHIN_BRACKET: fighterBracket,
+  FIGHTER_DOLPHIN_MIGHT: fighterMight,
+  FIGHTER_SEAL_BRACKET: fighterBracket,
+  FIGHTER_SEAL_MIGHT: fighterMight,
 }).superRefine((data, ctx) => {
   if (data.DISCORD_WAR_COUNCIL_ROLE_ID !== undefined && data.RAID_START === undefined) {
     ctx.addIssue({ code: "custom", path: ["RAID_START"], message: raidStartRequiredRule });
@@ -194,6 +272,14 @@ const schema = z.object({
   const valid = (hours: number, min: number, max: number): boolean => Number.isInteger(hours) && hours >= min && hours <= max;
   if (valid(planHours, 1, 144) && valid(confirmationHours, 0, 143) && confirmationHours >= planHours) {
     ctx.addIssue({ code: "custom", path: ["RAID_CONFIRMATION_DEADLINE_HOURS"], message: raidDeadlinesOrderRule });
+  }
+  // Whale strictly above Dolphin, Dolphin strictly above Seal, for the brackets and for the Might.
+  const thresholds = fighterClassThresholdsOf(data);
+  for (const problem of [
+    ...fighterOrderProblems({ name: "WHALE", threshold: thresholds.whale }, { name: "DOLPHIN", threshold: thresholds.dolphin }),
+    ...fighterOrderProblems({ name: "DOLPHIN", threshold: thresholds.dolphin }, { name: "SEAL", threshold: thresholds.seal }),
+  ]) {
+    ctx.addIssue({ code: "custom", path: [problem.setting], message: problem.message });
   }
 });
 
@@ -233,5 +319,6 @@ export function loadConfig(env: Record<string, string | undefined>): Configurati
     raidPlanDeadlineHours: result.data.RAID_PLAN_DEADLINE_HOURS ?? DEFAULT_RAID_PLAN_DEADLINE_HOURS,
     raidConfirmationDeadlineHours:
       result.data.RAID_CONFIRMATION_DEADLINE_HOURS ?? DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS,
+    fighterClassThresholds: fighterClassThresholdsOf(result.data),
   };
 }

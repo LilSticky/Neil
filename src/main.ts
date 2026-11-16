@@ -18,6 +18,7 @@ import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { RaidStore } from "./storage/raid-store.js";
+import { AvailabilityStore } from "./storage/availability-store.js";
 import { ReaperStore } from "./storage/reaper-store.js";
 import { createPreferenceStore } from "./storage/preference-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
@@ -51,6 +52,7 @@ await start({
       cityRotation: new CityRotationStore(db),
       handovers: new HandoverStore(db),
       raids: new RaidStore(db),
+      availability: new AvailabilityStore(db),
       preferences: createPreferenceStore(db, (line) => {
         console.error(line);
       }),

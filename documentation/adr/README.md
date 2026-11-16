@@ -24,3 +24,4 @@ with a new one and update both statuses here.
 | 16 | [An integration branch `develop` and a hosted test Neil](0016-develop-branch-and-test-environment.md) | Accepted |
 | 17 | [Neil Police acts on the test server](0017-neil-police-acts-on-the-test-server.md) | Accepted |
 | 18 | [Personal data of the City Rotation](0018-personal-data-of-the-city-rotation.md) | Accepted |
+| 19 | [Personal data of Availability](0019-personal-data-of-availability.md) | Accepted |

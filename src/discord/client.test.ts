@@ -84,6 +84,7 @@ function handlers() {
     raidPlan: vi.fn(() => Promise.resolve()),
     raidPlanAutocomplete: vi.fn(() => Promise.resolve()),
     raidButton: vi.fn(() => Promise.resolve()),
+    availabilityButton: vi.fn(() => Promise.resolve()),
     bootyButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
@@ -366,6 +367,18 @@ describe("createClient", () => {
     expect(routed.raidButton).toHaveBeenCalledWith(interaction);
     expect(routed.bootyButton).not.toHaveBeenCalled();
     expect(routed.rankButton).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with avail: to the Availability button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "avail:yes:2026-11-21:NML");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.availabilityButton).toHaveBeenCalledWith(interaction);
+    expect(routed.raidButton).not.toHaveBeenCalled();
+    expect(routed.bootyButton).not.toHaveBeenCalled();
   });
 
   test("hands /booty-alerts to the booty alerts handler and nothing else", () => {

@@ -329,6 +329,20 @@ discovery.
 * Neil's message in an assigned Alliance's `alliance-chat`, mentioning its Members: 30 minutes before the Raid start, and at each Phase it is assigned to
 * Each goes out at most once per Raid
 
+## Availability Poll
+* Neil's poll in an Alliance's `alliance-chat` asking which Members will fight in the Raid, and as what. Posted 72 hours before the Raid start in every Home Kingdom Alliance's `alliance-chat`; mentions nobody
+* Only Linked Members holding that Alliance's role answer: Available, with a Fighter Class, or Not available. One answer per Member per Raid; the last one counts, and it can change until the Raid starts
+* The card shows only counts. It closes at the Raid start, or when the Raid is cancelled; then the answers are deleted
+
+## Availability Summary
+* Neil's card in `#kvk-leaders`: per Alliance, the number of available Whales, Dolphins and Seals and their sum, Small Fry apart, and Not available; and a Kingdom total
+* Updated after every answer. Counts only, never names
+
+## Fighter Class
+* How much a Player can carry in a Raid: **Whale** (heavy spender, very strong, T9/T10, leads charges and holds key Objectives), **Dolphin** (light spender or very active free player, T9, supports Whales, holds side Objectives), **Seal** (casual or free player, T8 and below, supports Dolphins and fills rallies), **Small Fry** (not part of the strategy)
+* Chosen by the Member in the Availability Poll. Neil suggests the higher of the class their Troop Bracket reaches and the class their Might reaches; either is enough. The thresholds are in Neil's configuration (by default T10 or 150,000,000 Might for a Whale, T9 or 60,000,000 for a Dolphin, T7 or 20,000,000 for a Seal); an unknown Troop Bracket or Might counts as below every threshold
+* Small Fry are asked too, but counted apart and left out of every strategy sum
+
 # Onboarding
 
 ## Onboarding Interview

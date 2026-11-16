@@ -137,7 +137,7 @@ Threads; in a voice channel View Channel, Connect and Speak ✅. So no role need
 | Alliance Duel | chat, voice, tactics forum, intel | PvP, Events | 🟡 |
 | Kingdom vs Kingdom | chat, voice, tactics forum, intel, and five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
 | | KvK announcements (only King posts, and Neil posts the Battle Plan; Interaction Bot translates) | Kingdom | 🟡 |
-| | closed KvK leaders' channel `#kvk-leaders`: Plan Confirmations, chases and deadlines | `R5`, `R4`, War Council, King | 🟡 |
+| | closed KvK leaders' channel `#kvk-leaders`: Plan Confirmations, chases and deadlines, and the Availability Summary | `R5`, `R4`, War Council, King | 🟡 |
 | | a translated copy of the KvK announcements per translation language | that language's Preference Role | 🟡 |
 | Recruitment | general recruitment, and one text channel per Region (Americas, Europe/Africa, Asia/Oceania) | Recruitment | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |

@@ -75,6 +75,10 @@ Check that Home Kingdom Members hold `#<Home Kingdom>`: nearly every channel wil
    `RAID_START` (HH:MM in Server Time, Saturday) and, if you want other deadlines, `RAID_PLAN_DEADLINE_HOURS` and
    `RAID_CONFIRMATION_DEADLINE_HOURS` (see `env.example`), give the role to the War Council and restart Neil. Without the
    ID, Raid planning stays off.
+8. Optional, for the Availability Poll (slice 036): it runs with the Raid planning settings of step 7. To change which Fighter
+   Class Neil suggests, set `FIGHTER_WHALE_BRACKET`, `FIGHTER_WHALE_MIGHT`, `FIGHTER_DOLPHIN_BRACKET`, `FIGHTER_DOLPHIN_MIGHT`,
+   `FIGHTER_SEAL_BRACKET` and `FIGHTER_SEAL_MIGHT` (see `env.example`; Whale above Dolphin above Seal) and restart Neil. Run
+   the setup script again so `#kvk-leaders` gets its new description.
 
 The script keeps the overwrites you made and only adds or corrects the permissions the layout names. So if a channel still
 allows `Doctor`, Guests keep seeing it: the report lists it as an extra overwrite. Remove those yourself. It also doesn't

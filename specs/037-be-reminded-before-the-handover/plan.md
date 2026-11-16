@@ -16,7 +16,7 @@ has `allowedMentions: { parse: [] }`.
 ## Technical Context
 
 - No new dependency, no Game API request, no new setting, no role change.
-- Migration 19 (appended): `handover_posts (siege_at, kind CHECK IN ('reminder-24h','reminder-1h','announcement'),
+- Migration 20 (appended): `handover_posts (siege_at, kind CHECK IN ('reminder-24h','reminder-1h','announcement'),
   posted_at, PRIMARY KEY (siege_at, kind))`. No Discord user ids, so no new ADR on personal data.
 - `HandoverStore` (`src/storage/handover-store.ts`): `handoverPosted(siegeAt, kind)`,
   `recordHandoverPosted(siegeAt, kind, at)` (ON CONFLICT DO NOTHING).
