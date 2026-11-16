@@ -85,6 +85,8 @@ export async function start(deps) {
                 planHours: config.raidPlanDeadlineHours,
                 confirmationHours: config.raidConfirmationDeadlineHours,
             },
+            availability: store.availability,
+            fighterClassThresholds: config.fighterClassThresholds,
             preferences: store.preferences,
             guidesForumId: config.guidesForumId,
             syncHourUtc: config.syncHourUtc,

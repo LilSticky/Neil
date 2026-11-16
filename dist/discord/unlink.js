@@ -24,6 +24,9 @@ async function unlinkMember(deps, memberId, reason) {
     attempt(deps, memberId, "forgetting the Event Invitations Off", () => {
         deps.events.forgetMember(memberId);
     });
+    attempt(deps, memberId, "forgetting the Availability answers", () => {
+        deps.availability.forget(memberId);
+    });
     let notChanged = [];
     if (!removedByDiscord(reason)) {
         notChanged = await takeOffOnServer(deps, memberId, applied);

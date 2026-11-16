@@ -12,6 +12,10 @@ import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
 import { handleEventKinds } from "./event-kinds.js";
+import { createAvailabilityBoard } from "./availability-board.js";
+import { createAvailabilityClock } from "./availability-clock.js";
+import { createAvailabilityPoll } from "./availability-poll.js";
+import { AVAILABILITY_PREFIX } from "./availability-texts.js";
 import { createRaidClock } from "./raid-clock.js";
 import { createRaidPlanning, } from "./raid-plan.js";
 import { raidServerOf } from "./raid-server.js";
@@ -320,6 +324,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(RAID_PREFIX)) {
                 void handlers.raidButton(interaction);
+            }
+            else if (interaction.customId.startsWith(AVAILABILITY_PREFIX)) {
+                void handlers.availabilityButton(interaction);
             }
             return;
         }
@@ -801,6 +808,18 @@ function raidPlanAutocompleteLike(request) {
         respond: (choices) => request.respond(choices),
     };
 }
+/** The discord.js Availability Poll button press as the poll reads it: the presser, their roles and the private replies. */
+function availabilityPressLike(button) {
+    return {
+        customId: button.customId,
+        user: { id: button.user.id },
+        memberRoles: () => rolesOfMember(button.member),
+        reply: (reply) => button.reply(reply),
+        deferReply: (options) => button.deferReply(options),
+        editReply: (options) => button.editReply(options),
+        update: (options) => button.update(options),
+    };
+}
 /** The discord.js Read and confirmed button press as the Raid planning reads it. */
 function raidConfirmLike(button) {
     return {
@@ -984,6 +1003,10 @@ export async function connect(token, options) {
             const { raidPlanning } = await services;
             await raidPlanning.onConfirm(raidConfirmLike(button));
         }),
+        availabilityButton: async (button) => answer("availability button", { logError }, async () => {
+            const { availabilityPoll } = await services;
+            await availabilityPoll.onButton(availabilityPressLike(button));
+        }),
         bootyAlerts: (interaction) => handleBootyAlerts(bootyAlertsLike(interaction), {
             links: options.links,
             bootyAlerts: options.bootyAlerts,
@@ -1135,6 +1158,7 @@ export async function connect(token, options) {
             preferenceRoles,
             bootyAlerts: options.bootyAlerts,
             events: options.events,
+            availability: options.availability,
             now,
             sendPrivateMessage,
             officerRoles,
@@ -1307,9 +1331,34 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The Availability Poll: its buttons and its clock edit the same cards, after the Raid clock on the one-minute tick.
+        const availabilityBoard = createAvailabilityBoard({ availability: options.availability, server: raidServer });
+        const availabilityPoll = createAvailabilityPoll({
+            availability: options.availability,
+            raids: options.raids,
+            links: options.links,
+            game: options.gameApi,
+            server: raidServer,
+            settings: options.raidSettings,
+            thresholds: options.fighterClassThresholds,
+            troopBracketLevels: options.troopBracketLevels,
+            now,
+            logError,
+            board: availabilityBoard,
+        });
+        const availabilityClock = createAvailabilityClock({
+            availability: options.availability,
+            raids: options.raids,
+            server: raidServer,
+            settings: options.raidSettings,
+            now,
+            logError,
+            board: availabilityBoard,
+        });
         openServices({
             cityRotation,
             raidPlanning,
+            availabilityPoll,
             interviews,
             rankApprovals,
             eventInvitations,
@@ -1413,6 +1462,7 @@ export async function connect(token, options) {
                 .then(() => duelPlan.tick())
                 .then(() => cityRotation.tick())
                 .then(() => raidClock.tick())
+                .then(() => availabilityClock.tick())
                 .finally(() => {
                 reminderTickRunning = false;
             });

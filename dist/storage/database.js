@@ -235,6 +235,35 @@ const migrations = [
      card_message_id TEXT,
      CHECK ((pending_tag IS NULL) = (pending_siege_at IS NULL))
    )`,
+    // Migration 19: the Availability Polls of the Raids, their posted cards and the Members' answers (slice 036, ADR 19).
+    // The poll row is written before anything is posted, so a poll is never posted twice. Answers are personal data: one
+    // per Member per Raid, deleted when the poll closes or the Member is Unlinked; polls and cards hold none.
+    `CREATE TABLE availability_polls (
+     raid_id TEXT PRIMARY KEY CHECK (raid_id GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+     opened_at TEXT NOT NULL,
+     closed_at TEXT,
+     close_reason TEXT CHECK (close_reason IS NULL OR close_reason IN ('started', 'cancelled')),
+     summary_channel_id TEXT,
+     summary_message_id TEXT,
+     CHECK ((closed_at IS NULL) = (close_reason IS NULL))
+   );
+   CREATE TABLE availability_cards (
+     raid_id TEXT NOT NULL REFERENCES availability_polls (raid_id) ON DELETE CASCADE,
+     tag TEXT NOT NULL CHECK (tag <> ''),
+     channel_id TEXT NOT NULL,
+     message_id TEXT NOT NULL,
+     PRIMARY KEY (raid_id, tag)
+   );
+   CREATE TABLE availability_answers (
+     raid_id TEXT NOT NULL REFERENCES availability_polls (raid_id) ON DELETE CASCADE,
+     member_id TEXT NOT NULL CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*'),
+     tag TEXT NOT NULL CHECK (tag <> ''),
+     available INTEGER NOT NULL CHECK (available IN (0, 1)),
+     fighter_class TEXT CHECK (fighter_class IS NULL OR fighter_class IN ('whale', 'dolphin', 'seal', 'small-fry')),
+     answered_at TEXT NOT NULL,
+     CHECK ((available = 1) = (fighter_class IS NOT NULL)),
+     PRIMARY KEY (raid_id, member_id)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

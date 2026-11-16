@@ -7,4 +7,12 @@ export function bracketFor(level, levels) {
     const tiersReached = levels.filter((firstLevel) => level >= firstLevel).length;
     return TROOP_BRACKETS[tiersReached - 1];
 }
+/** Whether a text names a Troop Bracket, T1 to T10. */
+export function isTroopBracket(text) {
+    return TROOP_BRACKETS.includes(text);
+}
+/** A Troop Bracket's tier: 1 for T1 up to 10 for T10, so brackets compare by number (T10 above T9). */
+export function tierOf(bracket) {
+    return TROOP_BRACKETS.indexOf(bracket) + 1;
+}
 //# sourceMappingURL=troop-bracket.js.map
