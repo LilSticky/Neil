@@ -41,6 +41,17 @@ import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./e
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
 import { handleEventKinds, type EventKindsInteraction } from "./event-kinds.js";
+import type { RaidStore } from "../storage/raid-store.js";
+import { createRaidClock, type RaidClock } from "./raid-clock.js";
+import {
+  createRaidPlanning,
+  type RaidConfirmPress,
+  type RaidPlanInteraction,
+  type RaidPlanning,
+  type RaidSettings,
+} from "./raid-plan.js";
+import { raidServerOf } from "./raid-server.js";
+import { RAID_PREFIX } from "./raid-texts.js";
 import { createEventInvitations, eventIdOf, type EventInvitations } from "./events.js";
 import {
   createBootyCalls,
@@ -174,6 +185,12 @@ export interface CommandHandlers {
   readonly eventInvitations: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /event-kinds command: the Event Kinds of the kingdom or an Alliance, privately. */
   readonly eventKinds: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /raid-plan command: the War Council plans Saturday's Raid, privately. */
+  readonly raidPlan: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** An autocomplete request of /raid-plan, for its objective, phase and alliance options. */
+  readonly raidPlanAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
+  /** A button whose custom id starts with `raid:`, the Read and confirmed button of a Battle Plan. */
+  readonly raidButton: (button: ButtonInteraction) => Promise<void>;
   /** An autocomplete request of /booty-alerts, for its time-zone option. */
   readonly bootyAlertsAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   /** A button whose custom id starts with `booty:`, the Confirm and Cancel buttons of a Booty Call. */
@@ -233,6 +250,8 @@ interface Services {
   readonly preferenceChoices: PreferenceChoices;
   /** /booty and the Booty Call buttons. */
   readonly bootyCalls: BootyCalls;
+  /** /raid-plan, its autocomplete and the Read and confirmed button. */
+  readonly raidPlanning: RaidPlanning;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -464,6 +483,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "event-kinds":
           void handlers.eventKinds(interaction);
           break;
+        case "raid-plan":
+          void handlers.raidPlan(interaction);
+          break;
       }
       return;
     }
@@ -471,6 +493,7 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       if (interaction.commandName === "alliance") void handlers.allianceAutocomplete(interaction);
       if (interaction.commandName === "reaper") void handlers.reaperAutocomplete(interaction);
       if (interaction.commandName === "booty-alerts") void handlers.bootyAlertsAutocomplete(interaction);
+      if (interaction.commandName === "raid-plan") void handlers.raidPlanAutocomplete(interaction);
       return;
     }
     if (interaction.isModalSubmit()) {
@@ -496,6 +519,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.bootyButton(interaction);
       } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
         void handlers.preferencesPress(interaction);
+      } else if (interaction.customId.startsWith(RAID_PREFIX)) {
+        void handlers.raidButton(interaction);
       }
       return;
     }
@@ -550,6 +575,10 @@ export interface ConnectOptions {
   readonly bootyAlerts: BootyAlertsStore;
   /** The Events Neil has seen, their reminders and Kinds, and the Event Invitations Off, in neil.db. */
   readonly events: EventStore;
+  /** The Raids, their Battle Plans, Plan Confirmations and notices sent, in neil.db. */
+  readonly raids: RaidStore;
+  /** The War Council role, the Raid start and the deadlines from config; Raid planning is off without the role. */
+  readonly raidSettings: RaidSettings;
   /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
   readonly guidesForumId: string | undefined;
   /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
@@ -986,6 +1015,36 @@ function eventKindsLike(command: ChatInputCommandInteraction): EventKindsInterac
   };
 }
 
+/** The roles of the Member behind an interaction, by id and name; none outside a guild. */
+function rolesOfMember(member: unknown): { readonly id: string; readonly name: string }[] {
+  return member instanceof GuildMember ? [...member.roles.cache.values()].map((role) => ({ id: role.id, name: role.name })) : [];
+}
+
+/** The discord.js /raid-plan command as the Raid planning reads it: the caller, their roles, the options and the private replies. */
+function raidPlanLike(command: ChatInputCommandInteraction): RaidPlanInteraction {
+  return {
+    user: { id: command.user.id },
+    options: {
+      getSubcommand: () => command.options.getSubcommand(),
+      getString: (name) => command.options.getString(name),
+    },
+    memberRoles: () => rolesOfMember(command.member),
+    reply: (reply) => command.reply(reply),
+    deferReply: (options) => command.deferReply(options),
+    editReply: (options) => command.editReply(options),
+  };
+}
+
+/** The discord.js Read and confirmed button press as the Raid planning reads it. */
+function raidConfirmLike(button: ButtonInteraction): RaidConfirmPress {
+  return {
+    customId: button.customId,
+    user: { id: button.user.id },
+    memberRoles: () => rolesOfMember(button.member),
+    reply: (reply) => button.reply(reply),
+  };
+}
+
 /** The discord.js /event-invitations command as the Event Invitations read it: the caller by id, the option and the private reply. */
 function eventInvitationsLike(command: ChatInputCommandInteraction): EventInvitationsInteraction {
   return {
@@ -1166,6 +1225,21 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           officerRoleIds: options.officerRoleIds,
           now,
           logError,
+        }),
+      raidPlan: async (interaction) =>
+        answer("/raid-plan", { logError }, async () => {
+          const { raidPlanning } = await services;
+          await raidPlanning.onCommand(raidPlanLike(interaction));
+        }),
+      raidPlanAutocomplete: async (interaction) =>
+        answer("/raid-plan autocomplete", { logError }, async () => {
+          const { raidPlanning } = await services;
+          await raidPlanning.onAutocomplete(interaction);
+        }),
+      raidButton: async (button) =>
+        answer("raid button", { logError }, async () => {
+          const { raidPlanning } = await services;
+          await raidPlanning.onConfirm(raidConfirmLike(button));
         }),
       bootyAlerts: (interaction) =>
         handleBootyAlerts(bootyAlertsLike(interaction), {
@@ -1492,7 +1566,25 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
+    const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
+    const raidPlanning = createRaidPlanning({
+      raids: options.raids,
+      links: options.links,
+      server: raidServer,
+      settings: options.raidSettings,
+      now,
+      logError,
+    });
+    const raidClock: RaidClock = createRaidClock({
+      raids: options.raids,
+      server: raidServer,
+      settings: options.raidSettings,
+      now,
+      logError,
+    });
     openServices({
+      raidPlanning,
       interviews,
       rankApprovals,
       eventInvitations,
@@ -1595,6 +1687,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       void eventReminders
         .tick()
         .then(() => duelPlan.tick())
+        .then(() => raidClock.tick())
         .finally(() => {
           reminderTickRunning = false;
         });

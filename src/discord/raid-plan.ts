@@ -280,6 +280,7 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
           answer = await answerCommand(interaction, startMinutes);
         } catch (error) {
           deps.logError(`/raid-plan failed: ${errorMessage(error)}`);
+          await server.log(`/raid-plan ${interaction.options.getSubcommand()} by <@${interaction.user.id}> failed: ${errorMessage(error)}`).catch(() => undefined);
           answer = { content: raidMessages.unavailable, embeds: [] };
         }
         await interaction.editReply(answer);

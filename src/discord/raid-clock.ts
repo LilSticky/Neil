@@ -129,7 +129,9 @@ export function createRaidClock(deps: RaidClockDeps): RaidClock {
       try {
         await send(raid, notice, members, warCouncilRoleId);
       } catch (error) {
-        deps.logError(`Sending the Raid notice ${notice.key} failed: ${errorMessage(error)}`);
+        const line = `Sending the Raid notice ${notice.key} failed: ${errorMessage(error)}`;
+        deps.logError(line);
+        await server.log(line).catch(() => undefined);
       }
     }
   }

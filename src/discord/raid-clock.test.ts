@@ -155,4 +155,13 @@ describe("the Raid clock", () => {
 
     expect(server.posts).toEqual([]);
   });
+
+  test("a failed post is logged in #neil-log once and not sent again", async () => {
+    raids.save(publishedRaid());
+    server.post = () => Promise.reject(new Error("Missing Access"));
+    await tickAt(hoursBeforeStart(14));
+    await tickAt(hoursBeforeStart(13.9));
+
+    expect(server.logs.filter((line) => line.includes("chase:12h failed"))).toHaveLength(1);
+  });
 });
