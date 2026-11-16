@@ -17,6 +17,7 @@ import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { CityRotationStore } from "../storage/city-rotation-store.js";
 import { EventStore } from "../storage/event-store.js";
+import { HandoverStore } from "../storage/handover-store.js";
 import { RaidStore } from "../storage/raid-store.js";
 import { AvailabilityStore } from "../storage/availability-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
@@ -43,6 +44,7 @@ const GUILD_ID = "123456789012345678";
 const ONBOARDING_CHANNEL_ID = "1000000000000000001";
 const LOG_CHANNEL_ID = "1000000000000000002";
 const ANNOUNCEMENTS_CHANNEL_ID = "1000000000000000005";
+const NAP_LEADERS_CHANNEL_ID = "1000000000000000006";
 const EVENT_ID = "800000000000000001";
 const MODERATOR_ROLE_ID = "1000000000000000003";
 const KING_ROLE_ID = "1000000000000000004";
@@ -312,6 +314,7 @@ describe("connect", () => {
       cityRotation: new CityRotationStore(db),
       royalCitySiegeTime: undefined,
       cityRotationMode: "rotation",
+      handovers: new HandoverStore(db),
     };
   }
 
@@ -922,6 +925,39 @@ describe("connect", () => {
         connection = undefined;
         await vi.advanceTimersByTimeAsync(5 * 60_000);
         expect(guild.scheduledListings).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    test("ticks the Handover Reminders on the one-minute reminder clock, posting in #nap-leaders", async () => {
+      const { guild, officerRoleIds } = eventGuild();
+      guild.addChannel(NAP_LEADERS_CHANNEL_ID, { type: ChannelType.GuildText, name: "nap-leaders" });
+      // Thursday 19 November 2026, 22:00 UTC: the Royal City siege at 18:00 Server Time is 22 hours ahead.
+      const thursday = new Date("2026-11-19T22:00:00Z");
+      dailySync.save({ day: utcDayOf(thursday), leftOver: [] });
+      const cityRotation = new CityRotationStore(db);
+      cityRotation.save({ ...cityRotation.load(), order: ["ABC", "XYZ"], holding: "ABC", lastHandledSiege: new Date("2026-11-13T20:00:00Z") });
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      try {
+        connection = await connect(TOKEN, {
+          ...connectOptions(),
+          officerRoleIds,
+          now: () => thursday,
+          cityRotation,
+          royalCitySiegeTime: { hour: 18, minute: 0 },
+        });
+        await vi.waitFor(() => {
+          expect(guild.scheduledListings).toBe(1);
+        });
+        expect(guild.messagesIn(NAP_LEADERS_CHANNEL_ID)).toEqual([]);
+
+        await vi.advanceTimersByTimeAsync(60_000);
+
+        await vi.waitFor(() => {
+          expect(guild.messagesIn(NAP_LEADERS_CHANNEL_ID)).toHaveLength(1);
+        });
+        expect(guild.messagesIn(NAP_LEADERS_CHANNEL_ID)[0]).toContain("Handover Reminder");
       } finally {
         vi.useRealTimers();
       }

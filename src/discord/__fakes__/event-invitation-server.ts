@@ -12,11 +12,18 @@ export interface PostedEventMessage {
 /** The id of #event-announcements, as the fake server has it. */
 export const ANNOUNCEMENTS_CHANNEL_ID = "700000000000000010";
 
+/** The id of #nap-leaders, as the fake server has it. */
+export const NAP_LEADERS_CHANNEL_ID = "700000000000000030";
+
+/** The id of #home-kingdom-announcements, as the fake server has it. */
+export const KINGDOM_ANNOUNCEMENTS_CHANNEL_ID = "700000000000000040";
+
 const GUILD_ID = "100000000000000000";
 
 /**
  * The server as Event invitations use it: role holders and a Member's roles, the channels of the kingdom and of an
- * Alliance, posts, #neil-log lines, and the scheduled events Discord lists. Nothing reaches Discord. A post made to
+ * Alliance, #nap-leaders and #home-kingdom-announcements for the Handover Reminders, posts, #neil-log lines, and the
+ * scheduled events Discord lists. Nothing reaches Discord. A post made to
  * fail with `failNextPost` rejects once and is not recorded.
  */
 export class FakeEventInvitationServer implements EventInvitationServer {
@@ -29,10 +36,21 @@ export class FakeEventInvitationServer implements EventInvitationServer {
   private readonly interested = new Map<string, MemberId[]>();
   private readonly left = new Set<MemberId>();
   private postFailure: Error | undefined = undefined;
+  private readonly missingChannels = new Set<string>();
 
   /** The Member holds the role, by its name (such as `Events` or `[NML]`). */
   grantRole(roleName: string, memberId: MemberId): void {
     this.holders.set(roleName, [...(this.holders.get(roleName) ?? []), memberId]);
+  }
+
+  /** The Member no longer holds the role, by its name. */
+  removeRole(roleName: string, memberId: MemberId): void {
+    this.holders.set(roleName, (this.holders.get(roleName) ?? []).filter((holder) => holder !== memberId));
+  }
+
+  /** The server has no channel of this name (`nap-leaders` or `home-kingdom-announcements`). */
+  withoutChannel(name: string): void {
+    this.missingChannels.add(name);
   }
 
   /** The roles the Member holds, by id and name. */
@@ -83,6 +101,14 @@ export class FakeEventInvitationServer implements EventInvitationServer {
 
   announcementsChannelId(): string | undefined {
     return ANNOUNCEMENTS_CHANNEL_ID;
+  }
+
+  napLeadersChannelId(): string | undefined {
+    return this.missingChannels.has("nap-leaders") ? undefined : NAP_LEADERS_CHANNEL_ID;
+  }
+
+  kingdomAnnouncementsChannelId(): string | undefined {
+    return this.missingChannels.has("home-kingdom-announcements") ? undefined : KINGDOM_ANNOUNCEMENTS_CHANNEL_ID;
   }
 
   allianceChatId(tag: string): string | undefined {

@@ -28,14 +28,14 @@ describe("AvailabilityStore", () => {
   });
 
   test("migration 19 applies to a version-18 database", () => {
-    db.exec("DROP TABLE availability_answers; DROP TABLE availability_cards; DROP TABLE availability_polls");
-    db.exec("DELETE FROM schema_migrations WHERE version = 19");
+    db.exec("DROP TABLE handover_posts; DROP TABLE availability_answers; DROP TABLE availability_cards; DROP TABLE availability_polls");
+    db.exec("DELETE FROM schema_migrations WHERE version >= 19");
     db.close();
 
     db = openDatabase(dataDir);
     store = new AvailabilityStore(db);
 
-    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 19 });
+    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 20 });
     expect(store.poll(RAID_ID)).toBeUndefined();
   });
 

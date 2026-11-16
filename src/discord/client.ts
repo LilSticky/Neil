@@ -35,10 +35,12 @@ import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import type { EventStore } from "../storage/event-store.js";
 import type { CityRotationStore } from "../storage/city-rotation-store.js";
+import type { HandoverStore } from "../storage/handover-store.js";
 import type { CityRotationMode, SiegeTime } from "../domain/city-rotation.js";
 import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createDuelPlanPoster } from "./duel-plan.js";
+import { createHandoverReminders } from "./handover-reminders.js";
 import { createCityRotation, type CityRotation, type RotationButton, type RotationCommand } from "./city-rotation.js";
 import { cityRotationServerOf } from "./city-rotation-server.js";
 import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
@@ -624,6 +626,8 @@ export interface ConnectOptions {
   readonly royalCitySiegeTime: SiegeTime | undefined;
   /** Rotation or Contested, from CITY_ROTATION_MODE. */
   readonly cityRotationMode: CityRotationMode;
+  /** The Handover Reminders and next-holder announcements handled per Royal City siege, in neil.db. */
+  readonly handovers: Pick<HandoverStore, "handoverPosted" | "recordHandoverPosted">;
 }
 
 /** discord.js's code for a user who is not a member of the guild. */
@@ -1678,6 +1682,17 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    // The Handover Reminders go to #nap-leaders, and the next Holding Alliance to #home-kingdom-announcements, on the same
+    // one-minute tick as the Event Reminders.
+    const handoverReminders = createHandoverReminders({
+      server: eventServer,
+      rotation: options.cityRotation,
+      handovers: options.handovers,
+      mode: options.cityRotationMode,
+      siegeTime: options.royalCitySiegeTime,
+      now,
+      logError,
+    });
     // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
     const cityRotation = createCityRotation({
       store: options.cityRotation,
@@ -1829,8 +1844,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
-    // The Events ahead are invited at startup; the reminders, the Duel Plan, then the City Rotation are ticked once a minute, until disconnect
-    // stops them.
+    // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation
+    // and the Raid clock are ticked once a minute, until disconnect stops them.
     void eventInvitations.onStartup();
     // The pinned City Rotation card is brought up to date once at startup.
     void cityRotation.refreshCard();
@@ -1842,6 +1857,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       void eventReminders
         .tick()
         .then(() => duelPlan.tick())
+        .then(() => handoverReminders.tick())
         .then(() => cityRotation.tick())
         .then(() => raidClock.tick())
         .then(() => availabilityClock.tick())
