@@ -23,3 +23,4 @@ with a new one and update both statuses here.
 | 15 | [Neil Police: a test bot and a one-time server crawl](0015-neil-police-test-bot-and-server-crawl.md) | Partly superseded by 17 |
 | 16 | [An integration branch `develop` and a hosted test Neil](0016-develop-branch-and-test-environment.md) | Accepted |
 | 17 | [Neil Police acts on the test server](0017-neil-police-acts-on-the-test-server.md) | Accepted |
+| 18 | [Personal data of Availability](0018-personal-data-of-availability.md) | Accepted |
