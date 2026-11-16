@@ -95,6 +95,7 @@ describe("playerFromRoster", () => {
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",
+      leaderUid: undefined,
       roster: [],
     };
     const entry: RosterEntry = {

@@ -47,7 +47,7 @@ export interface UnlinkDeps {
   readonly bootyAlerts: Pick<BootyAlertsStore, "forget">;
   /** Forgets a Member's Event Invitations Off when their Link ends, so the choice does not outlive the Link. */
   readonly events: Pick<EventStore, "forgetMember">;
-  /** Deletes a Member's Availability answers when their Link ends, so they do not outlive the Link (ADR 18). */
+  /** Deletes a Member's Availability answers when their Link ends, so they do not outlive the Link (ADR 19). */
   readonly availability: Pick<AvailabilityStore, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;

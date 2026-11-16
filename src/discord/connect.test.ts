@@ -15,6 +15,7 @@ import { AppliedStore } from "../storage/applied-store.js";
 import { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
+import { CityRotationStore } from "../storage/city-rotation-store.js";
 import { EventStore } from "../storage/event-store.js";
 import { RaidStore } from "../storage/raid-store.js";
 import { AvailabilityStore } from "../storage/availability-store.js";
@@ -308,6 +309,9 @@ describe("connect", () => {
       guidesForumId: undefined,
       syncHourUtc: 3,
       syncShare: 500,
+      cityRotation: new CityRotationStore(db),
+      royalCitySiegeTime: undefined,
+      cityRotationMode: "rotation",
     };
   }
 

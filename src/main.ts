@@ -6,6 +6,7 @@ import { connect } from "./discord/client.js";
 import { GameApiClient } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
+import { CityRotationStore } from "./storage/city-rotation-store.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
 import { DailyQuotaStore } from "./storage/daily-quota-store.js";
@@ -47,6 +48,7 @@ await start({
       reaper: new ReaperStore(db),
       bootyAlerts: new BootyAlertsStore(db),
       events: new EventStore(db),
+      cityRotation: new CityRotationStore(db),
       raids: new RaidStore(db),
       availability: new AvailabilityStore(db),
       preferences: createPreferenceStore(db, (line) => {

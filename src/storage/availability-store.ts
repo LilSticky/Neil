@@ -49,7 +49,7 @@ function availabilityOf(row: z.infer<typeof answerRow>): Availability {
 }
 
 /**
- * Keeps the Availability Polls, their cards and the Members' answers, in neil.db (ADR 18). A row that does not read is
+ * Keeps the Availability Polls, their cards and the Members' answers, in neil.db (ADR 19). A row that does not read is
  * refused, not reset.
  */
 export class AvailabilityStore {

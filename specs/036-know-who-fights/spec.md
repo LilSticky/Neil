@@ -17,7 +17,7 @@
 2. The private reply offers four buttons; the suggested one is highlighted and marked "(suggested)", so one press confirms it.
 3. The poll opens 72 hours before the Raid start, fixed in code (Wednesday at the start time).
 4. Answers are kept until the poll closes at the start or the cancel; then only the counts on the cards remain. An Unlink
-   forgets them too (ADR 18).
+   forgets them too (ADR 19).
 5. The Alliance leaders see the totals in the Availability Summary in `#kvk-leaders`, and each Alliance its own counts on
    its poll card. No new channel or command.
 6. The Alliances with a `[TAG]` role when the poll opens get a card; an Alliance added later that week gets none.
@@ -49,7 +49,7 @@ closes, or a card cannot be posted or edited, never who answered what.
 
 R1–R13 as approved in the factory's spec step for issue #137: the threshold settings (R1), the suggestion (R2), the opening
 and its cards (R3), who may answer (R4), the private reply and class buttons (R5), changing until the start and the close
-(R6), the cancel (R7), the counts (R8), persistence (R9, migration 18), keeping answers only as long as needed (R10, ADR 18),
+(R6), the cancel (R7), the counts (R8), persistence (R9, migration 19), keeping answers only as long as needed (R10, ADR 19),
 the log (R11), the dictionary (R12) and the docs (R13).
 
 ## Out of scope

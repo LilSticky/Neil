@@ -109,6 +109,28 @@ discovery.
 * Changes hands every Friday at the Royal City siege. How depends on the Kingdom: some rotate the Royal City peacefully among their top Alliances (on Kingdom 330 the top 3), others fight over it
 * An Officer while holding the role; not a fixed post, so lasting duties belong to a role that does not change weekly
 
+## Royal City siege
+* The weekly Friday moment when the Royal City, and with it the King, changes hands
+* At a fixed time in Server Time, from configuration (`ROYAL_CITY_SIEGE_TIME`)
+* Not a Raid: "siege" always means the Royal City siege
+
+## City Rotation
+* The Home Kingdom's fixed, ordered list of Alliances that take the Royal City in turn, one Turn each
+* Kept by the R5s of the Alliances in it; Neil stores it by Alliance tag
+* A server setting chooses Rotation or Contested (`CITY_ROTATION_MODE`). In Contested there is no order, and an
+  Officer names each new Holding Alliance
+
+## Holding Alliance
+* The Alliance that holds the Royal City this Turn; its R5 is the King
+
+## Turn
+* One Alliance's time as Holding Alliance, from one Royal City siege to the next
+* Stays open until the Handover is confirmed
+
+## Handover
+* The Royal City passing to the next Alliance at a Royal City siege
+* Confirmed by the receiving Alliance's R5 (read fresh from the Game API) or by an Officer
+
 ## Home Kingdom Member
 * A Member whose Linked Player is in the Home Kingdom
 

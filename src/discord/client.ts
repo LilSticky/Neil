@@ -34,9 +34,14 @@ import type { ReaperStore } from "../storage/reaper-store.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { PreferenceStore } from "../storage/preference-store.js";
 import type { EventStore } from "../storage/event-store.js";
+import type { CityRotationStore } from "../storage/city-rotation-store.js";
+import type { CityRotationMode, SiegeTime } from "../domain/city-rotation.js";
 import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createDuelPlanPoster } from "./duel-plan.js";
+import { createCityRotation, type CityRotation, type RotationButton, type RotationCommand } from "./city-rotation.js";
+import { cityRotationServerOf } from "./city-rotation-server.js";
+import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
 import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
@@ -234,6 +239,10 @@ export interface CommandHandlers {
   readonly linkButton: (button: ButtonInteraction) => Promise<void>;
   /** A button or string select menu whose custom id starts with `pref:`, the Preferences message's components. */
   readonly preferencesPress: (press: ButtonInteraction | StringSelectMenuInteraction) => Promise<void>;
+  /** The /rotation command: the City Rotation, its order and the Holding Alliance. */
+  readonly rotation: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** A button whose custom id starts with `rotation-confirm:`, the Confirm handover button. */
+  readonly rotationButton: (button: ButtonInteraction) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
@@ -259,6 +268,8 @@ interface Services {
   readonly preferenceChoices: PreferenceChoices;
   /** /booty and the Booty Call buttons. */
   readonly bootyCalls: BootyCalls;
+  /** /rotation, the Confirm handover button, the pinned card and the after-siege step. */
+  readonly cityRotation: CityRotation;
   /** /raid-plan, its autocomplete and the Read and confirmed button. */
   readonly raidPlanning: RaidPlanning;
   /** The Availability Poll's buttons. */
@@ -494,6 +505,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "event-kinds":
           void handlers.eventKinds(interaction);
           break;
+        case "rotation":
+          void handlers.rotation(interaction);
+          break;
         case "raid-plan":
           void handlers.raidPlan(interaction);
           break;
@@ -530,6 +544,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.bootyButton(interaction);
       } else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
         void handlers.preferencesPress(interaction);
+      } else if (interaction.customId.startsWith(ROTATION_CONFIRM_PREFIX)) {
+        void handlers.rotationButton(interaction);
       } else if (interaction.customId.startsWith(RAID_PREFIX)) {
         void handlers.raidButton(interaction);
       } else if (interaction.customId.startsWith(AVAILABILITY_PREFIX)) {
@@ -602,6 +618,12 @@ export interface ConnectOptions {
   readonly syncHourUtc: number;
   /** The most Game API requests one Daily Sync run may send, from SYNC_SHARE. */
   readonly syncShare: number;
+  /** The City Rotation, its waiting Handover and its pinned card, in neil.db. */
+  readonly cityRotation: Pick<CityRotationStore, "load" | "update">;
+  /** The Friday time of the Royal City siege in Server Time, from ROYAL_CITY_SIEGE_TIME; undefined when not set. */
+  readonly royalCitySiegeTime: SiegeTime | undefined;
+  /** Rotation or Contested, from CITY_ROTATION_MODE. */
+  readonly cityRotationMode: CityRotationMode;
 }
 
 /** discord.js's code for a user who is not a member of the guild. */
@@ -901,6 +923,45 @@ function linkButtonLike(button: ButtonInteraction): LinkButtonInteraction {
       await button.editReply({ ...message, components: [] });
     },
   };
+}
+
+/** The discord.js /rotation command as the City Rotation reads it: the caller and their roles, the options, the reply. */
+function rotationCommandLike(command: ChatInputCommandInteraction): RotationCommand {
+  return {
+    user: command.user,
+    memberRoleIds: () => memberRoleIds(command.member),
+    options: { getString: (name) => command.options.getString(name) },
+    reply: (options) => command.reply(options),
+  };
+}
+
+/** The discord.js press of a Confirm handover button: the presser and their roles, a private reply, or the message replaced. */
+function rotationButtonLike(button: ButtonInteraction): RotationButton {
+  return {
+    customId: button.customId,
+    user: button.user,
+    memberRoleIds: () => memberRoleIds(button.member),
+    reply: (options) => button.reply(options),
+    update: (options) => button.update(options),
+  };
+}
+
+/** Hands a /rotation command to the City Rotation's subcommand. */
+async function routeRotation(cityRotation: CityRotation, interaction: ChatInputCommandInteraction): Promise<void> {
+  const command = rotationCommandLike(interaction);
+  switch (interaction.options.getSubcommand()) {
+    case "show":
+      await cityRotation.show(command);
+      break;
+    case "set":
+      await cityRotation.set(command);
+      break;
+    case "holder":
+      await cityRotation.holder(command);
+      break;
+    default:
+      await replyPrivately(interaction, cityRotationMessages.unknownSubcommand);
+  }
 }
 
 /** The discord.js /channels command as the choices read it: the caller, and the private reply. */
@@ -1362,6 +1423,12 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         }),
       channels: async (interaction) => (await services).preferenceChoices.showChannels(channelsCommandLike(interaction)),
       preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
+      rotation: (interaction) =>
+        answer("/rotation", { logError }, async () => routeRotation((await services).cityRotation, interaction)),
+      rotationButton: (button) =>
+        answer("rotation button", { logError }, async () =>
+          (await services).cityRotation.confirm(rotationButtonLike(button)),
+        ),
     },
     { guildId: options.guildId, logError },
   );
@@ -1611,6 +1678,21 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
+    const cityRotation = createCityRotation({
+      store: options.cityRotation,
+      knownAlliances: options.knownAlliances,
+      links: options.links,
+      editorOf: editorOfMember,
+      gameApi: options.gameApi,
+      server: cityRotationServerOf(guild, { log: (message) => channels.log(message) }),
+      homeKingdom: options.homeKingdom,
+      mode: options.cityRotationMode,
+      siegeTime: options.royalCitySiegeTime,
+      officerRoleIds: options.officerRoleIds,
+      now,
+      logError,
+    });
     // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
     const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
     const raidPlanning = createRaidPlanning({
@@ -1653,6 +1735,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       board: availabilityBoard,
     });
     openServices({
+      cityRotation,
       raidPlanning,
       availabilityPoll,
       interviews,
@@ -1746,9 +1829,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
-    // The Events ahead are invited at startup; the reminders, then the Duel Plan, are ticked once a minute, until disconnect
+    // The Events ahead are invited at startup; the reminders, the Duel Plan, then the City Rotation are ticked once a minute, until disconnect
     // stops them.
     void eventInvitations.onStartup();
+    // The pinned City Rotation card is brought up to date once at startup.
+    void cityRotation.refreshCard();
     // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
     let reminderTickRunning = false;
     const reminderTimer = setInterval(() => {
@@ -1757,6 +1842,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       void eventReminders
         .tick()
         .then(() => duelPlan.tick())
+        .then(() => cityRotation.tick())
         .then(() => raidClock.tick())
         .then(() => availabilityClock.tick())
         .finally(() => {

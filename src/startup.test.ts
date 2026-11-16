@@ -11,6 +11,7 @@ import { startCount, type StartRecord } from "./domain/start-record.js";
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
+import { CityRotationStore } from "./storage/city-rotation-store.js";
 import { RaidStore } from "./storage/raid-store.js";
 import { AvailabilityStore } from "./storage/availability-store.js";
 import { EventStore } from "./storage/event-store.js";
@@ -105,6 +106,7 @@ function stubStores(): {
   readonly memberUsage: MemberUsageStore;
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
+  readonly cityRotation: CityRotationStore;
   readonly raids: RaidStore;
   readonly availability: AvailabilityStore;
 } {
@@ -112,6 +114,7 @@ function stubStores(): {
     memberUsage: new MemberUsageStore(new DatabaseSync(":memory:")),
     bootyAlerts: new BootyAlertsStore(new DatabaseSync(":memory:")),
     events: new EventStore(new DatabaseSync(":memory:")),
+    cityRotation: new CityRotationStore(new DatabaseSync(":memory:")),
     raids: new RaidStore(new DatabaseSync(":memory:")),
     availability: new AvailabilityStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
@@ -460,7 +463,7 @@ function kingdomOf(number: number): KingdomNumber {
 
 /** An Alliance as the Game API answer describes it; only the Kingdom, tag and name reach the Known Alliance store. */
 function allianceOf(kingdom: KingdomNumber, tag: string, name: string): Alliance {
-  return { tag, name, kingdom, might: 0, memberCount: 0, capacity: 0, leaderName: undefined, roster: [] };
+  return { tag, name, kingdom, might: 0, memberCount: 0, capacity: 0, leaderName: undefined, leaderUid: undefined, roster: [] };
 }
 
 describe("start and the Known Alliances", () => {

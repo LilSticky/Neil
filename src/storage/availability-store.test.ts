@@ -27,15 +27,15 @@ describe("AvailabilityStore", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("migration 18 applies to a version-17 database", () => {
+  test("migration 19 applies to a version-18 database", () => {
     db.exec("DROP TABLE availability_answers; DROP TABLE availability_cards; DROP TABLE availability_polls");
-    db.exec("DELETE FROM schema_migrations WHERE version = 18");
+    db.exec("DELETE FROM schema_migrations WHERE version = 19");
     db.close();
 
     db = openDatabase(dataDir);
     store = new AvailabilityStore(db);
 
-    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 18 });
+    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 19 });
     expect(store.poll(RAID_ID)).toBeUndefined();
   });
 

@@ -73,10 +73,10 @@ describe("editorOf", () => {
     expect(editorOf({ links, applied }, ALICE)).toBeUndefined();
   });
 
-  test("takes the Alliance Rank from the Link and the Kingdom from the last Alliance in the Applied State", () => {
+  test("takes the Alliance Rank from the Link and the Kingdom and tag from the last Alliance in the Applied State", () => {
     links.confirm({ link: linkOf(ALICE, ALICE_UID, { source: "game-api", rank: "R4" }) }, () => undefined);
     applied.record(appliedOf(ALICE, HOME_ALLIANCE));
-    const expected: Editor = { allianceRank: { source: "game-api", rank: "R4" }, allianceKingdom: HOME };
+    const expected: Editor = { allianceRank: { source: "game-api", rank: "R4" }, allianceKingdom: HOME, allianceTag: "NML" };
 
     expect(editorOf({ links, applied }, ALICE)).toEqual(expected);
   });

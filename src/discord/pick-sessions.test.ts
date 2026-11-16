@@ -161,6 +161,7 @@ function rosterChoice(count: number): PickChoice {
     memberCount: count,
     capacity: 100,
     leaderName: "M00",
+    leaderUid: undefined,
     roster,
   };
   return { kind: "roster", entries: roster, alliance, asOf: OPENED_AT };

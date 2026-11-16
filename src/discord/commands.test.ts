@@ -426,7 +426,36 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds and /raid-plan", () => {
+  test("hold /rotation, open to every Member, guild only, with subcommands show, set (order, holding) and holder (tag)", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "rotation",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({ type: ApplicationCommandOptionType.Subcommand, name: "show" }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "set",
+            description: expect.stringContaining("R5s in the rotation") as unknown,
+            options: [
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "order", required: true, max_length: 200 }),
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "holding", required: false }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "holder",
+            description: expect.stringContaining("Officers") as unknown,
+            options: [expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "tag", required: true })],
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /raid-plan and /rotation", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "booty",
@@ -443,6 +472,7 @@ describe("commands", () => {
       "raid-plan",
       "rank",
       "reaper",
+      "rotation",
       "unlink",
       "usage",
     ]);
