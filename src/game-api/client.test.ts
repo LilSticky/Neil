@@ -607,6 +607,7 @@ describe("GameApiClient.getAlliance result", () => {
       memberCount: 52,
       capacity: 100,
       leaderName: "DrLOL",
+      leaderUid: parsedUid("145563254785"),
       details: RECORDED_ALLIANCE_DETAILS,
       roster: [
         {
@@ -651,6 +652,19 @@ describe("GameApiClient.getAlliance result", () => {
       ],
     };
     expect(result).toEqual({ kind: "found", value: expected, asOf: undefined });
+  });
+
+  test.each([
+    ["missing", undefined],
+    ["not a number", "the boss"],
+    ["negative", -5],
+  ])("an Alliance whose leader_id is %s is still read, with no leader uid", async (_label, leaderId) => {
+    const body = { ...alliance, leader_id: leaderId };
+    const { fetch } = fakeFetch(() => jsonResponse(200, body));
+
+    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
+
+    expect(result).toMatchObject({ kind: "found", value: { tag: "NML", leaderUid: undefined } });
   });
 
   test("a null online and a null last_online_at of a roster member read as undefined", async () => {

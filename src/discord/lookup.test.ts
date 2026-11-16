@@ -549,6 +549,7 @@ const alliance: Alliance = {
   memberCount: 52,
   capacity: 100,
   leaderName: "DrLOL",
+  leaderUid: undefined,
   roster: [],
 };
 

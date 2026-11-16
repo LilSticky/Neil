@@ -209,6 +209,7 @@ const NML: Alliance = {
   memberCount: 1,
   capacity: 100,
   leaderName: "M01",
+  leaderUid: undefined,
   roster: ROSTER,
 };
 

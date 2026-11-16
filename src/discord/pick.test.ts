@@ -329,6 +329,7 @@ const allianceNmx: Alliance = {
   memberCount: 30,
   capacity: 100,
   leaderName: "M00",
+  leaderUid: undefined,
   roster: ROSTER,
 };
 

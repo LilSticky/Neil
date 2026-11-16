@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { CityRotationMode, SiegeTime } from "./domain/city-rotation.js";
 import { parseKingdom, type KingdomNumber } from "./domain/lookup-input.js";
 
 export interface Configuration {
@@ -26,6 +27,10 @@ export interface Configuration {
   readonly syncHourUtc: number;
   /** Game API requests the Daily Sync may use per day; it never uses the Quota Reserve. */
   readonly syncShare: number;
+  /** The Friday time of the Royal City siege in Server Time; undefined when not set, and then no after-siege step runs. */
+  readonly royalCitySiegeTime: SiegeTime | undefined;
+  /** Whether the Kingdom takes the Royal City in a City Rotation or fights over it (Contested). */
+  readonly cityRotationMode: CityRotationMode;
 }
 
 export class ConfigError extends Error {
@@ -75,6 +80,9 @@ const syncHourRule = "must be a whole number from 0 to 23";
 
 const DEFAULT_SYNC_SHARE = 500;
 const syncShareRule = "must be a whole number of at least 1";
+
+const siegeTimeRule = "must be a time HH:MM from 00:00 to 23:59 (Server Time)";
+const cityRotationModeRule = "must be rotation or contested";
 
 const schema = z.object({
   DISCORD_TOKEN: z.string(required).min(1, required),
@@ -135,6 +143,12 @@ const schema = z.object({
     .refine((value) => Number(value) >= 1 && Number(value) <= Number.MAX_SAFE_INTEGER, syncShareRule)
     .transform(Number)
     .optional(),
+  ROYAL_CITY_SIEGE_TIME: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, siegeTimeRule)
+    .transform((value): SiegeTime => ({ hour: Number(value.slice(0, 2)), minute: Number(value.slice(3, 5)) }))
+    .optional(),
+  CITY_ROTATION_MODE: z.enum(["rotation", "contested"], cityRotationModeRule).optional(),
   DATA_DIR: z.string().min(1).default("./data"),
 });
 
@@ -167,5 +181,7 @@ export function loadConfig(env: Record<string, string | undefined>): Configurati
     troopBracketLevels: result.data.TROOP_BRACKET_LEVELS ?? DEFAULT_TROOP_BRACKET_LEVELS,
     syncHourUtc: result.data.SYNC_HOUR_UTC ?? DEFAULT_SYNC_HOUR_UTC,
     syncShare: result.data.SYNC_SHARE ?? DEFAULT_SYNC_SHARE,
+    royalCitySiegeTime: result.data.ROYAL_CITY_SIEGE_TIME,
+    cityRotationMode: result.data.CITY_ROTATION_MODE ?? "rotation",
   };
 }
