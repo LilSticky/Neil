@@ -177,6 +177,7 @@ const PERMISSION_BITS: Record<Permission, bigint> = {
   ManageThreads: PermissionFlagsBits.ManageThreads,
   ReadMessageHistory: PermissionFlagsBits.ReadMessageHistory,
   EmbedLinks: PermissionFlagsBits.EmbedLinks,
+  PinMessages: PermissionFlagsBits.PinMessages,
   Connect: PermissionFlagsBits.Connect,
   Speak: PermissionFlagsBits.Speak,
 };

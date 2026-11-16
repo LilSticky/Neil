@@ -96,6 +96,8 @@ function handlers() {
     interviewModal: vi.fn(() => Promise.resolve()),
     rankButton: vi.fn(() => Promise.resolve()),
     preferencesPress: vi.fn(() => Promise.resolve()),
+    rotation: vi.fn(() => Promise.resolve()),
+    rotationButton: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -289,6 +291,30 @@ describe("createClient", () => {
     expect(routed.bootyAlerts).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /rotation to the rotation handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("rotation");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.rotation).toHaveBeenCalledWith(interaction);
+    expect(routed.eventKinds).not.toHaveBeenCalled();
+    expect(routed.reaperList).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with rotation-confirm: to the rotation button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "rotation-confirm:1795723200000:XYZ");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.rotationButton).toHaveBeenCalledWith(interaction);
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.reaperPage).not.toHaveBeenCalled();
   });
 
   test("hands /event-kinds to the event kinds handler and nothing else", () => {

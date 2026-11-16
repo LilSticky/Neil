@@ -5,7 +5,6 @@ import {
   mayEditCityRotation,
   nextHoldingAlliance,
   nextRoyalCitySiege,
-  type CityRotation,
   type SiegeTime,
 } from "./city-rotation.js";
 import type { Editor } from "./exile.js";
@@ -108,7 +107,7 @@ describe("nextHoldingAlliance", () => {
 
 describe("mayEditCityRotation", () => {
   const HOME = kingdomOf(330);
-  const current: CityRotation = { order: ["NML", "ABC"], holding: "NML" };
+  const current: readonly string[] = ["NML", "ABC"];
   const r5 = (tag: string, kingdom = 330): Editor => ({
     allianceRank: { source: "game-api", rank: "R5" },
     allianceKingdom: kingdomOf(kingdom),

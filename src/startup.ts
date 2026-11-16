@@ -12,6 +12,7 @@ import type { EventStore } from "./storage/event-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
+import type { CityRotationStore } from "./storage/city-rotation-store.js";
 import type { ReaperStore } from "./storage/reaper-store.js";
 import type { PreferenceStore } from "./storage/preference-store.js";
 
@@ -42,7 +43,7 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Member usage, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record and REAPER, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Member usage, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record, REAPER and the City Rotation, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
   readonly memberUsage: MemberUsageStorage;
@@ -55,6 +56,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly preferences: PreferenceStore;
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
+  readonly cityRotation: CityRotationStore;
 }
 
 export interface Connection {
@@ -159,6 +161,9 @@ export async function start(deps: StartupDeps): Promise<void> {
       guidesForumId: config.guidesForumId,
       syncHourUtc: config.syncHourUtc,
       syncShare: config.syncShare,
+      cityRotation: store.cityRotation,
+      royalCitySiegeTime: config.royalCitySiegeTime,
+      cityRotationMode: config.cityRotationMode,
     });
   } catch (error) {
     fail(error);

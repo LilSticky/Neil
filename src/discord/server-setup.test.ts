@@ -2368,6 +2368,27 @@ describe("the shipped server-layout.json for Create Events and Event announcemen
     expect(neil?.allow).toEqual(expect.arrayContaining(["ViewChannel", "SendMessages", "EmbedLinks"]));
   });
 
+  test("gives Neil View Channel, Send Messages, Embed Links, Read Message History and Pin Messages on nap-announcements", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const channel = groupNamed(expanded, "NaP").channels.find((candidate) => candidate.name === "nap-announcements");
+    const neil = channel?.overwrites.find((overwrite) => overwrite.target === "Neil");
+
+    expect(neil?.allow).toEqual(
+      expect.arrayContaining(["ViewChannel", "SendMessages", "EmbedLinks", "ReadMessageHistory", "PinMessages"]),
+    );
+  });
+
+  test("keeps nap-announcements only-king-posts: only the King, Neil and the translating bot post there; the copies get nothing", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const channels = groupNamed(expanded, "NaP").channels;
+    const original = channels.find((candidate) => candidate.name === "nap-announcements");
+    const posters = original?.overwrites.filter((overwrite) => overwrite.allow.includes("SendMessages")).map((overwrite) => overwrite.target);
+
+    expect([...(posters ?? [])].sort()).toEqual(["Interaction Bot", "King", "Neil"]);
+    const copy = channels.find((candidate) => candidate.name === "nap-announcements-german");
+    expect(copy?.overwrites.some((overwrite) => overwrite.target === "Neil")).toBe(false);
+  });
+
   test("keeps event-announcements only-king-posts: only the King and Neil may post there", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
     const channel = groupNamed(expanded, "Events").channels.find((candidate) => candidate.name === "event-announcements");

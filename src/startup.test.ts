@@ -11,6 +11,7 @@ import { startCount, type StartRecord } from "./domain/start-record.js";
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
+import { CityRotationStore } from "./storage/city-rotation-store.js";
 import { EventStore } from "./storage/event-store.js";
 import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { openDatabase } from "./storage/database.js";
@@ -103,11 +104,13 @@ function stubStores(): {
   readonly memberUsage: MemberUsageStore;
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
+  readonly cityRotation: CityRotationStore;
 } {
   return {
     memberUsage: new MemberUsageStore(new DatabaseSync(":memory:")),
     bootyAlerts: new BootyAlertsStore(new DatabaseSync(":memory:")),
     events: new EventStore(new DatabaseSync(":memory:")),
+    cityRotation: new CityRotationStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     preferences: createPreferenceStore(new DatabaseSync(":memory:")),
     reaper: new ReaperStore(new DatabaseSync(":memory:")),

@@ -95,13 +95,13 @@ export function nextHoldingAlliance(rotation: CityRotation): string {
 export function mayEditCityRotation(
   editor: Editor,
   homeKingdom: KingdomNumber,
-  current: CityRotation | undefined,
+  currentOrder: readonly string[] | undefined,
   newOrder: readonly string[],
 ): boolean {
   const { allianceRank, allianceKingdom, allianceTag } = editor;
   if (allianceKingdom !== homeKingdom || allianceTag === undefined) return false;
   if (allianceRank.source !== "game-api" && allianceRank.source !== "rank-approval") return false;
   if (allianceRank.rank !== "R5") return false;
-  const order = current === undefined ? newOrder : current.order;
+  const order = currentOrder ?? newOrder;
   return order.some((tag) => sameTag(tag, allianceTag));
 }
