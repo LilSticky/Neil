@@ -73,10 +73,15 @@ Source: <https://docs.discord.com/developers/topics/permissions>
 - If the server requires 2FA for moderation, permissions such as Manage Roles and Manage Channels need the bot's
   owner account to have 2FA.
 - Bits Neil cares about: Manage Roles `1<<28`, Manage Nicknames `1<<27`, Create Events `1<<44`, Manage Events
-  `1<<33`, View Channel `1<<10`, Send Messages `1<<11`, Manage Channels `1<<4`, Administrator `1<<3`.
+  `1<<33`, View Channel `1<<10`, Send Messages `1<<11`, Manage Channels `1<<4`, Administrator `1<<3`, Pin Messages
+  `1<<51`.
+- **Pin Messages** (`1<<51`) is a permission of its own, apart from Manage Messages. A bot pins with it, and edits its
+  own messages with no permission beyond seeing the channel.
 
 **Neil**: Manage Roles and Manage Nicknames, with its role above the Managed Roles, `Onboarding` and `Doctor`, and
-below Moderator and King (ADR 8, SERVER-SETUP.md). Missing permissions surface as REST error **50013**
+below Moderator and King (ADR 8, SERVER-SETUP.md). In `#nap-announcements` it posts and pins the City Rotation card
+(Pin Messages, slice 034) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
+again. Missing permissions surface as REST error **50013**
 (`src/discord/member-roles.ts`). Neil has no Manage Events (ADR 14) and no Manage Channels (ADR 12).
 
 ## Rate limits

@@ -43,6 +43,7 @@ nickname and roles matching the game.
 | **REAPER** | any Member; Home Kingdom R5s edit | A shared list of Exiles (malicious Players): `/reaper closest`, `/reaper list`, `/reaper add`, `/reaper remove`. |
 | **Booty Call** | any Member of the Alliance | `/booty` in the Alliance's `alliance-chat` asks for a private Confirm, then posts a card that mentions the Members of that Alliance whose Booty Alerts match. One per Alliance per minute. `/booty-alerts` records when you want to be mentioned: Off (the default), Always, Only when online or Only when offline, with a daily window and your time zone. |
 | **Events** | Officers and an Alliance's R4 or R5 create; any Member | Create a Discord scheduled event (Server name → **Create Event**). An event named `[TAG] …` is that Alliance's; any other is the Kingdom's. Neil posts one Event Invitation, in `#event-announcements` mentioning the `Events` role, or in the Alliance's `alliance-chat` mentioning its members, with the links from the event's description as guides. Members who click **Interested** are reminded: 30 minutes before the start, or at the Event Kind's lead times, and before its Sign-up Deadline. Neil only announces an Alliance Event created by that Alliance's R4 or R5 or an Officer, and a Kingdom Event created by an Officer. `/event-kinds` keeps the Event Kinds (Officers for the Kingdom, R4 and R5 for their Alliance); `/event-invitations` switches the invitation mentions off. Neil sees only events in a channel it can view, or with **Somewhere Else** as the location. |
+| **City Rotation** | any Member sees; R5s in the rotation set it; Officers name the holder | `/rotation show` and a card Neil pins in `#nap-announcements` show the Holding Alliance, the next one and the next Royal City siege in your own time. `/rotation set` (Members Linked to the R5 of an Alliance in the rotation) sets the order by Alliance tag; `/rotation holder` (Officers) names the Holding Alliance, the only way when `CITY_ROTATION_MODE` is `contested`. After each Friday siege Neil names the expected Holding Alliance in `#nap-leaders` and asks its R5 (read fresh from the game) to confirm; an Officer may confirm instead. Every change goes to `#neil-log`. Neil never moves the King role. |
 | **Help** | any Member | `/help` privately lists the commands you can use, how to write them and what they are for. Officers see their commands too. |
 | **Ping** | any Member | `/ping` shows that Neil is online, and which version. Temporary. |
 
@@ -204,6 +205,8 @@ or No (a person must do it).
 | Neil in `#onboarding`: View Channel, Send Messages in Threads, Create Private Threads, Manage Threads | Neil won't start | Yes* |
 | Neil in `#neil-log`: View Channel, Send Messages, Read Message History | Neil won't start | Yes* |
 | Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed | Yes* |
+| Neil in `#nap-announcements` (the original, not the copies): View Channel, Send Messages, Embed Links, Read Message History, Pin Messages | No pinned City Rotation card; one line in the log | Yes* |
+| Neil in `#nap-leaders`: View Channel, Send Messages | No Handover question after the Royal City siege; one line in the log | Yes* |
 | Read Message History for Neil and Use Application Commands for Members, in `#onboarding` (they usually come from @everyone defaults; don't deny them) | Interview edits; `/interview` | Yes* |
 | Onboarding in `#onboarding`: View Channel, Send Messages, Send Messages in Threads | Onboarding Interview | Yes* |
 | Moderator and King in `#onboarding`: View Channel, Manage Threads | Hand-offs, and Rank Approval with no Linked R5 | Yes* |
@@ -248,6 +251,7 @@ can use every command everywhere, so test with an account that isn't one.
 | `/booty` | leave as is | 🔴 don't limit it, or allow every `alliance-chat`: it works nowhere else |
 | `/booty-alerts`, `/event-invitations` | leave as is | 🟡 `#alliance-hall` |
 | `/event-kinds` | leave as is (R4 and R5 use it too; Neil checks who may) | 🟡 `#alliance-hall` and the Moderator channel |
+| `/rotation` | leave as is (R5s and Officers use it too; Neil checks who may) | 🟡 `#alliance-hall`, `#nap-leaders` and the Moderator channel |
 | `/unlink` | leave as is | 🟡 `#alliance-hall` and the Moderator channel |
 | `/interview` | leave as is | 🟡 `#onboarding`, or newcomers can't start a new Interview |
 
@@ -274,6 +278,8 @@ These live with Neil's hosting, not in Discord ([HOSTING.md §3](HOSTING.md#3-wi
 | `GAME_API_QUOTA_RESERVE` | ⚪ Suggestion | Requests kept back for Interviews. It also shrinks the Daily Allowance | `100` |
 | `GAME_API_CACHE_MINUTES` | ⚪ Suggestion | How long a lookup is cached (at least 10) | `10` |
 | `TROOP_BRACKET_LEVELS` | ⚪ Suggestion | Sanctuary level where each of T1–T10 starts | `1,3,6,10,14,17,20,24,27,30` |
+| `ROYAL_CITY_SIEGE_TIME` | 🟡 Recommendation | Friday time of the Royal City siege in Server Time (UTC-2), `HH:MM`. Without it the City Rotation card says the time is not set, and Neil asks for no Handover | — |
+| `CITY_ROTATION_MODE` | ⚪ Suggestion | `rotation` (a fixed order) or `contested` (an Officer names each Holding Alliance) | `rotation` |
 | `DISCORD_GUIDES_FORUM_ID` | ⚪ Suggestion | ID of the guides forum, named in the Veteran and New guides line of the Preferences message | — (the line says "the guides forum") |
 
 The Daily Allowance has no setting of its own: Neil works it out from what's left of the Daily Quota.

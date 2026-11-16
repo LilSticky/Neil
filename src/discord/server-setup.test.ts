@@ -2378,6 +2378,14 @@ describe("the shipped server-layout.json for Create Events and Event announcemen
     );
   });
 
+  test("gives Neil View Channel and Send Messages on nap-leaders, for the Handover after the Royal City siege", () => {
+    const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
+    const channel = groupNamed(expanded, "NaP").channels.find((candidate) => candidate.name === "nap-leaders");
+    const neil = channel?.overwrites.find((overwrite) => overwrite.target === "Neil");
+
+    expect(neil?.allow).toEqual(expect.arrayContaining(["ViewChannel", "SendMessages"]));
+  });
+
   test("keeps nap-announcements only-king-posts: only the King, Neil and the translating bot post there; the copies get nothing", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
     const channels = groupNamed(expanded, "NaP").channels;

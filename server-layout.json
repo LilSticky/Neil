@@ -290,7 +290,15 @@
           "seenBy": [
             "R5",
             "King"
-          ]
+          ],
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages"
+              ]
+            }
+          }
         },
         {
           "name": "nap-announcements",
