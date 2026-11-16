@@ -291,14 +291,33 @@
           "seenBy": [
             "R5",
             "King"
-          ]
+          ],
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages"
+              ]
+            }
+          }
         },
         {
           "name": "nap-announcements",
           "type": "announcement",
           "description": "NaP agreements as the King announces them 🤝",
           "mode": "only-king-posts",
-          "translated": true
+          "translated": true,
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages",
+                "EmbedLinks",
+                "ReadMessageHistory",
+                "PinMessages"
+              ]
+            }
+          }
         },
         {
           "name": "nap-forum",

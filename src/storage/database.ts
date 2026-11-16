@@ -221,6 +221,21 @@ const migrations: readonly string[] = [
      sent_at TEXT NOT NULL,
      PRIMARY KEY (raid_id, key)
    )`,
+  // Migration 18: the City Rotation (slice 035, ADR 18), one row: the order as a JSON list of Alliance tags (NULL when
+  // none is set), the Holding Alliance, the Handover waiting for confirmation (the expected tag, its R5's uid when known
+  // and the confirmation message), the last Royal City siege handled, and the pinned card. No Discord user ids.
+  `CREATE TABLE city_rotation (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     order_json TEXT,
+     holding_tag TEXT,
+     pending_tag TEXT,
+     pending_leader_uid TEXT,
+     pending_message_id TEXT,
+     pending_siege_at TEXT,
+     last_siege_at TEXT,
+     card_message_id TEXT,
+     CHECK ((pending_tag IS NULL) = (pending_siege_at IS NULL))
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

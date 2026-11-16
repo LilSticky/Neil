@@ -82,6 +82,7 @@ function allianceOf(tag: string, kingdom: KingdomNumber, roster: readonly Roster
     memberCount: roster.length,
     capacity: 100,
     leaderName: undefined,
+    leaderUid: undefined,
     roster,
   };
 }

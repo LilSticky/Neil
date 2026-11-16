@@ -790,7 +790,11 @@ function answerOf<T>(entry: CacheEntry<NameAnswer<T>>): LookupResult<T> {
 
 /** The uid of an Alliance's leader; undefined when the body gives none or it is not a readable uid. */
 function leaderUidFrom(alliance: PlayerBody["alliance"]): Uid | undefined {
-  const leaderId = alliance?.leader_id;
+  return leaderUidOf(alliance?.leader_id);
+}
+
+/** A leader id as a uid; undefined when there is none or it is not a readable uid. */
+function leaderUidOf(leaderId: string | undefined): Uid | undefined {
   if (leaderId === undefined) return undefined;
   const uid = parseUid(leaderId);
   return uid.ok ? uid.value : undefined;
@@ -858,6 +862,7 @@ function allianceFrom(body: AllianceBody, kingdom: KingdomNumber): Alliance {
     memberCount: body.member_count,
     capacity: body.capacity,
     leaderName: body.leader_name ?? undefined,
+    leaderUid: leaderUidOf(body.leader_id),
     roster: body.members.flatMap(rosterEntryFrom),
     details: allianceDetailsFrom(body),
   };

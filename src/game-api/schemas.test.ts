@@ -63,6 +63,12 @@ describe("allianceBodySchema", () => {
     },
   );
 
+  test("reads leader_id as the leader's id, and an unreadable one as none, still accepting the body", () => {
+    expect(allianceBodySchema.parse(alliance).leader_id).toBe("145563254785");
+    expect(allianceBodySchema.parse({ ...alliance, leader_id: "not an id" }).leader_id).toBeUndefined();
+    expect(allianceBodySchema.parse({ ...alliance, leader_id: null }).leader_id).toBeUndefined();
+  });
+
   test("accepts a body whose leader_name is null", () => {
     expect(allianceBodySchema.safeParse({ ...alliance, leader_name: null }).success).toBe(true);
   });

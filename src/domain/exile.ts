@@ -37,10 +37,12 @@ export interface Exile {
   readonly addedBy: MemberId;
 }
 
-/** The Alliance Rank and Kingdom of the Member who wants to change REAPER. */
+/** The Alliance Rank, Kingdom and Alliance tag of the Member who wants to change REAPER or the City Rotation. */
 export interface Editor {
   readonly allianceRank: RankOnLink;
   readonly allianceKingdom: KingdomNumber | undefined;
+  /** The tag of the Alliance the Member was last applied in; optional so readers that do not use it need not set it. */
+  readonly allianceTag?: string | undefined;
 }
 
 /** Only an R5 of an Alliance in the Home Kingdom may add or remove Exiles; the rank may come from the Game API or a Rank Approval. */

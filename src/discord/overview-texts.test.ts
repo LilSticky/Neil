@@ -90,6 +90,7 @@ function allianceWith(roster: readonly RosterEntry[]): Alliance {
     memberCount: roster.length,
     capacity: 100,
     leaderName: "DrLOL",
+    leaderUid: undefined,
     roster,
   };
 }

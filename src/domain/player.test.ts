@@ -122,6 +122,7 @@ describe("Alliance and RosterEntry", () => {
       memberCount: 0,
       capacity: 100,
       leaderName: undefined,
+      leaderUid: undefined,
       roster: [],
     };
 
@@ -138,6 +139,7 @@ describe("Alliance and RosterEntry", () => {
       memberCount: 1,
       capacity: 100,
       leaderName: "DrLol",
+      leaderUid: undefined,
       roster: [row],
     };
 

@@ -115,6 +115,8 @@ export interface Alliance {
   readonly memberCount: number;
   readonly capacity: number;
   readonly leaderName: string | undefined;
+  /** The Alliance's leader, its R5, from `leader_id`; undefined when the Game gives none readable. */
+  readonly leaderUid: Uid | undefined;
   readonly roster: readonly RosterEntry[];
   readonly details?: AllianceDetails;
 }

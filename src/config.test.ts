@@ -56,6 +56,8 @@ describe("loadConfig", () => {
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       syncHourUtc: 3,
       syncShare: 500,
+      royalCitySiegeTime: undefined,
+      cityRotationMode: "rotation",
       warCouncilRoleId: undefined,
       raidStartMinutes: undefined,
       raidPlanDeadlineHours: 24,
@@ -549,6 +551,53 @@ describe("loadConfig", () => {
       const error = failureOf(validEnv({ SYNC_SHARE: "314.15" }));
 
       expect(error.message).not.toContain("314.15");
+    });
+  });
+
+  describe("ROYAL_CITY_SIEGE_TIME", () => {
+    const rule = "must be a time HH:MM from 00:00 to 23:59 (Server Time)";
+
+    test("is unset when it is not given", () => {
+      expect(loadConfig(validEnv()).royalCitySiegeTime).toBeUndefined();
+    });
+
+    test.each([
+      ["00:00", 0, 0],
+      ["18:30", 18, 30],
+      ["23:59", 23, 59],
+    ])("exposes ROYAL_CITY_SIEGE_TIME %s as hour %d and minute %d", (value, hour, minute) => {
+      expect(loadConfig(validEnv({ ROYAL_CITY_SIEGE_TIME: value })).royalCitySiegeTime).toEqual({ hour, minute });
+    });
+
+    test.each([["24:00"], ["12:60"], ["7:30"], ["noon"], [""], ["12:30:00"]])("rejects %j", (value) => {
+      const error = failureOf(validEnv({ ROYAL_CITY_SIEGE_TIME: value }));
+
+      expect(error.problems).toEqual([`ROYAL_CITY_SIEGE_TIME: ${rule}`]);
+    });
+
+    test("never shows the ROYAL_CITY_SIEGE_TIME value when it is invalid", () => {
+      const error = failureOf(validEnv({ ROYAL_CITY_SIEGE_TIME: "31:77" }));
+
+      expect(error.message).not.toContain("31:77");
+    });
+  });
+
+  describe("CITY_ROTATION_MODE", () => {
+    const rule = "must be rotation or contested";
+
+    test("defaults to rotation when it is not set", () => {
+      expect(loadConfig(validEnv()).cityRotationMode).toBe("rotation");
+    });
+
+    test.each([["rotation"], ["contested"]])("exposes CITY_ROTATION_MODE %s", (value) => {
+      expect(loadConfig(validEnv({ CITY_ROTATION_MODE: value })).cityRotationMode).toBe(value);
+    });
+
+    test("rejects any other value without showing it", () => {
+      const error = failureOf(validEnv({ CITY_ROTATION_MODE: "battle-royale" }));
+
+      expect(error.problems).toEqual([`CITY_ROTATION_MODE: ${rule}`]);
+      expect(error.message).not.toContain("battle-royale");
     });
   });
 
