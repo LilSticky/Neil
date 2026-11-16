@@ -146,6 +146,14 @@ Sources: <https://docs.discord.com/developers/resources/message>,
 - Button label ≤ 80 (design advice: ≤ 34–38); link buttons have a `url` (≤ 512) and no `custom_id`.
 - Select: ≤ 25 options, label/value/description ≤ 100, placeholder ≤ 150.
 - Text input (modals only): value up to 4000 chars, placeholder ≤ 100.
+- Discord timestamps `<t:UNIX:STYLE>` render in each reader's local time zone. They work in message content, embed
+  descriptions and field values, but not in embed titles, field names or footers. Neil uses them for Server Time
+  moments, for example the end of a Duel day (`nextServerReset`). Card footers still show UTC
+  ([#124](https://github.com/LilSticky/Neil/issues/124)).
+- Neil posts into an **announcement channel** (`ChannelType.GuildAnnouncement`) as into a text channel: the Battle Plan
+  card goes to `#kvk-announcements` (slice 034), so Neil needs View Channel, Send Messages and Embed Links there, which
+  the layout grants. Neil does not crosspost (Publish) the message to following servers. Whether Interaction Bot
+  translates a bot's embed into the translated copies is not verified yet.
 
 ## Dates and times: Discord timestamps
 

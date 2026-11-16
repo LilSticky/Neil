@@ -10,7 +10,7 @@
 - [x] T002 [P] Settings `ROYAL_CITY_SIEGE_TIME`, `CITY_ROTATION_MODE` in `src/config.ts` (+ test), `env.example`.
 - [x] T003 [P] `src/domain/city-rotation.ts` (+ test): siege clock across the UTC date line, order rules, next holder,
   editor rule.
-- [x] T004 Migration 17 and `CityRotationStore` (+ tests): upgrade from 16, reopen, corrupt rows.
+- [x] T004 Migration 18 and `CityRotationStore` (+ tests): upgrade from 17, reopen, corrupt rows.
 - [x] T005 [P] `leader_id` → `Alliance.leaderUid` (+ tests).
 
 ## Phase 2: User Stories

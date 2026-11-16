@@ -4,20 +4,14 @@ import {
   type EventKind,
   type EventKindOwner,
 } from "../domain/events.js";
-import type { RankOnLink } from "../domain/link.js";
-import {
-  parseAllianceKey,
-  type AllianceKey,
-  type ParseResult,
-} from "../domain/lookup-input.js";
+import type { AllianceKey, ParseResult } from "../domain/lookup-input.js";
 import { nextDuelReset } from "../domain/duel-plan.js";
-import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { isOfficer } from "../domain/officer.js";
-import type { AllianceRank } from "../domain/player.js";
 import type { EventStore } from "../storage/event-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import type { EventRole } from "./events.js";
 import { unixOf } from "./timestamps.js";
+import { ledAllianceOf } from "./alliance-standing.js";
 
 /** The part of a discord.js chat-input interaction that /event-kinds uses: who ran it, their roles and the private reply. */
 export interface EventKindsInteraction {
@@ -127,29 +121,7 @@ function standingOf(
     roles.map((role) => role.id),
     context.officerRoleIds,
   );
-  const tags = allianceTagsOf(roles);
-  const rank = rankOf(context.links.linkFor(interaction.user.id)?.allianceRank);
-  const managed = tags.length === 1 && (rank === "R4" || rank === "R5");
-  return { officer, managedAlliance: managed ? tags[0] : undefined };
-}
-
-/** The Alliance tags the Member's Alliance roles name. A Member with none, or with several, has no Alliance Neil can tell. */
-function allianceTagsOf(roles: readonly EventRole[]): AllianceKey[] {
-  return roles.flatMap((role) => {
-    const tag = tagOfAllianceRole(role.name);
-    if (tag === undefined) return [];
-    const key = parseAllianceKey(tag);
-    return key.ok ? [key.value] : [];
-  });
-}
-
-function rankOf(allianceRank: RankOnLink | undefined): AllianceRank {
-  if (
-    allianceRank?.source === "game-api" ||
-    allianceRank?.source === "rank-approval"
-  )
-    return allianceRank.rank;
-  return "unknown";
+  return { officer, managedAlliance: ledAllianceOf(roles, context.links.linkFor(interaction.user.id)?.allianceRank) };
 }
 
 /** The list to act on: the one the Member chose, when they may manage it; else their default list, when they may manage one. */

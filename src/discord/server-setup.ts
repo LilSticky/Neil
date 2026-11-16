@@ -8,6 +8,7 @@ import { forumHowTo } from "../domain/forum-how-to.js";
 import {
   BOT_TARGET,
   EVERYONE_TARGET,
+  POLICE_TARGET,
   ROLE_PERMISSION_BITS,
   expandLayout,
   translatedDescription,
@@ -622,14 +623,16 @@ interface Book {
   channels: Map<string, SetupChannelInfo>;
   /** The channels this run created, so that a description step with no id can find its channel. */
   created: { id: string; name: string; categoryName: string }[];
+  /** Neil Police's role id when the plan names Police; undefined otherwise. */
+  policeRoleId: string | undefined;
 }
 
 /**
  * Applies a plan: roles, then categories, then channels, then corrected overwrites. A failed write is recorded and the rest
  * go on; a step whose category or role failed is recorded as failed without a write.
  */
-export async function applySetup(plan: SetupPlan, port: SetupServer): Promise<StepOutcome[]> {
-  const book = await readBook(port);
+export async function applySetup(plan: SetupPlan, port: SetupServer, policeRoleId?: string): Promise<StepOutcome[]> {
+  const book = await readBook(port, policeRoleId);
   const outcomes: StepOutcome[] = [];
   for (const step of inOrder(plan.steps)) {
     try {
@@ -642,7 +645,7 @@ export async function applySetup(plan: SetupPlan, port: SetupServer): Promise<St
   return outcomes;
 }
 
-async function readBook(port: SetupServer): Promise<Book> {
+async function readBook(port: SetupServer, policeRoleId: string | undefined): Promise<Book> {
   const [guild, bot, roles, channels] = await readAll(port);
   return {
     everyoneId: guild.id,
@@ -653,6 +656,7 @@ async function readBook(port: SetupServer): Promise<Book> {
       .map((channel) => ({ id: channel.id, name: channel.name })),
     channels: new Map(channels.map((channel) => [channel.id, channel])),
     created: [],
+    policeRoleId,
   };
 }
 
@@ -760,13 +764,18 @@ function createdIdOf(book: Book, name: string, categoryName: string): string {
 
 function editFor(book: Book, wanted: WantedOverwrite): OverwriteEdit {
   const targetId = idOfTarget(book, wanted.target);
-  const type = targetId === book.botUserId ? MEMBER_OVERWRITE : ROLE_OVERWRITE;
+  // Neil Police's overwrite is always one of its role, never of a Member.
+  const type = wanted.target !== POLICE_TARGET && targetId === book.botUserId ? MEMBER_OVERWRITE : ROLE_OVERWRITE;
   return { targetId, type, allow: bitsOf(wanted.allow), deny: bitsOf(wanted.deny) };
 }
 
 function idOfTarget(book: Book, target: string): string {
   if (target === EVERYONE_TARGET) return book.everyoneId;
   if (target === BOT_TARGET) return book.botUserId;
+  if (target === POLICE_TARGET) {
+    if (book.policeRoleId === undefined) throw new Error("no role for Neil Police");
+    return book.policeRoleId;
+  }
   return single(book.roles.filter((role) => role.name === target), `role "${target}"`).id;
 }
 
@@ -796,6 +805,30 @@ function single<T>(matches: readonly T[], what: string): T {
   return only;
 }
 
+// ---- Neil Police ----------------------------------------------------------------------------------------------------
+
+/**
+ * Whether the run gives Neil Police's role overwrites (issue #127): none when NEIL_POLICE_ROLE_ID is unset, the role id when
+ * the server is listed in NEIL_POLICE_GUILD_IDS (Police's test server), and skipped when it is not.
+ */
+export type PoliceSetup = { kind: "none" } | { kind: "role"; roleId: string } | { kind: "skipped" };
+
+const POLICE_ROLE_ID_PATTERN = /^\d{17,20}$/;
+
+/** Reads Police's settings from the environment for the server being set up; a malformed role id is refused, never printed. */
+export function policeSetupFor(env: Readonly<Record<string, string | undefined>>, guildId: string): PoliceSetup {
+  const roleId = env.NEIL_POLICE_ROLE_ID?.trim() ?? "";
+  if (roleId === "") return { kind: "none" };
+  if (!POLICE_ROLE_ID_PATTERN.test(roleId)) throw new Error("check these settings: NEIL_POLICE_ROLE_ID");
+  const guildIds = (env.NEIL_POLICE_GUILD_IDS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "");
+  return guildIds.includes(guildId) ? { kind: "role", roleId } : { kind: "skipped" };
+}
+
+const POLICE_SKIPPED_LINE = "NEIL_POLICE_ROLE_ID is set, but this server is not in NEIL_POLICE_GUILD_IDS: no overwrites for Neil Police.";
+
 // ---- The run and its report -----------------------------------------------------------------------------------------
 
 export interface RunOptions {
@@ -806,6 +839,8 @@ export interface RunOptions {
   port: SetupServer;
   /** Values the report never prints, such as the bot token. */
   secrets: readonly string[];
+  /** Neil Police's overwrites (issue #127); left out, the run gives Police nothing. */
+  police?: PoliceSetup;
 }
 
 /**
@@ -813,15 +848,16 @@ export interface RunOptions {
  * run without Administrator on Neil's role writes nothing and exits 1.
  */
 export async function runSetup(options: RunOptions): Promise<{ report: string; exitCode: 0 | 1 }> {
-  const { layout, homeKingdom, apply, port, secrets } = options;
+  const { layout, homeKingdom, apply, port, secrets, police } = options;
+  const policeRoleId = police?.kind === "role" ? police.roleId : undefined;
   const before = await readServer(port);
   const overlong = overlongLines(layout, homeKingdom, before);
   if (overlong.length > 0) return { report: redact(overlong.join("\n"), secrets), exitCode: 1 };
-  const plan = planSetup(layout, before, homeKingdom);
+  const plan = planSetup(layout, before, homeKingdom, policeRoleId);
   const blocked = apply && !before.botIsAdministrator;
   const real = apply && !blocked;
 
-  const outcomes = real ? await applySetup(plan, port) : [];
+  const outcomes = real ? await applySetup(plan, port, policeRoleId) : [];
   const failures = outcomes.filter((outcome): outcome is FailedOutcome => outcome.status === "failed");
   // The read after the writes may fail too; the outcomes are still reported, and the ID lines are left out.
   const after = real ? await readAfterWrites(port) : before;
@@ -837,6 +873,7 @@ export async function runSetup(options: RunOptions): Promise<{ report: string; e
     ...administratorNote(before.botIsAdministrator, apply),
     ...changed.map(tense),
     ...warnings.sort((a, b) => warningRank(a) - warningRank(b)).map((finding) => describeFinding(finding, real)),
+    ...(police?.kind === "skipped" ? [POLICE_SKIPPED_LINE] : []),
     ...(unreadCount > 0 ? [unreadLine(unreadCount)] : []),
     ...(unreadPostsCount > 0 ? [unreadPostsLine(unreadPostsCount)] : []),
     ...outside.map((finding) => describeFinding(finding, real)),
@@ -966,6 +1003,8 @@ function describeFinding(finding: LineFinding, real: boolean): string {
       return `${finding.name} has tag ${finding.tag} that the layout doesn't name`;
     case "other-post-pinned":
       return `${finding.name} has another pinned post; Neil's how-to post stays unpinned`;
+    case "police-role-missing":
+      return `Neil Police's role (NEIL_POLICE_ROLE_ID ${finding.roleId}) is not on this server; no overwrites for it`;
   }
 }
 

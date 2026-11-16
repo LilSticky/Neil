@@ -455,7 +455,7 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds and /rotation", () => {
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /raid-plan and /rotation", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "booty",
@@ -469,11 +469,32 @@ describe("commands", () => {
       "ping",
       "player",
       "quota",
+      "raid-plan",
       "rank",
       "reaper",
       "rotation",
       "unlink",
       "usage",
+    ]);
+  });
+
+  test("hold /raid-plan, open to every Member so the War Council sees it, guild only, with the planning subcommands", () => {
+    const raidPlan = commands.find((command) => command.name === "raid-plan");
+
+    expect(raidPlan?.default_member_permissions).toBeUndefined();
+    expect(raidPlan?.contexts).toEqual([0]);
+    expect(raidPlan?.description).toContain("War Council");
+    expect(raidPlan?.options?.map((option) => option.name)).toEqual([
+      "show",
+      "objective-add",
+      "objective-remove",
+      "phase-add",
+      "phase-remove",
+      "assign",
+      "unassign",
+      "notes",
+      "publish",
+      "cancel",
     ]);
   });
 });

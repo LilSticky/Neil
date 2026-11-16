@@ -1,6 +1,7 @@
 /**
  * Server Time: the game's clock, UTC-2. The game's daily reset is at 00:00 Server Time, which is 02:00 UTC. This is the
- * only place the offset is written down.
+ * only place the offset is written down. The offset never changes: the game has no daylight saving (confirmed by the
+ * user 2026-11-15).
  */
 export const SERVER_TIME_OFFSET_MINUTES = -120;
 
@@ -30,4 +31,19 @@ export function nextServerReset(now: Date): Date {
   const shifted = serverTimeOf(now).getTime();
   const nextMidnight = (Math.floor(shifted / DAY_MS) + 1) * DAY_MS;
   return new Date(nextMidnight - OFFSET_MS);
+}
+
+/** The moment a Server Time clock reading names: a day as YYYY-MM-DD and the minutes after its 00:00 Server Time. */
+export function serverTimeInstant(date: string, minutesAfterMidnight: number): Date {
+  return new Date(Date.parse(`${date}T00:00:00.000Z`) + minutesAfterMidnight * MINUTE_MS - OFFSET_MS);
+}
+
+/** A Server Time day as YYYY-MM-DD, moved by whole days. */
+export function serverDatePlusDays(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** The Server Time clock reading of a moment as HH:MM. */
+export function serverClockOf(moment: Date): string {
+  return serverTimeOf(moment).toISOString().slice(11, 16);
 }

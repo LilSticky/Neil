@@ -6,6 +6,7 @@
     "Doctor",
     "R4",
     "R5",
+    "War Council",
     "#<Home Kingdom>",
     "PvP",
     "Events",
@@ -564,7 +565,37 @@
           "seenBy": [
             "#<Home Kingdom>"
           ],
-          "translated": true
+          "translated": true,
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages",
+                "EmbedLinks"
+              ]
+            }
+          }
+        },
+        {
+          "name": "kvk-leaders",
+          "type": "text",
+          "description": "The KvK leaders' room: Battle Plan confirmations, chases and deadlines.",
+          "seenBy": [
+            "R5",
+            "R4",
+            "War Council",
+            "King"
+          ],
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages",
+                "EmbedLinks",
+                "ReadMessageHistory"
+              ]
+            }
+          }
         },
         {
           "name": "kvk-tactics",

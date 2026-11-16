@@ -173,6 +173,83 @@ export const eventKinds = new SlashCommandBuilder()
   )
   .addSubcommand((sub) => sub.setName("list").setDescription("Show the Event Kinds, with their lead times").addStringOption(listChoice));
 
+/** /raid-plan: the War Council's Battle Plan for Saturday's Raid. Open to every Member, so War Council holders who are not Officers see it; Neil checks the role. */
+export const raidPlan = new SlashCommandBuilder()
+  .setName("raid-plan")
+  .setDescription("Plan Saturday's Raid: the Battle Plan (War Council)")
+  .setContexts(InteractionContextType.Guild)
+  .addSubcommand((sub) => sub.setName("show").setDescription("See this week's Battle Plan, privately (War Council)"))
+  .addSubcommand((sub) =>
+    sub
+      .setName("objective-add")
+      .setDescription("Add an Objective of your own to the Battle Plan (War Council)")
+      .addStringOption((option) => option.setName("name").setDescription("The Objective's name").setRequired(true).setMaxLength(50)),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("objective-remove")
+      .setDescription("Remove an Objective of your own from the Battle Plan (War Council)")
+      .addStringOption((option) =>
+        option.setName("objective").setDescription("The Objective").setRequired(true).setMaxLength(50).setAutocomplete(true),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("phase-add")
+      .setDescription("Add a Phase of the Raid, at a time in Server Time on Raid day (War Council)")
+      .addStringOption((option) => option.setName("name").setDescription("The Phase's name").setRequired(true).setMaxLength(50))
+      .addStringOption((option) =>
+        option.setName("time").setDescription("HH:MM in Server Time on Saturday, e.g. 20:30").setRequired(true).setMaxLength(5),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("phase-remove")
+      .setDescription("Remove a Phase of the Raid (War Council)")
+      .addStringOption((option) =>
+        option.setName("phase").setDescription("The Phase").setRequired(true).setMaxLength(50).setAutocomplete(true),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("assign")
+      .setDescription("Assign an Alliance to an Objective, for a Phase or the whole Raid (War Council)")
+      .addStringOption((option) =>
+        option.setName("alliance").setDescription("The Alliance's tag").setRequired(true).setMaxLength(40).setAutocomplete(true),
+      )
+      .addStringOption((option) =>
+        option.setName("objective").setDescription("The Objective").setRequired(true).setMaxLength(50).setAutocomplete(true),
+      )
+      .addStringOption((option) =>
+        option.setName("phase").setDescription("The Phase; leave out for the whole Raid").setRequired(false).setMaxLength(50).setAutocomplete(true),
+      )
+      .addStringOption((option) => option.setName("task").setDescription("A short task").setRequired(false).setMaxLength(100)),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("unassign")
+      .setDescription("Remove an Assignment from the Battle Plan (War Council)")
+      .addStringOption((option) =>
+        option.setName("alliance").setDescription("The Alliance's tag").setRequired(true).setMaxLength(40).setAutocomplete(true),
+      )
+      .addStringOption((option) =>
+        option.setName("objective").setDescription("The Objective").setRequired(true).setMaxLength(50).setAutocomplete(true),
+      )
+      .addStringOption((option) =>
+        option.setName("phase").setDescription("The Phase; leave out for the whole Raid").setRequired(false).setMaxLength(50).setAutocomplete(true),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("notes")
+      .setDescription("Set the Battle Plan's notes; leave out the text to clear them (War Council)")
+      .addStringOption((option) => option.setName("text").setDescription("The notes").setRequired(false).setMaxLength(1000)),
+  )
+  .addSubcommand((sub) =>
+    sub.setName("publish").setDescription("Publish the Battle Plan, or update the posted one (War Council)"),
+  )
+  .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel this week's Raid (War Council)"));
+
 export const help = new SlashCommandBuilder()
   .setName("help")
   .setDescription("Show the commands you can use and what they are for")
@@ -333,4 +410,5 @@ export const commands = [
   eventInvitations.toJSON(),
   eventKinds.toJSON(),
   rotation.toJSON(),
+  raidPlan.toJSON(),
 ];

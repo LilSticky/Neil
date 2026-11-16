@@ -2,6 +2,7 @@ import { tagOfAllianceRole } from "./managed-roles.js";
 import {
   BOT_TARGET,
   EVERYONE_TARGET,
+  POLICE_TARGET,
   expandLayout,
   permissionBits,
   type ChannelType,
@@ -147,7 +148,9 @@ export type SetupFinding =
   /** Another post is pinned, so Neil's how-to post is not pinned. */
   | { kind: "other-post-pinned"; name: string }
   /** The posts of a forum could not be read, so its how-to post is neither posted nor edited. */
-  | { kind: "forum-posts-unread"; name: string };
+  | { kind: "forum-posts-unread"; name: string }
+  /** Neil Police's configured role is not on the server, so no overwrite for it is planned (issue #127). */
+  | { kind: "police-role-missing"; roleId: string };
 
 export interface SetupPlan {
   steps: SetupStep[];
@@ -170,10 +173,14 @@ interface Plan {
   readonly rolePermissions: Record<string, RolePermission[]>;
   /** Server channels and categories the layout accounts for; any other is outside the layout. */
   readonly claimed: Set<string>;
+  /** Neil Police's role id when its overwrites are planned; undefined otherwise. */
+  readonly policeRoleId: string | undefined;
 }
 
 /** Roles of the layout that may hold any permission without a finding: Moderator and King. */
 const PERMISSION_ROLES = ["Moderator", "King"];
+/** What Neil Police's role may do in a channel hidden from @everyone: see it and read its history, nothing more. */
+const POLICE_OVERWRITE: WantedOverwrite = { target: POLICE_TARGET, allow: ["ViewChannel", "ReadMessageHistory"], deny: [] };
 /** The variation selector that turns an emoji into its emoji presentation (U+FE0F). */
 const VARIATION_SELECTOR = /\uFE0F/gu;
 /** The state of a forum the plan creates: no tags, no reaction and no posts. */
@@ -181,11 +188,16 @@ const NO_FORUM_STATE: ForumState = { tags: [], reaction: undefined, postsReadabl
 
 /**
  * The steps and findings that make a server match the layout (data-model.md, Setup plan). Reads nothing but its arguments
- * and writes nothing. The `[TAG]` roles of the server give the Alliance areas.
+ * and writes nothing. The `[TAG]` roles of the server give the Alliance areas. With `policeRoleId` (the test server only),
+ * every category and channel hidden from @everyone also gets an overwrite letting Neil Police's role see it (issue #127).
  */
-export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom: number): SetupPlan {
+export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom: number, policeRoleId?: string): SetupPlan {
   const allianceRoleNames = allianceRoleNamesOf(server);
-  const expanded = expandLayout(layout, homeKingdom, allianceRoleNames);
+  const policeRoleThere = policeRoleId !== undefined && server.roles.some((role) => role.id === policeRoleId);
+  const findings: SetupFinding[] =
+    policeRoleId !== undefined && !policeRoleThere ? [{ kind: "police-role-missing", roleId: policeRoleId }] : [];
+  const laidOut = expandLayout(layout, homeKingdom, allianceRoleNames);
+  const expanded = policeRoleThere ? withPolice(laidOut) : laidOut;
   const plan: Plan = {
     server,
     missingExternalRoles: new Set(),
@@ -195,9 +207,10 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
     topicSteps: [],
     descriptionSteps: [],
     forumSteps: [],
-    findings: [],
+    findings,
     rolePermissions: layout.rolePermissions ?? {},
     claimed: new Set(),
+    policeRoleId: policeRoleThere ? policeRoleId : undefined,
   };
 
   planRoles(plan, expanded);
@@ -217,6 +230,23 @@ export function planSetup(layout: ServerLayout, server: ServerState, homeKingdom
       ...plan.forumSteps,
     ],
     findings: plan.findings,
+  };
+}
+
+/**
+ * The expanded layout with Neil Police's overwrite on every category and channel hidden from @everyone. Added after the
+ * expansion, so the topics and descriptions stay as the layout gives them.
+ */
+function withPolice(layout: ExpandedLayout): ExpandedLayout {
+  const addPolice = (overwrites: WantedOverwrite[]): WantedOverwrite[] =>
+    wantsHiddenFromEveryone(overwrites) ? [...overwrites, POLICE_OVERWRITE] : overwrites;
+  return {
+    ...layout,
+    categories: layout.categories.map((category) => ({
+      ...category,
+      overwrites: addPolice(category.overwrites),
+      channels: category.channels.map((channel) => ({ ...channel, overwrites: addPolice(channel.overwrites) })),
+    })),
   };
 }
 
@@ -494,7 +524,7 @@ function typeMatches(actual: "category" | ChannelType, expected: ChannelType, ha
  */
 function checkOverwrites(plan: Plan, existing: ServerChannel, wanted: WantedOverwrite[], steps: SetupStep[]): void {
   const { server } = plan;
-  const wantedIds = new Set(wanted.map((overwrite) => targetIdOf(server, overwrite.target)));
+  const wantedIds = new Set(wanted.map((overwrite) => targetIdOf(plan, overwrite.target)));
   for (const overwrite of existing.overwrites) {
     if (!wantedIds.has(overwrite.targetId)) {
       plan.findings.push({ kind: "extra-overwrite", name: existing.name, target: describeTarget(server, overwrite.targetId) });
@@ -504,14 +534,14 @@ function checkOverwrites(plan: Plan, existing: ServerChannel, wanted: WantedOver
   const hidesFromEveryone = wantsHiddenFromEveryone(wanted) && !isHiddenFromEveryone(server, existing);
   if (hidesFromEveryone) plan.findings.push({ kind: "hides-from-everyone", name: existing.name });
 
-  const missing = wanted.filter((overwrite) => isMissing(server, existing, overwrite));
+  const missing = wanted.filter((overwrite) => isMissing(plan, existing, overwrite));
   if (missing.length > 0) {
     steps.push({ kind: "correct-overwrites", id: existing.id, name: existing.name, hidesFromEveryone, overwrites: missing });
   }
 }
 
-function isMissing(server: ServerState, existing: ServerChannel, wanted: WantedOverwrite): boolean {
-  const id = targetIdOf(server, wanted.target);
+function isMissing(plan: Plan, existing: ServerChannel, wanted: WantedOverwrite): boolean {
+  const id = targetIdOf(plan, wanted.target);
   const current = existing.overwrites.find((overwrite) => overwrite.targetId === id);
   return (
     wanted.allow.some((permission) => !(current?.allow.includes(permission) ?? false)) ||
@@ -533,8 +563,10 @@ function usable(plan: Plan, overwrites: readonly WantedOverwrite[]): WantedOverw
 }
 
 /** The server id of a wanted target; undefined when no single role of that name exists (yet). */
-function targetIdOf(server: ServerState, target: string): string | undefined {
+function targetIdOf(plan: Plan, target: string): string | undefined {
+  const { server } = plan;
   if (target === EVERYONE_TARGET) return server.everyoneId;
+  if (target === POLICE_TARGET) return plan.policeRoleId;
   if (target === BOT_TARGET) return server.botUserId;
   const found = lookup(server.roles.filter((role) => role.name === target));
   return found.kind === "one" ? found.item.id : undefined;

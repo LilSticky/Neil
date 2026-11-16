@@ -81,6 +81,9 @@ function handlers() {
     bootyAlertsAutocomplete: vi.fn(() => Promise.resolve()),
     eventInvitations: vi.fn(() => Promise.resolve()),
     eventKinds: vi.fn(() => Promise.resolve()),
+    raidPlan: vi.fn(() => Promise.resolve()),
+    raidPlanAutocomplete: vi.fn(() => Promise.resolve()),
+    raidButton: vi.fn(() => Promise.resolve()),
     bootyButton: vi.fn(() => Promise.resolve()),
     pick: vi.fn(() => Promise.resolve()),
     overview: vi.fn(() => Promise.resolve()),
@@ -328,6 +331,41 @@ describe("createClient", () => {
     expect(routed.bootyAlerts).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /raid-plan to the Raid planning handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("raid-plan");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.raidPlan).toHaveBeenCalledWith(interaction);
+    expect(routed.eventKinds).not.toHaveBeenCalled();
+    expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands an autocomplete request of /raid-plan to the Raid planning autocomplete and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = autocomplete("raid-plan");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.raidPlanAutocomplete).toHaveBeenCalledWith(interaction);
+    expect(routed.allianceAutocomplete).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with raid: to the Raid button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "raid:confirm:2026-11-21");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.raidButton).toHaveBeenCalledWith(interaction);
+    expect(routed.bootyButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
   });
 
   test("hands /booty-alerts to the booty alerts handler and nothing else", () => {

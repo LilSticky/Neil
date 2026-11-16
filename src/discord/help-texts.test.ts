@@ -169,3 +169,17 @@ describe("helpReply with a command added later", () => {
     expect(text).toBe(`${MEMBER_TEXT}\n\`/gift <member>\` — Send a gift to a Member`);
   });
 });
+
+describe("helpReply for /raid-plan", () => {
+  test("lists /raid-plan among the Member commands, each usage naming the War Council", () => {
+    const lines = textOf(helpReply(commands, { officer: false })).split("\n");
+    const raidLines = lines.filter((line) => line.startsWith("`/raid-plan "));
+
+    expect(raidLines).toHaveLength(10);
+    expect(raidLines).toContain("`/raid-plan show` — See this week's Battle Plan, privately (War Council)");
+    expect(raidLines).toContain(
+      "`/raid-plan assign <alliance> <objective> [phase] [task]` — Assign an Alliance to an Objective, for a Phase or the whole Raid (War Council)",
+    );
+    for (const line of raidLines) expect(line).toContain("War Council");
+  });
+});

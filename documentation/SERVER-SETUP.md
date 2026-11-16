@@ -65,6 +65,7 @@ nickname and roles matching the game.
 | **Neil** (the bot's own role) | Discord, when the bot is invited | 🔴 Requirement | Holds Neil's permissions. Its **position** matters. |
 | **Moderator** | you | 🔴 Requirement | Officers. Can use the Officer commands and see the Daily Quota. |
 | **King** | you | 🔴 Requirement | Officers too, treated the same as Moderator. |
+| **War Council** | the setup script, or you | 🟡 Recommendation | Its holders plan Saturday's Raid with `/raid-plan` (slice 034). Not an Officer role. Put its ID in `.env` as `DISCORD_WAR_COUNCIL_ROLE_ID`, with `RAID_START`; without the ID, Raid planning is off. |
 | **Onboarding** | Neil, at a start with an unlinked Member, or you | automatic | Held by every Member who isn't Linked yet. |
 | **Doctor** | Neil, at a start or at the first Link, or you | automatic | Held by every Linked Member, Guests included. |
 | Alliance roles (e.g. `[NML]`) | Neil, when first needed | automatic | One per Home Kingdom Alliance, its tag in brackets. Shows that Alliance's area. The brackets are how the setup script finds it, so don't give another role such a name. |
@@ -135,7 +136,8 @@ Threads; in a voice channel View Channel, Connect and Speak ✅. So no role need
 | | event announcements (only King posts) | Kingdom | 🟡 |
 | Alliance Duel | chat, voice, tactics forum, intel | PvP, Events | 🟡 |
 | Kingdom vs Kingdom | chat, voice, tactics forum, intel, and five voice channels: Vanguard, Overwatch, Strike Team, Blackout, War Room | PvP, Events | 🟡 |
-| | KvK announcements (only King posts; Interaction Bot translates) | Kingdom | 🟡 |
+| | KvK announcements (only King posts, and Neil posts the Battle Plan; Interaction Bot translates) | Kingdom | 🟡 |
+| | closed KvK leaders' channel `#kvk-leaders`: Plan Confirmations, chases and deadlines | `R5`, `R4`, War Council, King | 🟡 |
 | | a translated copy of the KvK announcements per translation language | that language's Preference Role | 🟡 |
 | Recruitment | general recruitment, and one text channel per Region (Americas, Europe/Africa, Asia/Oceania) | Recruitment | 🟡 |
 | One per Alliance | text, voice | that Alliance's tag | 🟡 |
@@ -207,6 +209,7 @@ or No (a person must do it).
 | Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed | Yes* |
 | Neil in `#nap-announcements` (the original, not the copies): View Channel, Send Messages, Embed Links, Read Message History, Pin Messages | No pinned City Rotation card; one line in the log | Yes* |
 | Neil in `#nap-leaders`: View Channel, Send Messages | No Handover question after the Royal City siege; one line in the log | Yes* |
+| Neil in `#kvk-announcements` (View Channel, Send Messages, Embed Links) and `#kvk-leaders` (also Read Message History), with War Council configured | No Battle Plan card, confirmation card, chase or deadline notice | Yes* |
 | Read Message History for Neil and Use Application Commands for Members, in `#onboarding` (they usually come from @everyone defaults; don't deny them) | Interview edits; `/interview` | Yes* |
 | Onboarding in `#onboarding`: View Channel, Send Messages, Send Messages in Threads | Onboarding Interview | Yes* |
 | Moderator and King in `#onboarding`: View Channel, Manage Threads | Hand-offs, and Rank Approval with no Linked R5 | Yes* |
@@ -248,6 +251,7 @@ can use every command everywhere, so test with an account that isn't one.
 | `/quota`, `/rank`, `/link` | 🔴 add **Moderator** and **King** | 🟡 Moderator channel |
 | `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the intel channels (PvP, Alliance Duel, Kingdom vs Kingdom) |
 | `/channels`, `/usage`, `/ping`, `/help` | leave as is | 🟡 `#alliance-hall` |
+| `/raid-plan` | leave as is: Neil refuses anyone without the War Council role | 🟡 `#kvk-leaders` (answers are private anyway) |
 | `/booty` | leave as is | 🔴 don't limit it, or allow every `alliance-chat`: it works nowhere else |
 | `/booty-alerts`, `/event-invitations` | leave as is | 🟡 `#alliance-hall` |
 | `/event-kinds` | leave as is (R4 and R5 use it too; Neil checks who may) | 🟡 `#alliance-hall` and the Moderator channel |

@@ -51,6 +51,7 @@ discovery.
 ## Kingdom vs Kingdom (KvK)
 * An event in which the Kingdom fights another Kingdom
 * Has its own group of channels, seen by the PvP and Events roles; its announcements, and their translated copies, reach the whole Home Kingdom
+* Its fight window each week is the Raid, planned by the War Council in a Battle Plan
 
 ## Player
 * A character in Last Asylum: Plague, as the Game API describes it
@@ -94,6 +95,7 @@ discovery.
 ## Server Time
 * The game's clock: UTC-2, not UTC
 * The game's daily reset is at 00:00 Server Time, which is 02:00 UTC. Neil shows Server Time moments as Discord timestamps, so each reader sees them in their own clock
+* The offset never changes: no daylight saving (confirmed by the user 2026-11-15)
 
 ## Kingdom
 * A game server, identified by its number
@@ -171,10 +173,10 @@ discovery.
 * A Player's activity points in their Alliance this week (Game API `active`)
 
 ## Daily Honor
-* A Player's honor contribution to their Alliance today (Game API `daily_honor`)
+* A Player's honor contribution to their Alliance on the current game day (since the last daily reset, 00:00 Server Time) (Game API `daily_honor`)
 
 ## Daily Tech
-* A Player's tech contribution to their Alliance today (Game API `daily_tech`)
+* A Player's tech contribution to their Alliance on the current game day (since the last daily reset, 00:00 Server Time) (Game API `daily_tech`)
 
 ## Least Active
 * The members of an Alliance with the lowest Weekly Activity
@@ -276,6 +278,50 @@ discovery.
 * Neil's card in `#event-announcements` at each daily reset, Monday to Saturday in Server Time: what scores in the Alliance Duel today, and what to save for a later day
 * Mentions nobody. Posted at most once per Duel day; if Neil was off at the reset, later that day, never on a later day
 * Its texts live in the repository, one per Duel day, and change through a pull request. The kingdom's Event Kinds list shows it as a built-in Alliance Duel line
+
+# Raid
+
+## War Council
+* The Discord role whose holders write, publish, amend and cancel the Battle Plan with `/raid-plan`. Its ID is in Neil's configuration
+* Independent of the King role, and not an Officer role. Without it configured, Raid planning is off
+
+## Raid
+* The Home Kingdom's one fight window of a KvK week: Saturday, starting at a fixed time in Server Time from Neil's configuration
+* From Sunday 00:00 to Saturday 23:59 Server Time, the current Raid is that week's Saturday's. A cancelled Raid stays cancelled for that week
+
+## Battle Plan
+* The War Council's structured plan for one Raid: Objectives, Phases, Assignments and notes
+* A draft until published; publishing posts it in `#kvk-announcements` and asks for Plan Confirmations in `#kvk-leaders`. Publishing again updates both posted cards and keeps the confirmations
+
+## Objective
+* A target in a Battle Plan. Always offered, and never removed: the enemy Kingdom's Royal City, its four Cannon Towers (North, East, South, West) and the enemy sanctuaries
+* The War Council may add up to six of its own
+
+## Phase
+* A timed step of a Raid in a Battle Plan, with a name and a time typed in Server Time on Raid day, at or after the Raid start
+* Each Phase with Assignments gets a Raid Reminder
+
+## Assignment
+* Which Alliance takes which Objective, for one Phase or the whole Raid, with an optional short task
+* An Alliance with an Assignment is *on the plan*
+
+## Plan Confirmation
+* An Alliance's acknowledgement that it has read the published Battle Plan: its R5, or an R4, presses "Read and confirmed" in `#kvk-leaders`
+* One per Alliance per Raid; the first press counts. Alliances not on the plan are asked once too, and may confirm
+
+## Plan Deadline
+* A fixed number of hours before the Raid start (configuration). If no Battle Plan is published by then, Neil mentions the War Council in `#kvk-leaders`
+
+## Confirmation Deadline
+* A fixed number of hours before the Raid start (configuration), after the Plan Deadline. Then Neil gives the War Council the on-plan Alliances still without a Plan Confirmation
+
+## Confirmation Chase
+* Neil's mention, in `#kvk-leaders`, of the R5s and R4s of on-plan Alliances that haven't confirmed yet: 12 hours and 2 hours before the Confirmation Deadline
+* Alliances not on the plan are never chased
+
+## Raid Reminder
+* Neil's message in an assigned Alliance's `alliance-chat`, mentioning its Members: 30 minutes before the Raid start, and at each Phase it is assigned to
+* Each goes out at most once per Raid
 
 # Onboarding
 

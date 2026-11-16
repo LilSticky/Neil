@@ -17,6 +17,7 @@ import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { CityRotationStore } from "../storage/city-rotation-store.js";
 import { EventStore } from "../storage/event-store.js";
+import { RaidStore } from "../storage/raid-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import { LinkStore } from "../storage/link-store.js";
@@ -293,6 +294,8 @@ describe("connect", () => {
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       dailySync,
       events,
+      raids: new RaidStore(db),
+      raidSettings: { warCouncilRoleId: undefined, startMinutes: undefined, planHours: 24, confirmationHours: 2 },
       reaper,
       preferences,
       bootyAlerts,

@@ -9,6 +9,7 @@ import type { AppliedStore } from "./storage/applied-store.js";
 import type { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import type { DailySyncStore } from "./storage/daily-sync-store.js";
 import type { EventStore } from "./storage/event-store.js";
+import type { RaidStore } from "./storage/raid-store.js";
 import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
@@ -57,6 +58,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
   readonly cityRotation: CityRotationStore;
+  readonly raids: RaidStore;
 }
 
 export interface Connection {
@@ -157,6 +159,13 @@ export async function start(deps: StartupDeps): Promise<void> {
       reaper: store.reaper,
       bootyAlerts: store.bootyAlerts,
       events: store.events,
+      raids: store.raids,
+      raidSettings: {
+        warCouncilRoleId: config.warCouncilRoleId,
+        startMinutes: config.raidStartMinutes,
+        planHours: config.raidPlanDeadlineHours,
+        confirmationHours: config.raidConfirmationDeadlineHours,
+      },
       preferences: store.preferences,
       guidesForumId: config.guidesForumId,
       syncHourUtc: config.syncHourUtc,

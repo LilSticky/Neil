@@ -51,6 +51,6 @@ Officers to name the holder, with no Game API request.
 
 ## Requirements
 
-R1–R17 of the approved spec of issue #131: dictionary, settings, the siege clock, storage (migration 17), `/rotation`
+R1–R17 of the approved spec of issue #131: dictionary, settings, the siege clock, storage (migration 18), `/rotation`
 show, set and holder, Contested, the pinned card, the after-siege step, confirmation, the log, `leader_id`, Pin Messages
 in the setup, `/help` and registration, and the documentation with ADR 18.

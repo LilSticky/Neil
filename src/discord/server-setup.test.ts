@@ -1215,6 +1215,26 @@ describe("the shipped server-layout.json", () => {
     expect(allowOf("nap-leaders", KINGDOM_ROLE)).toEqual([]);
   });
 
+  test("plans the War Council role", () => {
+    expect(expandLayout(shippedLayout(), HOME_KINGDOM, []).roles).toContain("War Council");
+  });
+
+  test("keeps kvk-leaders closed to the Kingdom role and opens it to R5, R4, War Council and King", () => {
+    expect(allowOf("kvk-leaders", KINGDOM_ROLE)).toEqual([]);
+    for (const role of ["PvP", "Events"]) expect(allowOf("kvk-leaders", role)).toEqual([]);
+    expect(channelViewers(channelNamed("kvk-leaders")).filter((role) => role !== "Neil").sort()).toEqual(["King", "R4", "R5", "War Council"]);
+    expect(groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Kingdom vs Kingdom").channels.map((c) => c.name)).toContain(
+      "kvk-leaders",
+    );
+  });
+
+  test("lets Neil post the Battle Plan in kvk-announcements and its notices in kvk-leaders", () => {
+    for (const name of ["kvk-announcements", "kvk-leaders"]) {
+      expect(allowOf(name, "Neil")).toEqual(expect.arrayContaining(["ViewChannel", "SendMessages", "EmbedLinks"]));
+    }
+    expect(allowOf("kvk-leaders", "Neil")).toContain("ReadMessageHistory");
+  });
+
   test("gives no channel the name of a category, so printed IDs and reports can't mix them up", () => {
     const expanded = expandLayout(shippedLayout(), HOME_KINGDOM, []);
     const categoryNames = expanded.categories.map((category) => category.name);

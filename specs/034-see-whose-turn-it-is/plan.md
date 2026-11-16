@@ -10,7 +10,7 @@
   Home Kingdom, tag in the current order or, with none, the new one). `Editor` gains the optional `allianceTag`, read by
   `editorOf` from the Applied State.
 - **Settings** `ROYAL_CITY_SIEGE_TIME` (optional `HH:MM`) and `CITY_ROTATION_MODE` (`rotation` default, or `contested`).
-- **Storage**: migration 17, one `city_rotation` row; `CityRotationStore` (`load`, `save`, `update`) reads through zod and
+- **Storage**: migration 18, one `city_rotation` row; `CityRotationStore` (`load`, `save`, `update`) reads through zod and
   throws on a corrupt row. No Discord user ids (ADR 18).
 - **Game API**: `allianceBodySchema.leader_id` (lenient) → `Alliance.leaderUid`.
 - **Discord**: `src/discord/city-rotation.ts` (the service: show, set, holder, confirm, tick, refreshCard),
