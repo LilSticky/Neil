@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Slice 034 ("See whose turn it is", issue #131) lets the R5s of the Alliances in the City Rotation keep its order,
+Slice 035 ("See whose turn it is", issue #131) lets the R5s of the Alliances in the City Rotation keep its order,
 lets Officers name the Holding Alliance, and after each Royal City siege asks the receiving Alliance's R5 to confirm
 the Handover. The R5 is read fresh from the Game API (`leader_id`). The constitution (principle V) asks that personal
 data is kept to what a feature needs, and that what is stored, and for how long, is recorded in an ADR. ADR 5 decided

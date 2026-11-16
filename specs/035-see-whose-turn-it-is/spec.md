@@ -1,6 +1,6 @@
 # Feature Specification: See whose turn it is
 
-**Feature Branch**: `034-see-whose-turn-it-is`
+**Feature Branch**: `035-see-whose-turn-it-is`
 
 **Created**: 2026-11-16
 

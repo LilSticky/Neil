@@ -80,7 +80,7 @@ Source: <https://docs.discord.com/developers/topics/permissions>
 
 **Neil**: Manage Roles and Manage Nicknames, with its role above the Managed Roles, `Onboarding` and `Doctor`, and
 below Moderator and King (ADR 8, SERVER-SETUP.md). In `#nap-announcements` it posts and pins the City Rotation card
-(Pin Messages, slice 034) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
+(Pin Messages, slice 035) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
 again. Missing permissions surface as REST error **50013**
 (`src/discord/member-roles.ts`). Neil has no Manage Events (ADR 14) and no Manage Channels (ADR 12).
 

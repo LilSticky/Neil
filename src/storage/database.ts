@@ -221,7 +221,7 @@ const migrations: readonly string[] = [
      sent_at TEXT NOT NULL,
      PRIMARY KEY (raid_id, key)
    )`,
-  // Migration 18: the City Rotation (slice 034, ADR 18), one row: the order as a JSON list of Alliance tags (NULL when
+  // Migration 18: the City Rotation (slice 035, ADR 18), one row: the order as a JSON list of Alliance tags (NULL when
   // none is set), the Holding Alliance, the Handover waiting for confirmation (the expected tag, its R5's uid when known
   // and the confirmation message), the last Royal City siege handled, and the pinned card. No Discord user ids.
   `CREATE TABLE city_rotation (

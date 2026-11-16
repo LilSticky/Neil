@@ -22,7 +22,7 @@
 
 ## Phase 3: Polish
 
-- [x] T010 ADR 18, STATUS, ROADMAP row 034, SERVER-SETUP, DISCORD-PLATFORM.
+- [x] T010 ADR 18, STATUS, ROADMAP row 035, SERVER-SETUP, DISCORD-PLATFORM.
 - [ ] T011 Manual check on test Neil: set `ROYAL_CITY_SIEGE_TIME`, rerun the setup script, `npm run commands:register`;
   the pinned card and `/rotation show` read clearly and the siege time shows in the reader's own clock; a set, a holder
   and a confirmation each update the card and write one `#neil-log` line.

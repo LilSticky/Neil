@@ -1,6 +1,6 @@
 # Implementation Plan: See whose turn it is
 
-**Branch**: `034-see-whose-turn-it-is` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md)
+**Branch**: `035-see-whose-turn-it-is` | **Date**: 2026-11-16 | **Spec**: [spec.md](spec.md)
 
 ## Summary
 
