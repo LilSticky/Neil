@@ -46,6 +46,7 @@ import { createRaidClock, type RaidClock } from "./raid-clock.js";
 import {
   createRaidPlanning,
   type RaidConfirmPress,
+  type RaidPlanAutocomplete,
   type RaidPlanInteraction,
   type RaidPlanning,
   type RaidSettings,
@@ -1035,6 +1036,15 @@ function raidPlanLike(command: ChatInputCommandInteraction): RaidPlanInteraction
   };
 }
 
+/** A discord.js /raid-plan autocomplete request as the Raid planning reads it: the focused option, the typer's roles and the answer. */
+function raidPlanAutocompleteLike(request: AutocompleteInteraction): RaidPlanAutocomplete {
+  return {
+    options: { getFocused: (full) => request.options.getFocused(full) },
+    memberRoles: () => rolesOfMember(request.member),
+    respond: (choices) => request.respond(choices),
+  };
+}
+
 /** The discord.js Read and confirmed button press as the Raid planning reads it. */
 function raidConfirmLike(button: ButtonInteraction): RaidConfirmPress {
   return {
@@ -1234,7 +1244,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       raidPlanAutocomplete: async (interaction) =>
         answer("/raid-plan autocomplete", { logError }, async () => {
           const { raidPlanning } = await services;
-          await raidPlanning.onAutocomplete(interaction);
+          await raidPlanning.onAutocomplete(raidPlanAutocompleteLike(interaction));
         }),
       raidButton: async (button) =>
         answer("raid button", { logError }, async () => {

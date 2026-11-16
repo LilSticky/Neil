@@ -228,6 +228,7 @@ describe("/raid-plan", () => {
     const ask = (name: string, value: string) =>
       planning().onAutocomplete({
         options: { getFocused: () => ({ name, value }) },
+        memberRoles: () => WAR_COUNCIL,
         respond: (offered) => {
           choices.push(offered);
           return Promise.resolve();
@@ -246,6 +247,40 @@ describe("/raid-plan", () => {
     ]);
     expect(choices[1]?.map((choice) => choice.name)).toEqual(["Opening"]);
     expect(choices[2]?.map((choice) => choice.name)).toEqual(["NML"]);
+  });
+
+  test("autocomplete suggests nothing to a Member without the War Council role", async () => {
+    await draftPlan();
+    const choices: { name: string }[][] = [];
+    const ask = (name: string, value: string) =>
+      planning().onAutocomplete({
+        options: { getFocused: () => ({ name, value }) },
+        memberRoles: () => [{ id: "role-King", name: "King" }],
+        respond: (offered) => {
+          choices.push(offered);
+          return Promise.resolve();
+        },
+      });
+
+    await ask("objective", "");
+    await ask("phase", "");
+    await ask("alliance", "");
+
+    expect(choices).toEqual([[], [], []]);
+  });
+
+  test("a publish whose save fails posts no plan card and leaves the Raid a draft", async () => {
+    await draftPlan();
+    const save = raids.save.bind(raids);
+    raids.save = (raid) => {
+      if (raid.state.kind === "published") throw new Error("disk full");
+      save(raid);
+    };
+
+    await run("publish");
+
+    expect(server.posts).toEqual([]);
+    expect(raids.find(RAID_ID)?.raid.state.kind).toBe("draft");
   });
 });
 
@@ -324,4 +359,5 @@ describe("the Read and confirmed button", () => {
     expect(pressed.replies[0]?.content).toContain("cancelled");
     expect(raids.confirmations(RAID_ID)).toEqual([]);
   });
+
 });

@@ -73,6 +73,8 @@ export interface RaidPlanInteraction {
 /** An autocomplete request of /raid-plan: the focused option and what is typed so far. */
 export interface RaidPlanAutocomplete {
   readonly options: { getFocused(full: true): { readonly name: string; readonly value: string } };
+  /** The roles of the Member typing; only War Council holders get suggestions. */
+  memberRoles(): readonly EventRole[];
   respond(choices: ApplicationCommandOptionChoiceData<string>[]): Promise<unknown>;
 }
 
@@ -197,8 +199,8 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
       await server.log(`<@${caller}> tried to publish the Battle Plan, but the server has no #${name}; nothing was posted.`);
       return raidMessages.missingChannel(name);
     }
-    const posted = await server.post(planChannel, { embeds: [planCard(raid)], allowedMentions: { parse: [] } });
     raids.save(raid);
+    const posted = await server.post(planChannel, { embeds: [planCard(raid)], allowedMentions: { parse: [] } });
     raids.savePlanCard(raid.id, posted);
     const leaders = leadersOf(await server.members(), server.allianceTags());
     const [head, ...rest] = textWithMentions(raidMessages.confirmationAsk(raid.start), leaders, [confirmationEmbed(raid)]);
@@ -291,6 +293,11 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
 
     async onAutocomplete(interaction) {
       try {
+        const { warCouncilRoleId } = settings;
+        if (warCouncilRoleId === undefined || !interaction.memberRoles().some((role) => role.id === warCouncilRoleId)) {
+          await interaction.respond([]);
+          return;
+        }
         const focused = interaction.options.getFocused(true);
         const typed = focused.value.trim().toLowerCase();
         let names: readonly string[] = [];
