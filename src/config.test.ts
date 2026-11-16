@@ -60,6 +60,11 @@ describe("loadConfig", () => {
       raidStartMinutes: undefined,
       raidPlanDeadlineHours: 24,
       raidConfirmationDeadlineHours: 2,
+      fighterClassThresholds: {
+        whale: { bracket: "T10", might: 150_000_000 },
+        dolphin: { bracket: "T9", might: 60_000_000 },
+        seal: { bracket: "T7", might: 20_000_000 },
+      },
     });
   });
 
@@ -643,5 +648,64 @@ describe("loadConfig", () => {
         "RAID_CONFIRMATION_DEADLINE_HOURS: must be fewer hours than RAID_PLAN_DEADLINE_HOURS: the Plan Deadline comes before the Confirmation Deadline",
       ]);
     });
+  });
+});
+
+describe("Fighter Class thresholds", () => {
+  test("default to T10 or 150,000,000 for a Whale, T9 or 60,000,000 for a Dolphin, T7 or 20,000,000 for a Seal", () => {
+    expect(loadConfig(validEnv()).fighterClassThresholds).toEqual({
+      whale: { bracket: "T10", might: 150_000_000 },
+      dolphin: { bracket: "T9", might: 60_000_000 },
+      seal: { bracket: "T7", might: 20_000_000 },
+    });
+  });
+
+  test("are read from the six FIGHTER_ settings", () => {
+    const config = loadConfig(
+      validEnv({
+        FIGHTER_WHALE_BRACKET: "T9",
+        FIGHTER_WHALE_MIGHT: "100000000",
+        FIGHTER_DOLPHIN_BRACKET: "T8",
+        FIGHTER_DOLPHIN_MIGHT: "40000000",
+        FIGHTER_SEAL_BRACKET: "T5",
+        FIGHTER_SEAL_MIGHT: "1",
+      }),
+    );
+
+    expect(config.fighterClassThresholds).toEqual({
+      whale: { bracket: "T9", might: 100_000_000 },
+      dolphin: { bracket: "T8", might: 40_000_000 },
+      seal: { bracket: "T5", might: 1 },
+    });
+  });
+
+  test.each(["T0", "T11", "t9", "9", ""])("stops startup on the bracket %s", (value) => {
+    const error = failureOf(validEnv({ FIGHTER_SEAL_BRACKET: value }));
+
+    expect(error.problems).toEqual(["FIGHTER_SEAL_BRACKET: must be a Troop Bracket from T1 to T10"]);
+  });
+
+  test.each(["0", "1.5", "-5", "x", "150,000,000"])("stops startup on the Might %s", (value) => {
+    const error = failureOf(validEnv({ FIGHTER_SEAL_MIGHT: value }));
+
+    expect(error.problems).toEqual(["FIGHTER_SEAL_MIGHT: must be a whole number of at least 1"]);
+  });
+
+  test("stops startup when a Whale does not need more than a Dolphin", () => {
+    const error = failureOf(validEnv({ FIGHTER_WHALE_BRACKET: "T9", FIGHTER_WHALE_MIGHT: "60000000" }));
+
+    expect(error.problems).toEqual([
+      "FIGHTER_WHALE_BRACKET: must be above FIGHTER_DOLPHIN_BRACKET: a Whale needs more than a Dolphin",
+      "FIGHTER_WHALE_MIGHT: must be above FIGHTER_DOLPHIN_MIGHT: a Whale needs more than a Dolphin",
+    ]);
+  });
+
+  test("stops startup when a Dolphin does not need more than a Seal", () => {
+    const error = failureOf(validEnv({ FIGHTER_SEAL_BRACKET: "T9", FIGHTER_SEAL_MIGHT: "70000000" }));
+
+    expect(error.problems).toEqual([
+      "FIGHTER_DOLPHIN_BRACKET: must be above FIGHTER_SEAL_BRACKET: a Dolphin needs more than a Seal",
+      "FIGHTER_DOLPHIN_MIGHT: must be above FIGHTER_SEAL_MIGHT: a Dolphin needs more than a Seal",
+    ]);
   });
 });

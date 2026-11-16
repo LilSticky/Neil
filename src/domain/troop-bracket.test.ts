@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { bracketFor } from "./troop-bracket.js";
+import { bracketFor, isTroopBracket, tierOf } from "./troop-bracket.js";
 
 /** The default first levels of T1…T10 (configuration default, FR-006). */
 const DEFAULT_LEVELS = [1, 3, 6, 10, 14, 17, 20, 24, 27, 30] as const;
@@ -42,5 +42,22 @@ describe("bracketFor", () => {
   test("uses the given table, so a new tier needs no code change", () => {
     expect(bracketFor(12, [5, 10, 15])).toBe("T2");
     expect(bracketFor(15, [5, 10, 15])).toBe("T3");
+  });
+});
+
+describe("isTroopBracket and tierOf", () => {
+  test("T1 to T10 are Troop Brackets, anything else is not", () => {
+    expect(isTroopBracket("T1")).toBe(true);
+    expect(isTroopBracket("T10")).toBe(true);
+    expect(isTroopBracket("T0")).toBe(false);
+    expect(isTroopBracket("T11")).toBe(false);
+    expect(isTroopBracket("t9")).toBe(false);
+    expect(isTroopBracket("")).toBe(false);
+  });
+
+  test("compares by tier number, so T10 is above T9", () => {
+    expect(tierOf("T1")).toBe(1);
+    expect(tierOf("T9")).toBe(9);
+    expect(tierOf("T10")).toBe(10);
   });
 });
