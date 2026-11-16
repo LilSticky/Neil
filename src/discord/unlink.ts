@@ -1,6 +1,7 @@
 import { DiscordAPIError, RESTJSONErrorCodes, type BaseMessageOptions } from "discord.js";
 import { cancel, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { AppliedState, AppliedStore } from "../storage/applied-store.js";
+import type { AvailabilityStore } from "../storage/availability-store.js";
 import type { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import type { EventStore } from "../storage/event-store.js";
 import type { LinkStore } from "../storage/link-store.js";
@@ -46,6 +47,8 @@ export interface UnlinkDeps {
   readonly bootyAlerts: Pick<BootyAlertsStore, "forget">;
   /** Forgets a Member's Event Invitations Off when their Link ends, so the choice does not outlive the Link. */
   readonly events: Pick<EventStore, "forgetMember">;
+  /** Deletes a Member's Availability answers when their Link ends, so they do not outlive the Link (ADR 18). */
+  readonly availability: Pick<AvailabilityStore, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -74,6 +77,9 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   });
   attempt(deps, memberId, "forgetting the Event Invitations Off", () => {
     deps.events.forgetMember(memberId);
+  });
+  attempt(deps, memberId, "forgetting the Availability answers", () => {
+    deps.availability.forget(memberId);
   });
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {

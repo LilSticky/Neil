@@ -12,6 +12,7 @@ import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import { RaidStore } from "./storage/raid-store.js";
+import { AvailabilityStore } from "./storage/availability-store.js";
 import { EventStore } from "./storage/event-store.js";
 import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { openDatabase } from "./storage/database.js";
@@ -105,12 +106,14 @@ function stubStores(): {
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
   readonly raids: RaidStore;
+  readonly availability: AvailabilityStore;
 } {
   return {
     memberUsage: new MemberUsageStore(new DatabaseSync(":memory:")),
     bootyAlerts: new BootyAlertsStore(new DatabaseSync(":memory:")),
     events: new EventStore(new DatabaseSync(":memory:")),
     raids: new RaidStore(new DatabaseSync(":memory:")),
+    availability: new AvailabilityStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     preferences: createPreferenceStore(new DatabaseSync(":memory:")),
     reaper: new ReaperStore(new DatabaseSync(":memory:")),
@@ -263,6 +266,12 @@ describe("start", () => {
       confirmationHours: 2,
     });
     expect(seen[0]?.raids).toBe(fake.stores.raids);
+    expect(seen[0]?.availability).toBe(fake.stores.availability);
+    expect(seen[0]?.fighterClassThresholds).toEqual({
+      whale: { bracket: "T10", might: 150_000_000 },
+      dolphin: { bracket: "T9", might: 60_000_000 },
+      seal: { bracket: "T7", might: 20_000_000 },
+    });
   });
 
   test("passes the channel IDs, the Interview timeout and the Interview and Link stores to connect", async () => {

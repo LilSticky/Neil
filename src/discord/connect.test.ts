@@ -17,6 +17,7 @@ import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { EventStore } from "../storage/event-store.js";
 import { RaidStore } from "../storage/raid-store.js";
+import { AvailabilityStore } from "../storage/availability-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
 import { KnownAllianceStore } from "../storage/known-alliance-store.js";
 import { LinkStore } from "../storage/link-store.js";
@@ -295,6 +296,12 @@ describe("connect", () => {
       events,
       raids: new RaidStore(db),
       raidSettings: { warCouncilRoleId: undefined, startMinutes: undefined, planHours: 24, confirmationHours: 2 },
+      availability: new AvailabilityStore(db),
+      fighterClassThresholds: {
+        whale: { bracket: "T10", might: 150_000_000 },
+        dolphin: { bracket: "T9", might: 60_000_000 },
+        seal: { bracket: "T7", might: 20_000_000 },
+      },
       reaper,
       preferences,
       bootyAlerts,
