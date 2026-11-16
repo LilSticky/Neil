@@ -15,6 +15,7 @@ import { InterviewStore } from "./storage/interview-store.js";
 import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { RaidStore } from "./storage/raid-store.js";
 import { ReaperStore } from "./storage/reaper-store.js";
 import { createPreferenceStore } from "./storage/preference-store.js";
 import { StartRecordStore } from "./storage/start-record-store.js";
@@ -45,6 +46,7 @@ await start({
       reaper: new ReaperStore(db),
       bootyAlerts: new BootyAlertsStore(db),
       events: new EventStore(db),
+      raids: new RaidStore(db),
       preferences: createPreferenceStore(db, (line) => {
         console.error(line);
       }),

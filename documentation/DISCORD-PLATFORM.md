@@ -145,6 +145,10 @@ Sources: <https://docs.discord.com/developers/resources/message>,
   descriptions and field values, but not in embed titles, field names or footers. Neil uses them for Server Time
   moments, for example the end of a Duel day (`nextServerReset`). Card footers still show UTC
   ([#124](https://github.com/LilSticky/Neil/issues/124)).
+- Neil posts into an **announcement channel** (`ChannelType.GuildAnnouncement`) as into a text channel: the Battle Plan
+  card goes to `#kvk-announcements` (slice 034), so Neil needs View Channel, Send Messages and Embed Links there, which
+  the layout grants. Neil does not crosspost (Publish) the message to following servers. Whether Interaction Bot
+  translates a bot's embed into the translated copies is not verified yet.
 
 ## Dates and times: Discord timestamps
 

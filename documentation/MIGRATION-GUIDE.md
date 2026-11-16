@@ -71,6 +71,10 @@ Check that Home Kingdom Members hold `#<Home Kingdom>`: nearly every channel wil
 4. `npm run server:setup -- --apply`.
 5. 🔴 **Take Administrator off Neil's role straight away.**
 6. Check with **View Server As Role**: `Onboarding` alone, **Doctor** alone, then **Doctor** plus `#<Home Kingdom>`.
+7. For Raid planning (slice 034): copy the ID of the new **War Council** role into `.env` as `DISCORD_WAR_COUNCIL_ROLE_ID`, set
+   `RAID_START` (HH:MM in Server Time, Saturday) and, if you want other deadlines, `RAID_PLAN_DEADLINE_HOURS` and
+   `RAID_CONFIRMATION_DEADLINE_HOURS` (see `env.example`), give the role to the War Council and restart Neil. Without the
+   ID, Raid planning stays off.
 
 The script keeps the overwrites you made and only adds or corrects the permissions the layout names. So if a channel still
 allows `Doctor`, Guests keep seeing it: the report lists it as an extra overwrite. Remove those yourself. It also doesn't

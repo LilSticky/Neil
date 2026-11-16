@@ -11,6 +11,7 @@ import { startCount, type StartRecord } from "./domain/start-record.js";
 import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
+import { RaidStore } from "./storage/raid-store.js";
 import { EventStore } from "./storage/event-store.js";
 import { DailySyncStore } from "./storage/daily-sync-store.js";
 import { openDatabase } from "./storage/database.js";
@@ -103,11 +104,13 @@ function stubStores(): {
   readonly memberUsage: MemberUsageStore;
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
+  readonly raids: RaidStore;
 } {
   return {
     memberUsage: new MemberUsageStore(new DatabaseSync(":memory:")),
     bootyAlerts: new BootyAlertsStore(new DatabaseSync(":memory:")),
     events: new EventStore(new DatabaseSync(":memory:")),
+    raids: new RaidStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     preferences: createPreferenceStore(new DatabaseSync(":memory:")),
     reaper: new ReaperStore(new DatabaseSync(":memory:")),
@@ -239,6 +242,27 @@ describe("start", () => {
     expect(options?.syncHourUtc).toBe(4);
     expect(options?.syncShare).toBe(250);
     expect(options?.dailySync).toBe(fake.stores.dailySync);
+  });
+
+  test("passes the Raid settings and the Raid store from configuration to connect", async () => {
+    const seen: ConnectOptions[] = [];
+    const fake = fakeDeps({
+      env: { ...VALID_ENV, DISCORD_WAR_COUNCIL_ROLE_ID: "623456789012345678", RAID_START: "20:00", RAID_PLAN_DEADLINE_HOURS: "36" },
+      connect: (_token, options) => {
+        seen.push(options);
+        return Promise.resolve({ disconnect: () => Promise.resolve() });
+      },
+    });
+
+    await start(fake.deps);
+
+    expect(seen[0]?.raidSettings).toEqual({
+      warCouncilRoleId: "623456789012345678",
+      startMinutes: 1200,
+      planHours: 36,
+      confirmationHours: 2,
+    });
+    expect(seen[0]?.raids).toBe(fake.stores.raids);
   });
 
   test("passes the channel IDs, the Interview timeout and the Interview and Link stores to connect", async () => {

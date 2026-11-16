@@ -26,6 +26,14 @@ export interface Configuration {
   readonly syncHourUtc: number;
   /** Game API requests the Daily Sync may use per day; it never uses the Quota Reserve. */
   readonly syncShare: number;
+  /** The War Council role: its holders plan the Raid (slice 034). Undefined when not set: Raid planning is off. */
+  readonly warCouncilRoleId: string | undefined;
+  /** The Raid's start on Saturday, in minutes after 00:00 Server Time; undefined when Raid planning is off. */
+  readonly raidStartMinutes: number | undefined;
+  /** The Plan Deadline, in whole hours before the Raid start. */
+  readonly raidPlanDeadlineHours: number;
+  /** The Confirmation Deadline, in whole hours before the Raid start; always fewer than the Plan Deadline's. */
+  readonly raidConfirmationDeadlineHours: number;
 }
 
 export class ConfigError extends Error {
@@ -75,6 +83,25 @@ const syncHourRule = "must be a whole number from 0 to 23";
 
 const DEFAULT_SYNC_SHARE = 500;
 const syncShareRule = "must be a whole number of at least 1";
+
+const raidStartRule = "must be a time HH:MM from 00:00 to 23:59 (Server Time, Saturday)";
+const raidPlanDeadlineRule = "must be a whole number of hours from 1 to 144";
+const raidConfirmationDeadlineRule = "must be a whole number of hours from 0 to 143";
+const raidDeadlinesOrderRule =
+  "must be fewer hours than RAID_PLAN_DEADLINE_HOURS: the Plan Deadline comes before the Confirmation Deadline";
+const raidStartRequiredRule = "required when DISCORD_WAR_COUNCIL_ROLE_ID is set";
+const DEFAULT_RAID_PLAN_DEADLINE_HOURS = 24;
+const DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS = 2;
+
+/** Whole hours from `min` to `max`, as text. */
+function hoursSetting(min: number, max: number, rule: string) {
+  return z
+    .string()
+    .regex(/^\d+$/, rule)
+    .refine((value) => Number(value) >= min && Number(value) <= max, rule)
+    .transform(Number)
+    .optional();
+}
 
 const schema = z.object({
   DISCORD_TOKEN: z.string(required).min(1, required),
@@ -136,6 +163,25 @@ const schema = z.object({
     .transform(Number)
     .optional(),
   DATA_DIR: z.string().min(1).default("./data"),
+  DISCORD_WAR_COUNCIL_ROLE_ID: snowflake.optional(),
+  RAID_START: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, raidStartRule)
+    .transform((value) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)))
+    .optional(),
+  RAID_PLAN_DEADLINE_HOURS: hoursSetting(1, 144, raidPlanDeadlineRule),
+  RAID_CONFIRMATION_DEADLINE_HOURS: hoursSetting(0, 143, raidConfirmationDeadlineRule),
+}).superRefine((data, ctx) => {
+  if (data.DISCORD_WAR_COUNCIL_ROLE_ID !== undefined && data.RAID_START === undefined) {
+    ctx.addIssue({ code: "custom", path: ["RAID_START"], message: raidStartRequiredRule });
+  }
+  const planHours = data.RAID_PLAN_DEADLINE_HOURS ?? DEFAULT_RAID_PLAN_DEADLINE_HOURS;
+  const confirmationHours = data.RAID_CONFIRMATION_DEADLINE_HOURS ?? DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS;
+  // A setting that already broke its own rule gets only that problem: the order is compared between valid hours alone.
+  const valid = (hours: number, min: number, max: number): boolean => Number.isInteger(hours) && hours >= min && hours <= max;
+  if (valid(planHours, 1, 144) && valid(confirmationHours, 0, 143) && confirmationHours >= planHours) {
+    ctx.addIssue({ code: "custom", path: ["RAID_CONFIRMATION_DEADLINE_HOURS"], message: raidDeadlinesOrderRule });
+  }
 });
 
 /** Validates the environment; collects every problem and never echoes a value. */
@@ -167,5 +213,10 @@ export function loadConfig(env: Record<string, string | undefined>): Configurati
     troopBracketLevels: result.data.TROOP_BRACKET_LEVELS ?? DEFAULT_TROOP_BRACKET_LEVELS,
     syncHourUtc: result.data.SYNC_HOUR_UTC ?? DEFAULT_SYNC_HOUR_UTC,
     syncShare: result.data.SYNC_SHARE ?? DEFAULT_SYNC_SHARE,
+    warCouncilRoleId: result.data.DISCORD_WAR_COUNCIL_ROLE_ID,
+    raidStartMinutes: result.data.RAID_START,
+    raidPlanDeadlineHours: result.data.RAID_PLAN_DEADLINE_HOURS ?? DEFAULT_RAID_PLAN_DEADLINE_HOURS,
+    raidConfirmationDeadlineHours:
+      result.data.RAID_CONFIRMATION_DEADLINE_HOURS ?? DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS,
   };
 }
