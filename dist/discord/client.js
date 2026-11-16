@@ -9,6 +9,10 @@ import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
 import { handleEventKinds } from "./event-kinds.js";
+import { createRaidClock } from "./raid-clock.js";
+import { createRaidPlanning, } from "./raid-plan.js";
+import { raidServerOf } from "./raid-server.js";
+import { RAID_PREFIX } from "./raid-texts.js";
 import { createEventInvitations, eventIdOf } from "./events.js";
 import { createBootyCalls, } from "./booty-call.js";
 import { handleBootyAlerts } from "./booty.js";
@@ -255,6 +259,9 @@ export function createClient(handlers, options) {
                 case "event-kinds":
                     void handlers.eventKinds(interaction);
                     break;
+                case "raid-plan":
+                    void handlers.raidPlan(interaction);
+                    break;
             }
             return;
         }
@@ -265,6 +272,8 @@ export function createClient(handlers, options) {
                 void handlers.reaperAutocomplete(interaction);
             if (interaction.commandName === "booty-alerts")
                 void handlers.bootyAlertsAutocomplete(interaction);
+            if (interaction.commandName === "raid-plan")
+                void handlers.raidPlanAutocomplete(interaction);
             return;
         }
         if (interaction.isModalSubmit()) {
@@ -299,6 +308,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
                 void handlers.preferencesPress(interaction);
+            }
+            else if (interaction.customId.startsWith(RAID_PREFIX)) {
+                void handlers.raidButton(interaction);
             }
             return;
         }
@@ -718,6 +730,41 @@ function eventKindsLike(command) {
         reply: (reply) => command.reply(reply),
     };
 }
+/** The roles of the Member behind an interaction, by id and name; none outside a guild. */
+function rolesOfMember(member) {
+    return member instanceof GuildMember ? [...member.roles.cache.values()].map((role) => ({ id: role.id, name: role.name })) : [];
+}
+/** The discord.js /raid-plan command as the Raid planning reads it: the caller, their roles, the options and the private replies. */
+function raidPlanLike(command) {
+    return {
+        user: { id: command.user.id },
+        options: {
+            getSubcommand: () => command.options.getSubcommand(),
+            getString: (name) => command.options.getString(name),
+        },
+        memberRoles: () => rolesOfMember(command.member),
+        reply: (reply) => command.reply(reply),
+        deferReply: (options) => command.deferReply(options),
+        editReply: (options) => command.editReply(options),
+    };
+}
+/** A discord.js /raid-plan autocomplete request as the Raid planning reads it: the focused option, the typer's roles and the answer. */
+function raidPlanAutocompleteLike(request) {
+    return {
+        options: { getFocused: (full) => request.options.getFocused(full) },
+        memberRoles: () => rolesOfMember(request.member),
+        respond: (choices) => request.respond(choices),
+    };
+}
+/** The discord.js Read and confirmed button press as the Raid planning reads it. */
+function raidConfirmLike(button) {
+    return {
+        customId: button.customId,
+        user: { id: button.user.id },
+        memberRoles: () => rolesOfMember(button.member),
+        reply: (reply) => button.reply(reply),
+    };
+}
 /** The discord.js /event-invitations command as the Event Invitations read it: the caller by id, the option and the private reply. */
 function eventInvitationsLike(command) {
     return {
@@ -879,6 +926,18 @@ export async function connect(token, options) {
             officerRoleIds: options.officerRoleIds,
             now,
             logError,
+        }),
+        raidPlan: async (interaction) => answer("/raid-plan", { logError }, async () => {
+            const { raidPlanning } = await services;
+            await raidPlanning.onCommand(raidPlanLike(interaction));
+        }),
+        raidPlanAutocomplete: async (interaction) => answer("/raid-plan autocomplete", { logError }, async () => {
+            const { raidPlanning } = await services;
+            await raidPlanning.onAutocomplete(raidPlanAutocompleteLike(interaction));
+        }),
+        raidButton: async (button) => answer("raid button", { logError }, async () => {
+            const { raidPlanning } = await services;
+            await raidPlanning.onConfirm(raidConfirmLike(button));
         }),
         bootyAlerts: (interaction) => handleBootyAlerts(bootyAlertsLike(interaction), {
             links: options.links,
@@ -1169,7 +1228,25 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
+        const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
+        const raidPlanning = createRaidPlanning({
+            raids: options.raids,
+            links: options.links,
+            server: raidServer,
+            settings: options.raidSettings,
+            now,
+            logError,
+        });
+        const raidClock = createRaidClock({
+            raids: options.raids,
+            server: raidServer,
+            settings: options.raidSettings,
+            now,
+            logError,
+        });
         openServices({
+            raidPlanning,
             interviews,
             rankApprovals,
             eventInvitations,
@@ -1269,6 +1346,7 @@ export async function connect(token, options) {
             void eventReminders
                 .tick()
                 .then(() => duelPlan.tick())
+                .then(() => raidClock.tick())
                 .finally(() => {
                 reminderTickRunning = false;
             });

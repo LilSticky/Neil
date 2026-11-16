@@ -22,4 +22,16 @@ export function nextServerReset(now) {
     const nextMidnight = (Math.floor(shifted / DAY_MS) + 1) * DAY_MS;
     return new Date(nextMidnight - OFFSET_MS);
 }
+/** The moment a Server Time clock reading names: a day as YYYY-MM-DD and the minutes after its 00:00 Server Time. */
+export function serverTimeInstant(date, minutesAfterMidnight) {
+    return new Date(Date.parse(`${date}T00:00:00.000Z`) + minutesAfterMidnight * MINUTE_MS - OFFSET_MS);
+}
+/** A Server Time day as YYYY-MM-DD, moved by whole days. */
+export function serverDatePlusDays(date, days) {
+    return new Date(Date.parse(`${date}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+/** The Server Time clock reading of a moment as HH:MM. */
+export function serverClockOf(moment) {
+    return serverTimeOf(moment).toISOString().slice(11, 16);
+}
 //# sourceMappingURL=server-time.js.map

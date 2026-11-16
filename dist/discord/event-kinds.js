@@ -1,10 +1,9 @@
 import { MessageFlags } from "discord.js";
 import { parseLeadTimes, } from "../domain/events.js";
-import { parseAllianceKey, } from "../domain/lookup-input.js";
 import { nextDuelReset } from "../domain/duel-plan.js";
-import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { isOfficer } from "../domain/officer.js";
 import { unixOf } from "./timestamps.js";
+import { ledAllianceOf } from "./alliance-standing.js";
 /** The owner of the kingdom's list. Alliance lists are keyed by their tag. */
 const KINGDOM = "kingdom";
 const messages = {
@@ -58,26 +57,7 @@ function answerFor(interaction, context) {
 function standingOf(interaction, context) {
     const roles = interaction.memberRoles();
     const officer = isOfficer(roles.map((role) => role.id), context.officerRoleIds);
-    const tags = allianceTagsOf(roles);
-    const rank = rankOf(context.links.linkFor(interaction.user.id)?.allianceRank);
-    const managed = tags.length === 1 && (rank === "R4" || rank === "R5");
-    return { officer, managedAlliance: managed ? tags[0] : undefined };
-}
-/** The Alliance tags the Member's Alliance roles name. A Member with none, or with several, has no Alliance Neil can tell. */
-function allianceTagsOf(roles) {
-    return roles.flatMap((role) => {
-        const tag = tagOfAllianceRole(role.name);
-        if (tag === undefined)
-            return [];
-        const key = parseAllianceKey(tag);
-        return key.ok ? [key.value] : [];
-    });
-}
-function rankOf(allianceRank) {
-    if (allianceRank?.source === "game-api" ||
-        allianceRank?.source === "rank-approval")
-        return allianceRank.rank;
-    return "unknown";
+    return { officer, managedAlliance: ledAllianceOf(roles, context.links.linkFor(interaction.user.id)?.allianceRank) };
 }
 /** The list to act on: the one the Member chose, when they may manage it; else their default list, when they may manage one. */
 function listFor(interaction, standing) {

@@ -192,6 +192,34 @@ const migrations = [
      server_day TEXT PRIMARY KEY CHECK (server_day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
      posted_at TEXT NOT NULL
    )`,
+    // Migration 17: the Raids and their Battle Plans, Plan Confirmations and the notices sent (slice 034). The plan is JSON,
+    // checked by the store when read; a confirmation and a notice go with their Raid, and each is kept once per Raid.
+    `CREATE TABLE raids (
+     id TEXT PRIMARY KEY CHECK (id GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+     start TEXT NOT NULL UNIQUE,
+     state TEXT NOT NULL CHECK (state IN ('draft', 'published', 'cancelled')),
+     plan TEXT NOT NULL,
+     published_at TEXT,
+     amended_at TEXT,
+     cancelled_at TEXT,
+     plan_channel_id TEXT,
+     plan_message_id TEXT,
+     confirmation_channel_id TEXT,
+     confirmation_message_id TEXT
+   );
+   CREATE TABLE raid_confirmations (
+     raid_id TEXT NOT NULL REFERENCES raids (id) ON DELETE CASCADE,
+     tag TEXT NOT NULL CHECK (tag <> ''),
+     member_id TEXT NOT NULL CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*'),
+     confirmed_at TEXT NOT NULL,
+     PRIMARY KEY (raid_id, tag)
+   );
+   CREATE TABLE raid_notices_sent (
+     raid_id TEXT NOT NULL REFERENCES raids (id) ON DELETE CASCADE,
+     key TEXT NOT NULL CHECK (key <> ''),
+     sent_at TEXT NOT NULL,
+     PRIMARY KEY (raid_id, key)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

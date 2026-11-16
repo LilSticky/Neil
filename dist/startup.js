@@ -78,6 +78,13 @@ export async function start(deps) {
             reaper: store.reaper,
             bootyAlerts: store.bootyAlerts,
             events: store.events,
+            raids: store.raids,
+            raidSettings: {
+                warCouncilRoleId: config.warCouncilRoleId,
+                startMinutes: config.raidStartMinutes,
+                planHours: config.raidPlanDeadlineHours,
+                confirmationHours: config.raidConfirmationDeadlineHours,
+            },
             preferences: store.preferences,
             guidesForumId: config.guidesForumId,
             syncHourUtc: config.syncHourUtc,
