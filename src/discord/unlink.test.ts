@@ -9,6 +9,7 @@ import { parseBootyWindow } from "../domain/booty.js";
 import { parseUid, type Uid } from "../domain/lookup-input.js";
 import { approve, cancel, type Approver, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import { AppliedStore } from "../storage/applied-store.js";
+import { AvailabilityStore } from "../storage/availability-store.js";
 import { BootyAlertsStore, type StoredBootyAlerts } from "../storage/booty-alerts-store.js";
 import { openDatabase } from "../storage/database.js";
 import { EventStore } from "../storage/event-store.js";
@@ -176,6 +177,8 @@ interface Harness {
   readonly bootyAlerts: BootyAlertsStore;
   /** The Event Invitations Off of the Members: a real store on the test database, which Unlink forgets from. */
   readonly events: EventStore;
+  /** The Availability answers of the Members: a real store on the test database, which Unlink forgets from. */
+  readonly availability: AvailabilityStore;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -289,6 +292,7 @@ describe("createUnlink", () => {
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
+    const availability = new AvailabilityStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -299,6 +303,7 @@ describe("createUnlink", () => {
       preferenceRoles,
       bootyAlerts,
       events,
+      availability,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -306,7 +311,7 @@ describe("createUnlink", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
   });
 
   afterEach(() => {
@@ -768,6 +773,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
+    const availability = new AvailabilityStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -778,6 +784,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
       preferenceRoles,
       bootyAlerts,
       events,
+      availability,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -785,7 +792,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
   });
 
   afterEach(() => {
@@ -856,6 +863,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
+    const availability = new AvailabilityStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -866,6 +874,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
       preferenceRoles,
       bootyAlerts,
       events,
+      availability,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -873,7 +882,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
   });
 
   afterEach(() => {
@@ -952,6 +961,7 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
     const preferenceRoles = new FakePreferenceRoles();
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
+    const availability = new AvailabilityStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -962,6 +972,7 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
       preferenceRoles,
       bootyAlerts,
       events,
+      availability,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -969,7 +980,7 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
   });
 
   afterEach(() => {
@@ -1023,5 +1034,18 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
     expect(h.channels.logs).toHaveLength(1);
     expect(h.privateMessages.attempts).toHaveLength(1);
     expect(h.errors).toEqual([expect.stringContaining(ALICE)]);
+  });
+  test.each<[string, UnlinkReason]>([
+    ["the Member Unlinks themselves", "self"],
+    ["the Member leaves the server", "left"],
+  ])("forgets the Availability answers of the Member when %s, and only theirs", async (_case, reason) => {
+    linkMember(h, LEAVER_ID, LEAVER_UID);
+    h.availability.open("2026-11-21", NOW);
+    h.availability.record("2026-11-21", { memberId: LEAVER_ID, tag: "NML", availability: { kind: "not-available" } }, NOW);
+    h.availability.record("2026-11-21", { memberId: ALICE, tag: "NML", availability: { kind: "not-available" } }, NOW);
+
+    await h.service.unlink(LEAVER, reason);
+
+    expect(h.availability.answers("2026-11-21").map((answer) => answer.memberId)).toEqual([ALICE]);
   });
 });

@@ -47,6 +47,12 @@ import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
 import { handleEventKinds, type EventKindsInteraction } from "./event-kinds.js";
 import type { RaidStore } from "../storage/raid-store.js";
+import type { AvailabilityStore } from "../storage/availability-store.js";
+import type { FighterClassThresholds } from "../domain/availability.js";
+import { createAvailabilityBoard } from "./availability-board.js";
+import { createAvailabilityClock, type AvailabilityClock } from "./availability-clock.js";
+import { createAvailabilityPoll, type AvailabilityPoll, type AvailabilityPress } from "./availability-poll.js";
+import { AVAILABILITY_PREFIX } from "./availability-texts.js";
 import { createRaidClock, type RaidClock } from "./raid-clock.js";
 import {
   createRaidPlanning,
@@ -197,6 +203,8 @@ export interface CommandHandlers {
   readonly raidPlanAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   /** A button whose custom id starts with `raid:`, the Read and confirmed button of a Battle Plan. */
   readonly raidButton: (button: ButtonInteraction) => Promise<void>;
+  /** A button whose custom id starts with `avail:`, the Availability Poll's buttons and its class buttons. */
+  readonly availabilityButton: (button: ButtonInteraction) => Promise<void>;
   /** An autocomplete request of /booty-alerts, for its time-zone option. */
   readonly bootyAlertsAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   /** A button whose custom id starts with `booty:`, the Confirm and Cancel buttons of a Booty Call. */
@@ -264,6 +272,8 @@ interface Services {
   readonly cityRotation: CityRotation;
   /** /raid-plan, its autocomplete and the Read and confirmed button. */
   readonly raidPlanning: RaidPlanning;
+  /** The Availability Poll's buttons. */
+  readonly availabilityPoll: AvailabilityPoll;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -538,6 +548,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.rotationButton(interaction);
       } else if (interaction.customId.startsWith(RAID_PREFIX)) {
         void handlers.raidButton(interaction);
+      } else if (interaction.customId.startsWith(AVAILABILITY_PREFIX)) {
+        void handlers.availabilityButton(interaction);
       }
       return;
     }
@@ -596,6 +608,10 @@ export interface ConnectOptions {
   readonly raids: RaidStore;
   /** The War Council role, the Raid start and the deadlines from config; Raid planning is off without the role. */
   readonly raidSettings: RaidSettings;
+  /** The Availability Polls, their cards and the Members' answers, in neil.db: an Unlink forgets the answers. */
+  readonly availability: AvailabilityStore;
+  /** The Fighter Class thresholds from config, for Neil's suggestion in the Availability Poll. */
+  readonly fighterClassThresholds: FighterClassThresholds;
   /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
   readonly guidesForumId: string | undefined;
   /** The hour (UTC) the Daily Sync runs at, from SYNC_HOUR_UTC. */
@@ -1106,6 +1122,19 @@ function raidPlanAutocompleteLike(request: AutocompleteInteraction): RaidPlanAut
   };
 }
 
+/** The discord.js Availability Poll button press as the poll reads it: the presser, their roles and the private replies. */
+function availabilityPressLike(button: ButtonInteraction): AvailabilityPress {
+  return {
+    customId: button.customId,
+    user: { id: button.user.id },
+    memberRoles: () => rolesOfMember(button.member),
+    reply: (reply) => button.reply(reply),
+    deferReply: (options) => button.deferReply(options),
+    editReply: (options) => button.editReply(options),
+    update: (options) => button.update(options),
+  };
+}
+
 /** The discord.js Read and confirmed button press as the Raid planning reads it. */
 function raidConfirmLike(button: ButtonInteraction): RaidConfirmPress {
   return {
@@ -1312,6 +1341,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           const { raidPlanning } = await services;
           await raidPlanning.onConfirm(raidConfirmLike(button));
         }),
+      availabilityButton: async (button) =>
+        answer("availability button", { logError }, async () => {
+          const { availabilityPoll } = await services;
+          await availabilityPoll.onButton(availabilityPressLike(button));
+        }),
       bootyAlerts: (interaction) =>
         handleBootyAlerts(bootyAlertsLike(interaction), {
           links: options.links,
@@ -1491,6 +1525,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       preferenceRoles,
       bootyAlerts: options.bootyAlerts,
       events: options.events,
+      availability: options.availability,
       now,
       sendPrivateMessage,
       officerRoles,
@@ -1675,9 +1710,34 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    // The Availability Poll: its buttons and its clock edit the same cards, after the Raid clock on the one-minute tick.
+    const availabilityBoard = createAvailabilityBoard({ availability: options.availability, server: raidServer });
+    const availabilityPoll = createAvailabilityPoll({
+      availability: options.availability,
+      raids: options.raids,
+      links: options.links,
+      game: options.gameApi,
+      server: raidServer,
+      settings: options.raidSettings,
+      thresholds: options.fighterClassThresholds,
+      troopBracketLevels: options.troopBracketLevels,
+      now,
+      logError,
+      board: availabilityBoard,
+    });
+    const availabilityClock: AvailabilityClock = createAvailabilityClock({
+      availability: options.availability,
+      raids: options.raids,
+      server: raidServer,
+      settings: options.raidSettings,
+      now,
+      logError,
+      board: availabilityBoard,
+    });
     openServices({
       cityRotation,
       raidPlanning,
+      availabilityPoll,
       interviews,
       rankApprovals,
       eventInvitations,
@@ -1784,6 +1844,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         .then(() => duelPlan.tick())
         .then(() => cityRotation.tick())
         .then(() => raidClock.tick())
+        .then(() => availabilityClock.tick())
         .finally(() => {
           reminderTickRunning = false;
         });
