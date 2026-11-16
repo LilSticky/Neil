@@ -149,12 +149,12 @@ export function createCityRotation(deps: CityRotationDeps): CityRotation {
   }
 
   async function refreshCard(): Promise<void> {
-    const channelId = server.announcementsChannelId();
-    if (channelId === undefined) {
-      await log(messages.logNoAnnouncements);
-      return;
-    }
     try {
+      const channelId = server.announcementsChannelId();
+      if (channelId === undefined) {
+        await log(messages.logNoAnnouncements);
+        return;
+      }
       const state = store.load();
       const card = cardOf(state);
       if (state.cardMessageId !== undefined && (await server.edit(channelId, state.cardMessageId, card))) return;
