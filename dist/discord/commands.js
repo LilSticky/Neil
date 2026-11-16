@@ -227,6 +227,29 @@ export const reaper = new SlashCommandBuilder()
     .setName("remove")
     .setDescription("Remove an Exile from REAPER (Home Kingdom R5s)")
     .addStringOption((option) => option.setName("exile").setDescription("The Exile to remove").setRequired(true).setAutocomplete(true)));
+/** The City Rotation: any Member sees whose turn it is; R5s in the rotation set it, Officers name the Holding Alliance. */
+export const rotation = new SlashCommandBuilder()
+    .setName("rotation")
+    .setDescription("City Rotation: see whose turn it is to hold the Royal City")
+    .setContexts(InteractionContextType.Guild)
+    .addSubcommand((sub) => sub.setName("show").setDescription("The Holding Alliance, the next one, the order and the next Royal City siege"))
+    .addSubcommand((sub) => sub
+    .setName("set")
+    .setDescription("Set the order of the City Rotation by Alliance tag (R5s in the rotation)")
+    .addStringOption((option) => option
+    .setName("order")
+    .setDescription("Alliance tags in order, separated by commas or spaces, e.g. NML, ABC, XYZ")
+    .setRequired(true)
+    .setMaxLength(200))
+    .addStringOption((option) => option
+    .setName("holding")
+    .setDescription("The tag of the Alliance holding the Royal City now (default: the first)")
+    .setRequired(false)
+    .setMaxLength(40)))
+    .addSubcommand((sub) => sub
+    .setName("holder")
+    .setDescription("Name the Holding Alliance (Officers)")
+    .addStringOption((option) => option.setName("tag").setDescription("The tag of the Alliance holding the Royal City").setRequired(true).setMaxLength(40)));
 /** Everything registered for the configured server, as REST payloads. */
 export const commands = [
     ping.toJSON(),
@@ -245,6 +268,7 @@ export const commands = [
     bootyAlerts.toJSON(),
     eventInvitations.toJSON(),
     eventKinds.toJSON(),
+    rotation.toJSON(),
     raidPlan.toJSON(),
 ];
 //# sourceMappingURL=commands.js.map

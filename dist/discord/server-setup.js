@@ -19,6 +19,7 @@ const PERMISSION_BITS = {
     ManageThreads: PermissionFlagsBits.ManageThreads,
     ReadMessageHistory: PermissionFlagsBits.ReadMessageHistory,
     EmbedLinks: PermissionFlagsBits.EmbedLinks,
+    PinMessages: PermissionFlagsBits.PinMessages,
     Connect: PermissionFlagsBits.Connect,
     Speak: PermissionFlagsBits.Speak,
 };

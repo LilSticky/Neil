@@ -5,6 +5,9 @@ import { editorOf } from "../storage/reaper-editor.js";
 import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createDuelPlanPoster } from "./duel-plan.js";
+import { createCityRotation } from "./city-rotation.js";
+import { cityRotationServerOf } from "./city-rotation-server.js";
+import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
@@ -259,6 +262,9 @@ export function createClient(handlers, options) {
                 case "event-kinds":
                     void handlers.eventKinds(interaction);
                     break;
+                case "rotation":
+                    void handlers.rotation(interaction);
+                    break;
                 case "raid-plan":
                     void handlers.raidPlan(interaction);
                     break;
@@ -308,6 +314,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(PREFERENCES_PREFIX)) {
                 void handlers.preferencesPress(interaction);
+            }
+            else if (interaction.customId.startsWith(ROTATION_CONFIRM_PREFIX)) {
+                void handlers.rotationButton(interaction);
             }
             else if (interaction.customId.startsWith(RAID_PREFIX)) {
                 void handlers.raidButton(interaction);
@@ -610,6 +619,42 @@ function linkButtonLike(button) {
             await button.editReply({ ...message, components: [] });
         },
     };
+}
+/** The discord.js /rotation command as the City Rotation reads it: the caller and their roles, the options, the reply. */
+function rotationCommandLike(command) {
+    return {
+        user: command.user,
+        memberRoleIds: () => memberRoleIds(command.member),
+        options: { getString: (name) => command.options.getString(name) },
+        reply: (options) => command.reply(options),
+    };
+}
+/** The discord.js press of a Confirm handover button: the presser and their roles, a private reply, or the message replaced. */
+function rotationButtonLike(button) {
+    return {
+        customId: button.customId,
+        user: button.user,
+        memberRoleIds: () => memberRoleIds(button.member),
+        reply: (options) => button.reply(options),
+        update: (options) => button.update(options),
+    };
+}
+/** Hands a /rotation command to the City Rotation's subcommand. */
+async function routeRotation(cityRotation, interaction) {
+    const command = rotationCommandLike(interaction);
+    switch (interaction.options.getSubcommand()) {
+        case "show":
+            await cityRotation.show(command);
+            break;
+        case "set":
+            await cityRotation.set(command);
+            break;
+        case "holder":
+            await cityRotation.holder(command);
+            break;
+        default:
+            await replyPrivately(interaction, cityRotationMessages.unknownSubcommand);
+    }
 }
 /** The discord.js /channels command as the choices read it: the caller, and the private reply. */
 function channelsCommandLike(command) {
@@ -996,6 +1041,8 @@ export async function connect(token, options) {
         }),
         channels: async (interaction) => (await services).preferenceChoices.showChannels(channelsCommandLike(interaction)),
         preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
+        rotation: (interaction) => answer("/rotation", { logError }, async () => routeRotation((await services).cityRotation, interaction)),
+        rotationButton: (button) => answer("rotation button", { logError }, async () => (await services).cityRotation.confirm(rotationButtonLike(button))),
     }, { guildId: options.guildId, logError });
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
     // apply); both are stopped again on disconnect.
@@ -1228,6 +1275,21 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
+        const cityRotation = createCityRotation({
+            store: options.cityRotation,
+            knownAlliances: options.knownAlliances,
+            links: options.links,
+            editorOf: editorOfMember,
+            gameApi: options.gameApi,
+            server: cityRotationServerOf(guild, { log: (message) => channels.log(message) }),
+            homeKingdom: options.homeKingdom,
+            mode: options.cityRotationMode,
+            siegeTime: options.royalCitySiegeTime,
+            officerRoleIds: options.officerRoleIds,
+            now,
+            logError,
+        });
         // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
         const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
         const raidPlanning = createRaidPlanning({
@@ -1246,6 +1308,7 @@ export async function connect(token, options) {
             logError,
         });
         openServices({
+            cityRotation,
             raidPlanning,
             interviews,
             rankApprovals,
@@ -1334,9 +1397,11 @@ export async function connect(token, options) {
                 clearInterval(timer);
             };
         });
-        // The Events ahead are invited at startup; the reminders, then the Duel Plan, are ticked once a minute, until disconnect
+        // The Events ahead are invited at startup; the reminders, the Duel Plan, then the City Rotation are ticked once a minute, until disconnect
         // stops them.
         void eventInvitations.onStartup();
+        // The pinned City Rotation card is brought up to date once at startup.
+        void cityRotation.refreshCard();
         // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
         let reminderTickRunning = false;
         const reminderTimer = setInterval(() => {
@@ -1346,6 +1411,7 @@ export async function connect(token, options) {
             void eventReminders
                 .tick()
                 .then(() => duelPlan.tick())
+                .then(() => cityRotation.tick())
                 .then(() => raidClock.tick())
                 .finally(() => {
                 reminderTickRunning = false;

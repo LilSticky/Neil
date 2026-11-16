@@ -111,6 +111,8 @@ export const allianceBodySchema = z.object({
         .string()
         .nullish()
         .transform((name) => (name === "" ? undefined : name)),
+    /** The uid of the Alliance's leader, its R5. An unreadable one leaves the leader unknown; the body is still accepted. */
+    leader_id: idSchema.optional().catch(undefined),
     members: z
         .array(z.unknown())
         .nullish()

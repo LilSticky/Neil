@@ -60,8 +60,10 @@ export function expandLayout(layout, homeKingdom, allianceRoles) {
         const original = expandChannel(channel, categorySeenBy, expansion);
         if (channel.translated !== true)
             return [original];
+        // A copy carries no overwrites of the original: what Neil may do in the original (post, pin) is not needed there.
+        const copied = { ...channel, overwrites: {} };
         const copies = layout.translations.map((language) => expandChannel({
-            ...channel,
+            ...copied,
             name: `${channel.name}-${language.toLowerCase()}`,
             seenBy: [language],
             description: translatedDescription(channel.description, language),

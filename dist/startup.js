@@ -89,6 +89,9 @@ export async function start(deps) {
             guidesForumId: config.guidesForumId,
             syncHourUtc: config.syncHourUtc,
             syncShare: config.syncShare,
+            cityRotation: store.cityRotation,
+            royalCitySiegeTime: config.royalCitySiegeTime,
+            cityRotationMode: config.cityRotationMode,
         });
     }
     catch (error) {

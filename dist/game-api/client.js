@@ -531,7 +531,10 @@ function answerOf(entry) {
 }
 /** The uid of an Alliance's leader; undefined when the body gives none or it is not a readable uid. */
 function leaderUidFrom(alliance) {
-    const leaderId = alliance?.leader_id;
+    return leaderUidOf(alliance?.leader_id);
+}
+/** A leader id as a uid; undefined when there is none or it is not a readable uid. */
+function leaderUidOf(leaderId) {
     if (leaderId === undefined)
         return undefined;
     const uid = parseUid(leaderId);
@@ -597,6 +600,7 @@ function allianceFrom(body, kingdom) {
         memberCount: body.member_count,
         capacity: body.capacity,
         leaderName: body.leader_name ?? undefined,
+        leaderUid: leaderUidOf(body.leader_id),
         roster: body.members.flatMap(rosterEntryFrom),
         details: allianceDetailsFrom(body),
     };
