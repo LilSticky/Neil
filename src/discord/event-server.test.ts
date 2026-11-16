@@ -7,6 +7,8 @@ const GUILD_ID = "123456789012345678";
 const ANNOUNCEMENTS_ID = "700000000000000010";
 const ALLIANCE_CHAT_ID = "700000000000000020";
 const OTHER_CHAT_ID = "700000000000000021";
+const NAP_LEADERS_ID = "700000000000000030";
+const KINGDOM_ANNOUNCEMENTS_ID = "700000000000000040";
 const ALICE = "111111111111111111";
 const BOB = "222222222222222222";
 const CAROL = "333333333333333333";
@@ -80,6 +82,38 @@ describe("the Event invitation server over discord.js", () => {
     expect(server.announcementsChannelId()).toBeUndefined();
   });
 
+  test("gives the id of #nap-leaders, and none when the server has none", () => {
+    const guild = new FakeConnectGuild([]);
+    const { server: without } = adapterOver(guild);
+    expect(without.napLeadersChannelId()).toBeUndefined();
+
+    guild.addChannel(NAP_LEADERS_ID, { type: ChannelType.GuildText, name: "nap-leaders" });
+    const { server } = adapterOver(guild);
+
+    expect(server.napLeadersChannelId()).toBe(NAP_LEADERS_ID);
+  });
+
+  test("gives the id of the announcement channel #home-kingdom-announcements, and none when the server has none", () => {
+    const guild = new FakeConnectGuild([]);
+    const { server: without } = adapterOver(guild);
+    expect(without.kingdomAnnouncementsChannelId()).toBeUndefined();
+
+    guild.addChannel(KINGDOM_ANNOUNCEMENTS_ID, { type: ChannelType.GuildAnnouncement, name: "home-kingdom-announcements" });
+    const { server } = adapterOver(guild);
+
+    expect(server.kingdomAnnouncementsChannelId()).toBe(KINGDOM_ANNOUNCEMENTS_ID);
+  });
+
+  test("posts the message to an announcement channel too", async () => {
+    const guild = new FakeConnectGuild([]);
+    guild.addChannel(KINGDOM_ANNOUNCEMENTS_ID, { type: ChannelType.GuildAnnouncement, name: "home-kingdom-announcements" });
+    const { server } = adapterOver(guild);
+
+    await server.post(KINGDOM_ANNOUNCEMENTS_ID, { content: "Next Holding Alliance" });
+
+    expect(guild.messagesIn(KINGDOM_ANNOUNCEMENTS_ID)).toEqual(["Next Holding Alliance"]);
+  });
+
   test("gives the alliance-chat in the category of the Alliance's tag, and none for an Alliance without one", () => {
     const guild = new FakeConnectGuild([]);
     guild.addChannel(ALLIANCE_CHAT_ID, { type: ChannelType.GuildText, name: "alliance-chat", categoryName: "[ASH]" });
@@ -101,7 +135,7 @@ describe("the Event invitation server over discord.js", () => {
     expect(guild.messagesIn(ANNOUNCEMENTS_ID)).toEqual(["Hive move"]);
   });
 
-  test("refuses to post to a channel that is not a guild text channel", async () => {
+  test("refuses to post to a channel that is neither a guild text nor an announcement channel", async () => {
     const guild = new FakeConnectGuild([]);
     guild.addChannel(ANNOUNCEMENTS_ID, { type: ChannelType.GuildVoice, name: "event-announcements" });
     const { server } = adapterOver(guild);

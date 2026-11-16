@@ -14,6 +14,7 @@ import type { InterviewStore } from "./storage/interview-store.js";
 import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
 import type { CityRotationStore } from "./storage/city-rotation-store.js";
+import type { HandoverStore } from "./storage/handover-store.js";
 import type { ReaperStore } from "./storage/reaper-store.js";
 import type { PreferenceStore } from "./storage/preference-store.js";
 
@@ -58,6 +59,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
   readonly cityRotation: CityRotationStore;
+  readonly handovers: HandoverStore;
   readonly raids: RaidStore;
 }
 
@@ -171,6 +173,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       syncHourUtc: config.syncHourUtc,
       syncShare: config.syncShare,
       cityRotation: store.cityRotation,
+      handovers: store.handovers,
       royalCitySiegeTime: config.royalCitySiegeTime,
       cityRotationMode: config.cityRotationMode,
     });

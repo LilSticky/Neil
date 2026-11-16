@@ -41,13 +41,13 @@ describe("RaidStore", () => {
   });
 
   test("migration 17 applies to a version-16 database", () => {
-    db.exec("DROP TABLE city_rotation; DROP TABLE raid_notices_sent; DROP TABLE raid_confirmations; DROP TABLE raids");
+    db.exec("DROP TABLE handover_posts; DROP TABLE city_rotation; DROP TABLE raid_notices_sent; DROP TABLE raid_confirmations; DROP TABLE raids");
     db.exec("DELETE FROM schema_migrations WHERE version >= 17");
     db.close();
 
     db = openDatabase(dataDir);
 
-    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 18 });
+    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 19 });
     expect(new RaidStore(db).find(RAID_ID)).toBeUndefined();
   });
 

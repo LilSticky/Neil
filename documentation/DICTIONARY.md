@@ -131,6 +131,12 @@ discovery.
 * The Royal City passing to the next Alliance at a Royal City siege
 * Confirmed by the receiving Alliance's R5 (read fresh from the Game API) or by an Officer
 
+## Handover Reminder
+* Neil's mention of the outgoing and the receiving Alliance's R5s in `#nap-leaders` before the Royal City siege, so the
+  Handover stays peaceful: 24 hours and 1 hour before. With the first, Neil announces the next Holding Alliance in
+  `#home-kingdom-announcements`
+* Only in Rotation mode
+
 ## Home Kingdom Member
 * A Member whose Linked Player is in the Home Kingdom
 

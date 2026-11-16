@@ -236,6 +236,14 @@ const migrations: readonly string[] = [
      card_message_id TEXT,
      CHECK ((pending_tag IS NULL) = (pending_siege_at IS NULL))
    )`,
+  // Migration 19: the Handover Reminders and next-holder announcements handled per Royal City siege (slice 037), so each
+  // goes out at most once, also across restarts. No Discord user ids.
+  `CREATE TABLE handover_posts (
+     siege_at TEXT NOT NULL,
+     kind TEXT NOT NULL CHECK (kind IN ('reminder-24h', 'reminder-1h', 'announcement')),
+     posted_at TEXT NOT NULL,
+     PRIMARY KEY (siege_at, kind)
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

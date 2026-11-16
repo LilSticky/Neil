@@ -39,6 +39,7 @@ describe("openDatabase", () => {
       { version: 16 },
       { version: 17 },
       { version: 18 },
+      { version: 19 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -69,6 +70,7 @@ describe("openDatabase", () => {
       { version: 16 },
       { version: 17 },
       { version: 18 },
+      { version: 19 },
     ]);
     db.close();
   });
@@ -78,7 +80,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 18");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 19");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -202,6 +204,7 @@ describe("openDatabase", () => {
       { version: 16 },
       { version: 17 },
       { version: 18 },
+      { version: 19 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -433,6 +436,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -474,6 +478,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -518,6 +523,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -562,6 +568,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -646,6 +653,7 @@ describe("openDatabase", () => {
       { version: 16 },
       { version: 17 },
       { version: 18 },
+      { version: 19 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),
@@ -751,6 +759,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -800,6 +809,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -848,6 +858,7 @@ describe("openDatabase", () => {
         { version: 16 },
         { version: 17 },
         { version: 18 },
+      { version: 19 },
       ]);
       expect(db.prepare("SELECT member_id, mode, window_start, window_end, time_zone FROM booty_alerts").all()).toEqual([
         { member_id: "member-1", mode: "offline", window_start: 480, window_end: 1380, time_zone: "Europe/Lisbon" },
@@ -858,13 +869,13 @@ describe("openDatabase", () => {
   });
   test("upgrades a version 17 database to 18 and creates the empty city_rotation table, keeping the Duel Plan days", () => {
     const legacy = openDatabase(dataDir);
-    legacy.exec("DROP TABLE city_rotation; DELETE FROM schema_migrations WHERE version = 18");
+    legacy.exec("DROP TABLE handover_posts; DROP TABLE city_rotation; DELETE FROM schema_migrations WHERE version >= 18");
     legacy.prepare("INSERT INTO duel_plan_posts (server_day, posted_at) VALUES (?, ?)").run("2026-11-16", "2026-11-16T02:00:00.000Z");
     legacy.close();
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 18 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 19 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM city_rotation").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT server_day FROM duel_plan_posts").all()).toEqual([{ server_day: "2026-11-16" }]);
     } finally {
@@ -879,6 +890,34 @@ describe("openDatabase", () => {
       expect(() => insert.run(2, null, null)).toThrow(/CHECK/);
       expect(() => insert.run(1, "NML", null)).toThrow(/CHECK/);
       insert.run(1, "NML", "2026-11-20T20:00:00.000Z");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 18 database to 19 and creates the empty handover_posts table, keeping the City Rotation", () => {
+    const legacy = openDatabase(dataDir);
+    legacy.exec("DROP TABLE handover_posts; DELETE FROM schema_migrations WHERE version = 19");
+    legacy.prepare("INSERT INTO city_rotation (id, holding_tag) VALUES (1, ?)").run("NML");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 19 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM handover_posts").get()).toEqual({ count: 0 });
+      expect(db.prepare("SELECT holding_tag FROM city_rotation").all()).toEqual([{ holding_tag: "NML" }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("handover_posts keeps one row per siege and kind, and only the three kinds", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare("INSERT INTO handover_posts (siege_at, kind, posted_at) VALUES (?, ?, ?)");
+      insert.run("2026-11-20T20:00:00.000Z", "reminder-24h", "2026-11-19T20:00:00.000Z");
+      expect(() => insert.run("2026-11-20T20:00:00.000Z", "reminder-24h", "2026-11-19T20:01:00.000Z")).toThrow(/UNIQUE/);
+      expect(() => insert.run("2026-11-20T20:00:00.000Z", "reminder-2h", "2026-11-20T18:00:00.000Z")).toThrow(/CHECK/);
     } finally {
       db.close();
     }
