@@ -36,6 +36,29 @@ function viewOf(guild: FakeRolesGuild): RolesGuild {
 }
 
 describe("applyNameAndRoles", () => {
+  test("never takes or gives King, the Officer role Neil moves only on an Officer's Apply (ADR 21)", async () => {
+    const guild = new FakeRolesGuild(OWNER);
+    const king = guild.defineRole("King", { id: "900000000000000002", permissions: CREATE_EVENTS, position: 5 });
+    guild.defineRole("Moderator", { id: "900000000000000003", permissions: CREATE_EVENTS, position: 20 });
+    guild.defineRole("R5", { permissions: CREATE_EVENTS });
+    const alice = guild.member(ALICE, [king, "R5"]);
+    const bob = guild.member(BOB);
+    const officerRoleIds = ["900000000000000003", "900000000000000002"];
+
+    const kept = await applyNameAndRoles(guild, alice, { nickname: "[NML] Rogue", roles: [], managedTags: ["NML"], officerRoleIds });
+    const notGiven = await applyNameAndRoles(guild, bob, {
+      nickname: "[NML|R5] Bob",
+      roles: ["King", "Moderator", "R5"],
+      managedTags: ["NML"],
+      officerRoleIds,
+    });
+
+    expect(heldNames(alice)).toEqual(["King"]);
+    expect(kept.removed).toEqual(["R5"]);
+    expect(heldNames(bob)).toEqual(["R5"]);
+    expect(notGiven.added).toEqual(["R5"]);
+  });
+
   test("sets the nickname and reports it as set", async () => {
     const guild = new FakeRolesGuild(OWNER);
     const alice = guild.member(ALICE);

@@ -85,6 +85,11 @@ export interface CityRotationDeps {
   readonly officerRoleIds: readonly string[];
   readonly now: () => Date;
   readonly logError: (message: string) => void;
+  /**
+   * Told when a Handover settled the new Holding Alliance: its confirmation, or in Contested mode an Officer naming the
+   * holder. The King Move (ADR 21) starts here; it must not throw.
+   */
+  readonly onHandover?: (holdingTag: string) => Promise<void>;
 }
 
 export interface CityRotation {
@@ -258,6 +263,7 @@ export function createCityRotation(deps: CityRotationDeps): CityRotation {
     await replyPrivately(command, messages.holderNamed(label));
     await log(messages.logHolder(command.user.id, `[${tag}]`));
     await refreshCard();
+    if (deps.mode === "contested") await deps.onHandover?.(tag);
   }
 
   async function confirm(button: RotationButton): Promise<void> {
@@ -285,6 +291,7 @@ export function createCityRotation(deps: CityRotationDeps): CityRotation {
     await button.update({ content: messages.confirmed(label, button.user.id), components: [], allowedMentions });
     await log(messages.logConfirmed(button.user.id, isLeader ? "R5" : "Officer", `[${waiting.expected}]`));
     await refreshCard();
+    await deps.onHandover?.(waiting.expected);
   }
 
   /** Reads the expected Alliance live; its R5 and the R5's Player Name, or why there is none. */

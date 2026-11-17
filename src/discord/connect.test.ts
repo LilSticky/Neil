@@ -16,6 +16,7 @@ import { BootyAlertsStore } from "../storage/booty-alerts-store.js";
 import { DailySyncStore } from "../storage/daily-sync-store.js";
 import { openDatabase } from "../storage/database.js";
 import { CityRotationStore } from "../storage/city-rotation-store.js";
+import { KingMoveStore } from "../storage/king-move-store.js";
 import { EventStore } from "../storage/event-store.js";
 import { HandoverStore } from "../storage/handover-store.js";
 import { NapStore } from "../storage/nap-store.js";
@@ -313,6 +314,7 @@ describe("connect", () => {
       syncHourUtc: 3,
       syncShare: 500,
       cityRotation: new CityRotationStore(db),
+      kingMoves: new KingMoveStore(db),
       royalCitySiegeTime: undefined,
       cityRotationMode: "rotation",
       handovers: new HandoverStore(db),
