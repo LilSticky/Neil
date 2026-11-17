@@ -213,3 +213,14 @@ export function voteResult(votes: readonly NapVote[], members: readonly NapMembe
 export function mayLeave(allianceTag: string | undefined, history: readonly NapEvent[]): boolean {
   return isNapCouncilMember(allianceTag, history);
 }
+
+/**
+ * Whether a Member may keep REAPER (add and remove Exiles): they are on the NaP Council, or they are an Officer while the
+ * NaP has no members. The same rule as deciding a join request.
+ */
+export function mayKeepReaper(
+  member: { readonly allianceTag: string | undefined; readonly officer: boolean },
+  history: readonly NapEvent[],
+): boolean {
+  return mayDecide(member, history) !== undefined;
+}

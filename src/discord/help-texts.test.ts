@@ -23,7 +23,7 @@ const fixture = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("reaper")
-    .setDescription("REAPER: find the closest Exiles, or keep the list (Home Kingdom R5s)")
+    .setDescription("REAPER: find the closest Exiles, or keep the list (NaP Council)")
     .addSubcommand((sub) =>
       sub
         .setName("closest")
@@ -36,7 +36,7 @@ const fixture = [
     .addSubcommand((sub) =>
       sub
         .setName("add")
-        .setDescription("Add a Player to REAPER (Home Kingdom R5s)")
+        .setDescription("Add a Player to REAPER (NaP Council)")
         .addStringOption((option) => option.setName("name").setDescription("The name").setRequired(true))
         .addStringOption((option) => option.setName("reason").setDescription("The reason").setRequired(true))
         .addIntegerOption((option) => option.setName("kingdom").setDescription("The kingdom").setRequired(false)),
@@ -44,7 +44,7 @@ const fixture = [
     .addSubcommand((sub) =>
       sub
         .setName("remove")
-        .setDescription("Remove an Exile from REAPER (Home Kingdom R5s)")
+        .setDescription("Remove an Exile from REAPER (NaP Council)")
         .addStringOption((option) => option.setName("exile").setDescription("The Exile").setRequired(true)),
     )
     .toJSON(),
@@ -68,8 +68,8 @@ const MEMBER_TEXT = [
   "`/player [name] [uid] [kingdom]` — Look up a player by name or uid",
   "`/reaper closest [x] [y] [all]` — The 3 closest Exiles to your Linked Player, or to x and y",
   "`/reaper list` — Every Exile on REAPER, newest first",
-  "`/reaper add <name> <reason> [kingdom]` — Add a Player to REAPER (Home Kingdom R5s)",
-  "`/reaper remove <exile>` — Remove an Exile from REAPER (Home Kingdom R5s)",
+  "`/reaper add <name> <reason> [kingdom]` — Add a Player to REAPER (NaP Council)",
+  "`/reaper remove <exile>` — Remove an Exile from REAPER (NaP Council)",
 ].join("\n");
 
 describe("helpReply for a Member", () => {
@@ -152,7 +152,7 @@ describe("helpReply usage syntax", () => {
     const lines = textOf(helpReply(fixture, { officer: false })).split("\n");
 
     expect(lines.filter((line) => line.startsWith("`/reaper "))).toHaveLength(4);
-    expect(lines).not.toContain("`/reaper` — REAPER: find the closest Exiles, or keep the list (Home Kingdom R5s)");
+    expect(lines).not.toContain("`/reaper` — REAPER: find the closest Exiles, or keep the list (NaP Council)");
   });
 });
 

@@ -33,23 +33,16 @@ export interface Exile {
   readonly lastPosition: { readonly position: Position; readonly at: Date } | undefined;
   readonly reason: ExileReason;
   readonly addedAt: Date;
-  /** The R5 who added the Exile. Never shown to Members; only the log channel names them. */
+  /** The Member who added the Exile. Never shown to Members; only the log channel names them. */
   readonly addedBy: MemberId;
 }
 
-/** The Alliance Rank, Kingdom and Alliance tag of the Member who wants to change REAPER or the City Rotation. */
+/** The Alliance Rank, Kingdom and Alliance tag of the Member who wants to change REAPER, the City Rotation or the NaP. */
 export interface Editor {
   readonly allianceRank: RankOnLink;
   readonly allianceKingdom: KingdomNumber | undefined;
   /** The tag of the Alliance the Member was last applied in; optional so readers that do not use it need not set it. */
   readonly allianceTag?: string | undefined;
-}
-
-/** Only an R5 of an Alliance in the Home Kingdom may add or remove Exiles; the rank may come from the Game API or a Rank Approval. */
-export function mayChangeReaper(editor: Editor, homeKingdom: KingdomNumber): boolean {
-  if (editor.allianceKingdom !== homeKingdom) return false;
-  const { allianceRank } = editor;
-  return (allianceRank.source === "game-api" || allianceRank.source === "rank-approval") && allianceRank.rank === "R5";
 }
 
 /** The straight-line distance between two points on the map. */

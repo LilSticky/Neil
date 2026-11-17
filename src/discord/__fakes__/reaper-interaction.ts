@@ -22,19 +22,26 @@ export interface ReaperOptionValues {
 export class FakeReaperInteraction {
   readonly calls: ReaperInteractionCall[] = [];
   readonly user: { readonly id: string };
+  private readonly roleIds: readonly string[];
   readonly options: {
     getString(name: string, required?: false): string | null;
     getInteger(name: string, required?: false): number | null;
     getBoolean(name: string, required?: false): boolean | null;
   };
 
-  constructor(values: ReaperOptionValues, userId: string) {
+  constructor(values: ReaperOptionValues, userId: string, roleIds: readonly string[] = []) {
     this.user = { id: userId };
+    this.roleIds = roleIds;
     this.options = {
       getString: (name: string): string | null => values.strings?.[name] ?? null,
       getInteger: (name: string): number | null => values.integers?.[name] ?? null,
       getBoolean: (name: string): boolean | null => values.booleans?.[name] ?? null,
     };
+  }
+
+  /** The Discord role ids the Member holds, read for the Officer check. */
+  memberRoleIds(): readonly string[] {
+    return this.roleIds;
   }
 
   deferReply(options?: InteractionDeferReplyOptions): Promise<void> {

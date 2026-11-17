@@ -1,11 +1,9 @@
-import { mayChangeReaper, type Editor } from "../domain/exile.js";
-import { parseUid, type KingdomNumber } from "../domain/lookup-input.js";
-import type { MemberId } from "../domain/rank-approval.js";
+import { parseUid } from "../domain/lookup-input.js";
 import type { ReaperStore } from "../storage/reaper-store.js";
 import type { AutocompleteChoice, FocusedOption } from "./alliance-autocomplete.js";
 import { allowedMentions, answer, replyPrivately } from "./lookup.js";
 import type { OnboardingChannels } from "./onboarding-channels.js";
-import type { ReaperInteraction } from "./reaper.js";
+import { mayMemberKeepReaper, type ReaperAddInteraction, type ReaperKeeperContext } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
 
 /** Discord shows at most 25 choices. */
@@ -13,17 +11,15 @@ const MAX_CHOICES = 25;
 /** Discord takes at most 100 characters of a choice's label. */
 const MAX_LABEL_LENGTH = 100;
 
-/** What /reaper remove needs: the Editor check, REAPER, the log channel and the error log. */
-export interface ReaperRemoveContext {
-  readonly editorOf: (memberId: MemberId) => Editor | undefined;
-  readonly homeKingdom: KingdomNumber;
+/** What /reaper remove needs: who may keep REAPER, REAPER, the log channel and the error log. */
+export interface ReaperRemoveContext extends ReaperKeeperContext {
   readonly reaper: Pick<ReaperStore, "find" | "remove">;
   readonly channels: Pick<OnboardingChannels, "log">;
   readonly logError: (message: string) => void;
 }
 
 /** The part of a discord.js chat-input interaction of /reaper that remove uses. */
-export type ReaperRemoveInteraction = Pick<ReaperInteraction, "user" | "options" | "reply">;
+export type ReaperRemoveInteraction = Pick<ReaperAddInteraction, "user" | "options" | "reply" | "memberRoleIds">;
 
 /** What the autocomplete of the exile option of /reaper remove needs: REAPER only. */
 export interface ReaperAutocompleteContext {
@@ -37,13 +33,12 @@ export interface ReaperAutocompleteInteraction {
 }
 
 /**
- * Answers /reaper remove, privately: only Home Kingdom R5s, and only an Exile that is in REAPER. A removal is confirmed
- * privately and logged with the R5. The find and the remove run without an await between them.
+ * Answers /reaper remove, privately: only the NaP Council, or an Officer while the NaP has no members, and only an Exile
+ * that is in REAPER. A removal is confirmed privately and logged with the Member who removed it. The find and the remove run without an await between them.
  */
 export async function handleReaperRemove(interaction: ReaperRemoveInteraction, context: ReaperRemoveContext): Promise<void> {
   await answer("/reaper remove", context, async () => {
-    const editor = context.editorOf(interaction.user.id);
-    if (editor === undefined || !mayChangeReaper(editor, context.homeKingdom)) {
+    if (!mayMemberKeepReaper(interaction.user.id, interaction.memberRoleIds(), context)) {
       await replyPrivately(interaction, reaperMessages.refused);
       return;
     }

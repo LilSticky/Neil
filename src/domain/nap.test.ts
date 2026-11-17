@@ -7,6 +7,7 @@ import {
   isNapMember,
   linkedR5AllianceOf,
   mayAskToJoin,
+  mayKeepReaper,
   mayDecide,
   mayLeave,
   NAP_COOLDOWN_MS,
@@ -155,6 +156,49 @@ describe("who may ask, decide and leave", () => {
     expect(mayLeave("NML", history)).toBe(true);
     expect(mayLeave("ABC", history)).toBe(false);
     expect(mayLeave(undefined, history)).toBe(false);
+  });
+});
+
+describe("mayKeepReaper", () => {
+  const history = [joined("NML", "2026-11-01T10:00:00Z")];
+  const r5 = (tag: string | undefined, kingdom = 330): Editor => ({
+    allianceRank: { source: "game-api", rank: "R5" },
+    allianceKingdom: kingdomOf(kingdom),
+    allianceTag: tag,
+  });
+
+  test("a member of the NaP Council may keep REAPER", () => {
+    expect(mayKeepReaper({ allianceTag: linkedR5AllianceOf(r5("NML"), HOME), officer: false }, history)).toBe(true);
+  });
+
+  test("the R5 of a Home Kingdom Alliance outside the NaP may not", () => {
+    expect(mayKeepReaper({ allianceTag: linkedR5AllianceOf(r5("ABC"), HOME), officer: false }, history)).toBe(false);
+  });
+
+  test("the R5 of an Alliance of another Kingdom with a NaP member's tag may not", () => {
+    expect(mayKeepReaper({ allianceTag: linkedR5AllianceOf(r5("NML", 331), HOME), officer: false }, history)).toBe(false);
+  });
+
+  test("an Officer may while the NaP has no members", () => {
+    expect(mayKeepReaper({ allianceTag: undefined, officer: true }, [])).toBe(true);
+  });
+
+  test("an Officer may not while the NaP has members", () => {
+    expect(mayKeepReaper({ allianceTag: undefined, officer: true }, history)).toBe(false);
+  });
+
+  test("an Officer who is also on the NaP Council may", () => {
+    expect(mayKeepReaper({ allianceTag: "NML", officer: true }, history)).toBe(true);
+  });
+
+  test("a NaP emptied by leaves counts as empty", () => {
+    const emptied = [...history, left("NML", "2026-11-02T10:00:00Z")];
+    expect(mayKeepReaper({ allianceTag: undefined, officer: true }, emptied)).toBe(true);
+    expect(mayKeepReaper({ allianceTag: "NML", officer: false }, emptied)).toBe(false);
+  });
+
+  test("a Member who is neither on the NaP Council nor an Officer may not, even while the NaP is empty", () => {
+    expect(mayKeepReaper({ allianceTag: undefined, officer: false }, [])).toBe(false);
   });
 });
 

@@ -8,7 +8,7 @@ import {
   type InteractionUpdateOptions,
 } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { NapStatus } from "../domain/nap.js";
+import type { NapEvent, NapStatus } from "../domain/nap.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1560,6 +1560,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       channels: { log },
       editorOf: () => R5_EDITOR,
       homeKingdom: kingdomNumber(330),
+      napHistory: () => NAP_WITH_NML,
       officerRoleIds: [],
       allowance: () => ALLOWANCE,
       usage: new FakeUsage().usage,
@@ -1576,4 +1577,21 @@ function reasonOf(text: string): ExileReason {
   return parsed.value;
 }
 
-const R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: kingdomNumber(330) };
+/** The Linked R5 of NML, an Alliance in the NaP: on the NaP Council. */
+const R5_EDITOR: Editor = {
+  allianceRank: { source: "game-api", rank: "R5" },
+  allianceKingdom: kingdomNumber(330),
+  allianceTag: "NML",
+};
+
+/** The NaP register's history: the Alliance NML joined. */
+const NAP_WITH_NML: readonly NapEvent[] = [
+  {
+    kind: "joined",
+    tag: "NML",
+    requestedBy: "400000000000000001",
+    requestedAt: new Date("2026-10-31T11:00:00Z"),
+    decision: { as: "officer", by: "400000000000000002" },
+    at: new Date("2026-10-31T12:00:00Z"),
+  },
+];

@@ -994,8 +994,16 @@ describe("connect", () => {
   });
 
   describe("/reaper", () => {
-    /** Alice is Linked to a Player of her own, is a Home Kingdom R5, and is applied in the Home Kingdom. */
+    /** Alice is Linked to a Player of her own, is the R5 of ASH, a Home Kingdom Alliance in the NaP, and is applied in the Home Kingdom. */
     function linkR5Alice(): void {
+      new NapStore(db).append({
+        kind: "joined",
+        tag: "ASH",
+        requestedBy: ALICE,
+        requestedAt: NOW,
+        decision: { as: "officer", by: BOB },
+        at: NOW,
+      });
       links.confirm(
         { link: { memberId: ALICE, uid: ALICE_UID, linkedAt: NOW, allianceRank: { source: "game-api", rank: "R5" }, madeBy: { kind: "in-game-proof" } } },
         () => undefined,

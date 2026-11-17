@@ -1,11 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { distance, exileReasonOf, mayChangeReaper, rankExiles, type Exile, type ExileReason, type Position } from "./exile.js";
+import { distance, exileReasonOf, rankExiles, type Exile, type ExileReason, type Position } from "./exile.js";
 import type { Uid } from "./lookup-input.js";
 import type { Player, PlayerDetails } from "./player.js";
-import { approvedRank, gameApiRank, kingdomOf, uidOf } from "./__fixtures__/players.js";
+import { kingdomOf, uidOf } from "./__fixtures__/players.js";
 
 const HOME = kingdomOf(330);
-const OTHER = kingdomOf(331);
 const CALLER = uidOf("100000000000");
 const ORIGIN: Position = { x: 0, y: 0 };
 const STORED_AT = new Date("2026-11-01T10:00:00Z");
@@ -86,36 +85,6 @@ describe("exileReasonOf", () => {
 
   test("refuses a reason of 201 characters", () => {
     expect(exileReasonOf("a".repeat(201)).ok).toBe(false);
-  });
-});
-
-describe("mayChangeReaper", () => {
-  test("allows an R5 the Game API reports in the Home Kingdom", () => {
-    expect(mayChangeReaper({ allianceRank: gameApiRank("R5"), allianceKingdom: HOME }, HOME)).toBe(true);
-  });
-
-  test("allows an R5 approved by hand in the Home Kingdom", () => {
-    expect(mayChangeReaper({ allianceRank: approvedRank("R5"), allianceKingdom: HOME }, HOME)).toBe(true);
-  });
-
-  test.each(["R1", "R2", "R3", "R4"] as const)("refuses a %s in the Home Kingdom", (rank) => {
-    expect(mayChangeReaper({ allianceRank: gameApiRank(rank), allianceKingdom: HOME }, HOME)).toBe(false);
-  });
-
-  test("refuses an R5 of an Alliance in another Kingdom", () => {
-    expect(mayChangeReaper({ allianceRank: gameApiRank("R5"), allianceKingdom: OTHER }, HOME)).toBe(false);
-  });
-
-  test("refuses a Member whose Alliance Rank is unknown", () => {
-    expect(mayChangeReaper({ allianceRank: { source: "unknown" }, allianceKingdom: HOME }, HOME)).toBe(false);
-  });
-
-  test("refuses a Member who is in no Alliance", () => {
-    expect(mayChangeReaper({ allianceRank: { source: "no-alliance" }, allianceKingdom: undefined }, HOME)).toBe(false);
-  });
-
-  test("refuses an R5 whose Alliance Kingdom is not known", () => {
-    expect(mayChangeReaper({ allianceRank: gameApiRank("R5"), allianceKingdom: undefined }, HOME)).toBe(false);
   });
 });
 

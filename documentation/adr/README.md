@@ -14,7 +14,7 @@ with a new one and update both statuses here.
 | 6 | [Test and production server, production hosted on Wispbyte](0006-two-servers-deployed-from-main.md) | Partly superseded by 16 |
 | 7 | [Personal data of Links and Onboarding Interviews](0007-personal-data-of-links-and-interviews.md) | Accepted |
 | 8 | [Neil creates and manages its own roles](0008-neil-creates-managed-roles.md) | Partly superseded by 21 |
-| 9 | [Personal data of REAPER](0009-personal-data-of-reaper.md) | Accepted |
+| 9 | [Personal data of REAPER](0009-personal-data-of-reaper.md) | Partly superseded by 24 |
 | 10 | [Personal data of Member usage](0010-personal-data-of-member-usage.md) | Accepted |
 | 11 | [Reading the presence of Members](0011-reading-the-presence-of-members.md) | Accepted |
 | 12 | [The setup script runs under temporary Administrator](0012-setup-script-runs-under-temporary-administrator.md) | Accepted |
@@ -29,3 +29,4 @@ with a new one and update both statuses here.
 | 21 | [Neil moves the King role, only on an Officer's Apply](0021-neil-moves-the-king-role.md) | Accepted |
 | 22 | [Public NaP list and announcements](0022-public-nap-list-and-announcements.md) | Accepted |
 | 23 | [Votes of the NaP Council](0023-votes-of-the-nap-council.md) | Accepted |
+| 24 | [REAPER is kept by the NaP Council](0024-reaper-is-kept-by-the-nap-council.md) | Accepted |

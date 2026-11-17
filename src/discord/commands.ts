@@ -308,10 +308,10 @@ export const link = new SlashCommandBuilder()
       .setMaxLength(32),
   );
 
-/** REAPER: any Member finds and lists Exiles; Neil lets only Home Kingdom R5s add and remove them. */
+/** REAPER: any Member finds and lists Exiles; Neil lets only the NaP Council (an Officer while the NaP is empty) add and remove them. */
 export const reaper = new SlashCommandBuilder()
   .setName("reaper")
-  .setDescription("REAPER: find the closest Exiles, or keep the list (Home Kingdom R5s)")
+  .setDescription("REAPER: find the closest Exiles, or keep the list (NaP Council)")
   .setContexts(InteractionContextType.Guild)
   .addSubcommand((sub) =>
     sub
@@ -331,7 +331,7 @@ export const reaper = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("add")
-      .setDescription("Add a Player to REAPER (Home Kingdom R5s)")
+      .setDescription("Add a Player to REAPER (NaP Council)")
       .addStringOption((option) =>
         option.setName("name").setDescription("The player's complete in-game name").setRequired(true).setMaxLength(32),
       )
@@ -350,7 +350,7 @@ export const reaper = new SlashCommandBuilder()
   .addSubcommand((sub) =>
     sub
       .setName("remove")
-      .setDescription("Remove an Exile from REAPER (Home Kingdom R5s)")
+      .setDescription("Remove an Exile from REAPER (NaP Council)")
       .addStringOption((option) =>
         option.setName("exile").setDescription("The Exile to remove").setRequired(true).setAutocomplete(true),
       ),

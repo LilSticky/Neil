@@ -1,6 +1,7 @@
 import { MessageFlags, type InteractionReplyOptions, type InteractionUpdateOptions } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
-import { mayChangeReaper, type Editor, type ExileReason } from "../domain/exile.js";
+import type { Editor, ExileReason } from "../domain/exile.js";
+import type { NapEvent } from "../domain/nap.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { ChargedResult } from "../game-api/client.js";
 import type { MemberId } from "../domain/rank-approval.js";
@@ -44,7 +45,7 @@ import {
   type PlaceholderInteraction,
   type PrivateMessage,
 } from "./lookup.js";
-import { recordFoundExile, type ReaperRecordContext } from "./reaper.js";
+import { mayMemberKeepReaper, recordFoundExile, type ReaperRecordContext } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
 import { refusalMessage } from "./usage-texts.js";
 import {
@@ -88,9 +89,13 @@ export interface PickContext {
   /** REAPER and the log channel, which a pick of the /reaper add pick list stores into; without them that pick is unavailable. */
   readonly reaper?: ReaperRecordContext["reaper"];
   readonly channels?: ReaperRecordContext["channels"];
-  /** The Editor check of /reaper add, made again when the pick is made; without it that pick is unavailable. */
+  /**
+   * Who may keep REAPER, checked again when the pick of /reaper add is made: the Editor of a Member and the NaP register's
+   * history; without them that pick is unavailable.
+   */
   readonly editorOf?: (memberId: MemberId) => Editor | undefined;
   readonly homeKingdom?: KingdomNumber;
+  readonly napHistory?: () => readonly NapEvent[];
 }
 
 const pickMessages = {
@@ -202,7 +207,7 @@ async function pickExileMatch(
   context: PickContext,
 ): Promise<void> {
   const parsedUid = match === undefined ? undefined : parseUid(match.uid);
-  const { reaper, channels, editorOf, homeKingdom } = context;
+  const { reaper, channels, editorOf, homeKingdom, napHistory } = context;
   if (
     match === undefined ||
     parsedUid === undefined ||
@@ -210,13 +215,14 @@ async function pickExileMatch(
     reaper === undefined ||
     channels === undefined ||
     editorOf === undefined ||
-    homeKingdom === undefined
+    homeKingdom === undefined ||
+    napHistory === undefined
   ) {
     await replyPrivately(interaction, lookupMessages.unavailable);
     return;
   }
-  const editor = editorOf(interaction.user.id);
-  if (editor === undefined || !mayChangeReaper(editor, homeKingdom)) {
+  const keeper = { editorOf, homeKingdom, napHistory, officerRoleIds: context.officerRoleIds };
+  if (!mayMemberKeepReaper(interaction.user.id, interaction.memberRoleIds(), keeper)) {
     await replyPrivately(interaction, reaperMessages.refused);
     return;
   }
