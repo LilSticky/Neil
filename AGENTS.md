@@ -81,7 +81,7 @@ it, checks the diff and test result, and commits.
 
 | Work | Agent | Model |
 |------|-------|-------|
-| Domain discovery, slicing, dictionary review | `domain-modeler` | opus |
+| Domain discovery, slicing, dictionary review | `domain-modeler` | sonnet |
 | Failing test for one task (red) | `test-first` | haiku |
 | Make it green, refactor (green) | `implementer` | haiku |
 | Review Discord adapters, Game API client, security | `bot-reviewer` | sonnet |
@@ -95,6 +95,10 @@ it, checks the diff and test result, and commits.
 - **One working tree per session.** Extra parallel work goes into its own worktree
   (`git worktree add ../Neil-<topic> -b <branch> origin/develop`).
 - Escalate to a stronger model only when an agent fails twice on the same task.
+- Agents without a `model:` in their frontmatter (`general-purpose`, `Explore`, `Plan`, …) run on haiku
+  (`CLAUDE_CODE_SUBAGENT_MODEL` in `.claude/settings.json`); pass `model` explicitly only to escalate.
+- Prefix noisy shell commands with `rtk` (Rust Token Killer, e.g. `rtk git status`, `rtk npm test`) when it
+  is installed, to compress their output.
 
 ## Code conventions
 

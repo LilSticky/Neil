@@ -46,5 +46,8 @@
   "statusLine": {
     "type": "command",
     "command": "node \"$(git rev-parse --show-toplevel)/.claude/hooks/usage-guard.mjs\" statusline"
+  },
+  "env": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "haiku"
   }
 }
