@@ -85,11 +85,15 @@ Neil adds and removes King per Member (`PUT`/`DELETE /guilds/{id}/members/{user}
 by listing every Member over REST. In `#nap-announcements` it posts and pins the City Rotation card
 (Pin Messages, slice 035) and the NaP list (slice 041) and edits them later; a card or list that is gone (REST error
 **10008**, Unknown Message) is posted and pinned again. It also posts there one announcement per NaP join and leave,
-naming only the Alliance and the time (ADR 22). In `#nap-leaders` it posts the Handover question after each Royal City siege and the Handover Reminders (slices
-035 and 037), and the NaP join requests with their Approve button and the leave notices (slice 038); it edits a join
-request through the button's interaction (`update`), which needs no permission beyond the post. When the R5 runs `/nap join` again while the request is open, Neil edits the
-request's message; when Discord answers **10008** (or the message is not in the current `#nap-leaders`), it posts the
-same request again with the same Approve button (issue #148). Every NaP message has
+naming only the Alliance and the time (ADR 22). In `#nap-leaders` it posts the Handover question after each Royal City
+siege and the Handover Reminders (slices 035 and 037), and the NaP join requests with their Approve and Decline buttons
+and the leave notices (slices 038 and 042); an Officer's decision while the NaP is empty edits the request through the
+button's interaction (`update`), which needs no permission beyond the post. A council member's vote only gets a private
+reply. On the one-minute tick Neil edits the request's own message (REST, its own post) when its NaP Vote opens later
+and when the vote is counted (result, no buttons); a gone message or a refused edit only writes a `#neil-log` line. When
+the R5 runs `/nap join` again while the request is open, Neil edits the request's message; when Discord answers
+**10008** (or the message is not in the current `#nap-leaders`), it posts the same request again with the same buttons
+(issue #148). Every NaP message has
 mentions off. Missing permissions surface as REST error **50013**
 (`src/discord/member-roles.ts`). Neil has no Manage Events (ADR 14) and no Manage Channels (ADR 12).
 

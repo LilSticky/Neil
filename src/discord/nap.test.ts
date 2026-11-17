@@ -7,12 +7,12 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { KnownAlliance } from "../domain/alliance-match.js";
 import type { Editor } from "../domain/exile.js";
 import type { KingdomNumber } from "../domain/lookup-input.js";
-import type { NapEvent } from "../domain/nap.js";
+import { NAP_COOLDOWN_MS, NAP_VOTE_MS, type NapEvent } from "../domain/nap.js";
 import { kingdomOf } from "../domain/__fixtures__/players.js";
 import { openDatabase } from "../storage/database.js";
 import { NapStore } from "../storage/nap-store.js";
 import { createNap, type Nap, type NapButton, type NapCommand, type NapServer } from "./nap.js";
-import { NAP_APPROVE_PREFIX, napApproveRow } from "./nap-texts.js";
+import { NAP_APPROVE_PREFIX, NAP_DECLINE_PREFIX, napVoteRow } from "./nap-texts.js";
 
 const HOME = kingdomOf(330);
 const NOW = new Date("2026-11-16T20:00:00.000Z");
@@ -24,6 +24,7 @@ const R5_XYZ = "100000000000000003";
 const R4_NML = "100000000000000006";
 const FAR_R5 = "100000000000000007";
 const STRANGER = "100000000000000008";
+const OUTSIDER = "100000000000000010";
 const LEADERS = "700000000000000002";
 const ANNOUNCEMENTS = "700000000000000003";
 
@@ -43,6 +44,7 @@ const EDITORS: Readonly<Record<string, Editor>> = {
   [R5_XYZ]: r5("XYZ"),
   [R4_NML]: { ...r5("NML"), allianceRank: { source: "game-api", rank: "R4" } },
   [FAR_R5]: r5("FAR", kingdomOf(331)),
+  [OUTSIDER]: r5("QQQ"),
 };
 
 class FakeServer implements NapServer {
@@ -146,12 +148,20 @@ function unix(moment: Date): string {
   return Math.floor(moment.getTime() / 1000).toString();
 }
 
-function approveIdOf(post: { message: BaseMessageOptions } | undefined): string {
+function buttonIdOf(post: { message: BaseMessageOptions } | undefined, index: number): string {
   const row = post?.message.components?.[0];
   const json = row !== undefined && "toJSON" in row ? row.toJSON() : row;
-  const first = json !== undefined && "components" in json ? json.components[0] : undefined;
-  if (first === undefined || !("custom_id" in first) || typeof first.custom_id !== "string") throw new Error("no button");
-  return first.custom_id;
+  const found = json !== undefined && "components" in json ? json.components[index] : undefined;
+  if (found === undefined || !("custom_id" in found) || typeof found.custom_id !== "string") throw new Error("no button");
+  return found.custom_id;
+}
+
+function approveIdOf(post: { message: BaseMessageOptions } | undefined): string {
+  return buttonIdOf(post, 0);
+}
+
+function declineIdOf(post: { message: BaseMessageOptions } | undefined): string {
+  return buttonIdOf(post, 1);
 }
 
 describe("createNap", () => {
@@ -193,8 +203,7 @@ describe("createNap", () => {
       tag,
       requestedBy: R5_NML,
       requestedAt: at,
-      approvedBy: OFFICER,
-      approvedAs: "officer",
+      decision: { as: "officer", by: OFFICER },
       at,
     });
   }
@@ -214,7 +223,8 @@ describe("createNap", () => {
       seedMember("NML", since);
       seedMember("XYZ", since);
       store.append({ kind: "left", tag: "XYZ", leftBy: R5_XYZ, at: leftAt });
-      store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: NOW });
+      const endsAt = new Date(NOW.getTime() + NAP_VOTE_MS);
+      store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: NOW, voteEndsAt: endsAt });
 
       const show = command(STRANGER);
       await nap.show(show);
@@ -228,8 +238,8 @@ describe("createNap", () => {
           "**Former members**",
           `- [XYZ] Ex Why Zed, left <t:${unix(leftAt)}:D>`,
           "",
-          "**Waiting for approval**",
-          "- [ABC]",
+          "**Waiting for a decision**",
+          `- [ABC], vote ends <t:${unix(endsAt)}:R>`,
         ].join("\n"),
       );
     });
@@ -246,13 +256,28 @@ describe("createNap", () => {
       expect(show.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
       expect(show.replies[0]?.allowedMentions).toEqual({ parse: [] });
       expect(description).toContain(`[NML] No Man's Land, since <t:${unix(since)}:D>`);
-      expect(description).toContain("[ABC]");
+      expect(description).toContain("**Waiting for a decision**");
+      expect(description).toContain("- [ABC], the vote opens within a minute");
       expect(description).not.toContain("<@");
+    });
+
+    test("shows when each waiting request's vote ends, or that an Officer decides while the NaP is empty", async () => {
+      await nap.join(command(R5_ABC));
+      const empty = command(STRANGER);
+      await nap.show(empty);
+      expect(embedOf(empty.replies[0]).description).toContain("- [ABC], an Officer decides");
+
+      seedMember("NML");
+      await nap.join(command(R5_XYZ));
+      const show = command(STRANGER);
+      await nap.show(show);
+      const end = new Date(NOW.getTime() + NAP_VOTE_MS);
+      expect(embedOf(show.replies[0]).description).toContain(`- [XYZ], vote ends <t:${unix(end)}:R>`);
     });
   });
 
   describe("/nap join", () => {
-    test("posts the request with an Approve button in #nap-leaders, mentioning nobody, and logs one line", async () => {
+    test("posts the request with Approve and Decline in #nap-leaders, mentioning nobody, and logs one line", async () => {
       const join = command(R5_ABC);
       await nap.join(join);
 
@@ -263,16 +288,57 @@ describe("createNap", () => {
       expect(post?.message.content).toContain("[ABC] Alpha Bravo");
       expect(post?.message.allowedMentions).toEqual({ parse: [] });
       expect(approveIdOf(post)).toBe(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`);
+      expect(declineIdOf(post)).toBe(`${NAP_DECLINE_PREFIX}ABC:${NOW.getTime().toString()}`);
+      expect(post?.message.content).toContain("The NaP has no members yet, so an Officer approves or declines it");
       expect(store.request("ABC")).toEqual({
         tag: "ABC",
         requestedBy: R5_ABC,
         requestedAt: NOW,
         channelId: LEADERS,
         messageId: post?.id,
+        voteEndsAt: undefined,
       });
       expect(join.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
       expect(join.replies[0]?.content).toContain("#nap-leaders");
       expect(server.logs).toEqual([`<@${R5_ABC}> asked for [ABC] to join the NaP.`]);
+    });
+
+    test("while the NaP has members, opens a 48-hour NaP Vote and says until when", async () => {
+      seedMember("NML");
+      await nap.join(command(R5_ABC));
+
+      const end = new Date(NOW.getTime() + NAP_VOTE_MS);
+      expect(store.request("ABC")?.voteEndsAt).toEqual(end);
+      const content = server.posts[0]?.message.content ?? "";
+      expect(content).toContain(`The NaP Council votes with the buttons until <t:${unix(end)}:f> (<t:${unix(end)}:R>)`);
+      expect(content).toContain("one vote per Alliance in the NaP, which can be changed until then");
+      expect(content).toContain("may ask again after 30 days");
+    });
+
+    test("refuses an Alliance declined less than 30 days ago, saying when it may ask again, and lets it ask after", async () => {
+      const declinedAt = new Date(NOW.getTime() - 10 * 24 * 3_600_000);
+      store.append({
+        kind: "declined",
+        tag: "ABC",
+        requestedBy: R5_ABC,
+        requestedAt: new Date(declinedAt.getTime() - NAP_VOTE_MS),
+        decision: { as: "vote", approve: 0, decline: 0 },
+        at: declinedAt,
+      });
+      const join = command(R5_ABC);
+      await nap.join(join);
+
+      const end = new Date(declinedAt.getTime() + NAP_COOLDOWN_MS);
+      expect(join.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+      expect(join.replies[0]?.content).toBe(
+        `[ABC] Alpha Bravo was declined on <t:${unix(declinedAt)}:D> and may ask to join the NaP again <t:${unix(end)}:f> (<t:${unix(end)}:R>).`,
+      );
+      expect(server.posts).toEqual([]);
+      expect(store.openRequests()).toEqual([]);
+
+      now = end;
+      await nap.join(command(R5_ABC));
+      expect(server.posts).toHaveLength(1);
     });
 
     test("refuses a Member who is not a Linked R5 of a Home Kingdom Alliance", async () => {
@@ -299,7 +365,7 @@ describe("createNap", () => {
       const again = command(R5_ABC);
       await nap.join(again);
 
-      expect(again.replies[0]?.content).toContain("already waits for approval");
+      expect(again.replies[0]?.content).toContain("already waits for a decision");
       expect(server.posts).toHaveLength(1);
     });
 
@@ -319,7 +385,7 @@ describe("createNap", () => {
       const join = command(R5_ABC);
       await nap.join(join);
 
-      expect(join.replies[0]?.content).toContain("already waits for approval");
+      expect(join.replies[0]?.content).toContain("already waits for a decision");
       expect(server.posts).toEqual([]);
     });
 
@@ -353,7 +419,7 @@ describe("createNap", () => {
         return first.id;
       }
 
-      test("posts the same request again with the same Approve button, and the reposted button approves it", async () => {
+      test("posts the same request again with the same buttons, and the reposted button decides it", async () => {
         const oldId = await openThenDelete();
         now = new Date(NOW.getTime() + 3_600_000);
         const again = command(R5_ABC);
@@ -372,6 +438,7 @@ describe("createNap", () => {
           requestedAt: NOW,
           channelId: LEADERS,
           messageId: repost?.id,
+          voteEndsAt: undefined,
         });
         expect(again.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
         expect(again.replies[0]?.content).toBe(
@@ -379,8 +446,9 @@ describe("createNap", () => {
         );
         expect(server.logs).toEqual([`<@${R5_ABC}> had the NaP join request for [ABC] posted again in #nap-leaders.`]);
 
+        expect(declineIdOf(repost)).toBe(`${NAP_DECLINE_PREFIX}ABC:${NOW.getTime().toString()}`);
         const press = button(approveIdOf(repost), OFFICER, [MODERATOR_ROLE]);
-        await nap.approve(press);
+        await nap.vote(press);
         expect(press.updates).toHaveLength(1);
         expect(store.request("ABC")).toBeUndefined();
       });
@@ -398,20 +466,23 @@ describe("createNap", () => {
         expect(again.replies[0]?.content).toContain("posted it again");
       });
 
-      test("a message still there is refreshed with the current text and button, and nothing new is posted", async () => {
+      test("a message still there is refreshed with the current text and buttons, and nothing new is posted", async () => {
         await nap.join(command(R5_ABC));
         seedMember("NML");
         server.logs.length = 0;
+        now = new Date(NOW.getTime() + 60_000);
         const again = command(R5_ABC);
         await nap.join(again);
 
-        expect(again.replies[0]?.content).toContain("already waits for approval");
+        const end = new Date(now.getTime() + NAP_VOTE_MS);
+        expect(again.replies[0]?.content).toContain("already waits for a decision");
         expect(server.posts).toHaveLength(1);
-        expect(server.logs).toEqual([]);
+        expect(store.request("ABC")?.voteEndsAt).toEqual(end);
+        expect(server.logs).toEqual([`The NaP Council's vote on [ABC] joining the NaP is open until <t:${unix(end)}:f>.`]);
         expect(server.edits).toHaveLength(1);
         const edit = server.edits[0];
         expect(edit?.messageId).toBe(server.posts[0]?.id);
-        expect(edit?.message.content).toContain("A member of the NaP Council approves it");
+        expect(edit?.message.content).toContain(`The NaP Council votes with the buttons until <t:${unix(end)}:f>`);
         expect(edit?.message.allowedMentions).toEqual({ parse: [] });
         expect(approveIdOf(edit)).toBe(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`);
       });
@@ -461,7 +532,7 @@ describe("createNap", () => {
         await Promise.all([nap.join(first), nap.join(second)]);
 
         expect(server.posts).toHaveLength(2);
-        expect(second.replies[0]?.content).toContain("already waits for approval");
+        expect(second.replies[0]?.content).toContain("already waits for a decision");
         expect(first.replies[0]?.content).toContain("posted it again");
       });
     });
@@ -474,25 +545,25 @@ describe("createNap", () => {
     });
   });
 
-  describe("the Approve button", () => {
-    async function ask(memberId: string): Promise<string> {
+  describe("the Approve and Decline buttons", () => {
+    async function ask(memberId: string): Promise<{ readonly approve: string; readonly decline: string }> {
       await nap.join(command(memberId));
-      return approveIdOf(server.posts.at(-1));
+      const post = server.posts.at(-1);
+      return { approve: approveIdOf(post), decline: declineIdOf(post) };
     }
 
-    test("an Officer approves while the NaP is empty, recording asker, approver and times", async () => {
-      const customId = await ask(R5_NML);
+    test("an Officer approves while the NaP is empty, recording asker, Officer and times", async () => {
+      const { approve } = await ask(R5_NML);
       now = new Date("2026-11-16T21:00:00.000Z");
-      const press = button(customId, OFFICER, [MODERATOR_ROLE]);
-      await nap.approve(press);
+      const press = button(approve, OFFICER, [MODERATOR_ROLE]);
+      await nap.vote(press);
 
       const expected: NapEvent = {
         kind: "joined",
         tag: "NML",
         requestedBy: R5_NML,
         requestedAt: NOW,
-        approvedBy: OFFICER,
-        approvedAs: "officer",
+        decision: { as: "officer", by: OFFICER },
         at: now,
       };
       expect(store.history()).toEqual([expected]);
@@ -507,49 +578,140 @@ describe("createNap", () => {
       expect(server.logs.at(-1)).toBe(`Officer <@${OFFICER}> approved [NML] joining the NaP (asked by <@${R5_NML}>).`);
     });
 
-    test("a member of the NaP Council approves, and the Alliance is then in the NaP", async () => {
-      seedMember("NML");
-      const customId = await ask(R5_ABC);
-      const press = button(customId, R5_NML);
-      await nap.approve(press);
+    test("an Officer declines while the NaP is empty, at once, with the 30-day NaP Cooldown", async () => {
+      const { decline } = await ask(R5_NML);
+      now = new Date("2026-11-16T21:00:00.000Z");
+      const press = button(decline, OFFICER, [MODERATOR_ROLE]);
+      await nap.vote(press);
 
-      expect(store.history().at(-1)).toMatchObject({ kind: "joined", tag: "ABC", approvedBy: R5_NML, approvedAs: "council" });
-      expect(press.updates).toHaveLength(1);
-      expect(server.logs.at(-1)).toBe(`NaP Council member <@${R5_NML}> approved [ABC] joining the NaP (asked by <@${R5_ABC}>).`);
+      const askAgain = new Date(now.getTime() + NAP_COOLDOWN_MS);
+      expect(store.history()).toEqual([
+        {
+          kind: "declined",
+          tag: "NML",
+          requestedBy: R5_NML,
+          requestedAt: NOW,
+          decision: { as: "officer", by: OFFICER },
+          at: now,
+        },
+      ]);
+      expect(store.openRequests()).toEqual([]);
+      expect(press.updates).toEqual([
+        {
+          content: `[NML] No Man's Land was declined: asked by <@${R5_NML}>, declined by <@${OFFICER}> (Officer). It may ask again <t:${unix(askAgain)}:f>.`,
+          components: [],
+          allowedMentions: { parse: [] },
+        },
+      ]);
+      expect(server.logs.at(-1)).toBe(
+        `Officer <@${OFFICER}> declined [NML] joining the NaP (asked by <@${R5_NML}>); it may ask again <t:${unix(askAgain)}:f>.`,
+      );
+      const join = command(R5_NML);
+      await nap.join(join);
+      expect(join.replies[0]?.content).toContain("may ask to join the NaP again");
     });
 
-    test("an Officer's press changes nothing once an Alliance is in the NaP", async () => {
+    test("a council member's vote is stored for their Alliance and told privately, and the message is not changed", async () => {
       seedMember("NML");
-      const customId = await ask(R5_ABC);
-      const press = button(customId, OFFICER, [MODERATOR_ROLE]);
-      await nap.approve(press);
+      const { approve } = await ask(R5_ABC);
+      now = new Date(NOW.getTime() + 3_600_000);
+      const press = button(approve, R5_NML);
+      await nap.vote(press);
 
-      expect(press.replies[0]?.content).toContain("Only a member of the NaP Council");
+      const end = new Date(NOW.getTime() + NAP_VOTE_MS);
+      expect(store.votes("ABC", NOW)).toEqual([{ allianceTag: "NML", voterId: R5_NML, vote: "approve", at: now }]);
+      expect(store.request("ABC")).toBeDefined();
+      expect(store.history()).toHaveLength(1);
+      expect(press.updates).toEqual([]);
+      expect(server.edits).toEqual([]);
       expect(press.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+      expect(press.replies[0]?.content).toBe(
+        `Neil recorded Approve as the vote of [NML] No Man's Land on [ABC] Alpha Bravo joining the NaP. You can change it until <t:${unix(end)}:f>.`,
+      );
+      expect(server.logs.at(-1)).toBe(`NaP Council member <@${R5_NML}> voted Approve for [NML] on [ABC] joining the NaP.`);
+    });
+
+    test("a second press changes the Alliance's vote, also by its other Linked R5, and the change is logged", async () => {
+      seedMember("NML");
+      const { approve, decline } = await ask(R5_ABC);
+      await nap.vote(button(approve, R5_NML));
+      const OTHER_R5_NML = "100000000000000009";
+      const editors: Readonly<Record<string, Editor>> = { ...EDITORS, [OTHER_R5_NML]: r5("nml") };
+      nap = createNap({
+        store,
+        knownAlliances: { all: () => KNOWN },
+        editorOf: (memberId) => editors[memberId],
+        server,
+        homeKingdom: HOME,
+        officerRoleIds: [MODERATOR_ROLE],
+        now: () => now,
+        logError: (line) => errors.push(line),
+      });
+      const press = button(decline, OTHER_R5_NML);
+      await nap.vote(press);
+
+      expect(store.votes("ABC", NOW)).toEqual([{ allianceTag: "NML", voterId: OTHER_R5_NML, vote: "decline", at: now }]);
+      expect(press.replies[0]?.content).toContain("Neil recorded Decline as the vote of [NML] No Man's Land");
+      expect(press.replies[0]?.content).toContain("(it was Approve)");
+      expect(server.logs.at(-1)).toBe(
+        `NaP Council member <@${OTHER_R5_NML}> voted Decline for [NML] on [ABC] joining the NaP, changed from Approve.`,
+      );
+    });
+
+    test("others are refused privately with nothing stored: the asker, an R5 outside the NaP, an R4, an Officer", async () => {
+      seedMember("NML");
+      const { approve, decline } = await ask(R5_ABC);
+      for (const [memberId, roles] of [
+        [R5_ABC, []],
+        [R5_XYZ, []],
+        [R4_NML, []],
+        [STRANGER, []],
+        [OFFICER, [MODERATOR_ROLE]],
+      ] as const) {
+        for (const customId of [approve, decline]) {
+          const press = button(customId, memberId, roles);
+          await nap.vote(press);
+          expect(press.replies[0]?.content).toContain("Only a member of the NaP Council");
+          expect(press.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+          expect(press.updates).toEqual([]);
+        }
+      }
+      expect(store.votes("ABC", NOW)).toEqual([]);
       expect(store.history()).toHaveLength(1);
       expect(store.request("ABC")).toBeDefined();
     });
 
-    test("others change nothing: the asker, an R5 outside the NaP, an R4 of a member", async () => {
+    test("a press at or after the vote's end is refused with nothing stored", async () => {
       seedMember("NML");
-      const customId = await ask(R5_ABC);
-      for (const memberId of [R5_ABC, R5_XYZ, R4_NML, STRANGER]) {
-        const press = button(customId, memberId);
-        await nap.approve(press);
-        expect(press.replies[0]?.content).toContain("Only a member of the NaP Council");
-        expect(press.updates).toEqual([]);
-      }
-      expect(store.history()).toHaveLength(1);
+      const { approve } = await ask(R5_ABC);
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      const press = button(approve, R5_NML);
+      await nap.vote(press);
+
+      expect(press.replies[0]?.content).toBe("The vote on this join request has ended; Neil counts it within a minute.");
+      expect(store.votes("ABC", NOW)).toEqual([]);
     });
 
-    test("a second press approves once", async () => {
+    test("a press on a request made while the NaP was empty opens its vote first", async () => {
+      const { approve } = await ask(R5_ABC);
       seedMember("NML");
-      const customId = await ask(R5_ABC);
-      const first = button(customId, R5_NML);
-      const second = button(customId, R5_NML);
-      await Promise.all([nap.approve(first), nap.approve(second)]);
+      now = new Date(NOW.getTime() + 600_000);
+      await nap.vote(button(approve, R5_NML));
 
-      expect(store.history()).toHaveLength(2);
+      const end = new Date(now.getTime() + NAP_VOTE_MS);
+      expect(store.request("ABC")?.voteEndsAt).toEqual(end);
+      expect(store.votes("ABC", NOW)).toHaveLength(1);
+      expect(server.edits.at(-1)?.message.content).toContain(`votes with the buttons until <t:${unix(end)}:f>`);
+      expect(server.logs).toContain(`The NaP Council's vote on [ABC] joining the NaP is open until <t:${unix(end)}:f>.`);
+    });
+
+    test("two Officer presses at once decide once", async () => {
+      const { approve, decline } = await ask(R5_ABC);
+      const first = button(approve, OFFICER, [MODERATOR_ROLE]);
+      const second = button(decline, OFFICER, [MODERATOR_ROLE]);
+      await Promise.all([nap.vote(first), nap.vote(second)]);
+
+      expect(store.history()).toHaveLength(1);
       expect(first.updates).toHaveLength(1);
       expect(second.replies[0]?.content).toBe("This join request is no longer open.");
     });
@@ -557,20 +719,180 @@ describe("createNap", () => {
     test("a stale button, of an earlier request of the same Alliance, changes nothing", async () => {
       seedMember("NML");
       store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: NOW });
-      const stale = napApproveRow("ABC", new Date(NOW.getTime() - 60_000)).components[0]?.custom_id ?? "";
+      const stale = napVoteRow("ABC", new Date(NOW.getTime() - 60_000)).components[1]?.custom_id ?? "";
       const press = button(stale, R5_NML);
-      await nap.approve(press);
+      await nap.vote(press);
 
       expect(press.replies[0]?.content).toBe("This join request is no longer open.");
-      expect(store.history()).toHaveLength(1);
+      expect(store.votes("ABC", NOW)).toEqual([]);
     });
 
     test("a button of a request that is gone changes nothing", async () => {
-      const press = button(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`, OFFICER, [MODERATOR_ROLE]);
-      await nap.approve(press);
+      const press = button(`${NAP_DECLINE_PREFIX}ABC:${NOW.getTime().toString()}`, OFFICER, [MODERATOR_ROLE]);
+      await nap.vote(press);
 
       expect(press.replies[0]?.content).toBe("This join request is no longer open.");
       expect(store.history()).toEqual([]);
+    });
+  });
+
+  describe("the tick", () => {
+    async function voteOn(tag: string, votes: readonly (readonly [string, "approve" | "decline"])[]): Promise<void> {
+      const post = server.posts.find((candidate) => approveIdOf(candidate).includes(`:${tag}:`));
+      for (const [memberId, choice] of votes) {
+        await nap.vote(button(choice === "approve" ? approveIdOf(post) : declineIdOf(post), memberId));
+      }
+    }
+
+    function council(): void {
+      seedMember("NML");
+      seedMember("ABC");
+      seedMember("XYZ");
+    }
+
+    test("2 Approve to 1 Decline approve at the deadline; the message shows the result without buttons", async () => {
+      council();
+      await nap.join(command(OUTSIDER));
+      await voteOn("QQQ", [
+        [R5_NML, "approve"],
+        [R5_ABC, "approve"],
+        [R5_XYZ, "decline"],
+      ]);
+      now = new Date(NOW.getTime() + NAP_VOTE_MS - 1);
+      await nap.tick();
+      expect(store.request("QQQ")).toBeDefined();
+
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.request("QQQ")).toBeUndefined();
+      expect(store.history().at(-1)).toEqual({
+        kind: "joined",
+        tag: "QQQ",
+        requestedBy: OUTSIDER,
+        requestedAt: NOW,
+        decision: { as: "vote", approve: 2, decline: 1 },
+        at: now,
+      });
+      const edit = server.edits.at(-1);
+      expect(edit?.messageId).toBe(server.posts[0]?.id);
+      expect(edit?.message.content).toBe(
+        `[QQQ] is now in the NaP: asked by <@${OUTSIDER}>, approved by the NaP Council's vote (2 Approve, 1 Decline).`,
+      );
+      expect(edit?.message.components).toEqual([]);
+      expect(edit?.message.allowedMentions).toEqual({ parse: [] });
+      expect(server.logs.at(-1)).toBe(
+        `The NaP Council's vote approved [QQQ] joining the NaP (asked by <@${OUTSIDER}>): 2 Approve, 1 Decline.`,
+      );
+      expect(store.votes("QQQ", NOW)).toHaveLength(3);
+    });
+
+    test("a tie declines, with the NaP Cooldown in the message and the log", async () => {
+      council();
+      await nap.join(command(OUTSIDER));
+      await voteOn("QQQ", [
+        [R5_NML, "approve"],
+        [R5_ABC, "decline"],
+      ]);
+      now = new Date(NOW.getTime() + NAP_VOTE_MS + 30_000);
+      await nap.tick();
+
+      const askAgain = new Date(now.getTime() + NAP_COOLDOWN_MS);
+      expect(store.history().at(-1)).toMatchObject({ kind: "declined", decision: { as: "vote", approve: 1, decline: 1 } });
+      expect(server.edits.at(-1)?.message.content).toBe(
+        `[QQQ] was declined by the NaP Council's vote (1 Approve, 1 Decline): asked by <@${OUTSIDER}>. It may ask again <t:${unix(askAgain)}:f>.`,
+      );
+      expect(server.logs.at(-1)).toBe(
+        `The NaP Council's vote declined [QQQ] joining the NaP (asked by <@${OUTSIDER}>): 1 Approve, 1 Decline; it may ask again <t:${unix(askAgain)}:f>.`,
+      );
+    });
+
+    test("no votes at all decline", async () => {
+      council();
+      await nap.join(command(OUTSIDER));
+      now = new Date(NOW.getTime() + 3 * NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.history().at(-1)).toMatchObject({ kind: "declined", decision: { as: "vote", approve: 0, decline: 0 } });
+    });
+
+    test("votes of Alliances that left the NaP do not count", async () => {
+      council();
+      await nap.join(command(OUTSIDER));
+      await voteOn("QQQ", [
+        [R5_NML, "approve"],
+        [R5_ABC, "approve"],
+        [R5_XYZ, "decline"],
+      ]);
+      await nap.leave(command(R5_NML));
+      await nap.leave(command(R5_ABC));
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.history().at(-1)).toMatchObject({ kind: "declined", decision: { as: "vote", approve: 0, decline: 1 } });
+    });
+
+    test("nothing closes while the NaP is empty", async () => {
+      seedMember("NML");
+      await nap.join(command(R5_ABC));
+      await nap.leave(command(R5_NML));
+      now = new Date(NOW.getTime() + 2 * NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.request("ABC")).toBeDefined();
+    });
+
+    test("a request made while the NaP was empty gets its 48-hour vote on the first tick once the NaP has a member", async () => {
+      await nap.join(command(R5_ABC));
+      now = new Date(NOW.getTime() + 60_000);
+      await nap.tick();
+      expect(store.request("ABC")?.voteEndsAt).toBeUndefined();
+
+      seedMember("NML");
+      server.logs.length = 0;
+      await nap.tick();
+
+      const end = new Date(now.getTime() + NAP_VOTE_MS);
+      expect(store.request("ABC")?.voteEndsAt).toEqual(end);
+      expect(server.edits).toHaveLength(1);
+      expect(server.edits[0]?.messageId).toBe(server.posts[0]?.id);
+      expect(server.edits[0]?.message.content).toContain(`The NaP Council votes with the buttons until <t:${unix(end)}:f>`);
+      expect(approveIdOf(server.edits[0])).toBe(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`);
+      expect(server.logs).toEqual([`The NaP Council's vote on [ABC] joining the NaP is open until <t:${unix(end)}:f>.`]);
+
+      await nap.tick();
+      expect(server.edits).toHaveLength(1);
+    });
+
+    test("a gone message or a failed edit only writes a #neil-log line, and the result stands", async () => {
+      council();
+      await nap.join(command(OUTSIDER));
+      const first = server.posts[0];
+      if (first === undefined) throw new Error("not posted");
+      server.deleted.add(first.id);
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.history().at(-1)).toMatchObject({ kind: "declined", tag: "QQQ" });
+      expect(server.logs.at(-1)).toBe("Editing the NaP join request for [QQQ] in #nap-leaders failed: the message is gone");
+
+      now = new Date(now.getTime() + NAP_COOLDOWN_MS);
+      await nap.join(command(OUTSIDER));
+      server.refuseEdit = true;
+      now = new Date(now.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+      expect(server.logs.at(-1)).toBe("Editing the NaP join request for [QQQ] in #nap-leaders failed: Missing Access");
+      expect(errors).toEqual([]);
+    });
+
+    test("never throws: a failing store goes to the error log", async () => {
+      store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: NOW });
+      db.exec("DROP TABLE nap_votes");
+      seedMember("NML");
+      store.setRequestMessage("ABC", NOW, LEADERS, "800000000000000099");
+      store.setVoteEnd("ABC", NOW, NOW);
+      await expect(nap.tick()).resolves.toBeUndefined();
+      expect(errors[0]).toContain("The NaP tick failed");
     });
   });
 
@@ -633,7 +955,7 @@ describe("createNap", () => {
     async function approveAt(asker: string, at: Date): Promise<void> {
       await nap.join(command(asker));
       now = at;
-      await nap.approve(button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]));
+      await nap.vote(button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]));
     }
 
     test("a join is announced with only the Alliance and the time, mentions off, and the list is posted and pinned", async () => {
@@ -718,12 +1040,40 @@ describe("createNap", () => {
       expect(server.edits).toHaveLength(1);
     });
 
+    test("a join decided by the NaP Council's vote is announced with only the Alliance and the time", async () => {
+      seedMember("NML");
+      await nap.join(command(OUTSIDER));
+      await nap.vote(button(approveIdOf(server.postsIn(LEADERS).at(-1)), R5_NML));
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      const posts = server.postsIn(ANNOUNCEMENTS);
+      expect(posts[0]?.message).toEqual({
+        content: `🤝 [QQQ] has joined the NaP (<t:${unix(now)}:f>).`,
+        allowedMentions: { parse: [] },
+      });
+      expect(listOf(posts[1])).toContain("[QQQ]");
+      expect(JSON.stringify(posts)).not.toContain("<@");
+    });
+
+    test("a decline, by vote or by an Officer, is not announced", async () => {
+      await nap.join(command(R5_NML));
+      await nap.vote(button(declineIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]));
+      seedMember("ABC");
+      await nap.join(command(OUTSIDER));
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.history().filter((event) => event.kind === "declined")).toHaveLength(2);
+      expect(server.postsIn(ANNOUNCEMENTS)).toEqual([]);
+    });
+
     test("without #nap-announcements, the join still counts, the R5 gets the usual answer and one line is logged", async () => {
       server.announcements = undefined;
       await nap.join(command(R5_NML));
       server.logs.length = 0;
       const press = button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]);
-      await nap.approve(press);
+      await nap.vote(press);
 
       expect(store.history()).toHaveLength(1);
       expect(press.updates).toHaveLength(1);
@@ -755,7 +1105,7 @@ describe("createNap", () => {
       server.refuseEdit = true;
       store.setListMessageId("800000000000000099");
       const press = button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]);
-      await nap.approve(press);
+      await nap.vote(press);
 
       expect(store.history()).toHaveLength(1);
       expect(press.updates).toHaveLength(1);
@@ -781,6 +1131,11 @@ describe("createNap", () => {
   });
 
   describe("/nap history", () => {
+    async function joinAndPost(memberId: string): Promise<{ message: BaseMessageOptions } | undefined> {
+      await nap.join(command(memberId));
+      return server.posts.at(-1);
+    }
+
     test("shows council members the history, newest first, with the Members as mentions and mentioning nobody", async () => {
       const joinedAt = new Date("2026-11-01T10:00:00.000Z");
       seedMember("NML", joinedAt);
@@ -789,8 +1144,7 @@ describe("createNap", () => {
         tag: "ABC",
         requestedBy: R5_ABC,
         requestedAt: new Date("2026-11-02T09:00:00.000Z"),
-        approvedBy: R5_NML,
-        approvedAs: "council",
+        decision: { as: "council", by: R5_NML },
         at: new Date("2026-11-02T10:00:00.000Z"),
       });
       store.append({ kind: "left", tag: "ABC", leftBy: R5_ABC, at: new Date("2026-11-03T10:00:00.000Z") });
@@ -808,6 +1162,38 @@ describe("createNap", () => {
       expect(lines[1]).not.toContain("Officer");
       expect(lines[2]).toContain(`<t:${unix(joinedAt)}:f> [NML] joined`);
       expect(lines[2]).toContain(`approved by <@${OFFICER}> (Officer)`);
+    });
+
+    test("shows declines and the counts of a vote, naming no voter", async () => {
+      seedMember("NML");
+      await nap.vote(button(approveIdOf(await joinAndPost(R5_ABC)), R5_NML));
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+      await nap.join(command(R5_XYZ));
+      await nap.vote(button(declineIdOf(server.posts.at(-1)), R5_NML));
+      now = new Date(now.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      const history = command(R5_NML);
+      await nap.history(history);
+      const lines = (embedOf(history.replies[0]).description ?? "").split("\n");
+      const askAgain = new Date(now.getTime() + NAP_COOLDOWN_MS);
+      expect(lines[0]).toBe(
+        `<t:${unix(now)}:f> [XYZ] declined, asked by <@${R5_XYZ}> <t:${unix(new Date(NOW.getTime() + NAP_VOTE_MS))}:f>, by vote (0 Approve, 1 Decline), may ask again <t:${unix(askAgain)}:D>`,
+      );
+      expect(lines[1]).toContain("[ABC] joined, asked by");
+      expect(lines[1]).toContain("approved by vote (1 Approve, 0 Decline)");
+      expect(lines.slice(0, 2).join("\n")).not.toContain(`<@${R5_NML}>`);
+    });
+
+    test("shows a decline by an Officer", async () => {
+      await nap.join(command(R5_ABC));
+      await nap.vote(button(declineIdOf(server.posts.at(-1)), OFFICER, [MODERATOR_ROLE]));
+
+      const history = command(OFFICER, [MODERATOR_ROLE]);
+      await nap.history(history);
+      expect(embedOf(history.replies[0]).description).toContain(`[ABC] declined, asked by <@${R5_ABC}>`);
+      expect(embedOf(history.replies[0]).description).toContain(`by <@${OFFICER}> (Officer), may ask again`);
     });
 
     test("shows Officers the history, at most 20 entries", async () => {

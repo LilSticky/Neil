@@ -348,6 +348,19 @@ describe("createClient", () => {
     expect(routed.rankButton).not.toHaveBeenCalled();
   });
 
+  test("hands a button whose custom id starts with nap-decline: to the nap button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "nap-decline:ABC:1795723200000");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.napButton).toHaveBeenCalledWith(interaction);
+    expect(routed.rotationButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.kingMoveButton).not.toHaveBeenCalled();
+  });
+
   test("hands a button whose custom id starts with king: to the King Move button handler and nothing else", () => {
     const routed = handlers();
     const client = createClient(routed, { guildId: GUILD_ID });

@@ -324,6 +324,44 @@ const migrations: readonly string[] = [
      id INTEGER PRIMARY KEY CHECK (id = 1),
      message_id TEXT NOT NULL CHECK (message_id <> '' AND message_id NOT GLOB '*[^0-9]*')
    )`,
+  // Migration 25: the NaP Vote (slice 042, ADR 23). nap_history is rebuilt (it has no foreign keys) to keep declines and
+  // how each join or decline was decided: by an Officer or one council member (actor_id), or by vote (the counts, no
+  // actor). Old rows keep their meaning: approved_as becomes decided_as. Each open request gets the end of its vote
+  // (NULL until the vote opens), and nap_votes keeps one vote per Alliance per request with its voter's Discord user id,
+  // as long as the history; votes are kept after the decision as its record and are not deleted at Unlink.
+  `CREATE TABLE nap_history_v25 (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     tag TEXT NOT NULL CHECK (tag <> ''),
+     kind TEXT NOT NULL CHECK (kind IN ('joined', 'left', 'declined')),
+     at TEXT NOT NULL,
+     actor_id TEXT CHECK (actor_id IS NULL OR (actor_id <> '' AND actor_id NOT GLOB '*[^0-9]*')),
+     requested_by TEXT CHECK (requested_by IS NULL OR (requested_by <> '' AND requested_by NOT GLOB '*[^0-9]*')),
+     requested_at TEXT,
+     decided_as TEXT CHECK (decided_as IS NULL OR decided_as IN ('council', 'officer', 'vote')),
+     approve_votes INTEGER CHECK (approve_votes IS NULL OR approve_votes >= 0),
+     decline_votes INTEGER CHECK (decline_votes IS NULL OR decline_votes >= 0),
+     CHECK ((kind = 'left') = (requested_by IS NULL)),
+     CHECK ((kind = 'left') = (requested_at IS NULL)),
+     CHECK ((kind = 'left') = (decided_as IS NULL)),
+     CHECK ((decided_as IS 'vote') = (actor_id IS NULL)),
+     CHECK ((decided_as IS 'vote') = (approve_votes IS NOT NULL)),
+     CHECK ((decided_as IS 'vote') = (decline_votes IS NOT NULL)),
+     CHECK (NOT (kind = 'declined' AND decided_as = 'council'))
+   );
+   INSERT INTO nap_history_v25 (id, tag, kind, at, actor_id, requested_by, requested_at, decided_as)
+     SELECT id, tag, kind, at, actor_id, requested_by, requested_at, approved_as FROM nap_history ORDER BY id;
+   DROP TABLE nap_history;
+   ALTER TABLE nap_history_v25 RENAME TO nap_history;
+   ALTER TABLE nap_join_requests ADD COLUMN vote_ends_at TEXT;
+   CREATE TABLE nap_votes (
+     tag TEXT NOT NULL COLLATE NOCASE CHECK (tag <> ''),
+     requested_at TEXT NOT NULL,
+     alliance_tag TEXT NOT NULL COLLATE NOCASE CHECK (alliance_tag <> ''),
+     voter_id TEXT NOT NULL CHECK (voter_id <> '' AND voter_id NOT GLOB '*[^0-9]*'),
+     vote TEXT NOT NULL CHECK (vote IN ('approve', 'decline')),
+     at TEXT NOT NULL,
+     PRIMARY KEY (tag, requested_at, alliance_tag)
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
