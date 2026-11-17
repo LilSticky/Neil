@@ -314,6 +314,12 @@ const migrations: readonly string[] = [
      CHECK ((state = 'applied') = (applied_by IS NOT NULL)),
      CHECK ((state = 'applied') = (applied_at IS NOT NULL))
    )`,
+  // Migration 23: the public NaP list pinned in #nap-announcements (slice 040, ADR 22), one row: its message id, so Neil
+  // edits the same message after every join and leave. No Member is stored.
+  `CREATE TABLE nap_list (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     message_id TEXT NOT NULL CHECK (message_id <> '' AND message_id NOT GLOB '*[^0-9]*')
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

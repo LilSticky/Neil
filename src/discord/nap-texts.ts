@@ -5,7 +5,7 @@ import {
   type APIButtonComponentWithCustomId,
   type APIEmbed,
 } from "discord.js";
-import type { ApprovedAs, NapEvent, NapMember } from "../domain/nap.js";
+import type { ApprovedAs, NapEvent, NapFormerMember, NapMember } from "../domain/nap.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { NapJoinRequest } from "../storage/nap-store.js";
 import { timestamp } from "./timestamps.js";
@@ -15,6 +15,9 @@ export const NAP_APPROVE_PREFIX = "nap-approve:";
 
 /** The most history entries /nap history shows. */
 export const MAX_HISTORY_ENTRIES = 20;
+
+/** The most former members the NaP list shows. */
+export const MAX_FORMER_MEMBERS = 20;
 
 /** The colour of the NaP embeds. */
 const NAP_COLOUR = 0x3b88c3;
@@ -46,22 +49,48 @@ export function napApproveOf(customId: string): { readonly tag: string; readonly
   return { tag, requestedAt };
 }
 
-/** /nap show: the Alliances in the NaP since when, then the open join requests by tag. No Members are named. */
-export function napShowEmbed(
+/**
+ * The NaP list, pinned in #nap-announcements and shown by /nap show: the Alliances in the NaP since when, then the former
+ * members with when each left, newest first, at most MAX_FORMER_MEMBERS. Only Alliances and times; no Members are named.
+ */
+export function napListEmbed(
   members: readonly NapMember[],
-  requests: readonly NapJoinRequest[],
+  former: readonly NapFormerMember[],
   label: (tag: string) => string,
 ): APIEmbed {
+  return { title: "NaP", color: NAP_COLOUR, description: napListLines(members, former, label).join("\n") };
+}
+
+function napListLines(
+  members: readonly NapMember[],
+  former: readonly NapFormerMember[],
+  label: (tag: string) => string,
+): string[] {
   const lines: string[] = [];
   if (members.length === 0) {
     lines.push("No Alliance is in the NaP yet.");
   } else {
     lines.push("**Members**", ...members.map((member) => `- ${label(member.tag)}, since ${timestamp(member.since, "D")}`));
   }
-  if (requests.length > 0) {
-    lines.push("", "**Waiting for approval**", ...requests.map((request) => `- [${request.tag}]`));
+  if (former.length > 0) {
+    const shown = former.slice(0, MAX_FORMER_MEMBERS);
+    lines.push("", "**Former members**", ...shown.map((entry) => `- ${label(entry.tag)}, left ${timestamp(entry.leftAt, "D")}`));
+    if (former.length > shown.length) lines.push(`…and ${(former.length - shown.length).toString()} more.`);
   }
-  return { title: "NaP", color: NAP_COLOUR, description: lines.join("\n") };
+  return lines;
+}
+
+/** /nap show: the NaP list, then the open join requests by tag. No Members are named. */
+export function napShowEmbed(
+  members: readonly NapMember[],
+  former: readonly NapFormerMember[],
+  requests: readonly NapJoinRequest[],
+  label: (tag: string) => string,
+): APIEmbed {
+  const list = napListEmbed(members, former, label);
+  if (requests.length === 0) return list;
+  const waiting = ["", "**Waiting for approval**", ...requests.map((request) => `- [${request.tag}]`)];
+  return { ...list, description: [list.description ?? "", ...waiting].join("\n") };
 }
 
 /** One history entry: when, which Alliance, joined or left, and the Members behind it as mentions. */
@@ -111,6 +140,10 @@ export const napMessages = {
     `${alliance} is now in the NaP: asked by <@${asker}>, approved by <@${approver}>${as === "officer" ? " (Officer)" : ""}.`,
   /** The line in #nap-leaders when an Alliance leaves. */
   leftNotice: (alliance: string, member: MemberId): string => `${alliance} has left the NaP, by its R5 <@${member}>.`,
+  /** The announcement in #nap-announcements when an Alliance joins: the Alliance and the time, no Member. */
+  joinedAnnouncement: (alliance: string, at: Date): string => `🤝 ${alliance} has joined the NaP (${timestamp(at, "f")}).`,
+  /** The announcement in #nap-announcements when an Alliance leaves: the Alliance and the time, no Member. */
+  leftAnnouncement: (alliance: string, at: Date): string => `${alliance} has left the NaP (${timestamp(at, "f")}).`,
 
   logRequested: (memberId: MemberId, tag: string): string => `<@${memberId}> asked for [${tag}] to join the NaP.`,
   logApproved: (memberId: MemberId, as: ApprovedAs, tag: string, asker: MemberId): string =>
@@ -128,4 +161,11 @@ export const napMessages = {
   logLeaveNoLeaders: (tag: string): string => `The NaP leave of [${tag}] was not posted: the server has no #nap-leaders.`,
   logLeavePostFailed: (tag: string, reason: string): string =>
     `Posting the NaP leave of [${tag}] in #nap-leaders failed: ${reason}`,
+  logNoAnnouncements: (tag: string): string =>
+    `The NaP change of [${tag}] was not announced: the server has no #nap-announcements.`,
+  logAnnouncementFailed: (tag: string, reason: string): string =>
+    `Announcing the NaP change of [${tag}] in #nap-announcements failed: ${reason}`,
+  logListNoAnnouncements: "The NaP list was not posted: the server has no #nap-announcements.",
+  logListFailed: (reason: string): string => `Updating the NaP list in #nap-announcements failed: ${reason}`,
+  logListPinFailed: (reason: string): string => `Pinning the NaP list in #nap-announcements failed: ${reason}`,
 } as const;

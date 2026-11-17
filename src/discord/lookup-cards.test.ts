@@ -239,6 +239,34 @@ describe("renderAllianceCard", () => {
   });
 });
 
+describe("renderAllianceCard with a NaP status", () => {
+  const since = new Date("2026-11-01T10:00:00.000Z");
+  const leftAt = new Date("2026-11-03T10:00:00.000Z");
+  const unix = (moment: Date): string => Math.floor(moment.getTime() / 1000).toString();
+
+  test("shows a member's NaP field with the date it joined, as the last field before the roster", () => {
+    const card = renderAllianceCard(alliance, FETCHED_AT, NOW, 0, { kind: "member", since });
+    const plain = renderAllianceCard(alliance, FETCHED_AT, NOW);
+    const fields = card.fields ?? [];
+    const before = (plain.fields ?? []).filter((field) => !field.name.startsWith("Roster"));
+
+    expect(fields[before.length]).toEqual({ name: "NaP", value: `Member since <t:${unix(since)}:D>`, inline: true });
+    expect(fields.slice(0, before.length)).toEqual(before);
+  });
+
+  test("shows Not a member, with the leave date when the Alliance left", () => {
+    const never = renderAllianceCard(alliance, FETCHED_AT, NOW, 0, { kind: "not-member", leftAt: undefined });
+    const former = renderAllianceCard(alliance, FETCHED_AT, NOW, 0, { kind: "not-member", leftAt });
+
+    expect(never.fields?.find((field) => field.name === "NaP")?.value).toBe("Not a member");
+    expect(former.fields?.find((field) => field.name === "NaP")?.value).toBe(`Not a member (left <t:${unix(leftAt)}:D>)`);
+  });
+
+  test("shows no NaP field without a status", () => {
+    expect(renderAllianceCard(alliance, FETCHED_AT, NOW).fields?.some((field) => field.name === "NaP")).toBe(false);
+  });
+});
+
 describe("lookupMessages for /alliance", () => {
   test("invalidKingdom gives the contract's text", () => {
     expect(lookupMessages.invalidKingdom).toBe("The kingdom must be a number from 1 to 9999.");

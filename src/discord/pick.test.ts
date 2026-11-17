@@ -8,6 +8,7 @@ import {
   type InteractionUpdateOptions,
 } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import type { NapStatus } from "../domain/nap.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -606,6 +607,56 @@ describe("handlePick for the owner choosing an Alliance match", () => {
       { kind: "roster", entries: sortRoster(ROSTER), alliance: allianceNmx, asOf: undefined },
       NOW,
     );
+  });
+});
+
+describe("handlePick with the NaP register", () => {
+  const since = new Date("2026-11-01T10:00:00.000Z");
+  const napLine = `Member since <t:${Math.floor(since.getTime() / 1000).toString()}:D>`;
+  const member = (): NapStatus => ({ kind: "member", since });
+
+  test("shows the NaP status the context gives on the Alliance card of a picked match", async () => {
+    const sessions = new PickSessions();
+    const pickId = openAlliances(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:select`, userId: OWNER_ID, values: ["1"] });
+    const { context } = contextWith(sessions, { kind: "not-found" }, NOW, {
+      kind: "found",
+      value: allianceNmx,
+      asOf: undefined,
+    });
+
+    await handlePick(interaction, { ...context, napStatusOf: member });
+
+    expect(JSON.stringify(interaction.calls[1])).toContain(napLine);
+  });
+
+  test("keeps the NaP status on the Alliance card when a roster page turn redraws it", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID });
+    const { context } = contextWith(sessions, { kind: "not-found" });
+
+    await handlePick(interaction, { ...context, napStatusOf: member });
+
+    const updatedEmbeds = interaction.calls.flatMap((call) => (call.method === "update" ? (call.options.embeds ?? []) : []));
+    expect(JSON.stringify(updatedEmbeds)).toContain(napLine);
+  });
+
+  test("turns the roster page without a NaP field, and logs the failure, when reading the status fails", async () => {
+    const sessions = new PickSessions();
+    const pickId = openRoster(sessions);
+    const interaction = new FakePickInteraction({ customId: `pick:${pickId}:page:1`, userId: OWNER_ID });
+    const { context, logged } = contextWith(sessions, { kind: "not-found" });
+    const failing = (): NapStatus => {
+      throw new Error("neil.db is locked");
+    };
+
+    await handlePick(interaction, { ...context, napStatusOf: failing });
+
+    const updatedEmbeds = interaction.calls.flatMap((call) => (call.method === "update" ? (call.options.embeds ?? []) : []));
+    expect(updatedEmbeds).toHaveLength(1);
+    expect(JSON.stringify(updatedEmbeds)).not.toContain('"NaP"');
+    expect(logged).toEqual(["Reading the NaP status failed: neil.db is locked"]);
   });
 });
 

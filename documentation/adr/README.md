@@ -27,3 +27,4 @@ with a new one and update both statuses here.
 | 19 | [Personal data of Availability](0019-personal-data-of-availability.md) | Accepted |
 | 20 | [Personal data of the NaP register](0020-personal-data-of-the-nap-register.md) | Accepted |
 | 21 | [Neil moves the King role, only on an Officer's Apply](0021-neil-moves-the-king-role.md) | Accepted |
+| 22 | [Public NaP list and announcements](0022-public-nap-list-and-announcements.md) | Accepted |
