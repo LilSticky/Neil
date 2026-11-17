@@ -47,8 +47,11 @@ const EDITORS: Readonly<Record<string, Editor>> = {
 class FakeServer implements NapServer {
   leaders: string | undefined = LEADERS;
   refusePost = false;
+  refuseEdit = false;
   refuseLog = false;
   readonly posts: { channelId: string; message: BaseMessageOptions; id: string }[] = [];
+  readonly edits: { channelId: string; messageId: string; message: BaseMessageOptions }[] = [];
+  readonly deleted = new Set<string>();
   readonly logs: string[] = [];
   private nextId = 800000000000000001n;
 
@@ -61,6 +64,13 @@ class FakeServer implements NapServer {
     this.nextId += 1n;
     this.posts.push({ channelId, message, id });
     return Promise.resolve(id);
+  }
+  edit(channelId: string, messageId: string, message: BaseMessageOptions): Promise<boolean> {
+    if (this.refuseEdit) return Promise.reject(new Error("Missing Access"));
+    const exists = this.posts.some((post) => post.channelId === channelId && post.id === messageId);
+    if (!exists || this.deleted.has(messageId)) return Promise.resolve(false);
+    this.edits.push({ channelId, messageId, message });
+    return Promise.resolve(true);
   }
   log(line: string): Promise<void> {
     if (this.refuseLog) return Promise.reject(new Error("Missing Access"));
@@ -287,6 +297,129 @@ describe("createNap", () => {
       expect(store.openRequests()).toEqual([]);
       expect(join.replies[0]?.content).toContain("could not post");
       expect(server.logs).toEqual(["Posting the NaP join request for [ABC] in #nap-leaders failed: Missing Permissions"]);
+    });
+
+    describe("an open request whose message is gone (#148)", () => {
+      async function openThenDelete(): Promise<string> {
+        await nap.join(command(R5_ABC));
+        const first = server.posts[0];
+        if (first === undefined) throw new Error("not posted");
+        server.deleted.add(first.id);
+        server.logs.length = 0;
+        return first.id;
+      }
+
+      test("posts the same request again with the same Approve button, and the reposted button approves it", async () => {
+        const oldId = await openThenDelete();
+        now = new Date(NOW.getTime() + 3_600_000);
+        const again = command(R5_ABC);
+        await nap.join(again);
+
+        expect(server.posts).toHaveLength(2);
+        const repost = server.posts[1];
+        expect(repost?.channelId).toBe(LEADERS);
+        expect(repost?.id).not.toBe(oldId);
+        expect(repost?.message.content).toContain(`<@${R5_ABC}>`);
+        expect(repost?.message.allowedMentions).toEqual({ parse: [] });
+        expect(approveIdOf(repost)).toBe(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`);
+        expect(store.request("ABC")).toEqual({
+          tag: "ABC",
+          requestedBy: R5_ABC,
+          requestedAt: NOW,
+          channelId: LEADERS,
+          messageId: repost?.id,
+        });
+        expect(again.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+        expect(again.replies[0]?.content).toBe(
+          "The join request for [ABC] Alpha Bravo was missing in #nap-leaders, so Neil posted it again.",
+        );
+        expect(server.logs).toEqual([`<@${R5_ABC}> had the NaP join request for [ABC] posted again in #nap-leaders.`]);
+
+        const press = button(approveIdOf(repost), OFFICER, [MODERATOR_ROLE]);
+        await nap.approve(press);
+        expect(press.updates).toHaveLength(1);
+        expect(store.request("ABC")).toBeUndefined();
+      });
+
+      test("a request posted in a channel that is no longer #nap-leaders is posted in the current #nap-leaders", async () => {
+        await nap.join(command(R5_ABC));
+        server.leaders = "700000000000000009";
+        const again = command(R5_ABC);
+        await nap.join(again);
+
+        expect(server.posts).toHaveLength(2);
+        expect(server.posts[1]?.channelId).toBe("700000000000000009");
+        expect(store.request("ABC")?.channelId).toBe("700000000000000009");
+        expect(store.request("ABC")?.messageId).toBe(server.posts[1]?.id);
+        expect(again.replies[0]?.content).toContain("posted it again");
+      });
+
+      test("a message still there is refreshed with the current text and button, and nothing new is posted", async () => {
+        await nap.join(command(R5_ABC));
+        seedMember("NML");
+        server.logs.length = 0;
+        const again = command(R5_ABC);
+        await nap.join(again);
+
+        expect(again.replies[0]?.content).toContain("already waits for approval");
+        expect(server.posts).toHaveLength(1);
+        expect(server.logs).toEqual([]);
+        expect(server.edits).toHaveLength(1);
+        const edit = server.edits[0];
+        expect(edit?.messageId).toBe(server.posts[0]?.id);
+        expect(edit?.message.content).toContain("A member of the NaP Council approves it");
+        expect(edit?.message.allowedMentions).toEqual({ parse: [] });
+        expect(approveIdOf(edit)).toBe(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`);
+      });
+
+      test("without #nap-leaders, the request stays open, the R5 is told and one line is logged", async () => {
+        await openThenDelete();
+        server.leaders = undefined;
+        const again = command(R5_ABC);
+        await nap.join(again);
+
+        expect(store.request("ABC")).toBeDefined();
+        expect(again.replies[0]?.content).toContain("no #nap-leaders");
+        expect(server.logs).toEqual([
+          "The NaP join request for [ABC] was not posted again: the server has no #nap-leaders.",
+        ]);
+      });
+
+      test("when the repost fails, the request stays open, the R5 is told and one line is logged", async () => {
+        await openThenDelete();
+        server.refusePost = true;
+        const again = command(R5_ABC);
+        await nap.join(again);
+
+        expect(store.request("ABC")).toBeDefined();
+        expect(again.replies[0]?.content).toContain("could not post");
+        expect(server.logs).toEqual([
+          "Posting the NaP join request for [ABC] in #nap-leaders again failed: Missing Permissions",
+        ]);
+      });
+
+      test("when the edit fails, the request stays open, the R5 is told and one line is logged", async () => {
+        await nap.join(command(R5_ABC));
+        server.logs.length = 0;
+        server.refuseEdit = true;
+        const again = command(R5_ABC);
+        await nap.join(again);
+
+        expect(store.request("ABC")?.messageId).toBe(server.posts[0]?.id);
+        expect(again.replies[0]?.content).toContain("could not post");
+        expect(server.logs).toEqual(["Posting the NaP join request for [ABC] in #nap-leaders again failed: Missing Access"]);
+      });
+
+      test("two /nap join at the same time repost the request once", async () => {
+        await openThenDelete();
+        const first = command(R5_ABC);
+        const second = command(R5_ABC);
+        await Promise.all([nap.join(first), nap.join(second)]);
+
+        expect(server.posts).toHaveLength(2);
+        expect(second.replies[0]?.content).toContain("already waits for approval");
+        expect(first.replies[0]?.content).toContain("posted it again");
+      });
     });
 
     test("a failed log line goes to the error log and never throws", async () => {
