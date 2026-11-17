@@ -250,6 +250,8 @@ export interface CommandHandlers {
   readonly preferencesPress: (press: ButtonInteraction | StringSelectMenuInteraction) => Promise<void>;
   /** The /rotation command: the City Rotation, its order and the Holding Alliance. */
   readonly rotation: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** An autocomplete request of /rotation, for the alliance option of /rotation move and /rotation leave. */
+  readonly rotationAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
   /** A button whose custom id starts with `rotation-confirm:`, the Confirm handover button. */
   readonly rotationButton: (button: ButtonInteraction) => Promise<void>;
   /** The /nap command: the NaP register, its join requests, leaves and history. */
@@ -541,6 +543,7 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       if (interaction.commandName === "reaper") void handlers.reaperAutocomplete(interaction);
       if (interaction.commandName === "booty-alerts") void handlers.bootyAlertsAutocomplete(interaction);
       if (interaction.commandName === "raid-plan") void handlers.raidPlanAutocomplete(interaction);
+      if (interaction.commandName === "rotation") void handlers.rotationAutocomplete(interaction);
       return;
     }
     if (interaction.isModalSubmit()) {
@@ -965,7 +968,10 @@ function rotationCommandLike(command: ChatInputCommandInteraction): RotationComm
   return {
     user: command.user,
     memberRoleIds: () => memberRoleIds(command.member),
-    options: { getString: (name) => command.options.getString(name) },
+    options: {
+      getString: (name) => command.options.getString(name),
+      getInteger: (name) => command.options.getInteger(name),
+    },
     reply: (options) => command.reply(options),
   };
 }
@@ -1003,6 +1009,21 @@ async function routeRotation(cityRotation: CityRotation, interaction: ChatInputC
       break;
     case "holder":
       await cityRotation.holder(command);
+      break;
+    case "move":
+      await cityRotation.move(command);
+      break;
+    case "skip":
+      await cityRotation.skip(command);
+      break;
+    case "leave":
+      await cityRotation.leave(command);
+      break;
+    case "pause":
+      await cityRotation.pause(command);
+      break;
+    case "resume":
+      await cityRotation.resume(command);
       break;
     default:
       await replyPrivately(interaction, cityRotationMessages.unknownSubcommand);
@@ -1511,6 +1532,11 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
       rotation: (interaction) =>
         answer("/rotation", { logError }, async () => routeRotation((await services).cityRotation, interaction)),
+      rotationAutocomplete: (interaction) =>
+        answer("/rotation autocomplete", { logError }, async () => {
+          const typed = interaction.options.getFocused();
+          await interaction.respond((await services).cityRotation.allianceChoices(typed));
+        }),
       rotationButton: (button) =>
         answer("rotation button", { logError }, async () =>
           (await services).cityRotation.confirm(rotationButtonLike(button)),

@@ -6,6 +6,8 @@ import type { CityRotationServer } from "./city-rotation.js";
 const ANNOUNCEMENTS_CHANNEL = "nap-announcements";
 /** The R5s' and the King's room, where Neil asks for the Handover after the Royal City siege. */
 const LEADERS_CHANNEL = "nap-leaders";
+/** The Home Kingdom's news, where every change of the City Rotation is announced. */
+const KINGDOM_ANNOUNCEMENTS_CHANNEL = "home-kingdom-announcements";
 
 /** A channel of the guild as the City Rotation finds it: by name, cached without a fetch. */
 interface NamedChannelLike {
@@ -60,7 +62,7 @@ async function messageChannel(guild: CityRotationGuildLike, channelId: string): 
 }
 
 /**
- * The Discord server as the City Rotation uses it: #nap-announcements and #nap-leaders by name, Neil's own posts, edits
+ * The Discord server as the City Rotation uses it: #nap-announcements, #nap-leaders and #home-kingdom-announcements by name, Neil's own posts, edits
  * and pins there, and #neil-log (through `log`, with mentions off).
  */
 export function cityRotationServerOf(
@@ -70,6 +72,7 @@ export function cityRotationServerOf(
   return {
     announcementsChannelId: () => channelNamed(guild, ANNOUNCEMENTS_CHANNEL),
     leadersChannelId: () => channelNamed(guild, LEADERS_CHANNEL),
+    kingdomAnnouncementsChannelId: () => channelNamed(guild, KINGDOM_ANNOUNCEMENTS_CHANNEL),
     async post(channelId, message) {
       const sent = await (await messageChannel(guild, channelId)).send(message);
       return sent.id;

@@ -102,6 +102,7 @@ function handlers() {
     preferencesPress: vi.fn(() => Promise.resolve()),
     rotation: vi.fn(() => Promise.resolve()),
     rotationButton: vi.fn(() => Promise.resolve()),
+    rotationAutocomplete: vi.fn(() => Promise.resolve()),
     nap: vi.fn(() => Promise.resolve()),
     napButton: vi.fn(() => Promise.resolve()),
     kingMoveButton: vi.fn(() => Promise.resolve()),
@@ -392,6 +393,18 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, interaction as never);
 
     expect(routed.raidPlanAutocomplete).toHaveBeenCalledWith(interaction);
+    expect(routed.allianceAutocomplete).not.toHaveBeenCalled();
+  });
+
+  test("hands an autocomplete request of /rotation to the City Rotation autocomplete and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = autocomplete("rotation");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.rotationAutocomplete).toHaveBeenCalledWith(interaction);
+    expect(routed.raidPlanAutocomplete).not.toHaveBeenCalled();
     expect(routed.allianceAutocomplete).not.toHaveBeenCalled();
   });
 

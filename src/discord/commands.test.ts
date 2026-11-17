@@ -426,7 +426,7 @@ describe("commands", () => {
     );
   });
 
-  test("hold /rotation, open to every Member, guild only, with subcommands show, set (order, holding) and holder (tag)", () => {
+  test("hold /rotation, open to every Member, guild only, with subcommands show, set (order, holding), holder (tag), move, skip, leave, pause and resume", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "rotation",
@@ -449,6 +449,44 @@ describe("commands", () => {
             name: "holder",
             description: expect.stringContaining("Officers") as unknown,
             options: [expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "tag", required: true })],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "move",
+            description: expect.stringContaining("R5s in the rotation") as unknown,
+            options: [
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "alliance", required: true, autocomplete: true }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.Integer,
+                name: "position",
+                required: true,
+                min_value: 1,
+                max_value: 10,
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "skip",
+            description: expect.stringContaining("NaP Council") as unknown,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "leave",
+            description: expect.stringContaining("left the NaP") as unknown,
+            options: [
+              expect.objectContaining({ type: ApplicationCommandOptionType.String, name: "alliance", required: true, autocomplete: true }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "pause",
+            description: expect.stringContaining("R5s in the rotation") as unknown,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "resume",
+            description: expect.stringContaining("R5s in the rotation") as unknown,
           }),
         ],
       }),
