@@ -51,7 +51,7 @@ import { kingMoveServerOf } from "./king-move-server.js";
 import { KING_MOVE_PREFIX } from "./king-move-texts.js";
 import type { NapStore } from "../storage/nap-store.js";
 import { createNap, type Nap, type NapButton, type NapCommand } from "./nap.js";
-import { NAP_APPROVE_PREFIX, napMessages } from "./nap-texts.js";
+import { NAP_APPROVE_PREFIX, NAP_DECLINE_PREFIX, napMessages } from "./nap-texts.js";
 import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
@@ -259,7 +259,10 @@ export interface CommandHandlers {
   readonly rotationButton: (button: ButtonInteraction) => Promise<void>;
   /** The /nap command: the NaP register, its join requests, leaves and history. */
   readonly nap: (interaction: ChatInputCommandInteraction) => Promise<void>;
-  /** A button whose custom id starts with `nap-approve:`, the Approve button of a NaP join request. */
+  /**
+   * A button whose custom id starts with `nap-approve:` or `nap-decline:`, the Approve or Decline button of a NaP join
+   * request.
+   */
   readonly napButton: (button: ButtonInteraction) => Promise<void>;
   /** A button whose custom id starts with `king:`, the Apply button of a King Move. */
   readonly kingMoveButton: (button: ButtonInteraction) => Promise<void>;
@@ -290,7 +293,7 @@ interface Services {
   readonly bootyCalls: BootyCalls;
   /** /rotation, the Confirm handover button, the pinned card and the after-siege step. */
   readonly cityRotation: CityRotation;
-  /** /nap and the Approve button of its join requests. */
+  /** /nap, the Approve and Decline buttons of its join requests, and the tick of their NaP Votes. */
   readonly nap: Nap;
   /** The King Move after each Handover, and its Apply button. */
   readonly kingMoves: KingMoves;
@@ -576,7 +579,10 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.rotationButton(interaction);
       } else if (interaction.customId.startsWith(KING_MOVE_PREFIX)) {
         void handlers.kingMoveButton(interaction);
-      } else if (interaction.customId.startsWith(NAP_APPROVE_PREFIX)) {
+      } else if (
+        interaction.customId.startsWith(NAP_APPROVE_PREFIX) ||
+        interaction.customId.startsWith(NAP_DECLINE_PREFIX)
+      ) {
         void handlers.napButton(interaction);
       } else if (interaction.customId.startsWith(RAID_PREFIX)) {
         void handlers.raidButton(interaction);
@@ -660,7 +666,7 @@ export interface ConnectOptions {
   readonly kingMoves: Pick<KingMoveStore, "load" | "save" | "update">;
   /** The Handover Reminders and next-holder announcements handled per Royal City siege, in neil.db. */
   readonly handovers: Pick<HandoverStore, "handoverPosted" | "recordHandoverPosted">;
-  /** The NaP register: the history of joins and leaves and the open join requests, in neil.db. */
+  /** The NaP register: the history of joins, declines and leaves, the open join requests and their votes, in neil.db. */
   readonly nap: Pick<
     NapStore,
     | "history"
@@ -669,6 +675,9 @@ export interface ConnectOptions {
     | "request"
     | "addRequest"
     | "setRequestMessage"
+    | "setVoteEnd"
+    | "castVote"
+    | "votes"
     | "removeRequest"
     | "listMessageId"
     | "setListMessageId"
@@ -1062,7 +1071,7 @@ function napCommandLike(command: ChatInputCommandInteraction): NapCommand {
   };
 }
 
-/** The discord.js press of an Approve button: the presser and their roles, a private reply, or the message replaced. */
+/** The discord.js press of an Approve or Decline button: the presser and their roles, a private reply, or the message replaced. */
 function napButtonLike(button: ButtonInteraction): NapButton {
   return {
     customId: button.customId,
@@ -1570,7 +1579,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         ),
       nap: (interaction) => answer("/nap", { logError }, async () => routeNap((await services).nap, interaction)),
       napButton: (button) =>
-        answer("nap button", { logError }, async () => (await services).nap.approve(napButtonLike(button))),
+        answer("nap button", { logError }, async () => (await services).nap.vote(napButtonLike(button))),
       kingMoveButton: (button) =>
         answer("king move button", { logError }, async () => (await services).kingMoves.apply(kingMoveButtonLike(button))),
     },
@@ -2026,8 +2035,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         clearInterval(timer);
       };
     });
-    // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation
-    // and the Raid clock are ticked once a minute, until disconnect stops them.
+    // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation,
+    // the NaP Votes and the Raid clock are ticked once a minute, until disconnect stops them.
     void eventInvitations.onStartup();
     // The pinned City Rotation card is brought up to date once at startup.
     void cityRotation.refreshCard();
@@ -2043,6 +2052,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         .then(() => duelPlan.tick())
         .then(() => handoverReminders.tick())
         .then(() => cityRotation.tick())
+        .then(() => nap.tick())
         .then(() => raidClock.tick())
         .then(() => availabilityClock.tick())
         .finally(() => {

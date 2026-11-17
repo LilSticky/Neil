@@ -82,8 +82,7 @@ const NAP_WITH_NML: readonly NapEvent[] = [
     tag: "NML",
     requestedBy: "400000000000000001",
     requestedAt: new Date("2026-10-31T11:00:00Z"),
-    approvedBy: "400000000000000002",
-    approvedAs: "officer",
+    decision: { as: "officer", by: "400000000000000002" },
     at: new Date("2026-10-31T12:00:00Z"),
   },
 ];

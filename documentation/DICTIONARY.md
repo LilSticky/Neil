@@ -144,13 +144,13 @@ discovery.
 ## NaP
 * The non-aggression pact of the Home Kingdom's top Alliances, agreed outside the game
 * An Alliance is in it or not; there are no levels
-* An Alliance joins when its R5 asks and a member of the NaP Council approves; it leaves by its R5's choice alone
-* Neil keeps the history of joins and leaves: who asked, who approved or left, and when
-* While the NaP has no members, an Officer approves a join request instead
+* An Alliance joins when its R5 asks and the NaP Council approves it in a NaP Vote; it leaves by its R5's choice alone
+* Neil keeps the history of joins, declines and leaves: who asked, how it was decided or who left, and when
+* While the NaP has no members, an Officer approves or declines a join request alone instead
 
 ## NaP Council
 * The Members Linked to the R5 of an Alliance in the NaP
-* They decide for the NaP and approve join requests
+* They decide for the NaP and vote on join requests, one vote per Alliance
 * They keep REAPER: they add and remove Exiles
 
 ## Exile
@@ -161,6 +161,14 @@ discovery.
 ## REAPER
 * Roster of Exiled Antagonists, Pervs, Evildoers & Reprobates: the list of all Exiles
 * Any Member may see it and find the closest Exiles to a position in the same Kingdom, or all of them by distance
+
+## NaP Vote
+* The NaP Council's decision on one join request, with Approve and Decline in `#nap-leaders`
+* Runs 48 hours from when it opens; each Alliance in the NaP has one vote and may change it until then
+* More Approve than Decline votes of the Alliances still in the NaP approve the request; a tie or no votes decline it
+
+## NaP Cooldown
+* The 30 days after a declined join request during which its Alliance may not ask to join the NaP again
 
 ## Home Kingdom Member
 * A Member whose Linked Player is in the Home Kingdom

@@ -1001,8 +1001,7 @@ describe("connect", () => {
         tag: "ASH",
         requestedBy: ALICE,
         requestedAt: NOW,
-        approvedBy: BOB,
-        approvedAs: "officer",
+        decision: { as: "officer", by: BOB },
         at: NOW,
       });
       links.confirm(

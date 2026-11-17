@@ -5,6 +5,25 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { openDatabase } from "./database.js";
 
+/** Takes a database back to schema version 24: the NaP tables as migration 21 made them, without votes or vote ends. */
+const UNDO_MIGRATION_25 = `DROP TABLE nap_votes;
+  ALTER TABLE nap_join_requests DROP COLUMN vote_ends_at;
+  DROP TABLE nap_history;
+  CREATE TABLE nap_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tag TEXT NOT NULL CHECK (tag <> ''),
+    kind TEXT NOT NULL CHECK (kind IN ('joined', 'left')),
+    at TEXT NOT NULL,
+    actor_id TEXT NOT NULL CHECK (actor_id <> '' AND actor_id NOT GLOB '*[^0-9]*'),
+    requested_by TEXT CHECK (requested_by IS NULL OR (requested_by <> '' AND requested_by NOT GLOB '*[^0-9]*')),
+    requested_at TEXT,
+    approved_as TEXT CHECK (approved_as IS NULL OR approved_as IN ('council', 'officer')),
+    CHECK ((kind = 'joined') = (requested_by IS NOT NULL)),
+    CHECK ((kind = 'joined') = (requested_at IS NOT NULL)),
+    CHECK ((kind = 'joined') = (approved_as IS NOT NULL))
+  );
+  DELETE FROM schema_migrations WHERE version = 25`;
+
 describe("openDatabase", () => {
   let dataDir: string;
 
@@ -45,6 +64,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
     ]);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'start_record'").get()).toEqual({
       name: "start_record",
@@ -81,6 +101,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
     ]);
     db.close();
   });
@@ -90,7 +111,7 @@ describe("openDatabase", () => {
     db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (99, '2026-10-29T12:00:00.000Z')").run();
     db.close();
 
-    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 24");
+    expect(() => openDatabase(dataDir)).toThrow("neil.db has schema version 99, this build knows only up to 25");
   });
 
   test("migration 2 creates daily_quota", () => {
@@ -220,6 +241,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
     ]);
     expect(db.prepare("SELECT day, used FROM daily_quota").all()).toEqual([{ day: "2026-10-29", used: 3 }]);
     expect(
@@ -457,6 +479,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -504,6 +527,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, nickname, complete, alliance_kingdom, alliance_tag FROM applied").all()).toEqual(
         [{ member_id: "member-1", nickname: "DrLOL", complete: 1, alliance_kingdom: null, alliance_tag: null }],
@@ -554,6 +578,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -604,6 +629,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, uid FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785" },
@@ -694,6 +720,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
     ]);
     expect(
       db.prepare("SELECT member_id, step, failed_attempts, last_asked_at, chosen_uid, matches_json FROM onboarding_interview").all(),
@@ -805,6 +832,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -860,6 +888,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, uid, linked_by FROM link").all()).toEqual([
         { member_id: "member-1", uid: "145563254785", linked_by: null },
@@ -914,6 +943,7 @@ describe("openDatabase", () => {
       { version: 22 },
       { version: 23 },
       { version: 24 },
+      { version: 25 },
       ]);
       expect(db.prepare("SELECT member_id, mode, window_start, window_end, time_zone FROM booty_alerts").all()).toEqual([
         { member_id: "member-1", mode: "offline", window_start: 480, window_end: 1380, time_zone: "Europe/Lisbon" },
@@ -922,9 +952,9 @@ describe("openDatabase", () => {
       db.close();
     }
   });
-  test("upgrades a version 17 database to 24 and creates the empty city_rotation table, keeping the Duel Plan days", () => {
+  test("upgrades a version 17 database to 25 and creates the empty city_rotation table, keeping the Duel Plan days", () => {
     const legacy = openDatabase(dataDir);
-    legacy.exec("DROP TABLE nap_list; DROP TABLE king_moves; DROP TABLE nap_history; DROP TABLE nap_join_requests");
+    legacy.exec("DROP TABLE nap_list; DROP TABLE king_moves; DROP TABLE nap_votes; DROP TABLE nap_history; DROP TABLE nap_join_requests");
     legacy.exec("DROP TABLE availability_answers; DROP TABLE availability_cards; DROP TABLE availability_polls");
     legacy.exec("DROP TABLE handover_posts; DROP TABLE city_rotation; DELETE FROM schema_migrations WHERE version >= 18");
     legacy.prepare("INSERT INTO duel_plan_posts (server_day, posted_at) VALUES (?, ?)").run("2026-11-16", "2026-11-16T02:00:00.000Z");
@@ -932,7 +962,7 @@ describe("openDatabase", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM city_rotation").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT server_day FROM duel_plan_posts").all()).toEqual([{ server_day: "2026-11-16" }]);
     } finally {
@@ -952,8 +982,9 @@ describe("openDatabase", () => {
     }
   });
 
-  test("upgrades a version 19 database to 24 and creates the empty handover_posts table, keeping the City Rotation", () => {
+  test("upgrades a version 19 database to 25 and creates the empty handover_posts table, keeping the City Rotation", () => {
     const legacy = openDatabase(dataDir);
+    legacy.exec(UNDO_MIGRATION_25);
     legacy.exec("DROP TABLE nap_list; DELETE FROM schema_migrations WHERE version = 24");
     legacy.exec("ALTER TABLE city_rotation DROP COLUMN paused; ALTER TABLE city_rotation DROP COLUMN next_tag; DELETE FROM schema_migrations WHERE version = 23");
     legacy.exec("DROP TABLE king_moves; DELETE FROM schema_migrations WHERE version = 22");
@@ -964,7 +995,7 @@ describe("openDatabase", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM handover_posts").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT holding_tag FROM city_rotation").all()).toEqual([{ holding_tag: "NML" }]);
     } finally {
@@ -984,8 +1015,9 @@ describe("openDatabase", () => {
     }
   });
 
-  test("upgrades a version 20 database to 24 and creates the empty NaP tables, keeping the City Rotation", () => {
+  test("upgrades a version 20 database to 25 and creates the empty NaP tables, keeping the City Rotation", () => {
     const legacy = openDatabase(dataDir);
+    legacy.exec(UNDO_MIGRATION_25);
     legacy.exec("DROP TABLE nap_list; DELETE FROM schema_migrations WHERE version = 24");
     legacy.exec("ALTER TABLE city_rotation DROP COLUMN paused; ALTER TABLE city_rotation DROP COLUMN next_tag; DELETE FROM schema_migrations WHERE version = 23");
     legacy.exec("DROP TABLE king_moves; DELETE FROM schema_migrations WHERE version = 22");
@@ -995,7 +1027,7 @@ describe("openDatabase", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM nap_history").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM nap_join_requests").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT holding_tag FROM city_rotation").all()).toEqual([{ holding_tag: "NML" }]);
@@ -1004,20 +1036,82 @@ describe("openDatabase", () => {
     }
   });
 
-  test("nap_history sets the request columns exactly for a join, and keeps only Discord user ids", () => {
+  test("nap_history sets the request columns for a join or decline, and an actor exactly unless decided by vote", () => {
     const db = openDatabase(dataDir);
     try {
       const insert = db.prepare(
-        "INSERT INTO nap_history (tag, kind, at, actor_id, requested_by, requested_at, approved_as) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        `INSERT INTO nap_history (tag, kind, at, actor_id, requested_by, requested_at, decided_as, approve_votes, decline_votes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       const at = "2026-11-16T20:00:00.000Z";
-      insert.run("NML", "joined", at, "222222222222222222", "111111111111111111", at, "officer");
-      insert.run("NML", "left", at, "111111111111111111", null, null, null);
-      expect(() => insert.run("NML", "joined", at, "2", null, null, null)).toThrow(/CHECK/);
-      expect(() => insert.run("NML", "left", at, "1", "1", at, "council")).toThrow(/CHECK/);
-      expect(() => insert.run("NML", "joined", at, "2", "1", at, "king")).toThrow(/CHECK/);
-      expect(() => insert.run("NML", "left", at, "Alice", null, null, null)).toThrow(/CHECK/);
-      expect(() => insert.run("NML", "voted", at, "1", null, null, null)).toThrow(/CHECK/);
+      insert.run("NML", "joined", at, "222222222222222222", "111111111111111111", at, "officer", null, null);
+      insert.run("NML", "left", at, "111111111111111111", null, null, null, null, null);
+      insert.run("ABC", "joined", at, null, "111111111111111111", at, "vote", 2, 1);
+      insert.run("XYZ", "declined", at, null, "111111111111111111", at, "vote", 0, 0);
+      insert.run("XYZ", "declined", at, "222222222222222222", "111111111111111111", at, "officer", null, null);
+      expect(() => insert.run("NML", "joined", at, "2", null, null, null, null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "left", at, "1", "1", at, "council", null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "joined", at, "2", "1", at, "king", null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "left", at, "Alice", null, null, null, null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "voted", at, "1", null, null, null, null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "joined", at, "2", "1", at, "vote", 1, 0)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "joined", at, null, "1", at, "vote", 1, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "joined", at, null, "1", at, "officer", null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "joined", at, "2", "1", at, "officer", 1, 0)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "declined", at, "2", "1", at, "council", null, null)).toThrow(/CHECK/);
+      expect(() => insert.run("NML", "joined", at, null, "1", at, "vote", -1, 0)).toThrow(/CHECK/);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("nap_votes keeps one vote per Alliance per request, ignoring letter case, with the voter's Discord user id", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const insert = db.prepare(
+        "INSERT INTO nap_votes (tag, requested_at, alliance_tag, voter_id, vote, at) VALUES (?, '2026-11-16T20:00:00.000Z', ?, ?, ?, '2026-11-16T21:00:00.000Z')",
+      );
+      insert.run("ABC", "NML", "111111111111111111", "approve");
+      insert.run("ABC", "XYZ", "111111111111111112", "decline");
+      expect(() => insert.run("abc", "nml", "111111111111111113", "decline")).toThrow(/UNIQUE|PRIMARY/);
+      expect(() => insert.run("ABC", "QQQ", "Alice", "approve")).toThrow(/CHECK/);
+      expect(() => insert.run("ABC", "QQQ", "1", "abstain")).toThrow(/CHECK/);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("upgrades a version 24 database to 25, keeping the NaP history and the open request with the same meaning", () => {
+    const legacy = openDatabase(dataDir);
+    legacy.exec(UNDO_MIGRATION_25);
+    const at = "2026-11-16T20:00:00.000Z";
+    const insert = legacy.prepare(
+      "INSERT INTO nap_history (tag, kind, at, actor_id, requested_by, requested_at, approved_as) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    );
+    insert.run("NML", "joined", at, "222222222222222222", "111111111111111111", at, "officer");
+    insert.run("ABC", "joined", at, "111111111111111111", "333333333333333333", at, "council");
+    insert.run("ABC", "left", at, "333333333333333333", null, null, null);
+    legacy
+      .prepare("INSERT INTO nap_join_requests (tag, requested_by, requested_at, channel_id, message_id) VALUES (?, ?, ?, ?, ?)")
+      .run("XYZ", "444444444444444444", at, "555555555555555555", "666666666666666666");
+    legacy.close();
+
+    const db = openDatabase(dataDir);
+    try {
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
+      expect(
+        db.prepare("SELECT id, tag, kind, actor_id, decided_as, approve_votes, decline_votes FROM nap_history ORDER BY id").all(),
+      ).toEqual([
+        { id: 1, tag: "NML", kind: "joined", actor_id: "222222222222222222", decided_as: "officer", approve_votes: null, decline_votes: null },
+        { id: 2, tag: "ABC", kind: "joined", actor_id: "111111111111111111", decided_as: "council", approve_votes: null, decline_votes: null },
+        { id: 3, tag: "ABC", kind: "left", actor_id: "333333333333333333", decided_as: null, approve_votes: null, decline_votes: null },
+      ]);
+      expect(db.prepare("SELECT tag, message_id, vote_ends_at FROM nap_join_requests").all()).toEqual([
+        { tag: "XYZ", message_id: "666666666666666666", vote_ends_at: null },
+      ]);
+      expect(db.prepare("SELECT COUNT(*) AS count FROM nap_votes").get()).toEqual({ count: 0 });
+      db.prepare("INSERT INTO nap_history (tag, kind, at, actor_id) VALUES ('NML', 'left', ?, '1')").run(at);
+      expect(db.prepare("SELECT MAX(id) AS id FROM nap_history").get()).toEqual({ id: 4 });
     } finally {
       db.close();
     }
@@ -1035,8 +1129,9 @@ describe("openDatabase", () => {
     }
   });
 
-  test("upgrades a version 21 database to 24 and creates the empty king_moves table, keeping the City Rotation", () => {
+  test("upgrades a version 21 database to 25 and creates the empty king_moves table, keeping the City Rotation", () => {
     const legacy = openDatabase(dataDir);
+    legacy.exec(UNDO_MIGRATION_25);
     legacy.exec("DROP TABLE nap_list; DELETE FROM schema_migrations WHERE version = 24");
     legacy.exec("ALTER TABLE city_rotation DROP COLUMN paused; ALTER TABLE city_rotation DROP COLUMN next_tag; DELETE FROM schema_migrations WHERE version = 23");
     legacy.exec("DROP TABLE king_moves; DELETE FROM schema_migrations WHERE version = 22");
@@ -1045,7 +1140,7 @@ describe("openDatabase", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM king_moves").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT holding_tag FROM city_rotation").all()).toEqual([{ holding_tag: "NML" }]);
     } finally {
@@ -1053,8 +1148,9 @@ describe("openDatabase", () => {
     }
   });
 
-  test("upgrades a version 22 database to 24, keeping the City Rotation running and with no Alliance recorded as next", () => {
+  test("upgrades a version 22 database to 25, keeping the City Rotation running and with no Alliance recorded as next", () => {
     const legacy = openDatabase(dataDir);
+    legacy.exec(UNDO_MIGRATION_25);
     legacy.exec("DROP TABLE nap_list; DELETE FROM schema_migrations WHERE version = 24");
     legacy.exec(
       "ALTER TABLE city_rotation DROP COLUMN paused; ALTER TABLE city_rotation DROP COLUMN next_tag; DELETE FROM schema_migrations WHERE version = 23",
@@ -1064,7 +1160,7 @@ describe("openDatabase", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(db.prepare("SELECT holding_tag, paused, next_tag FROM city_rotation").all()).toEqual([
         { holding_tag: "NML", paused: 0, next_tag: null },
       ]);
@@ -1073,8 +1169,9 @@ describe("openDatabase", () => {
     }
   });
 
-  test("upgrades a version 23 database to 24 and creates the empty nap_list table, keeping the NaP history", () => {
+  test("upgrades a version 23 database to 25 and creates the empty nap_list table, keeping the NaP history", () => {
     const legacy = openDatabase(dataDir);
+    legacy.exec(UNDO_MIGRATION_25);
     legacy.exec("DROP TABLE nap_list; DELETE FROM schema_migrations WHERE version = 24");
     legacy
       .prepare("INSERT INTO nap_history (tag, kind, at, actor_id) VALUES ('NML', 'left', ?, '111111111111111111')")
@@ -1083,7 +1180,7 @@ describe("openDatabase", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(db.prepare("SELECT COUNT(*) AS count FROM nap_list").get()).toEqual({ count: 0 });
       expect(db.prepare("SELECT tag FROM nap_history").all()).toEqual([{ tag: "NML" }]);
     } finally {

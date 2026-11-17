@@ -1,4 +1,4 @@
-# 23. REAPER is kept by the NaP Council
+# 24. REAPER is kept by the NaP Council
 
 Date: 2026-11-17
 
@@ -31,4 +31,4 @@ Members. Who may find and list Exiles does not change.
 - The R5 of a Home Kingdom Alliance outside the NaP can no longer add or remove Exiles.
 - The stored adder of an Exile may now be an Officer who is not an R5; the stored data itself does not change.
 - When the last Alliance leaves the NaP, Officers keep REAPER until an Alliance joins again.
-- The rule lives with the NaP rules in the domain (`mayKeepReaper`), next to the approval of join requests.
+- The rule lives with the NaP rules in the domain (`mayKeepReaper`), next to the rule for deciding join requests.
