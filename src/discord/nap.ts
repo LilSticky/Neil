@@ -73,6 +73,9 @@ export interface Nap {
  * who asked, who approved or left, and when. No Game API requests. Every request, approval and leave writes one
  * #neil-log line, and no message of Neil's about the NaP mentions anybody.
  */
+/** How long a saved join request may wait for its post before /nap join treats it as lost. */
+const UNPOSTED_REQUEST_MS = 60_000;
+
 export function createNap(deps: NapDeps): Nap {
   const { store, server } = deps;
 
@@ -122,6 +125,15 @@ export function createNap(deps: NapDeps): Nap {
     if (isNapMember(history, tag)) {
       await replyPrivately(command, messages.alreadyMember(label));
       return;
+    }
+    // A request never posted (Neil stopped between saving and posting it) has no button; after a minute it is asked again.
+    const stuck = store.request(tag);
+    if (
+      stuck !== undefined &&
+      stuck.messageId === undefined &&
+      deps.now().getTime() - stuck.requestedAt.getTime() > UNPOSTED_REQUEST_MS
+    ) {
+      store.removeRequest(tag);
     }
     if (!mayAskToJoin(tag, history, store.openRequests().map((request) => request.tag))) {
       await replyPrivately(command, messages.requestOpen(label));

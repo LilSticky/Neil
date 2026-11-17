@@ -249,6 +249,26 @@ describe("createNap", () => {
       expect(server.posts).toHaveLength(1);
     });
 
+    test("a request left unposted by a restart for over a minute is asked again, with a new button", async () => {
+      store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: new Date(NOW.getTime() - 61_000) });
+      const join = command(R5_ABC);
+      await nap.join(join);
+
+      expect(server.posts).toHaveLength(1);
+      expect(approveIdOf(server.posts[0])).toBe(`${NAP_APPROVE_PREFIX}ABC:${NOW.getTime().toString()}`);
+      expect(store.request("ABC")?.messageId).toBe(server.posts[0]?.id);
+      expect(join.replies[0]?.content).toContain("#nap-leaders");
+    });
+
+    test("a request still being posted, within a minute, is not asked twice", async () => {
+      store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: new Date(NOW.getTime() - 30_000) });
+      const join = command(R5_ABC);
+      await nap.join(join);
+
+      expect(join.replies[0]?.content).toContain("already waits for approval");
+      expect(server.posts).toEqual([]);
+    });
+
     test("without #nap-leaders, drops the request, tells the R5 and logs one line", async () => {
       server.leaders = undefined;
       const join = command(R5_ABC);
