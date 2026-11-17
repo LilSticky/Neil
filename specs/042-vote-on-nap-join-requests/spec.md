@@ -1,6 +1,6 @@
 # Feature Specification: Vote on NaP join requests
 
-**Feature Branch**: `041-vote-on-nap-join-requests`
+**Feature Branch**: `042-vote-on-nap-join-requests`
 
 **Created**: 2026-11-17
 
@@ -21,7 +21,7 @@ The approved choices:
    count.
 6. The vote always closes at the deadline, never early.
 7. The request message shows no running count; `/nap history` shows only the counts; who voted what is in `#neil-log`
-   and `neil.db` (ADR 22).
+   and `neil.db` (ADR 23).
 8. New terms: NaP Vote and NaP Cooldown.
 
 Out of scope: withdrawing a request, telling the R5 privately about the result, closing a vote early, any change to the
@@ -64,13 +64,13 @@ both at once.
 - **R6** The NaP Cooldown of 30 days follows from the latest decline; `/nap join` names its end.
 - **R7** Every vote, change, result and Officer decline writes one `#neil-log` line.
 - **R8** The history keeps declines and how each request was decided; `/nap history` shows counts, `/nap show` vote ends.
-- **R9** Migration 24 keeps votes, vote ends and declines; existing data keeps its meaning.
+- **R9** Migration 25 keeps votes, vote ends and declines; existing data keeps its meaning.
 - **R10** The Decline button is routed to the NaP handler.
 - **R11** The `/nap history` description mentions declines.
-- **R12** ADR 22, dictionary, roadmap, status and the manual check.
+- **R12** ADR 23, dictionary, roadmap, status and the manual check.
 
 ## Success Criteria
 
 The automated criteria of the approved spec are covered by `src/domain/nap.test.ts`, `src/storage/nap-store.test.ts`,
 `src/storage/database.test.ts`, `src/discord/nap.test.ts`, `src/discord/client.test.ts` and
-`src/discord/commands.test.ts`; the owner reads ADR 22, the dictionary entries and the request texts in Discord.
+`src/discord/commands.test.ts`; the owner reads ADR 23, the dictionary entries and the request texts in Discord.

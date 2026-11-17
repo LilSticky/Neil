@@ -318,12 +318,18 @@ const migrations: readonly string[] = [
   // after a skip or a leave (NULL when next simply follows the Holding Alliance). No Discord user ids.
   `ALTER TABLE city_rotation ADD COLUMN paused INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1));
    ALTER TABLE city_rotation ADD COLUMN next_tag TEXT CHECK (next_tag IS NULL OR next_tag <> '')`,
-  // Migration 24: the NaP Vote (slice 041, ADR 22). nap_history is rebuilt (it has no foreign keys) to keep declines and
+  // Migration 24: the public NaP list pinned in #nap-announcements (slice 041, ADR 22), one row: its message id, so Neil
+  // edits the same message after every join and leave. No Member is stored.
+  `CREATE TABLE nap_list (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     message_id TEXT NOT NULL CHECK (message_id <> '' AND message_id NOT GLOB '*[^0-9]*')
+   )`,
+  // Migration 25: the NaP Vote (slice 042, ADR 23). nap_history is rebuilt (it has no foreign keys) to keep declines and
   // how each join or decline was decided: by an Officer or one council member (actor_id), or by vote (the counts, no
   // actor). Old rows keep their meaning: approved_as becomes decided_as. Each open request gets the end of its vote
   // (NULL until the vote opens), and nap_votes keeps one vote per Alliance per request with its voter's Discord user id,
   // as long as the history; votes are kept after the decision as its record and are not deleted at Unlink.
-  `CREATE TABLE nap_history_v24 (
+  `CREATE TABLE nap_history_v25 (
      id INTEGER PRIMARY KEY AUTOINCREMENT,
      tag TEXT NOT NULL CHECK (tag <> ''),
      kind TEXT NOT NULL CHECK (kind IN ('joined', 'left', 'declined')),
@@ -342,10 +348,10 @@ const migrations: readonly string[] = [
      CHECK ((decided_as IS 'vote') = (decline_votes IS NOT NULL)),
      CHECK (NOT (kind = 'declined' AND decided_as = 'council'))
    );
-   INSERT INTO nap_history_v24 (id, tag, kind, at, actor_id, requested_by, requested_at, decided_as)
+   INSERT INTO nap_history_v25 (id, tag, kind, at, actor_id, requested_by, requested_at, decided_as)
      SELECT id, tag, kind, at, actor_id, requested_by, requested_at, approved_as FROM nap_history ORDER BY id;
    DROP TABLE nap_history;
-   ALTER TABLE nap_history_v24 RENAME TO nap_history;
+   ALTER TABLE nap_history_v25 RENAME TO nap_history;
    ALTER TABLE nap_join_requests ADD COLUMN vote_ends_at TEXT;
    CREATE TABLE nap_votes (
      tag TEXT NOT NULL COLLATE NOCASE CHECK (tag <> ''),

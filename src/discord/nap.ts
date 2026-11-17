@@ -11,6 +11,7 @@ import {
   mayLeave,
   NAP_COOLDOWN_MS,
   NAP_VOTE_MS,
+  napFormerMembers,
   napMembers,
   runningCooldownOf,
   voteResult,
@@ -23,10 +24,23 @@ import type { NapJoinRequest, NapStore } from "../storage/nap-store.js";
 import type { CityRotationServer } from "./city-rotation.js";
 import { allianceLabel } from "./city-rotation-texts.js";
 import { allowedMentions } from "./lookup.js";
-import { napHistoryEmbed, napMessages as messages, napShowEmbed, napVoteOf, napVoteRow } from "./nap-texts.js";
+import {
+  napHistoryEmbed,
+  napListEmbed,
+  napMessages as messages,
+  napShowEmbed,
+  napVoteOf,
+  napVoteRow,
+} from "./nap-texts.js";
 
-/** The Discord server as the NaP register uses it: #nap-leaders, Neil's own posts and edits there, and #neil-log. */
-export type NapServer = Pick<CityRotationServer, "leadersChannelId" | "post" | "edit" | "log">;
+/**
+ * The Discord server as the NaP register uses it: #nap-leaders, #nap-announcements, Neil's own posts, edits and pins
+ * there, and #neil-log.
+ */
+export type NapServer = Pick<
+  CityRotationServer,
+  "leadersChannelId" | "announcementsChannelId" | "post" | "edit" | "pin" | "log"
+>;
 
 /** The part of a discord.js chat-input interaction of /nap that its subcommands use. */
 export interface NapCommand {
@@ -58,6 +72,8 @@ export interface NapDeps {
     | "castVote"
     | "votes"
     | "removeRequest"
+    | "listMessageId"
+    | "setListMessageId"
   >;
   readonly knownAlliances: Pick<KnownAllianceStore, "all">;
   /** The Member as the R5 check sees them: their rank, and the Kingdom and tag of their Alliance. */
@@ -88,6 +104,11 @@ export interface Nap {
    * the votes whose end has come. Never throws.
    */
   tick(): Promise<void>;
+  /**
+   * Brings the NaP list pinned in #nap-announcements up to date, posting and pinning it again when it is gone; run after
+   * every join and leave and once at startup. Refreshes run one at a time. Nothing here throws.
+   */
+  refreshList(): Promise<void>;
 }
 
 /** How long a saved join request may wait for its post before /nap join treats it as lost. */
@@ -132,7 +153,8 @@ export function createNap(deps: NapDeps): Nap {
   }
 
   async function show(command: NapCommand): Promise<void> {
-    const embed = napShowEmbed(napMembers(store.history()), store.openRequests(), labeller());
+    const events = store.history();
+    const embed = napShowEmbed(napMembers(events), napFormerMembers(events), store.openRequests(), labeller());
     await command.reply({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions });
   }
 
@@ -348,6 +370,7 @@ export function createNap(deps: NapDeps): Nap {
         ? messages.logApproved(officer, request.tag, request.requestedBy)
         : messages.logDeclined(officer, request.tag, request.requestedBy, askAgain),
     );
+    if (choice === "approve") await announce(request.tag, messages.joinedAnnouncement(label, now));
   }
 
   /** Logs that the NaP Vote on a request opened later than the request, and edits its message to say until when. */
@@ -415,6 +438,7 @@ export function createNap(deps: NapDeps): Nap {
       components: [],
       allowedMentions,
     });
+    if (result.outcome === "approved") await announce(request.tag, messages.joinedAnnouncement(label, now));
   }
 
   async function leave(command: NapCommand): Promise<void> {
@@ -426,19 +450,79 @@ export function createNap(deps: NapDeps): Nap {
       await replyPrivately(command, messages.refusedLeave);
       return;
     }
-    store.append({ kind: "left", tag: inNap.tag, leftBy: member, at: deps.now() });
+    const at = deps.now();
+    store.append({ kind: "left", tag: inNap.tag, leftBy: member, at });
     const label = labeller()(inNap.tag);
     await replyPrivately(command, messages.leftReply(label));
     await log(messages.logLeft(member, inNap.tag));
+    await noticeLeaders(inNap.tag, messages.leftNotice(label, member));
+    await announce(inNap.tag, messages.leftAnnouncement(label, at));
+  }
+
+  /** Tells the NaP Council in #nap-leaders that an Alliance left; a missing channel or failed post only logs a line. */
+  async function noticeLeaders(tag: string, content: string): Promise<void> {
     const channelId = server.leadersChannelId();
     if (channelId === undefined) {
-      await log(messages.logLeaveNoLeaders(inNap.tag));
+      await log(messages.logLeaveNoLeaders(tag));
       return;
     }
     try {
-      await server.post(channelId, { content: messages.leftNotice(label, member), allowedMentions });
+      await server.post(channelId, { content, allowedMentions });
     } catch (error) {
-      await log(messages.logLeavePostFailed(inNap.tag, reasonOf(error)));
+      await log(messages.logLeavePostFailed(tag, reasonOf(error)));
+    }
+  }
+
+  /**
+   * Announces a join or leave in #nap-announcements, then brings the NaP list there up to date. Runs after the change is
+   * stored and answered: a missing channel or a failure only logs a line, and the list is left alone without a channel.
+   */
+  async function announce(tag: string, content: string): Promise<void> {
+    const channelId = server.announcementsChannelId();
+    if (channelId === undefined) {
+      await log(messages.logNoAnnouncements(tag));
+      return;
+    }
+    try {
+      await server.post(channelId, { content, allowedMentions });
+    } catch (error) {
+      await log(messages.logAnnouncementFailed(tag, reasonOf(error)));
+    }
+    await refreshList();
+  }
+
+  /** The refreshes of the NaP list, chained so they run one at a time and two quick changes never post two lists. */
+  let listRefreshes: Promise<void> = Promise.resolve();
+
+  function refreshList(): Promise<void> {
+    const next = listRefreshes.then(updateList);
+    listRefreshes = next;
+    return next;
+  }
+
+  async function updateList(): Promise<void> {
+    try {
+      const channelId = server.announcementsChannelId();
+      if (channelId === undefined) {
+        await log(messages.logListNoAnnouncements);
+        return;
+      }
+      const events = store.history();
+      const list = {
+        embeds: [napListEmbed(napMembers(events), napFormerMembers(events), labeller())],
+        allowedMentions,
+      };
+      const messageId = store.listMessageId();
+      if (messageId !== undefined && (await server.edit(channelId, messageId, list))) return;
+      const newId = await server.post(channelId, list);
+      store.setListMessageId(newId);
+      try {
+        await server.pin(channelId, newId);
+      } catch (error) {
+        await log(messages.logListPinFailed(reasonOf(error)));
+      }
+    } catch (error) {
+      await log(messages.logListFailed(reasonOf(error)));
     }
   }
 
@@ -452,7 +536,7 @@ export function createNap(deps: NapDeps): Nap {
     await command.reply({ embeds: [napHistoryEmbed(events)], flags: MessageFlags.Ephemeral, allowedMentions });
   }
 
-  return { show, join, leave, history, vote, tick };
+  return { show, join, leave, history, vote, tick, refreshList };
 }
 
 function reasonOf(error: unknown): string {

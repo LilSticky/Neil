@@ -38,6 +38,7 @@ import type { CityRotationStore } from "../storage/city-rotation-store.js";
 import type { KingMoveStore } from "../storage/king-move-store.js";
 import type { HandoverStore } from "../storage/handover-store.js";
 import type { CityRotationMode, SiegeTime } from "../domain/city-rotation.js";
+import { napStatusOf } from "../domain/nap.js";
 import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
 import { createDuelPlanPoster } from "./duel-plan.js";
@@ -138,6 +139,7 @@ import {
   type AllianceLookupContext,
   type LookupApi,
   type LookupInteraction,
+  type NapStatusOf,
 } from "./lookup.js";
 import { handleOverview, handlePick, type PickContext, type PickInteraction } from "./pick.js";
 import { handleLookAgain, type LookAgainContext, type LookAgainInteraction } from "./look-again.js";
@@ -676,6 +678,8 @@ export interface ConnectOptions {
     | "castVote"
     | "votes"
     | "removeRequest"
+    | "listMessageId"
+    | "setListMessageId"
   >;
 }
 
@@ -1357,6 +1361,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         officer: caller.officer,
       }),
   };
+  // The NaP line of every Alliance card, read from the NaP register; none for an Alliance outside the Home Kingdom.
+  const napStatus: NapStatusOf = (alliance) => napStatusOf(options.nap.history(), options.homeKingdom, alliance);
   const allianceContext: AllianceLookupContext = {
     gameApi: options.gameApi,
     pickSessions,
@@ -1365,6 +1371,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     ...lookupRoles,
     homeKingdom: options.homeKingdom,
     knownAlliances: options.knownAlliances,
+    napStatusOf: napStatus,
   };
   // The Look again button repeats a card, an Overview or /reaper closest, so it has what those lookups have.
   const lookAgainContext: LookAgainContext = {
@@ -1377,6 +1384,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     now,
     logError,
     ...lookupRoles,
+    napStatusOf: napStatus,
   };
   // Interview and Rank Approval events wait here until ready and the channel check have passed; then they reach the services.
   let openServices: (services: Services) => void = () => undefined;
@@ -1782,6 +1790,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       channels,
       editorOf: editorOfMember,
       homeKingdom: options.homeKingdom,
+      napStatusOf: napStatus,
     };
     // The Event invitations and reminders read the server through one adapter, and log to #neil-log like the rest.
     const eventServer = eventServerOf(guild, { log: (message) => channels.log(message) });
@@ -1860,8 +1869,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
       onHandover: (holdingTag) => kingMoves.afterHandover(holdingTag),
     });
-    // The NaP register: its join requests and leaves in #nap-leaders, through the City Rotation's server, so the channel
-    // is named once; its lines in #neil-log.
+    // The NaP register: its join requests and leaves in #nap-leaders, its list and announcements in #nap-announcements,
+    // through the City Rotation's server, so the channels are named once; its lines in #neil-log.
     const nap = createNap({
       store: options.nap,
       knownAlliances: options.knownAlliances,
@@ -2015,6 +2024,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     void eventInvitations.onStartup();
     // The pinned City Rotation card is brought up to date once at startup.
     void cityRotation.refreshCard();
+    // The pinned NaP list is brought up to date once at startup.
+    void nap.refreshList();
     // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
     let reminderTickRunning = false;
     const reminderTimer = setInterval(() => {

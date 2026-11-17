@@ -1,4 +1,4 @@
-# 22. Votes of the NaP Council
+# 23. Votes of the NaP Council
 
 Date: 2026-11-17
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Slice 041 ("Vote on NaP join requests", issue #150) replaces the single approval of a NaP join request (slice 038,
+Slice 042 ("Vote on NaP join requests", issue #150) replaces the single approval of a NaP join request (slice 038,
 ADR 20) with a **NaP Vote**: each Alliance in the NaP votes Approve or Decline through one of its Linked R5s, the vote
 closes 48 hours after it opens, and more Approve than Decline votes approve the request; a tie or no votes decline it.
 A declined Alliance waits 30 days (the **NaP Cooldown**) before it may ask again. The issue asks that every vote, the
@@ -17,7 +17,7 @@ result and the cooldown are logged and kept in the NaP history. So Neil now stor
 
 ## Decision
 
-We will store, in `neil.db` (migration 24), in addition to ADR 20:
+We will store, in `neil.db` (migration 25), in addition to ADR 20:
 
 - in `nap_votes`, one row per Alliance per join request: the request (tag and time), the voting Alliance's tag, the
   Discord user id of the Linked R5 whose press counts (the latest press of that Alliance), the vote and its time. A

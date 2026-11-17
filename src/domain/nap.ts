@@ -67,6 +67,25 @@ export interface NapMember {
  * letter case; the members are listed in the order they joined.
  */
 export function napMembers(history: readonly NapEvent[]): readonly NapMember[] {
+  return latestEvents(history)
+    .filter((event) => event.kind === "joined")
+    .map((event) => ({ tag: event.tag, since: event.at }))
+    .sort((a, b) => a.since.getTime() - b.since.getTime());
+}
+
+/** An Alliance that left the NaP and has not joined again, and when it last left. */
+export interface NapFormerMember {
+  readonly tag: string;
+  readonly leftAt: Date;
+}
+
+/** Where an Alliance stands in the NaP: a member since when, or not a member, with when it last left if it ever did. */
+export type NapStatus =
+  | { readonly kind: "member"; readonly since: Date }
+  | { readonly kind: "not-member"; readonly leftAt: Date | undefined };
+
+/** The latest event of every Alliance in the history (oldest first), tags compared ignoring letter case. */
+function latestEvents(history: readonly NapEvent[]): readonly NapEvent[] {
   const latest = new Map<string, NapEvent>();
   for (const event of history) {
     if (event.kind === "declined") continue;
@@ -74,10 +93,31 @@ export function napMembers(history: readonly NapEvent[]): readonly NapMember[] {
     latest.delete(key);
     latest.set(key, event);
   }
-  return [...latest.values()]
-    .filter((event) => event.kind === "joined")
-    .map((event) => ({ tag: event.tag, since: event.at }))
-    .sort((a, b) => a.since.getTime() - b.since.getTime());
+  return [...latest.values()];
+}
+
+/** The Alliances whose latest event in the history is a leave, the newest leave first. */
+export function napFormerMembers(history: readonly NapEvent[]): readonly NapFormerMember[] {
+  return latestEvents(history)
+    .filter((event) => event.kind === "left")
+    .map((event) => ({ tag: event.tag, leftAt: event.at }))
+    .sort((a, b) => b.leftAt.getTime() - a.leftAt.getTime());
+}
+
+/**
+ * Where a Home Kingdom Alliance stands in the NaP. Undefined for an Alliance of another Kingdom: the register knows
+ * Alliances only by tag, so another Kingdom's Alliance with the same tag must never match.
+ */
+export function napStatusOf(
+  history: readonly NapEvent[],
+  homeKingdom: KingdomNumber,
+  alliance: { readonly kingdom: KingdomNumber; readonly tag: string },
+): NapStatus | undefined {
+  if (alliance.kingdom !== homeKingdom) return undefined;
+  const member = napMembers(history).find((entry) => sameTag(entry.tag, alliance.tag));
+  if (member !== undefined) return { kind: "member", since: member.since };
+  const former = napFormerMembers(history).find((entry) => sameTag(entry.tag, alliance.tag));
+  return { kind: "not-member", leftAt: former?.leftAt };
 }
 
 /** Whether the Alliance with this tag is in the NaP. */

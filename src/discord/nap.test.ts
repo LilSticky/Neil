@@ -26,6 +26,7 @@ const FAR_R5 = "100000000000000007";
 const STRANGER = "100000000000000008";
 const OUTSIDER = "100000000000000010";
 const LEADERS = "700000000000000002";
+const ANNOUNCEMENTS = "700000000000000003";
 
 function known(tag: string, name: string, kingdom: KingdomNumber = HOME): KnownAlliance {
   return { kingdom, tag, name, lastSeen: NOW };
@@ -48,9 +49,14 @@ const EDITORS: Readonly<Record<string, Editor>> = {
 
 class FakeServer implements NapServer {
   leaders: string | undefined = LEADERS;
+  announcements: string | undefined = ANNOUNCEMENTS;
   refusePost = false;
+  /** Refuses posts in this channel only. */
+  refusePostIn: string | undefined;
   refuseEdit = false;
+  refusePin = false;
   refuseLog = false;
+  readonly pins: { channelId: string; messageId: string }[] = [];
   readonly posts: { channelId: string; message: BaseMessageOptions; id: string }[] = [];
   readonly edits: { channelId: string; messageId: string; message: BaseMessageOptions }[] = [];
   readonly deleted = new Set<string>();
@@ -60,8 +66,11 @@ class FakeServer implements NapServer {
   leadersChannelId(): string | undefined {
     return this.leaders;
   }
+  announcementsChannelId(): string | undefined {
+    return this.announcements;
+  }
   post(channelId: string, message: BaseMessageOptions): Promise<string> {
-    if (this.refusePost) return Promise.reject(new Error("Missing Permissions"));
+    if (this.refusePost || this.refusePostIn === channelId) return Promise.reject(new Error("Missing Permissions"));
     const id = this.nextId.toString();
     this.nextId += 1n;
     this.posts.push({ channelId, message, id });
@@ -73,6 +82,15 @@ class FakeServer implements NapServer {
     if (!exists || this.deleted.has(messageId)) return Promise.resolve(false);
     this.edits.push({ channelId, messageId, message });
     return Promise.resolve(true);
+  }
+  pin(channelId: string, messageId: string): Promise<void> {
+    if (this.refusePin) return Promise.reject(new Error("Missing Permissions"));
+    this.pins.push({ channelId, messageId });
+    return Promise.resolve();
+  }
+  /** The posts in one channel. */
+  postsIn(channelId: string): { channelId: string; message: BaseMessageOptions; id: string }[] {
+    return this.posts.filter((post) => post.channelId === channelId);
   }
   log(line: string): Promise<void> {
     if (this.refuseLog) return Promise.reject(new Error("Missing Access"));
@@ -197,6 +215,33 @@ describe("createNap", () => {
 
       expect(show.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
       expect(embedOf(show.replies[0]).description).toContain("No Alliance is in the NaP yet");
+    });
+
+    test("lists the former members with when each left, then the waiting requests", async () => {
+      const since = new Date("2026-11-01T10:00:00.000Z");
+      const leftAt = new Date("2026-11-05T10:00:00.000Z");
+      seedMember("NML", since);
+      seedMember("XYZ", since);
+      store.append({ kind: "left", tag: "XYZ", leftBy: R5_XYZ, at: leftAt });
+      const endsAt = new Date(NOW.getTime() + NAP_VOTE_MS);
+      store.addRequest({ tag: "ABC", requestedBy: R5_ABC, requestedAt: NOW, voteEndsAt: endsAt });
+
+      const show = command(STRANGER);
+      await nap.show(show);
+
+      expect(show.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+      expect(embedOf(show.replies[0]).description).toBe(
+        [
+          "**Members**",
+          `- [NML] No Man's Land, since <t:${unix(since)}:D>`,
+          "",
+          "**Former members**",
+          `- [XYZ] Ex Why Zed, left <t:${unix(leftAt)}:D>`,
+          "",
+          "**Waiting for a decision**",
+          `- [ABC], vote ends <t:${unix(endsAt)}:R>`,
+        ].join("\n"),
+      );
     });
 
     test("lists the members with their join times and the open requests by tag, to anyone, naming no Member", async () => {
@@ -861,9 +906,10 @@ describe("createNap", () => {
       expect(store.history().at(-1)).toEqual({ kind: "left", tag: "NML", leftBy: R5_NML, at: now });
       expect(leave.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
       expect(leave.replies[0]?.content).toContain("has left the NaP");
-      expect(server.posts).toHaveLength(1);
-      expect(server.posts[0]?.channelId).toBe(LEADERS);
-      expect(server.posts[0]?.message.allowedMentions).toEqual({ parse: [] });
+      const notices = server.postsIn(LEADERS);
+      expect(notices).toHaveLength(1);
+      expect(notices[0]?.message.content).toBe(`[NML] No Man's Land has left the NaP, by its R5 <@${R5_NML}>.`);
+      expect(notices[0]?.message.allowedMentions).toEqual({ parse: [] });
       expect(server.logs).toEqual([`<@${R5_NML}> took [NML] out of the NaP.`]);
     });
 
@@ -894,6 +940,193 @@ describe("createNap", () => {
       expect(store.history().filter((event) => event.kind === "left")).toHaveLength(2);
       expect(server.logs).toContain("The NaP leave of [NML] was not posted: the server has no #nap-leaders.");
       expect(server.logs).toContain("Posting the NaP leave of [ABC] in #nap-leaders failed: Missing Permissions");
+    });
+  });
+
+  describe("#nap-announcements", () => {
+    function listOf(post: { message: BaseMessageOptions } | undefined): string {
+      const embed = post?.message.embeds?.[0];
+      if (embed === undefined) throw new Error("no list");
+      const json = "toJSON" in embed ? embed.toJSON() : embed;
+      return json.description ?? "";
+    }
+
+    /** The asker's request, approved by an Officer at `at` while the NaP is empty. */
+    async function approveAt(asker: string, at: Date): Promise<void> {
+      await nap.join(command(asker));
+      now = at;
+      await nap.vote(button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]));
+    }
+
+    test("a join is announced with only the Alliance and the time, mentions off, and the list is posted and pinned", async () => {
+      const at = new Date("2026-11-16T21:00:00.000Z");
+      await approveAt(R5_NML, at);
+
+      const posts = server.postsIn(ANNOUNCEMENTS);
+      expect(posts).toHaveLength(2);
+      expect(posts[0]?.message).toEqual({
+        content: `🤝 [NML] No Man's Land has joined the NaP (<t:${unix(at)}:f>).`,
+        allowedMentions: { parse: [] },
+      });
+      expect(posts[1]?.message.allowedMentions).toEqual({ parse: [] });
+      expect(listOf(posts[1])).toBe(`**Members**\n- [NML] No Man's Land, since <t:${unix(at)}:D>`);
+      expect(server.pins).toEqual([{ channelId: ANNOUNCEMENTS, messageId: posts[1]?.id }]);
+      expect(store.listMessageId()).toBe(posts[1]?.id);
+      expect(JSON.stringify(posts)).not.toContain("<@");
+    });
+
+    test("a leave is announced with only the Alliance and the time, after the #nap-leaders notice, and the list is edited", async () => {
+      const joinedAt = new Date("2026-11-16T21:00:00.000Z");
+      await approveAt(R5_NML, joinedAt);
+      const leftAt = new Date("2026-11-17T08:00:00.000Z");
+      now = leftAt;
+      await nap.leave(command(R5_NML));
+
+      const posts = server.postsIn(ANNOUNCEMENTS);
+      expect(posts).toHaveLength(3);
+      expect(posts[2]?.message).toEqual({
+        content: `[NML] No Man's Land has left the NaP (<t:${unix(leftAt)}:f>).`,
+        allowedMentions: { parse: [] },
+      });
+      expect(store.history().at(-1)?.at).toEqual(leftAt);
+      expect(server.edits).toHaveLength(1);
+      const edit = server.edits[0];
+      expect(edit?.messageId).toBe(posts[1]?.id);
+      expect(listOf(edit)).toBe(
+        `No Alliance is in the NaP yet.\n\n**Former members**\n- [NML] No Man's Land, left <t:${unix(leftAt)}:D>`,
+      );
+      expect(JSON.stringify(edit)).not.toContain("<@");
+      expect(server.pins).toHaveLength(1);
+    });
+
+    test("the list lists members, then former members newest first, at most 20 of them", async () => {
+      seedMember("NML", new Date("2026-11-01T10:00:00.000Z"));
+      for (let index = 0; index < 22; index += 1) {
+        const tag = `T${index.toString().padStart(2, "0")}`;
+        seedMember(tag, new Date(Date.UTC(2026, 9, 1 + index)));
+        store.append({ kind: "left", tag, leftBy: R5_ABC, at: new Date(Date.UTC(2026, 9, 2 + index)) });
+      }
+      await nap.refreshList();
+
+      const lines = listOf(server.postsIn(ANNOUNCEMENTS)[0]).split("\n");
+      expect(lines.slice(0, 4)).toEqual([
+        "**Members**",
+        `- [NML] No Man's Land, since <t:${unix(new Date("2026-11-01T10:00:00.000Z"))}:D>`,
+        "",
+        "**Former members**",
+      ]);
+      expect(lines[4]).toBe(`- [T21], left <t:${unix(new Date(Date.UTC(2026, 9, 23)))}:D>`);
+      expect(lines).toHaveLength(4 + 20 + 1);
+      expect(lines.at(-1)).toBe("…and 2 more.");
+    });
+
+    test("a list someone deleted is posted and pinned again", async () => {
+      await nap.refreshList();
+      const first = server.postsIn(ANNOUNCEMENTS)[0];
+      if (first === undefined) throw new Error("not posted");
+      server.deleted.add(first.id);
+      await nap.refreshList();
+
+      const posts = server.postsIn(ANNOUNCEMENTS);
+      expect(posts).toHaveLength(2);
+      expect(store.listMessageId()).toBe(posts[1]?.id);
+      expect(server.pins.map((pin) => pin.messageId)).toEqual([first.id, posts[1]?.id]);
+    });
+
+    test("two quick refreshes post one list", async () => {
+      await Promise.all([nap.refreshList(), nap.refreshList()]);
+
+      expect(server.postsIn(ANNOUNCEMENTS)).toHaveLength(1);
+      expect(server.edits).toHaveLength(1);
+    });
+
+    test("a join decided by the NaP Council's vote is announced with only the Alliance and the time", async () => {
+      seedMember("NML");
+      await nap.join(command(OUTSIDER));
+      await nap.vote(button(approveIdOf(server.postsIn(LEADERS).at(-1)), R5_NML));
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      const posts = server.postsIn(ANNOUNCEMENTS);
+      expect(posts[0]?.message).toEqual({
+        content: `🤝 [QQQ] has joined the NaP (<t:${unix(now)}:f>).`,
+        allowedMentions: { parse: [] },
+      });
+      expect(listOf(posts[1])).toContain("[QQQ]");
+      expect(JSON.stringify(posts)).not.toContain("<@");
+    });
+
+    test("a decline, by vote or by an Officer, is not announced", async () => {
+      await nap.join(command(R5_NML));
+      await nap.vote(button(declineIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]));
+      seedMember("ABC");
+      await nap.join(command(OUTSIDER));
+      now = new Date(NOW.getTime() + NAP_VOTE_MS);
+      await nap.tick();
+
+      expect(store.history().filter((event) => event.kind === "declined")).toHaveLength(2);
+      expect(server.postsIn(ANNOUNCEMENTS)).toEqual([]);
+    });
+
+    test("without #nap-announcements, the join still counts, the R5 gets the usual answer and one line is logged", async () => {
+      server.announcements = undefined;
+      await nap.join(command(R5_NML));
+      server.logs.length = 0;
+      const press = button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]);
+      await nap.vote(press);
+
+      expect(store.history()).toHaveLength(1);
+      expect(press.updates).toHaveLength(1);
+      expect(server.logs).toEqual([
+        `Officer <@${OFFICER}> approved [NML] joining the NaP (asked by <@${R5_NML}>).`,
+        "The NaP change of [NML] was not announced: the server has no #nap-announcements.",
+      ]);
+    });
+
+    test("when the announcement fails, the leave still counts, the R5 gets the usual answer and one line is logged", async () => {
+      seedMember("NML");
+      await nap.refreshList();
+      server.refusePostIn = ANNOUNCEMENTS;
+      const leave = command(R5_NML);
+      await nap.leave(leave);
+
+      expect(store.history().at(-1)?.kind).toBe("left");
+      expect(leave.replies[0]?.content).toContain("has left the NaP");
+      expect(server.logs).toEqual([
+        `<@${R5_NML}> took [NML] out of the NaP.`,
+        "Announcing the NaP change of [NML] in #nap-announcements failed: Missing Permissions",
+      ]);
+      expect(server.edits).toHaveLength(1);
+    });
+
+    test("when the list cannot be posted, the join still counts and one line is logged for it", async () => {
+      await nap.join(command(R5_NML));
+      server.logs.length = 0;
+      server.refuseEdit = true;
+      store.setListMessageId("800000000000000099");
+      const press = button(approveIdOf(server.postsIn(LEADERS).at(-1)), OFFICER, [MODERATOR_ROLE]);
+      await nap.vote(press);
+
+      expect(store.history()).toHaveLength(1);
+      expect(press.updates).toHaveLength(1);
+      expect(server.postsIn(ANNOUNCEMENTS)).toHaveLength(1);
+      expect(server.logs.at(-1)).toBe("Updating the NaP list in #nap-announcements failed: Missing Access");
+    });
+
+    test("when the pin fails, the list is still posted and kept, and one line is logged", async () => {
+      server.refusePin = true;
+      await nap.refreshList();
+
+      expect(store.listMessageId()).toBe(server.postsIn(ANNOUNCEMENTS)[0]?.id);
+      expect(server.logs).toEqual(["Pinning the NaP list in #nap-announcements failed: Missing Permissions"]);
+    });
+
+    test("at startup without #nap-announcements, one line is logged", async () => {
+      server.announcements = undefined;
+      await nap.refreshList();
+
+      expect(server.posts).toEqual([]);
+      expect(server.logs).toEqual(["The NaP list was not posted: the server has no #nap-announcements."]);
     });
   });
 

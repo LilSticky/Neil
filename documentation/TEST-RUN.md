@@ -494,7 +494,7 @@ a Member Linked to the R5 of an Alliance in it. Branch `040-change-the-city-rota
 | 6aa.5 | The R5 runs `/rotation pause`, then `/rotation pause` again | The card shows Paused; the second is refused privately | | |
 | 6aa.6 | The R5 runs `/rotation resume` | The card no longer shows Paused and names the same next Alliance; log line and post | | |
 
-## 6ab. Vote on NaP join requests (slice 041, issue #150)
+## 6ab. Vote on NaP join requests (slice 042, issue #150)
 
 Setup: `npm run commands:register` run; one Alliance in the NaP (or none, for 6ab.1); test accounts Linked to the R5s
 of Alliances in and outside the NaP. Branch `develop` after the merge.

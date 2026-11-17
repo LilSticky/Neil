@@ -56,7 +56,7 @@ describe("NapStore", () => {
     });
   });
 
-  test("keeps the history in order across a reopened database at schema version 24", () => {
+  test("keeps the history in order across a reopened database at schema version 25", () => {
     withStore((store) => {
       store.append(JOINED);
       store.append(DECLINED);
@@ -67,7 +67,7 @@ describe("NapStore", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 24 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 25 });
       expect(new NapStore(db).history()).toEqual([JOINED, DECLINED, JOINED_BY_VOTE, DECLINED_BY_OFFICER, LEFT]);
     } finally {
       db.close();
@@ -119,6 +119,29 @@ describe("NapStore", () => {
       store.removeRequest("abc");
       expect(store.openRequests()).toEqual([]);
     });
+  });
+
+  test("keeps the NaP list's message id across a reopened database, replacing the earlier one", () => {
+    withStore((store) => {
+      expect(store.listMessageId()).toBeUndefined();
+      store.setListMessageId("523456789012345678");
+      store.setListMessageId("623456789012345678");
+    });
+
+    withStore((store) => {
+      expect(store.listMessageId()).toBe("623456789012345678");
+    });
+  });
+
+  test("treats a corrupt NaP list row as an error", () => {
+    const db = openDatabase(dataDir);
+    try {
+      db.exec("PRAGMA ignore_check_constraints = ON");
+      db.prepare("INSERT INTO nap_list (id, message_id) VALUES (1, 'gone')").run();
+      expect(() => new NapStore(db).listMessageId()).toThrow(/corrupt/);
+    } finally {
+      db.close();
+    }
   });
 
   test("keeps the end of a NaP Vote, set when the request is made or later, across a reopened database", () => {

@@ -11,7 +11,9 @@ import {
   mayLeave,
   NAP_COOLDOWN_MS,
   NAP_VOTE_MS,
+  napFormerMembers,
   napMembers,
+  napStatusOf,
   runningCooldownOf,
   voteResult,
   type NapEvent,
@@ -217,5 +219,69 @@ describe("the NaP Cooldown", () => {
 
   test("ends once the Alliance joined after the decline", () => {
     expect(cooldownEndOf([...history, joined("ABC", "2026-11-02T10:00:00Z", "officer")], "ABC")).toBeUndefined();
+  });
+});
+
+describe("napFormerMembers", () => {
+  test("is empty without history and while every Alliance is in the NaP", () => {
+    expect(napFormerMembers([])).toEqual([]);
+    expect(napFormerMembers([joined("NML", "2026-11-01T10:00:00Z")])).toEqual([]);
+  });
+
+  test("holds every Alliance whose latest event is a leave, newest leave first, ignoring letter case", () => {
+    const history = [
+      joined("NML", "2026-11-01T10:00:00Z"),
+      joined("ABC", "2026-11-02T10:00:00Z"),
+      joined("XYZ", "2026-11-03T10:00:00Z"),
+      left("nml", "2026-11-04T10:00:00Z"),
+      left("ABC", "2026-11-05T10:00:00Z"),
+      left("XYZ", "2026-11-06T10:00:00Z"),
+      joined("XYZ", "2026-11-07T10:00:00Z"),
+    ];
+
+    expect(napFormerMembers(history)).toEqual([
+      { tag: "ABC", leftAt: new Date("2026-11-05T10:00:00Z") },
+      { tag: "nml", leftAt: new Date("2026-11-04T10:00:00Z") },
+    ]);
+  });
+});
+
+describe("napStatusOf", () => {
+  const history = [
+    joined("NML", "2026-11-01T10:00:00Z"),
+    joined("ABC", "2026-11-02T10:00:00Z"),
+    left("ABC", "2026-11-03T10:00:00Z"),
+    joined("XYZ", "2026-11-04T10:00:00Z"),
+    left("XYZ", "2026-11-05T10:00:00Z"),
+    joined("xyz", "2026-11-06T10:00:00Z"),
+  ];
+
+  test("a Home Kingdom Alliance in the NaP is a member since it joined, ignoring letter case", () => {
+    expect(napStatusOf(history, HOME, { kingdom: HOME, tag: "nml" })).toEqual({
+      kind: "member",
+      since: new Date("2026-11-01T10:00:00Z"),
+    });
+  });
+
+  test("an Alliance that rejoined is a member since it joined again", () => {
+    expect(napStatusOf(history, HOME, { kingdom: HOME, tag: "XYZ" })).toEqual({
+      kind: "member",
+      since: new Date("2026-11-06T10:00:00Z"),
+    });
+  });
+
+  test("an Alliance that left is not a member, with when it left", () => {
+    expect(napStatusOf(history, HOME, { kingdom: HOME, tag: "ABC" })).toEqual({
+      kind: "not-member",
+      leftAt: new Date("2026-11-03T10:00:00Z"),
+    });
+  });
+
+  test("an Alliance that never joined is not a member, with no leave", () => {
+    expect(napStatusOf(history, HOME, { kingdom: HOME, tag: "QQQ" })).toEqual({ kind: "not-member", leftAt: undefined });
+  });
+
+  test("another Kingdom's Alliance with the same tag has no status", () => {
+    expect(napStatusOf(history, HOME, { kingdom: kingdomOf(331), tag: "NML" })).toBeUndefined();
   });
 });
