@@ -313,6 +313,10 @@ const migrations = [
      CHECK ((state = 'applied') = (applied_by IS NOT NULL)),
      CHECK ((state = 'applied') = (applied_at IS NOT NULL))
    )`,
+    // Migration 23: changing the City Rotation together (slice 040): whether it is paused, and the Alliance recorded as next
+    // after a skip or a leave (NULL when next simply follows the Holding Alliance). No Discord user ids.
+    `ALTER TABLE city_rotation ADD COLUMN paused INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1));
+   ALTER TABLE city_rotation ADD COLUMN next_tag TEXT CHECK (next_tag IS NULL OR next_tag <> '')`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

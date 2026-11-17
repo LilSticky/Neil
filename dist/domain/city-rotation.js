@@ -70,4 +70,87 @@ export function mayEditCityRotation(editor, homeKingdom, currentOrder, newOrder)
     const order = currentOrder ?? newOrder;
     return order.some((tag) => sameTag(tag, allianceTag));
 }
+/**
+ * Whether a Member may change the City Rotation (move, skip, leave, pause, resume): they are Linked to an R5 (from the
+ * Game API or a Rank Approval) of an Alliance of the Home Kingdom whose tag is in the order.
+ */
+export function mayChangeCityRotation(editor, homeKingdom, order) {
+    return order.length > 0 && mayEditCityRotation(editor, homeKingdom, order, order);
+}
+/** The tag that follows `tag` in the order, wrapping to the first; the first tag when `tag` is not in the order. */
+function following(order, tag) {
+    const index = order.findIndex((candidate) => sameTag(candidate, tag));
+    return order[(index + 1) % order.length] ?? tag;
+}
+/**
+ * The Alliance whose Turn is next: the one expected in an open Turn, else the one recorded after a skip or a leave,
+ * else the one after the Holding Alliance (the first being the holder when none is known).
+ */
+export function upcomingAlliance(turns) {
+    if (turns.expected !== undefined)
+        return turns.expected;
+    if (turns.next !== undefined)
+        return turns.next;
+    const first = turns.order[0];
+    if (first === undefined)
+        return undefined;
+    return nextHoldingAlliance({ order: turns.order, holding: turns.holding ?? first });
+}
+function tagIn(order, tag) {
+    return order.find((candidate) => sameTag(candidate, tag));
+}
+/**
+ * Moves an Alliance to a place in the order (1 is the first). The Holding Alliance and an open Turn stay; the next
+ * Alliance follows the Holding Alliance in the new order.
+ */
+export function moveAlliance(turns, tag, position) {
+    const moved = tagIn(turns.order, tag);
+    if (moved === undefined)
+        return { ok: false, problem: { kind: "not-in-rotation", tag } };
+    const length = turns.order.length;
+    if (!Number.isInteger(position) || position < 1 || position > length) {
+        return { ok: false, problem: { kind: "position-out-of-range", length } };
+    }
+    const rest = turns.order.filter((candidate) => candidate !== moved);
+    const order = [...rest.slice(0, position - 1), moved, ...rest.slice(position - 1)];
+    if (order.every((candidate, index) => candidate === turns.order[index]))
+        return { ok: false, problem: { kind: "no-change" } };
+    const holderInOrder = turns.holding !== undefined && tagIn(order, turns.holding) !== undefined;
+    return { ok: true, turns: { ...turns, order, next: holderInOrder ? undefined : turns.next } };
+}
+/**
+ * Skips the next Turn, the NaP Council's decision: the Alliance after the skipped one is next, and the skipped one keeps
+ * its place for the next round. In an open Turn, that Alliance becomes the one expected.
+ */
+export function skipTurn(turns) {
+    const skipped = upcomingAlliance(turns);
+    if (turns.order.length < MIN_ROTATION_LENGTH || skipped === undefined)
+        return { ok: false, problem: { kind: "too-short" } };
+    const upcoming = following(turns.order, skipped);
+    const changed = turns.expected === undefined ? { ...turns, next: upcoming } : { ...turns, next: undefined, expected: upcoming };
+    return { ok: true, turns: changed, skipped, upcoming };
+}
+/**
+ * Takes an Alliance that left the NaP out of the order. If it was next or expected, the Alliance after it takes that
+ * place; if it holds the Royal City, it holds until the next Handover and the Alliance after it is next. The last
+ * Alliance cannot be taken out.
+ */
+export function leaveRotation(turns, tag) {
+    const left = tagIn(turns.order, tag);
+    if (left === undefined)
+        return { ok: false, problem: { kind: "not-in-rotation", tag } };
+    if (turns.order.length <= 1)
+        return { ok: false, problem: { kind: "last-alliance" } };
+    const follower = following(turns.order, left);
+    const order = turns.order.filter((candidate) => candidate !== left);
+    let { next, expected } = turns;
+    if (expected !== undefined && sameTag(expected, left))
+        expected = follower;
+    if (next !== undefined && sameTag(next, left))
+        next = follower;
+    if (expected === undefined && next === undefined && turns.holding !== undefined && sameTag(turns.holding, left)) {
+        next = follower;
+    }
+    return { ok: true, turns: { ...turns, order, next, expected }, left };
+}
 //# sourceMappingURL=city-rotation.js.map

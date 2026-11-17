@@ -21,6 +21,9 @@ export function cityRotationCard(content) {
     }
     else {
         lines.push("**Mode**: Rotation. The Alliances take the Royal City in this order, one Turn each.");
+        if (state.paused) {
+            lines.push("**Paused**: Neil names no new Holding Alliance after a Royal City siege until an R5 resumes it with `/rotation resume`.");
+        }
         lines.push(`**Holding Alliance**: ${state.holding === undefined ? "not named yet" : label(state.holding)}`);
         if (next !== undefined)
             lines.push(`**Next Holding Alliance**: ${label(next)}`);
@@ -107,6 +110,47 @@ export const cityRotationMessages = {
     },
     /** The line in nap-leaders after a Royal City siege, in Contested mode. */
     contestedSiegeOver: "The Royal City siege is over. An Officer names the new Holding Alliance with `/rotation holder`.",
+    noRotationToChange: "No City Rotation is set yet. The R5s set it with `/rotation set` first.",
+    refusedChange: "Only a Member Linked to the R5 of an Alliance in the City Rotation may change it.",
+    changeProblem: (problem) => {
+        switch (problem.kind) {
+            case "not-in-rotation":
+                return `[${problem.tag}] is not in the City Rotation.`;
+            case "position-out-of-range":
+                return `Choose a place from 1 to ${problem.length.toString()}.`;
+            case "no-change":
+                return "Nothing changes: the Alliance is already in that place.";
+            case "too-short":
+                return "A City Rotation of one Alliance has no Turn to skip.";
+            case "last-alliance":
+                return "The last Alliance cannot be taken out of the City Rotation.";
+        }
+    },
+    alreadyPaused: "Nothing changes: the City Rotation is already paused.",
+    notPaused: "Nothing changes: the City Rotation is not paused.",
+    moved: (alliance, position, next) => `${alliance} is now in place ${position.toString()} of the City Rotation.${nextSentence(next)}`,
+    skipped: (skipped, next) => `${skipped}'s Turn is skipped by the NaP Council's decision. ${next} is the next Holding Alliance.`,
+    left: (alliance, next) => `${alliance} is out of the City Rotation.${nextSentence(next)}`,
+    pausedReply: "The City Rotation is paused. Neil names no new Holding Alliance after a Royal City siege until it is resumed.",
+    resumedReply: (next) => `The City Rotation runs again.${nextSentence(next)}`,
+    /** The news in home-kingdom-announcements after each change; it mentions nobody. */
+    announceMoved: (alliance, position, order, next) => `**City Rotation**: ${alliance} moves to place ${position.toString()}. The order is now ${order}.${nextSentence(next)}`,
+    announceSkipped: (skipped, next) => `**City Rotation**: by the NaP Council's decision, ${skipped} skips its Turn and keeps its place. ${next} is the next Holding Alliance.`,
+    announceLeft: (alliance, holding, order, next) => `**City Rotation**: ${alliance} left the NaP and is out of the City Rotation.${holding ? " It holds the Royal City until the next Handover." : ""} The order is now ${order}.${nextSentence(next)}`,
+    announcePaused: "**City Rotation**: the rotation is paused. Neil names no new Holding Alliance after a Royal City siege until it is resumed.",
+    announceResumed: (next) => `**City Rotation**: the rotation runs again.${nextSentence(next)}`,
+    /** The old confirmation request in nap-leaders, once a skip or a leave hands the open Turn to another Alliance. */
+    turnMovedOn: (alliance) => `This Turn moved on by the NaP Council's decision: Neil now asks ${alliance} to confirm the Handover.`,
+    /** The head of a new confirmation request after a skip or a leave. */
+    turnMovedOnHead: "The NaP Council's decision moved this Turn on.",
+    logMoved: (memberId, alliance, position, before, after, next) => `<@${memberId}> moved ${alliance} to place ${position.toString()} of the City Rotation: ${before} becomes ${after}; next is ${next}.`,
+    logSkipped: (memberId, skipped, order, next, asked) => `<@${memberId}> skipped the Turn of ${skipped} in the City Rotation (order ${order}, unchanged); next is ${next}.${askedSentence(asked)}`,
+    logLeft: (memberId, alliance, before, after, next, asked) => `<@${memberId}> recorded that ${alliance} left the NaP: the City Rotation ${before} becomes ${after}; next is ${next}.${askedSentence(asked)}`,
+    logPaused: (memberId, order) => `<@${memberId}> paused the City Rotation (order ${order}, unchanged).`,
+    logResumed: (memberId, order, next) => `<@${memberId}> resumed the City Rotation (order ${order}, unchanged); next is ${next}.`,
+    logPausedSiege: "A Royal City siege passed while the City Rotation is paused; Neil names no Holding Alliance and asks nobody.",
+    logNoKingdomAnnouncements: "The City Rotation news was not posted: the server has no #home-kingdom-announcements.",
+    logKingdomAnnouncementFailed: (reason) => `Posting the City Rotation news in #home-kingdom-announcements failed: ${reason}`,
     logSet: (memberId, oldOrder, oldHolding, newOrder, newHolding) => `<@${memberId}> set the City Rotation: ${oldOrder} (holding ${oldHolding}) → ${newOrder} (holding ${newHolding}).`,
     logHolder: (memberId, holding) => `Officer <@${memberId}> named ${holding} the Holding Alliance.`,
     logExpected: (alliance, leaderUid) => `After the Royal City siege, Neil expects ${alliance} to take the Royal City; its R5 is ${leaderUid === undefined ? "unknown" : `uid ${leaderUid}`}. Waiting for confirmation.`,
@@ -118,6 +162,13 @@ export const cityRotationMessages = {
     logPinFailed: (reason) => `Pinning the City Rotation card in #nap-announcements failed: ${reason}`,
     logSiegePostFailed: (reason) => `Posting the Royal City siege message in #nap-leaders failed: ${reason}`,
 };
+function nextSentence(next) {
+    return next === undefined ? "" : ` ${next} is the next Holding Alliance.`;
+}
+/** `leader` is set only when the open Turn now waits for another Alliance: its R5's uid, or "unknown". */
+function askedSentence(leader) {
+    return leader === undefined ? "" : ` The open Turn now waits for its confirmation; its R5 is ${leader}.`;
+}
 /** An order as the log shows it: the tags in brackets, or "none". */
 export function orderText(order) {
     return order === undefined ? "none" : order.map((tag) => `[${tag}]`).join(" → ");

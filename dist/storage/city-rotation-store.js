@@ -7,6 +7,8 @@ export const EMPTY_CITY_ROTATION = {
     handover: undefined,
     lastHandledSiege: undefined,
     cardMessageId: undefined,
+    paused: false,
+    next: undefined,
 };
 const snowflake = z.string().regex(/^\d{1,20}$/);
 const row = z.object({
@@ -18,6 +20,8 @@ const row = z.object({
     pending_siege_at: z.iso.datetime().nullable(),
     last_siege_at: z.iso.datetime().nullable(),
     card_message_id: snowflake.nullable(),
+    paused: z.union([z.literal(0), z.literal(1)]),
+    next_tag: z.string().min(1).nullable(),
 });
 const orderSchema = z.array(z.string().min(1)).min(1);
 const CORRUPT = "the City Rotation in neil.db is corrupt; fix or remove it by hand";
@@ -31,7 +35,7 @@ export class CityRotationStore {
     load() {
         const raw = this.db
             .prepare(`SELECT order_json, holding_tag, pending_tag, pending_leader_uid, pending_message_id, pending_siege_at,
-                last_siege_at, card_message_id
+                last_siege_at, card_message_id, paused, next_tag
          FROM city_rotation WHERE id = 1`)
             .get();
         return raw === undefined ? EMPTY_CITY_ROTATION : stateOf(raw);
@@ -41,13 +45,14 @@ export class CityRotationStore {
         const { handover } = state;
         this.db
             .prepare(`INSERT INTO city_rotation (id, order_json, holding_tag, pending_tag, pending_leader_uid, pending_message_id,
-                                    pending_siege_at, last_siege_at, card_message_id)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    pending_siege_at, last_siege_at, card_message_id, paused, next_tag)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (id) DO UPDATE SET order_json = excluded.order_json, holding_tag = excluded.holding_tag,
            pending_tag = excluded.pending_tag, pending_leader_uid = excluded.pending_leader_uid,
            pending_message_id = excluded.pending_message_id, pending_siege_at = excluded.pending_siege_at,
-           last_siege_at = excluded.last_siege_at, card_message_id = excluded.card_message_id`)
-            .run(state.order === undefined ? null : JSON.stringify(state.order), state.holding ?? null, handover?.expected ?? null, handover?.leaderUid ?? null, handover?.messageId ?? null, handover?.siegeAt.toISOString() ?? null, state.lastHandledSiege?.toISOString() ?? null, state.cardMessageId ?? null);
+           last_siege_at = excluded.last_siege_at, card_message_id = excluded.card_message_id,
+           paused = excluded.paused, next_tag = excluded.next_tag`)
+            .run(state.order === undefined ? null : JSON.stringify(state.order), state.holding ?? null, handover?.expected ?? null, handover?.leaderUid ?? null, handover?.messageId ?? null, handover?.siegeAt.toISOString() ?? null, state.lastHandledSiege?.toISOString() ?? null, state.cardMessageId ?? null, state.paused ? 1 : 0, state.next ?? null);
     }
     /** Reads the state, changes it with `change` and stores the result, with no await in between; returns the new state. */
     update(change) {
@@ -67,6 +72,8 @@ function stateOf(raw) {
         handover: handoverOf(data),
         lastHandledSiege: data.last_siege_at === null ? undefined : new Date(data.last_siege_at),
         cardMessageId: data.card_message_id ?? undefined,
+        paused: data.paused === 1,
+        next: data.next_tag ?? undefined,
     };
 }
 function orderOf(json) {

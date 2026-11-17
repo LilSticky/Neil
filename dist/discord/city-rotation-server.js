@@ -4,6 +4,8 @@ import { z } from "zod";
 const ANNOUNCEMENTS_CHANNEL = "nap-announcements";
 /** The R5s' and the King's room, where Neil asks for the Handover after the Royal City siege. */
 const LEADERS_CHANNEL = "nap-leaders";
+/** The Home Kingdom's news, where every change of the City Rotation is announced. */
+const KINGDOM_ANNOUNCEMENTS_CHANNEL = "home-kingdom-announcements";
 /** Discord's answer when the message to edit is gone. */
 const unknownMessage = z.object({ code: z.literal(RESTJSONErrorCodes.UnknownMessage) });
 function isMessageChannel(channel) {
@@ -21,13 +23,14 @@ async function messageChannel(guild, channelId) {
     return channel;
 }
 /**
- * The Discord server as the City Rotation uses it: #nap-announcements and #nap-leaders by name, Neil's own posts, edits
+ * The Discord server as the City Rotation uses it: #nap-announcements, #nap-leaders and #home-kingdom-announcements by name, Neil's own posts, edits
  * and pins there, and #neil-log (through `log`, with mentions off).
  */
 export function cityRotationServerOf(guild, options) {
     return {
         announcementsChannelId: () => channelNamed(guild, ANNOUNCEMENTS_CHANNEL),
         leadersChannelId: () => channelNamed(guild, LEADERS_CHANNEL),
+        kingdomAnnouncementsChannelId: () => channelNamed(guild, KINGDOM_ANNOUNCEMENTS_CHANNEL),
         async post(channelId, message) {
             const sent = await (await messageChannel(guild, channelId)).send(message);
             return sent.id;

@@ -1,4 +1,5 @@
 import { InteractionContextType, SlashCommandBuilder } from "discord.js";
+import { MAX_ROTATION_LENGTH } from "../domain/city-rotation.js";
 /**
  * Officer commands are hidden from Members: only Administrators see them until the server allows the Moderator and
  * King roles (and the moderator channel) under Server Settings → Integrations → Neil. Neil still checks the role.
@@ -227,7 +228,10 @@ export const reaper = new SlashCommandBuilder()
     .setName("remove")
     .setDescription("Remove an Exile from REAPER (Home Kingdom R5s)")
     .addStringOption((option) => option.setName("exile").setDescription("The Exile to remove").setRequired(true).setAutocomplete(true)));
-/** The City Rotation: any Member sees whose turn it is; R5s in the rotation set it, Officers name the Holding Alliance. */
+/**
+ * The City Rotation: any Member sees whose turn it is; R5s in the rotation set it, move, skip, leave, pause and resume it,
+ * and Officers name the Holding Alliance.
+ */
 export const rotation = new SlashCommandBuilder()
     .setName("rotation")
     .setDescription("City Rotation: see whose turn it is to hold the Royal City")
@@ -249,7 +253,34 @@ export const rotation = new SlashCommandBuilder()
     .addSubcommand((sub) => sub
     .setName("holder")
     .setDescription("Name the Holding Alliance (Officers)")
-    .addStringOption((option) => option.setName("tag").setDescription("The tag of the Alliance holding the Royal City").setRequired(true).setMaxLength(40)));
+    .addStringOption((option) => option.setName("tag").setDescription("The tag of the Alliance holding the Royal City").setRequired(true).setMaxLength(40)))
+    .addSubcommand((sub) => sub
+    .setName("move")
+    .setDescription("Move an Alliance to another place in the order (R5s in the rotation)")
+    .addStringOption((option) => option
+    .setName("alliance")
+    .setDescription("The Alliance to move")
+    .setRequired(true)
+    .setMaxLength(40)
+    .setAutocomplete(true))
+    .addIntegerOption((option) => option
+    .setName("position")
+    .setDescription("Its new place in the order, 1 being the first")
+    .setRequired(true)
+    .setMinValue(1)
+    .setMaxValue(MAX_ROTATION_LENGTH)))
+    .addSubcommand((sub) => sub.setName("skip").setDescription("Record the NaP Council's decision to skip the next Turn (R5s in the rotation)"))
+    .addSubcommand((sub) => sub
+    .setName("leave")
+    .setDescription("Record that an Alliance left the NaP and take it out of the rotation (R5s in the rotation)")
+    .addStringOption((option) => option
+    .setName("alliance")
+    .setDescription("The Alliance that left the NaP")
+    .setRequired(true)
+    .setMaxLength(40)
+    .setAutocomplete(true)))
+    .addSubcommand((sub) => sub.setName("pause").setDescription("Pause the rotation: no new Holding Alliance after a siege (R5s in the rotation)"))
+    .addSubcommand((sub) => sub.setName("resume").setDescription("Resume the paused rotation (R5s in the rotation)"));
 /** The NaP register: any Member sees who is in it; R5s ask to join and leave; the council and Officers see the history. */
 export const nap = new SlashCommandBuilder()
     .setName("nap")
