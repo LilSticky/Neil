@@ -102,6 +102,8 @@ function handlers() {
     preferencesPress: vi.fn(() => Promise.resolve()),
     rotation: vi.fn(() => Promise.resolve()),
     rotationButton: vi.fn(() => Promise.resolve()),
+    nap: vi.fn(() => Promise.resolve()),
+    napButton: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -319,6 +321,29 @@ describe("createClient", () => {
     expect(routed.rotationButton).toHaveBeenCalledWith(interaction);
     expect(routed.rankButton).not.toHaveBeenCalled();
     expect(routed.reaperPage).not.toHaveBeenCalled();
+  });
+
+  test("hands /nap to the nap handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = chatInput("nap");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.nap).toHaveBeenCalledWith(interaction);
+    expect(routed.rotation).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with nap-approve: to the nap button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "nap-approve:ABC:1795723200000");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.napButton).toHaveBeenCalledWith(interaction);
+    expect(routed.rotationButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
   });
 
   test("hands /event-kinds to the event kinds handler and nothing else", () => {

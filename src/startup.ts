@@ -16,6 +16,7 @@ import type { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import type { LinkStore } from "./storage/link-store.js";
 import type { CityRotationStore } from "./storage/city-rotation-store.js";
 import type { HandoverStore } from "./storage/handover-store.js";
+import type { NapStore } from "./storage/nap-store.js";
 import type { ReaperStore } from "./storage/reaper-store.js";
 import type { PreferenceStore } from "./storage/preference-store.js";
 
@@ -46,7 +47,7 @@ export interface StartRecordStorage {
   close(): void;
 }
 
-/** The storage start() opens: the start record, the Daily Quota, the Member usage, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record, REAPER and the City Rotation, all in neil.db. */
+/** The storage start() opens: the start record, the Daily Quota, the Member usage, the Onboarding Interviews, the Links, the Applied States, the Known Alliances, the Daily Sync record, REAPER, the City Rotation and the NaP register, all in neil.db. */
 export interface StartupStorage extends StartRecordStorage {
   readonly dailyQuota: DailyQuotaStorage;
   readonly memberUsage: MemberUsageStorage;
@@ -63,6 +64,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly handovers: HandoverStore;
   readonly raids: RaidStore;
   readonly availability: AvailabilityStore;
+  readonly nap: NapStore;
 }
 
 export interface Connection {
@@ -178,6 +180,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       syncShare: config.syncShare,
       cityRotation: store.cityRotation,
       handovers: store.handovers,
+      nap: store.nap,
       royalCitySiegeTime: config.royalCitySiegeTime,
       cityRotationMode: config.cityRotationMode,
     });
