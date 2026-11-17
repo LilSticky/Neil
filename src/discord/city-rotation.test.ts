@@ -29,9 +29,12 @@ const R5_ABC = "100000000000000002";
 const R5_XYZ = "100000000000000003";
 const R5_OUTSIDE = "100000000000000004";
 const R4_NML = "100000000000000006";
+const UNRANKED_NML = "100000000000000007";
+const UNLINKED = "100000000000000008";
 const XYZ_LEADER = uidOf("145563254785");
 const ANNOUNCEMENTS = "700000000000000001";
 const LEADERS = "700000000000000002";
+const KINGDOM_NEWS = "700000000000000003";
 
 function unix(moment: Date): string {
   return Math.floor(moment.getTime() / 1000).toString();
@@ -59,6 +62,7 @@ const EDITORS: Readonly<Record<string, Editor>> = {
   [R5_XYZ]: r5("XYZ"),
   [R5_OUTSIDE]: r5("QQQ"),
   [R4_NML]: { ...r5("NML"), allianceRank: { source: "game-api", rank: "R4" } },
+  [UNRANKED_NML]: { ...r5("NML"), allianceRank: { source: "unknown" } },
 };
 
 function allianceXyz(leaderUid: Uid | undefined): Alliance {
@@ -78,6 +82,7 @@ function allianceXyz(leaderUid: Uid | undefined): Alliance {
 class FakeServer implements CityRotationServer {
   announcements: string | undefined = ANNOUNCEMENTS;
   leaders: string | undefined = LEADERS;
+  kingdomNews: string | undefined = KINGDOM_NEWS;
   readonly posts: { channelId: string; message: BaseMessageOptions; id: string }[] = [];
   readonly edits: { channelId: string; messageId: string; message: BaseMessageOptions }[] = [];
   readonly pins: string[] = [];
@@ -92,6 +97,9 @@ class FakeServer implements CityRotationServer {
   }
   leadersChannelId(): string | undefined {
     return this.leaders;
+  }
+  kingdomAnnouncementsChannelId(): string | undefined {
+    return this.kingdomNews;
   }
   post(channelId: string, message: BaseMessageOptions): Promise<string> {
     if (this.refusePost) return Promise.reject(new Error("Missing Permissions"));
@@ -170,15 +178,24 @@ class Setup {
 class FakeCommand implements RotationCommand {
   readonly replies: InteractionReplyOptions[] = [];
   readonly user: { readonly id: string };
-  readonly options: { getString(name: string): string | null };
+  readonly options: { getString(name: string): string | null; getInteger(name: string): number | null };
 
   constructor(
     memberId: string,
-    values: Readonly<Record<string, string>> = {},
+    values: Readonly<Record<string, string | number>> = {},
     private readonly roles: readonly string[] = [],
   ) {
     this.user = { id: memberId };
-    this.options = { getString: (name) => values[name] ?? null };
+    this.options = {
+      getString: (name) => {
+        const value = values[name];
+        return typeof value === "string" ? value : null;
+      },
+      getInteger: (name) => {
+        const value = values[name];
+        return typeof value === "number" ? value : null;
+      },
+    };
   }
   memberRoleIds(): readonly string[] {
     return this.roles;
@@ -754,5 +771,394 @@ describe("the City Rotation card", () => {
 
     expect(setup.server.logs).toEqual(["Updating the City Rotation card in #nap-announcements failed: Missing Permissions"]);
     expect(setup.state.cardMessageId).toBeUndefined();
+  });
+});
+
+describe("changing the City Rotation together", () => {
+  const ABC_LEADER = uidOf("145563254786");
+  const OLD_REQUEST = "800000000000000099";
+
+  function running(setup: Setup, extra: Partial<CityRotationState> = {}): void {
+    setup.state = rotationState(["NML", "ABC", "XYZ"], "NML", { lastHandledSiege: new Date(FRIDAY.getTime() - 7 * 86_400_000), ...extra });
+  }
+
+  /** A Turn after FRIDAY's siege, waiting for ABC's R5 to confirm. */
+  function openTurn(setup: Setup): void {
+    running(setup, {
+      lastHandledSiege: FRIDAY,
+      handover: { expected: "ABC", leaderUid: ABC_LEADER, siegeAt: FRIDAY, messageId: OLD_REQUEST },
+    });
+    setup.now = new Date(FRIDAY.getTime() + 3_600_000);
+  }
+
+  function linesBy(setup: Setup, memberId: string): string[] {
+    return setup.server.logs.filter((line) => line.includes(`<@${memberId}>`));
+  }
+
+  const SUBCOMMANDS = [
+    { name: "move", values: { alliance: "XYZ", position: 1 } },
+    { name: "skip", values: {} },
+    { name: "leave", values: { alliance: "ABC" } },
+    { name: "pause", values: {} },
+    { name: "resume", values: {} },
+  ] as const;
+
+  function run(service: CityRotation, name: (typeof SUBCOMMANDS)[number]["name"], command: FakeCommand): Promise<void> {
+    switch (name) {
+      case "move":
+        return service.move(command);
+      case "skip":
+        return service.skip(command);
+      case "leave":
+        return service.leave(command);
+      case "pause":
+        return service.pause(command);
+      case "resume":
+        return service.resume(command);
+    }
+  }
+
+  describe("who may change it", () => {
+    for (const { name, values } of SUBCOMMANDS) {
+      for (const [who, memberId] of [
+        ["no Link", UNLINKED],
+        ["an R4", R4_NML],
+        ["an R5 of an Alliance outside the rotation", R5_OUTSIDE],
+        ["a rank not from the Game API or a Rank Approval", UNRANKED_NML],
+      ] as const) {
+        test(`refuses /rotation ${name} privately to ${who}, and nothing changes`, async () => {
+          const setup = new Setup();
+          running(setup, { paused: name === "resume" });
+          const before = setup.state;
+          const command = new FakeCommand(memberId, values);
+
+          await run(setup.service(), name, command);
+
+          expect(command.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+          expect(command.text).toContain("Only a Member Linked to the R5 of an Alliance in the City Rotation");
+          expect(setup.state).toEqual(before);
+          expect(setup.server.logs).toEqual([]);
+          expect(setup.server.posts).toEqual([]);
+          expect(setup.server.edits).toEqual([]);
+        });
+      }
+
+      test(`refuses /rotation ${name} privately in Contested and without an order`, async () => {
+        const contested = new Setup();
+        running(contested);
+        const command = new FakeCommand(R5_NML, values);
+        await run(contested.service("contested"), name, command);
+        expect(command.text).toContain("This Kingdom is Contested");
+
+        const empty = new Setup();
+        const second = new FakeCommand(R5_NML, values);
+        await run(empty.service(), name, second);
+        expect(second.text).toContain("No City Rotation is set yet");
+        expect([...contested.server.logs, ...empty.server.logs]).toEqual([]);
+        expect(empty.state).toEqual(EMPTY_CITY_ROTATION);
+      });
+    }
+  });
+
+  describe("/rotation move", () => {
+    test("moves an Alliance; the holder stays, next follows the new order, with one log line, one post and the card", async () => {
+      const setup = new Setup();
+      running(setup);
+      const command = new FakeCommand(R5_ABC, { alliance: "xyz", position: 2 });
+
+      await setup.service().move(command);
+
+      expect(setup.state.order).toEqual(["NML", "XYZ", "ABC"]);
+      expect(setup.state.holding).toBe("NML");
+      expect(command.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+      expect(command.text).toContain("[XYZ] Ex Why Zed is now in place 2");
+      expect(setup.server.logs).toEqual([
+        `<@${R5_ABC}> moved [XYZ] to place 2 of the City Rotation: [NML] → [ABC] → [XYZ] becomes [NML] → [XYZ] → [ABC]; next is [XYZ].`,
+      ]);
+      const news = setup.server.postsIn(KINGDOM_NEWS);
+      expect(news).toHaveLength(1);
+      expect(news[0]?.message.content).toContain("[XYZ] Ex Why Zed moves to place 2");
+      expect(news[0]?.message.content).toContain("[XYZ] Ex Why Zed is the next Holding Alliance");
+      expect(news[0]?.message.allowedMentions).toEqual({ parse: [] });
+      const card = setup.server.postsIn(ANNOUNCEMENTS);
+      expect(card).toHaveLength(1);
+      expect(embedOf(card[0]?.message).description).toContain("**Next Holding Alliance**: [XYZ] Ex Why Zed");
+      expect(card[0]?.message.allowedMentions).toEqual({ parse: [] });
+      expect(setup.reads).toEqual([]);
+    });
+
+    test("refuses an Alliance outside the rotation, a place out of range and no change, writing nothing", async () => {
+      for (const values of [
+        { alliance: "QQQ", position: 1 },
+        { alliance: "ABC", position: 4 },
+        { alliance: "ABC", position: 2 },
+      ]) {
+        const setup = new Setup();
+        running(setup);
+        const before = setup.state;
+        const command = new FakeCommand(R5_ABC, values);
+
+        await setup.service().move(command);
+
+        expect(command.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+        expect(setup.state).toEqual(before);
+        expect(setup.server.logs).toEqual([]);
+        expect(setup.server.posts).toEqual([]);
+      }
+    });
+  });
+
+  describe("/rotation skip", () => {
+    test("skips the next Turn: the skipped Alliance keeps its place and the one after it is next", async () => {
+      const setup = new Setup();
+      running(setup);
+      const command = new FakeCommand(R5_XYZ);
+
+      await setup.service().skip(command);
+
+      expect(setup.state.order).toEqual(["NML", "ABC", "XYZ"]);
+      expect(setup.state.next).toBe("XYZ");
+      expect(command.text).toContain("[ABC] Alpha Bravo's Turn is skipped");
+      expect(linesBy(setup, R5_XYZ)).toHaveLength(1);
+      expect(setup.server.logs).toHaveLength(1);
+      expect(setup.server.postsIn(KINGDOM_NEWS)[0]?.message.content).toContain("[ABC] Alpha Bravo skips its Turn");
+      expect(embedOf(setup.server.postsIn(ANNOUNCEMENTS)[0]?.message).description).toContain(
+        "**Next Holding Alliance**: [XYZ] Ex Why Zed",
+      );
+    });
+
+    test("after a skip the next siege expects the Alliance after the skipped one", async () => {
+      const setup = new Setup();
+      running(setup);
+      await setup.service().skip(new FakeCommand(R5_XYZ));
+      setup.now = new Date(FRIDAY.getTime() + 60_000);
+
+      await setup.service().tick();
+
+      expect(setup.state.handover?.expected).toBe("XYZ");
+      expect(setup.state.next).toBeUndefined();
+    });
+
+    test("in an open Turn asks the fresh R5 of the Alliance after the skipped one, and the old button closes", async () => {
+      const setup = new Setup();
+      openTurn(setup);
+      const service = setup.service();
+
+      await service.skip(new FakeCommand(R5_NML));
+
+      expect(setup.reads).toEqual([{ kingdom: 330, key: "XYZ", purpose: "sync", freshness: "live" }]);
+      const requests = setup.server.postsIn(LEADERS);
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.message.content).toContain(`<@${R5_XYZ}>`);
+      expect(requests[0]?.message.components).toEqual([confirmHandoverRow(FRIDAY, "XYZ")]);
+      expect(setup.state.handover).toEqual({ expected: "XYZ", leaderUid: XYZ_LEADER, siegeAt: FRIDAY, messageId: requests[0]?.id });
+      expect(setup.server.edits.find((edit) => edit.messageId === OLD_REQUEST)?.message.components).toEqual([]);
+      expect(linesBy(setup, R5_NML)).toHaveLength(1);
+      expect(setup.server.logs).toHaveLength(1);
+
+      const old = new FakeButton(buttonIdOf(FRIDAY, "ABC"), R5_ABC);
+      await service.confirm(old);
+      expect(old.replies[0]?.content).toBe("This Handover is no longer open.");
+
+      await service.confirm(new FakeButton(buttonIdOf(FRIDAY, "XYZ"), R5_XYZ));
+      expect(setup.state.holding).toBe("XYZ");
+      expect(setup.state.handover).toBeUndefined();
+    });
+
+    test("refuses a rotation of one Alliance", async () => {
+      const setup = new Setup();
+      setup.state = rotationState(["NML"], "ABC", { next: "NML" });
+      const command = new FakeCommand(R5_NML);
+
+      await setup.service().skip(command);
+
+      expect(command.text).toBe("A City Rotation of one Alliance has no Turn to skip.");
+      expect(setup.server.logs).toEqual([]);
+    });
+  });
+
+  describe("/rotation leave", () => {
+    test("takes the Alliance out; the one after it moves up", async () => {
+      const setup = new Setup();
+      running(setup);
+      const command = new FakeCommand(R5_NML, { alliance: "abc" });
+
+      await setup.service().leave(command);
+
+      expect(setup.state.order).toEqual(["NML", "XYZ"]);
+      expect(setup.state.holding).toBe("NML");
+      expect(setup.server.logs).toEqual([
+        `<@${R5_NML}> recorded that [ABC] left the NaP: the City Rotation [NML] → [ABC] → [XYZ] becomes [NML] → [XYZ]; next is [XYZ].`,
+      ]);
+      expect(setup.server.postsIn(KINGDOM_NEWS)[0]?.message.content).toContain("[ABC] Alpha Bravo left the NaP");
+    });
+
+    test("a leaving Holding Alliance holds until the next Handover, and the Alliance after it is next", async () => {
+      const setup = new Setup();
+      running(setup);
+
+      await setup.service().leave(new FakeCommand(R5_ABC, { alliance: "NML" }));
+
+      expect(setup.state.order).toEqual(["ABC", "XYZ"]);
+      expect(setup.state.holding).toBe("NML");
+      expect(setup.server.postsIn(KINGDOM_NEWS)[0]?.message.content).toContain("It holds the Royal City until the next Handover.");
+      const { description } = embedOf(setup.server.postsIn(ANNOUNCEMENTS)[0]?.message);
+      expect(description).toContain("**Holding Alliance**: [NML] No Man's Land");
+      expect(description).toContain("**Next Holding Alliance**: [ABC] Alpha Bravo");
+
+      setup.now = new Date(FRIDAY.getTime() + 60_000);
+      await setup.service().tick();
+      expect(setup.state.handover?.expected).toBe("ABC");
+    });
+
+    test("in an open Turn for the leaving Alliance asks the fresh R5 of the Alliance after it", async () => {
+      const setup = new Setup();
+      openTurn(setup);
+
+      await setup.service().leave(new FakeCommand(R5_NML, { alliance: "ABC" }));
+
+      expect(setup.state.order).toEqual(["NML", "XYZ"]);
+      expect(setup.state.handover?.expected).toBe("XYZ");
+      expect(setup.state.handover?.leaderUid).toBe(XYZ_LEADER);
+      expect(setup.server.postsIn(LEADERS)).toHaveLength(1);
+      expect(setup.server.logs).toHaveLength(1);
+    });
+
+    test("refuses the last Alliance and an Alliance outside the rotation", async () => {
+      const last = new Setup();
+      last.state = rotationState(["NML"], "ABC", { next: "NML" });
+      const command = new FakeCommand(R5_NML, { alliance: "NML" });
+      await last.service().leave(command);
+      expect(command.text).toBe("The last Alliance cannot be taken out of the City Rotation.");
+      expect(last.state.order).toEqual(["NML"]);
+
+      const outside = new Setup();
+      running(outside);
+      const second = new FakeCommand(R5_NML, { alliance: "QQQ" });
+      await outside.service().leave(second);
+      expect(second.text).toBe("[QQQ] is not in the City Rotation.");
+      expect([...last.server.logs, ...outside.server.logs]).toEqual([]);
+    });
+  });
+
+  describe("an open Turn", () => {
+    test("stays open past ticks and the next siege until someone confirms, skips or records a leave", async () => {
+      const setup = new Setup();
+      openTurn(setup);
+      const service = setup.service();
+
+      setup.now = new Date(FRIDAY.getTime() + 3 * 86_400_000);
+      await service.tick();
+      setup.now = new Date(NEXT_FRIDAY.getTime() + 60_000);
+      await service.tick();
+      await service.tick();
+
+      expect(setup.state.handover).toEqual({ expected: "ABC", leaderUid: ABC_LEADER, siegeAt: FRIDAY, messageId: OLD_REQUEST });
+      expect(setup.state.order).toEqual(["NML", "ABC", "XYZ"]);
+      expect(setup.server.postsIn(LEADERS)).toEqual([]);
+      expect(setup.reads).toEqual([]);
+    });
+  });
+
+  describe("/rotation pause and resume", () => {
+    test("while paused the after-siege step names nobody and asks nobody, and the card says it is paused", async () => {
+      const setup = new Setup();
+      running(setup);
+      const command = new FakeCommand(R5_NML);
+
+      await setup.service().pause(command);
+
+      expect(setup.state.paused).toBe(true);
+      expect(command.text).toContain("The City Rotation is paused");
+      expect(setup.server.logs).toEqual([`<@${R5_NML}> paused the City Rotation (order [NML] → [ABC] → [XYZ], unchanged).`]);
+      expect(setup.server.postsIn(KINGDOM_NEWS)[0]?.message.content).toContain("the rotation is paused");
+      expect(embedOf(setup.server.postsIn(ANNOUNCEMENTS)[0]?.message).description).toContain("**Paused**");
+
+      setup.now = new Date(FRIDAY.getTime() + 60_000);
+      await setup.service().tick();
+
+      expect(setup.state.handover).toBeUndefined();
+      expect(setup.state.lastHandledSiege).toEqual(FRIDAY);
+      expect(setup.server.postsIn(LEADERS)).toEqual([]);
+      expect(setup.reads).toEqual([]);
+    });
+
+    test("move, skip and leave still work while paused, and after resume next is the same as before", async () => {
+      const setup = new Setup();
+      running(setup, { paused: true });
+      const service = setup.service();
+
+      await service.move(new FakeCommand(R5_NML, { alliance: "XYZ", position: 2 }));
+      await service.skip(new FakeCommand(R5_NML));
+      await service.leave(new FakeCommand(R5_NML, { alliance: "QQQ" }));
+      expect(setup.state.order).toEqual(["NML", "XYZ", "ABC"]);
+      expect(setup.state.next).toBe("ABC");
+
+      const resume = new FakeCommand(R5_ABC);
+      await service.resume(resume);
+
+      expect(setup.state.paused).toBe(false);
+      expect(setup.state.next).toBe("ABC");
+      expect(resume.text).toContain("[ABC] Alpha Bravo is the next Holding Alliance");
+      expect(linesBy(setup, R5_ABC)).toEqual([
+        `<@${R5_ABC}> resumed the City Rotation (order [NML] → [XYZ] → [ABC], unchanged); next is [ABC].`,
+      ]);
+    });
+
+    test("refuses a double pause and resuming a running rotation, writing nothing", async () => {
+      const paused = new Setup();
+      running(paused, { paused: true });
+      const pause = new FakeCommand(R5_NML);
+      await paused.service().pause(pause);
+      expect(pause.text).toBe("Nothing changes: the City Rotation is already paused.");
+
+      const runningSetup = new Setup();
+      running(runningSetup);
+      const resume = new FakeCommand(R5_NML);
+      await runningSetup.service().resume(resume);
+      expect(resume.text).toBe("Nothing changes: the City Rotation is not paused.");
+      expect([...paused.server.logs, ...runningSetup.server.logs, ...paused.server.posts, ...runningSetup.server.posts]).toEqual([]);
+    });
+  });
+
+  describe("the news and the card", () => {
+    test("a missing home-kingdom-announcements is logged once and does not undo the change", async () => {
+      const setup = new Setup();
+      running(setup);
+      setup.server.kingdomNews = undefined;
+
+      await setup.service().pause(new FakeCommand(R5_NML));
+
+      expect(setup.state.paused).toBe(true);
+      expect(setup.server.logs.filter((line) => line.includes("home-kingdom-announcements"))).toHaveLength(1);
+      expect(linesBy(setup, R5_NML)).toHaveLength(1);
+    });
+
+    test("a refused post is logged once and does not undo the change", async () => {
+      const setup = new Setup();
+      running(setup);
+      setup.server.refusePost = true;
+
+      await setup.service().leave(new FakeCommand(R5_NML, { alliance: "ABC" }));
+
+      expect(setup.state.order).toEqual(["NML", "XYZ"]);
+      expect(setup.server.logs.filter((line) => line.includes("home-kingdom-announcements failed"))).toHaveLength(1);
+    });
+  });
+
+  describe("the alliance autocomplete", () => {
+    test("offers the Alliances of the rotation in order, matching the typed text", () => {
+      const setup = new Setup();
+      running(setup);
+      const service = setup.service();
+
+      expect(service.allianceChoices("")).toEqual([
+        { name: "[NML] No Man's Land", value: "NML" },
+        { name: "[ABC] Alpha Bravo", value: "ABC" },
+        { name: "[XYZ] Ex Why Zed", value: "XYZ" },
+      ]);
+      expect(service.allianceChoices("bravo")).toEqual([{ name: "[ABC] Alpha Bravo", value: "ABC" }]);
+      expect(setup.service("contested").allianceChoices("")).toEqual([]);
+    });
   });
 });
