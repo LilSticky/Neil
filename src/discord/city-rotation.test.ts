@@ -127,6 +127,8 @@ class Setup {
   readResult: LookupResult<Alliance> = { kind: "found", value: allianceXyz(XYZ_LEADER), asOf: undefined };
   readonly linked = new Map<string, string>([[XYZ_LEADER, R5_XYZ]]);
   readonly errors: string[] = [];
+  /** The Holding Alliances the King Move was told of, in order. */
+  readonly handovers: string[] = [];
 
   /** The service; `"none"` stands for no configured siege time. */
   service(mode: CityRotationMode = "rotation", siege: SiegeTime | "none" = SIEGE): CityRotation {
@@ -156,6 +158,10 @@ class Setup {
       now: () => this.now,
       logError: (line) => {
         this.errors.push(line);
+      },
+      onHandover: (tag) => {
+        this.handovers.push(tag);
+        return Promise.resolve();
       },
     });
   }
@@ -426,6 +432,17 @@ describe("/rotation holder", () => {
 
     expect(setup.state.holding).toBe("QQQ");
     expect(setup.state.order).toEqual(["NML", "ABC"]);
+    expect(setup.handovers).toEqual(["QQQ"]);
+  });
+
+  test("in Rotation is a correction, not a Handover: no King Move", async () => {
+    const setup = new Setup();
+    setup.state = rotationState(["NML", "ABC"], "NML");
+
+    await setup.service().holder(new FakeCommand(OFFICER, { tag: "ABC" }, [MODERATOR_ROLE]));
+
+    expect(setup.state.holding).toBe("ABC");
+    expect(setup.handovers).toEqual([]);
   });
 
   test("refuses an unknown tag", async () => {
@@ -604,6 +621,7 @@ describe("the Confirm handover button", () => {
     expect(button.updates).toHaveLength(1);
     expect(setup.server.edits.map((edit) => edit.messageId)).toEqual(["800000000000000100"]);
     expect(setup.server.logs).toContainEqual(`The R5 <@${R5_XYZ}> confirmed the Handover: [XYZ] is the Holding Alliance.`);
+    expect(setup.handovers).toEqual(["XYZ"]);
   });
 
   test("an Officer confirms too", async () => {
@@ -628,6 +646,7 @@ describe("the Confirm handover button", () => {
     expect(button.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
     expect(button.replies[0]?.content).toContain("Only the R5");
     expect(setup.server.logs).toEqual([]);
+    expect(setup.handovers).toEqual([]);
   });
 
   test("a press on a cleared or older Handover answers that it is no longer open", async () => {
@@ -658,6 +677,7 @@ describe("the Confirm handover button", () => {
 
     expect(again.replies[0]?.content).toBe("This Handover is no longer open.");
     expect(setup.server.logs.filter((line) => line.includes("confirmed"))).toHaveLength(1);
+    expect(setup.handovers).toEqual(["XYZ"]);
   });
 });
 

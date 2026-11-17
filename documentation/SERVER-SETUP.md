@@ -43,7 +43,7 @@ nickname and roles matching the game.
 | **REAPER** | any Member; Home Kingdom R5s edit | A shared list of Exiles (malicious Players): `/reaper closest`, `/reaper list`, `/reaper add`, `/reaper remove`. |
 | **Booty Call** | any Member of the Alliance | `/booty` in the Alliance's `alliance-chat` asks for a private Confirm, then posts a card that mentions the Members of that Alliance whose Booty Alerts match. One per Alliance per minute. `/booty-alerts` records when you want to be mentioned: Off (the default), Always, Only when online or Only when offline, with a daily window and your time zone. |
 | **Events** | Officers and an Alliance's R4 or R5 create; any Member | Create a Discord scheduled event (Server name → **Create Event**). An event named `[TAG] …` is that Alliance's; any other is the Kingdom's. Neil posts one Event Invitation, in `#event-announcements` mentioning the `Events` role, or in the Alliance's `alliance-chat` mentioning its members, with the links from the event's description as guides. Members who click **Interested** are reminded: 30 minutes before the start, or at the Event Kind's lead times, and before its Sign-up Deadline. Neil only announces an Alliance Event created by that Alliance's R4 or R5 or an Officer, and a Kingdom Event created by an Officer. `/event-kinds` keeps the Event Kinds (Officers for the Kingdom, R4 and R5 for their Alliance); `/event-invitations` switches the invitation mentions off. Neil sees only events in a channel it can view, or with **Somewhere Else** as the location. |
-| **City Rotation** | any Member sees; R5s in the rotation set it; Officers name the holder | `/rotation show` and a card Neil pins in `#nap-announcements` show the Holding Alliance, the next one and the next Royal City siege in your own time. `/rotation set` (Members Linked to the R5 of an Alliance in the rotation) sets the order by Alliance tag; `/rotation holder` (Officers) names the Holding Alliance, the only way when `CITY_ROTATION_MODE` is `contested`. After each Friday siege Neil names the expected Holding Alliance in `#nap-leaders` and asks its R5 (read fresh from the game) to confirm; an Officer may confirm instead. Every change goes to `#neil-log`. Neil never moves the King role. |
+| **City Rotation** | any Member sees; R5s in the rotation set it; Officers name the holder | `/rotation show` and a card Neil pins in `#nap-announcements` show the Holding Alliance, the next one and the next Royal City siege in your own time. `/rotation set` (Members Linked to the R5 of an Alliance in the rotation) sets the order by Alliance tag; `/rotation holder` (Officers) names the Holding Alliance, the only way when `CITY_ROTATION_MODE` is `contested`. After each Friday siege Neil names the expected Holding Alliance in `#nap-leaders` and asks its R5 (read fresh from the game) to confirm; an Officer may confirm instead. Every change goes to `#neil-log`. After each Handover Neil prepares a **King Move** in `#neil-log` (the new King: the receiving Alliance's R5; who loses King) and moves the King role only when an Officer presses Apply (ADR 21). |
 | **NaP** | any Member sees; R5s ask to join and leave; the NaP Council approves | `/nap show` privately lists the Alliances in the NaP since when, and the join requests waiting. `/nap join` (Members Linked to the R5 of a Home Kingdom Alliance) posts a join request with an **Approve** button in `#nap-leaders`; a member of the NaP Council (the Linked R5s of the Alliances in the NaP) approves it, or an Officer while the NaP has no members; if the request's message is deleted, the R5 runs `/nap join` again and Neil posts it again. `/nap leave` (the R5 of an Alliance in the NaP) takes it out without approval. `/nap history` (NaP Council and Officers) shows who asked, approved or left, and when. Every step goes to `#neil-log`; Neil's NaP messages mention nobody. |
 | **Help** | any Member | `/help` privately lists the commands you can use, how to write them and what they are for. Officers see their commands too. |
 | **Ping** | any Member | `/ping` shows that Neil is online, and which version. Temporary. |
@@ -87,9 +87,9 @@ roles by exact name, and gives and takes them by its own rules.
 Discord lets a bot manage only the roles and Members **below** its own role.
 
 ```
-  King              ← Officers stay above Neil
-  Moderator
+  Moderator         ← stays above Neil
   Neil              ← the bot's role
+  King              ← Neil moves it only on an Officer's Apply (ADR 21)
   Onboarding        ← everything Neil manages sits below Neil
   Doctor
   Preference Roles
@@ -98,10 +98,13 @@ Discord lets a bot manage only the roles and Members **below** its own role.
 ```
 
 - 🔴 **Requirement:** Neil sits **above** every role it gives. Neil doesn't check this at startup: a role above it is skipped, Member by Member.
-- 🔴 **Requirement (a decision, ADR 8):** Neil sits **below** Moderator and King.
+- 🔴 **Requirement (a decision, ADR 21, partly superseding ADR 8):** Neil sits **above** King and **below** Moderator.
+  Neil gives and takes King only when an Officer presses Apply on a King Move in `#neil-log`; it never touches Moderator
+  or any other role with permissions. With Neil below King, Apply is refused and Neil says so.
 - ⚪ **Suggestion:** the order of the Managed Roles among themselves is up to you.
 
-Neil can't change the nickname of a Member whose highest role is above Neil's. That's normal for Officers.
+Neil can't change the nickname of a Member whose highest role is above Neil's. That's normal for Moderators; a Member
+whose highest role is King is now below Neil, so Neil names them like any other Member.
 
 ---
 
@@ -199,7 +202,7 @@ or No (a person must do it).
 | **Roles** | | |
 | Moderator and King, with IDs in configuration | Neil won't start without valid IDs; a wrong ID means that role has no Officers | Yes to create; No to place above Neil |
 | Neil's role above every role it gives | Roles and nicknames skipped, Member by Member | No |
-| Neil's role below Moderator and King | A safety rule, ADR 8; nothing breaks | No |
+| Neil's role above King and below Moderator | ADR 21: below King, an Officer's Apply of a King Move is refused (Neil names the fix); above Moderator breaks the safety rule | No |
 | Each role exists before a channel refers to it | Setup can't be done in order | Yes, except Alliance roles, which appear with their first Member; run the script again then |
 | No permissions on Neil's roles | That role is never given | Yes, as a check |
 | **Permissions** | | |
@@ -321,7 +324,8 @@ check section 5 for any new command.
 | Neil is offline after a change | a missing or wrong setting, an intent off, or a problem in `#onboarding` or `#neil-log`. Neil stops and posts nothing | whoever runs Neil checks the console. It names the problem |
 | Officers aren't recognized, though Neil runs | a wrong Moderator or King ID: Neil checks only the format | correct the ID and restart |
 | `#neil-log` says Neil lacks Manage Roles / Manage Nicknames | Neil's role misses the permission | give Neil's role the permission |
-| Roles or nicknames don't change | Neil's role is too low, or the Member is above Neil | drag Neil's role up, still below Moderator and King |
+| Roles or nicknames don't change | Neil's role is too low, or the Member is above Neil | drag Neil's role up, above King and still below Moderator |
+| Apply on a King Move is refused (missing permissions) | Neil's role is below King | drag Neil's role above King, below Moderator, and press Apply again |
 | Neil ignores a role you made, e.g. `R5` | the role has permissions | remove all its permissions |
 | Newcomers see the whole server | @everyone isn't denied, or a channel isn't synced to its category | deny @everyone View Channel; **Sync Now** |
 | Linked Members lose access | a category allows a role they don't hold, or they aren't Linked on the database Neil runs on | check the role in section 3; check the Links ([HOSTING.md](HOSTING.md)) |

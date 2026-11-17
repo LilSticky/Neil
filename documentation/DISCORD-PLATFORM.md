@@ -78,8 +78,11 @@ Source: <https://docs.discord.com/developers/topics/permissions>
 - **Pin Messages** (`1<<51`) is a permission of its own, apart from Manage Messages. A bot pins with it, and edits its
   own messages with no permission beyond seeing the channel.
 
-**Neil**: Manage Roles and Manage Nicknames, with its role above the Managed Roles, `Onboarding` and `Doctor`, and
-below Moderator and King (ADR 8, SERVER-SETUP.md). In `#nap-announcements` it posts and pins the City Rotation card
+**Neil**: Manage Roles and Manage Nicknames, with its role above the Managed Roles, `Onboarding`, `Doctor` and King,
+and below Moderator (ADR 8, ADR 21, SERVER-SETUP.md). A bot gives and takes only roles below its highest role; with
+King above Neil, the King Move's Apply gets REST error **50013** (Missing Permissions), which Neil reports with the fix.
+Neil adds and removes King per Member (`PUT`/`DELETE /guilds/{id}/members/{user}/roles/{role}`) and finds its holders
+by listing every Member over REST. In `#nap-announcements` it posts and pins the City Rotation card
 (Pin Messages, slice 035) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
 again. In `#nap-leaders` it posts the Handover question after each Royal City siege and the Handover Reminders (slices
 035 and 037), and the NaP join requests with their Approve button and the leave notices (slice 038); it edits a join

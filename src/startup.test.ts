@@ -12,6 +12,7 @@ import type { AllianceSeenHook } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import { CityRotationStore } from "./storage/city-rotation-store.js";
+import { KingMoveStore } from "./storage/king-move-store.js";
 import { HandoverStore } from "./storage/handover-store.js";
 import { RaidStore } from "./storage/raid-store.js";
 import { AvailabilityStore } from "./storage/availability-store.js";
@@ -109,6 +110,7 @@ function stubStores(): {
   readonly bootyAlerts: BootyAlertsStore;
   readonly events: EventStore;
   readonly cityRotation: CityRotationStore;
+  readonly kingMoves: KingMoveStore;
   readonly handovers: HandoverStore;
   readonly raids: RaidStore;
   readonly availability: AvailabilityStore;
@@ -119,6 +121,7 @@ function stubStores(): {
     bootyAlerts: new BootyAlertsStore(new DatabaseSync(":memory:")),
     events: new EventStore(new DatabaseSync(":memory:")),
     cityRotation: new CityRotationStore(new DatabaseSync(":memory:")),
+    kingMoves: new KingMoveStore(new DatabaseSync(":memory:")),
     handovers: new HandoverStore(new DatabaseSync(":memory:")),
     raids: new RaidStore(new DatabaseSync(":memory:")),
     availability: new AvailabilityStore(new DatabaseSync(":memory:")),
