@@ -6,6 +6,7 @@ import { MessageFlags, type BaseMessageOptions } from "discord.js";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { exileReasonOf, type Editor, type Exile, type ExileReason } from "../domain/exile.js";
 import { parseKingdom, parseUid, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
+import type { NapEvent } from "../domain/nap.js";
 import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
 import { FakeAutocompleteInteraction } from "./__fakes__/autocomplete-interaction.js";
@@ -43,8 +44,26 @@ const EARLIEST = new Date("2026-11-01T12:00:00Z");
 const MIDDLE = new Date("2026-11-02T12:00:00Z");
 const NEWEST = new Date("2026-11-03T12:00:00Z");
 
-const R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: HOME };
-const R4_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R4" }, allianceKingdom: HOME };
+/** The Linked R5 of NML, an Alliance in the NaP: on the NaP Council. */
+const R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: HOME, allianceTag: "NML" };
+/** The Linked R5 of ABC, a Home Kingdom Alliance outside the NaP: not on the NaP Council. */
+const OUTSIDE_R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: HOME, allianceTag: "ABC" };
+/** A Member of NML who is not its R5. */
+const R4_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R4" }, allianceKingdom: HOME, allianceTag: "NML" };
+const OFFICER_ROLE_ID = "900000000000000001";
+
+/** The NaP register's history: the Alliance NML joined, so its Linked R5 is on the NaP Council. */
+const NAP_WITH_NML: readonly NapEvent[] = [
+  {
+    kind: "joined",
+    tag: "NML",
+    requestedBy: "400000000000000001",
+    requestedAt: new Date("2026-10-31T11:00:00Z"),
+    approvedBy: "400000000000000002",
+    approvedAs: "officer",
+    at: new Date("2026-10-31T12:00:00Z"),
+  },
+];
 
 const VEX_UID = uidOf("145563254785");
 const MORDVEX_UID = uidOf("145563254786");
@@ -63,16 +82,27 @@ function exileOf(overrides: Partial<Exile> & Pick<Exile, "uid" | "name">): Exile
   };
 }
 
+const REFUSED = "Only the NaP Council may change REAPER, or an Officer while the NaP has no members.";
+
 /** Every text the handler sent back, in order; a deferral carries none. */
 function repliesOf(interaction: FakeReaperInteraction): string[] {
   return interaction.calls.flatMap((call) => (call.method === "deferReply" ? [] : [call.options.content ?? ""]));
 }
 
-/** The remove context over a real REAPER store, with the given Editor for every Member and a log spy. */
-function removeContext(store: ReaperStore, editor: Editor = R5_EDITOR): ReaperRemoveContext {
+/**
+ * The remove context over a real REAPER store, with the given Editor for every Member, the given NaP history (NML in the
+ * NaP by default) and a log spy.
+ */
+function removeContext(
+  store: ReaperStore,
+  editor: Editor = R5_EDITOR,
+  napHistory: readonly NapEvent[] = NAP_WITH_NML,
+): ReaperRemoveContext {
   return {
     editorOf: () => editor,
     homeKingdom: HOME,
+    napHistory: () => napHistory,
+    officerRoleIds: [OFFICER_ROLE_ID],
     reaper: store,
     channels: { log: vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve()) },
     logError: vi.fn<(message: string) => void>(),
@@ -104,7 +134,7 @@ describe("handleReaperRemove", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  test("refuses a Member who is not a Home Kingdom R5 privately, before anything is removed or logged", async () => {
+  test("refuses a Member who is not on the NaP Council privately, before anything is removed or logged", async () => {
     const context = removeContext(store, R4_EDITOR);
     const interaction = new FakeReaperInteraction({ strings: { exile: VEX_UID } }, R4_ID);
 
@@ -115,11 +145,44 @@ describe("handleReaperRemove", () => {
     expect(interaction.calls.map((call) => call.method)).toEqual(["reply"]);
     expect(interaction.calls[0]?.options).toEqual(
       expect.objectContaining({
-        content: "Only R5s of Home Kingdom Alliances may change REAPER.",
+        content: "Only the NaP Council may change REAPER, or an Officer while the NaP has no members.",
         flags: MessageFlags.Ephemeral,
       }),
     );
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test("refuses the R5 of a Home Kingdom Alliance outside the NaP, before anything is removed or logged", async () => {
+    const context = removeContext(store, OUTSIDE_R5_EDITOR);
+    const interaction = new FakeReaperInteraction({ strings: { exile: VEX_UID } }, R5_ID);
+
+    await handleReaperRemove(interaction, context);
+
+    expect(store.find(VEX_UID)?.name).toBe("Vex");
+    expect(context.channels.log).not.toHaveBeenCalled();
+    expect(repliesOf(interaction)).toEqual([REFUSED]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  test("refuses an Officer who is not on the NaP Council while the NaP has members", async () => {
+    const context = removeContext(store, R4_EDITOR);
+    const interaction = new FakeReaperInteraction({ strings: { exile: VEX_UID } }, R4_ID, [OFFICER_ROLE_ID]);
+
+    await handleReaperRemove(interaction, context);
+
+    expect(store.find(VEX_UID)?.name).toBe("Vex");
+    expect(context.channels.log).not.toHaveBeenCalled();
+    expect(repliesOf(interaction)).toEqual([REFUSED]);
+  });
+
+  test("lets an Officer remove an Exile while the NaP has no members", async () => {
+    const context = removeContext(store, R4_EDITOR, []);
+    const interaction = new FakeReaperInteraction({ strings: { exile: VEX_UID } }, R4_ID, [OFFICER_ROLE_ID]);
+
+    await handleReaperRemove(interaction, context);
+
+    expect(store.find(VEX_UID)).toBeUndefined();
+    expect(context.channels.log).toHaveBeenCalledTimes(1);
   });
 
   test("removes a known Exile, confirms privately and posts one log line naming the Exile and the R5", async () => {

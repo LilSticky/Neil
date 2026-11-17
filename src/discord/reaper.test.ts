@@ -18,6 +18,7 @@ import {
   type PlayerName,
   type Uid,
 } from "../domain/lookup-input.js";
+import type { NapEvent } from "../domain/nap.js";
 import type { LookupResult, Match, Player } from "../domain/player.js";
 import { openDatabase } from "../storage/database.js";
 import { ReaperStore } from "../storage/reaper-store.js";
@@ -66,8 +67,26 @@ const NOW = new Date("2026-11-04T16:00:00Z");
 const EARLIER = new Date("2026-11-01T12:00:00Z");
 const RESETS_AT = new Date("2026-11-05T00:00:00Z");
 
-const R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: HOME };
-const R4_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R4" }, allianceKingdom: HOME };
+/** The Linked R5 of NML, an Alliance in the NaP: on the NaP Council. */
+const R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: HOME, allianceTag: "NML" };
+/** The Linked R5 of ABC, a Home Kingdom Alliance outside the NaP: not on the NaP Council. */
+const OUTSIDE_R5_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R5" }, allianceKingdom: HOME, allianceTag: "ABC" };
+/** A Member of NML who is not its R5. */
+const R4_EDITOR: Editor = { allianceRank: { source: "game-api", rank: "R4" }, allianceKingdom: HOME, allianceTag: "NML" };
+const OFFICER_ROLE_ID = "900000000000000001";
+
+/** The NaP register's history: the Alliance NML joined, so its Linked R5 is on the NaP Council. */
+const NAP_WITH_NML: readonly NapEvent[] = [
+  {
+    kind: "joined",
+    tag: "NML",
+    requestedBy: "400000000000000001",
+    requestedAt: new Date("2026-10-31T11:00:00Z"),
+    approvedBy: "400000000000000002",
+    approvedAs: "officer",
+    at: new Date("2026-10-31T12:00:00Z"),
+  },
+];
 
 const VEX: Player = {
   uid: UID,
@@ -118,19 +137,29 @@ function repliesOf(interaction: FakeReaperInteraction): string[] {
   return interaction.calls.flatMap((call) => (call.method === "deferReply" ? [] : [call.options.content ?? ""]));
 }
 
-/** A context whose fake Game API answers the name lookup with the given result, and whose R5 check is the given Editor. */
+/**
+ * A context whose fake Game API answers the name lookup with the given result, whose Editor is the given one and whose
+ * NaP register holds the given history (NML in the NaP by default).
+ */
 function addContext(
   store: ReaperStore,
-  options: { readonly editor?: Editor; readonly lookup?: LookupResult<Player> } = {},
+  options: {
+    readonly editor?: Editor;
+    readonly lookup?: LookupResult<Player>;
+    readonly napHistory?: readonly NapEvent[];
+  } = {},
 ) {
   const gameApi = new FakeGameApi({ player: options.lookup ?? FOUND });
   const open = vi.fn<(ownerId: string, choice: PickChoice, now: Date) => string>(() => PICK_ID);
   const log = vi.fn<(message: BaseMessageOptions) => Promise<void>>(() => Promise.resolve());
   const logError = vi.fn<(message: string) => void>();
   const editor = options.editor ?? R5_EDITOR;
+  const napHistory = options.napHistory ?? NAP_WITH_NML;
   const context: ReaperAddContext = {
     editorOf: () => editor,
     homeKingdom: HOME,
+    napHistory: () => napHistory,
+    officerRoleIds: [OFFICER_ROLE_ID],
     gameApi,
     reaper: store,
     pickSessions: { open },
@@ -166,7 +195,54 @@ describe("handleReaperAdd", () => {
     expect(findPlayer).not.toHaveBeenCalled();
     expect(log).not.toHaveBeenCalled();
     expect(store.all()).toEqual([]);
-    expect(repliesOf(interaction)).toEqual(["Only R5s of Home Kingdom Alliances may change REAPER."]);
+    expect(repliesOf(interaction)).toEqual(["Only the NaP Council may change REAPER, or an Officer while the NaP has no members."]);
+  });
+
+  test("refuses the R5 of a Home Kingdom Alliance outside the NaP, before any Game API request or log line", async () => {
+    const { context, findPlayer, log } = addContext(store, { editor: OUTSIDE_R5_EDITOR });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(findPlayer).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+    expect(store.all()).toEqual([]);
+    expect(interaction.calls.map((call) => call.method)).toEqual(["reply"]);
+    expect(repliesOf(interaction)).toEqual(["Only the NaP Council may change REAPER, or an Officer while the NaP has no members."]);
+  });
+
+  test("refuses an Officer who is not on the NaP Council while the NaP has members", async () => {
+    const { context, findPlayer, log } = addContext(store, { editor: R4_EDITOR });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID, [OFFICER_ROLE_ID]);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(findPlayer).not.toHaveBeenCalled();
+    expect(log).not.toHaveBeenCalled();
+    expect(store.all()).toEqual([]);
+    expect(repliesOf(interaction)).toEqual(["Only the NaP Council may change REAPER, or an Officer while the NaP has no members."]);
+  });
+
+  test("lets an Officer add an Exile while the NaP has no members", async () => {
+    const { context, findPlayer, log } = addContext(store, { editor: R4_EDITOR, napHistory: [] });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID, [OFFICER_ROLE_ID]);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(findPlayer).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(store.find(UID)).toMatchObject({ uid: UID, addedBy: ADDER_ID });
+  });
+
+  test("refuses a Member who is neither on the NaP Council nor an Officer while the NaP has no members", async () => {
+    const { context, findPlayer } = addContext(store, { editor: R5_EDITOR, napHistory: [] });
+    const interaction = new FakeReaperInteraction(LOOKUP_OPTIONS, ADDER_ID);
+
+    await handleReaperAdd(interaction, context);
+
+    expect(findPlayer).not.toHaveBeenCalled();
+    expect(store.all()).toEqual([]);
+    expect(repliesOf(interaction)).toEqual(["Only the NaP Council may change REAPER, or an Officer while the NaP has no members."]);
   });
 
   test("refuses a blank reason before any Game API request, and stores nothing", async () => {
@@ -399,7 +475,8 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       channels: { log },
       editorOf: () => R5_EDITOR,
       homeKingdom: HOME,
-      officerRoleIds: [],
+      napHistory: () => NAP_WITH_NML,
+      officerRoleIds: [OFFICER_ROLE_ID],
       allowance: () => 0,
       usage: new FakeUsage().usage,
     });
@@ -423,7 +500,7 @@ describe("picking an Exile from the pick list of /reaper add", () => {
     );
   });
 
-  test("refuses a pick by a Member who is no longer a Home Kingdom R5, before any Game API request, and stores nothing", async () => {
+  test("refuses a pick by a Member who is no longer on the NaP Council, before any Game API request, and stores nothing", async () => {
     const sessions = new PickSessions();
     const sessionId = sessions.open(
       ADDER_ID,
@@ -445,9 +522,10 @@ describe("picking an Exile from the pick list of /reaper add", () => {
       logError: vi.fn<(message: string) => void>(),
       reaper: store,
       channels: { log },
-      editorOf: () => R4_EDITOR,
+      editorOf: () => OUTSIDE_R5_EDITOR,
       homeKingdom: HOME,
-      officerRoleIds: [],
+      napHistory: () => NAP_WITH_NML,
+      officerRoleIds: [OFFICER_ROLE_ID],
       allowance: () => 0,
       usage: new FakeUsage().usage,
     });
@@ -456,6 +534,6 @@ describe("picking an Exile from the pick list of /reaper add", () => {
     expect(gameApi.chargedTo).not.toHaveBeenCalled();
     expect(store.all()).toEqual([]);
     expect(log).not.toHaveBeenCalled();
-    expect(JSON.stringify(interaction.calls)).toContain("Only R5s of Home Kingdom Alliances may change REAPER.");
+    expect(JSON.stringify(interaction.calls)).toContain("Only the NaP Council may change REAPER, or an Officer while the NaP has no members.");
   });
 });

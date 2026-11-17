@@ -18,7 +18,7 @@ function fittedName(name: string): string {
 
 /** The texts of /reaper: add, closest, list, paging and their refusals and answers. Names and reasons are escaped. */
 export const reaperMessages = {
-  refused: "Only R5s of Home Kingdom Alliances may change REAPER.",
+  refused: "Only the NaP Council may change REAPER, or an Officer while the NaP has no members.",
   unknownSubcommand: "Neil does not know this /reaper subcommand.",
   invalidReason: "Give a reason of 1 to 200 characters.",
   added: (name: string, kingdom: number, allianceText: string): string =>

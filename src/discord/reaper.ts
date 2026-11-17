@@ -7,7 +7,6 @@ import {
 } from "discord.js";
 import {
   exileReasonOf,
-  mayChangeReaper,
   rankExiles,
   type Editor,
   type Exile,
@@ -17,6 +16,8 @@ import {
   type Position,
   type RankedExile,
 } from "../domain/exile.js";
+import { linkedR5AllianceOf, mayKeepReaper, type NapEvent } from "../domain/nap.js";
+import { isOfficer } from "../domain/officer.js";
 import { parsePlayerName, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { listedPlayerMatches, type LookupResult, type Player } from "../domain/player.js";
@@ -55,10 +56,32 @@ export interface ReaperRecordContext {
   readonly logError: (message: string) => void;
 }
 
-/** What /reaper add needs on top of storing: the Editor check, the Game API name lookup and the pick lists it may open. */
-export interface ReaperAddContext extends ReaperRecordContext {
+/**
+ * Who may keep REAPER: the Editor of a Member, the NaP register's history and the Officer roles, read when the check is
+ * made.
+ */
+export interface ReaperKeeperContext {
   readonly editorOf: (memberId: MemberId) => Editor | undefined;
   readonly homeKingdom: KingdomNumber;
+  readonly napHistory: () => readonly NapEvent[];
+  /** The Discord role ids that make a Member an Officer, who keeps REAPER while the NaP has no members. */
+  readonly officerRoleIds: readonly string[];
+}
+
+/** Whether the Member may keep REAPER now: on the NaP Council, or an Officer while the NaP has no members. */
+export function mayMemberKeepReaper(
+  memberId: MemberId,
+  memberRoleIds: readonly string[],
+  context: ReaperKeeperContext,
+): boolean {
+  const editor = context.editorOf(memberId);
+  const allianceTag = editor === undefined ? undefined : linkedR5AllianceOf(editor, context.homeKingdom);
+  const officer = isOfficer(memberRoleIds, context.officerRoleIds);
+  return mayKeepReaper({ allianceTag, officer }, context.napHistory());
+}
+
+/** What /reaper add needs on top of storing: who may keep REAPER, the Game API name lookup and the pick lists it may open. */
+export interface ReaperAddContext extends ReaperRecordContext, ReaperKeeperContext {
   readonly gameApi: Pick<LookupApi, "findPlayer">;
   readonly pickSessions: Pick<PickSessions, "open">;
 }
@@ -74,6 +97,12 @@ export interface ReaperInteraction {
   deferReply(options?: InteractionDeferReplyOptions): Promise<unknown>;
   editReply(options: InteractionEditReplyOptions): Promise<unknown>;
   reply(options: InteractionReplyOptions): Promise<unknown>;
+}
+
+/** The part of a discord.js chat-input interaction of /reaper add and remove: also the caller's roles, for the Officer check. */
+export interface ReaperAddInteraction extends ReaperInteraction {
+  /** The Discord role ids the Member holds. */
+  memberRoleIds(): readonly string[];
 }
 
 /** The part of a discord.js button press under a paged /reaper answer that the page handler uses. */
@@ -185,11 +214,13 @@ async function findNamed(
   }
 }
 
-/** Answers /reaper add: only Home Kingdom R5s, the reason and the name checked before any Game API request. */
-export async function handleReaperAdd(interaction: ReaperInteraction, context: ReaperAddContext): Promise<void> {
+/**
+ * Answers /reaper add: only the NaP Council, or an Officer while the NaP has no members; the reason and the name checked
+ * before any Game API request.
+ */
+export async function handleReaperAdd(interaction: ReaperAddInteraction, context: ReaperAddContext): Promise<void> {
   await answer("/reaper add", context, async () => {
-    const editor = context.editorOf(interaction.user.id);
-    if (editor === undefined || !mayChangeReaper(editor, context.homeKingdom)) {
+    if (!mayMemberKeepReaper(interaction.user.id, interaction.memberRoleIds(), context)) {
       await replyPrivately(interaction, reaperMessages.refused);
       return;
     }

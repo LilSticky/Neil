@@ -150,6 +150,7 @@ import {
   handleReaperClosest,
   handleReaperList,
   handleReaperPage,
+  type ReaperAddInteraction,
 } from "./reaper.js";
 import { handleReaperAutocomplete, handleReaperRemove } from "./reaper-remove.js";
 import { reaperMessages } from "./reaper-texts.js";
@@ -188,9 +189,9 @@ export interface CommandHandlers {
   readonly reaperClosest: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** /reaper list: every Exile on REAPER. */
   readonly reaperList: (interaction: ChatInputCommandInteraction) => Promise<void>;
-  /** /reaper add: an R5 of the Home Kingdom adds a Player to REAPER. */
+  /** /reaper add: the NaP Council (an Officer while the NaP is empty) adds a Player to REAPER. */
   readonly reaperAdd: (interaction: ChatInputCommandInteraction) => Promise<void>;
-  /** /reaper remove: an R5 of the Home Kingdom takes an Exile off REAPER. */
+  /** /reaper remove: the NaP Council (an Officer while the NaP is empty) takes an Exile off REAPER. */
   readonly reaperRemove: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** An autocomplete request of /reaper, for the exile option of /reaper remove. */
   readonly reaperAutocomplete: (interaction: AutocompleteInteraction) => Promise<void>;
@@ -830,6 +831,18 @@ function usageLike(command: ChatInputCommandInteraction): UsageInteraction {
     callerId: command.user.id,
     memberRoleIds: () => memberRoleIds(command.member),
     reply: (reply) => command.reply(reply),
+  };
+}
+
+/** The discord.js /reaper add or remove command: the caller and their roles, the options, and the reply methods. */
+function reaperAddLike(command: ChatInputCommandInteraction): ReaperAddInteraction {
+  return {
+    user: command.user,
+    options: command.options,
+    memberRoleIds: () => memberRoleIds(command.member),
+    deferReply: (options) => command.deferReply(options),
+    editReply: (options) => command.editReply(options),
+    reply: (options) => command.reply(options),
   };
 }
 
@@ -1767,6 +1780,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const reaperWrites = {
       editorOf: editorOfMember,
       homeKingdom: options.homeKingdom,
+      napHistory: () => options.nap.history(),
+      officerRoleIds: options.officerRoleIds,
       reaper: options.reaper,
       channels,
       logError,
@@ -1781,6 +1796,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       channels,
       editorOf: editorOfMember,
       homeKingdom: options.homeKingdom,
+      napHistory: () => options.nap.history(),
       napStatusOf: napStatus,
     };
     // The Event invitations and reminders read the server through one adapter, and log to #neil-log like the rest.
@@ -1927,13 +1943,13 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       preferenceChoices,
       bootyCalls,
       reaperAdd: (interaction) =>
-        handleReaperAdd(interaction, {
+        handleReaperAdd(reaperAddLike(interaction), {
           ...reaperWrites,
           gameApi: options.gameApi,
           pickSessions,
           now,
         }),
-      reaperRemove: (interaction) => handleReaperRemove(interaction, reaperWrites),
+      reaperRemove: (interaction) => handleReaperRemove(reaperAddLike(interaction), reaperWrites),
       pick: (interaction) => handlePick(interaction, pickContext),
     });
     // The startup sweeps of the Onboarding Role, then the Doctor Role, then the Interviews of the Members online, chained so
