@@ -7,13 +7,6 @@ export function exileReasonOf(text) {
         return { ok: false };
     return { ok: true, value: trimmed };
 }
-/** Only an R5 of an Alliance in the Home Kingdom may add or remove Exiles; the rank may come from the Game API or a Rank Approval. */
-export function mayChangeReaper(editor, homeKingdom) {
-    if (editor.allianceKingdom !== homeKingdom)
-        return false;
-    const { allianceRank } = editor;
-    return (allianceRank.source === "game-api" || allianceRank.source === "rank-approval") && allianceRank.rank === "R5";
-}
 /** The straight-line distance between two points on the map. */
 export function distance(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y);

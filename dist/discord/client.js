@@ -512,6 +512,17 @@ function usageLike(command) {
         reply: (reply) => command.reply(reply),
     };
 }
+/** The discord.js /reaper add or remove command: the caller and their roles, the options, and the reply methods. */
+function reaperAddLike(command) {
+    return {
+        user: command.user,
+        options: command.options,
+        memberRoleIds: () => memberRoleIds(command.member),
+        deferReply: (options) => command.deferReply(options),
+        editReply: (options) => command.editReply(options),
+        reply: (options) => command.reply(options),
+    };
+}
 function lookupLike(command) {
     return {
         user: command.user,
@@ -1352,6 +1363,8 @@ export async function connect(token, options) {
         const reaperWrites = {
             editorOf: editorOfMember,
             homeKingdom: options.homeKingdom,
+            napHistory: () => options.nap.history(),
+            officerRoleIds: options.officerRoleIds,
             reaper: options.reaper,
             channels,
             logError,
@@ -1366,6 +1379,7 @@ export async function connect(token, options) {
             channels,
             editorOf: editorOfMember,
             homeKingdom: options.homeKingdom,
+            napHistory: () => options.nap.history(),
             napStatusOf: napStatus,
         };
         // The Event invitations and reminders read the server through one adapter, and log to #neil-log like the rest.
@@ -1507,13 +1521,13 @@ export async function connect(token, options) {
             corrections,
             preferenceChoices,
             bootyCalls,
-            reaperAdd: (interaction) => handleReaperAdd(interaction, {
+            reaperAdd: (interaction) => handleReaperAdd(reaperAddLike(interaction), {
                 ...reaperWrites,
                 gameApi: options.gameApi,
                 pickSessions,
                 now,
             }),
-            reaperRemove: (interaction) => handleReaperRemove(interaction, reaperWrites),
+            reaperRemove: (interaction) => handleReaperRemove(reaperAddLike(interaction), reaperWrites),
             pick: (interaction) => handlePick(interaction, pickContext),
         });
         // The startup sweeps of the Onboarding Role, then the Doctor Role, then the Interviews of the Members online, chained so

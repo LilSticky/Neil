@@ -201,10 +201,10 @@ export const link = new SlashCommandBuilder()
     .setDescription("The Member's uid (the number under the profile picture)")
     .setRequired(true)
     .setMaxLength(32));
-/** REAPER: any Member finds and lists Exiles; Neil lets only Home Kingdom R5s add and remove them. */
+/** REAPER: any Member finds and lists Exiles; Neil lets only the NaP Council (an Officer while the NaP is empty) add and remove them. */
 export const reaper = new SlashCommandBuilder()
     .setName("reaper")
-    .setDescription("REAPER: find the closest Exiles, or keep the list (Home Kingdom R5s)")
+    .setDescription("REAPER: find the closest Exiles, or keep the list (NaP Council)")
     .setContexts(InteractionContextType.Guild)
     .addSubcommand((sub) => sub
     .setName("closest")
@@ -215,7 +215,7 @@ export const reaper = new SlashCommandBuilder()
     .addSubcommand((sub) => sub.setName("list").setDescription("Every Exile on REAPER, newest first"))
     .addSubcommand((sub) => sub
     .setName("add")
-    .setDescription("Add a Player to REAPER (Home Kingdom R5s)")
+    .setDescription("Add a Player to REAPER (NaP Council)")
     .addStringOption((option) => option.setName("name").setDescription("The player's complete in-game name").setRequired(true).setMaxLength(32))
     .addStringOption((option) => option.setName("reason").setDescription("Why they are exiled").setRequired(true).setMaxLength(200))
     .addIntegerOption((option) => option
@@ -226,7 +226,7 @@ export const reaper = new SlashCommandBuilder()
     .setMaxValue(9999)))
     .addSubcommand((sub) => sub
     .setName("remove")
-    .setDescription("Remove an Exile from REAPER (Home Kingdom R5s)")
+    .setDescription("Remove an Exile from REAPER (NaP Council)")
     .addStringOption((option) => option.setName("exile").setDescription("The Exile to remove").setRequired(true).setAutocomplete(true)));
 /**
  * The City Rotation: any Member sees whose turn it is; R5s in the rotation set it, move, skip, leave, pause and resume it,

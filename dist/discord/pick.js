@@ -1,12 +1,11 @@
 import { MessageFlags } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
-import { mayChangeReaper } from "../domain/exile.js";
 import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
 import { listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderAllianceComponents, withNewerData, } from "./lookup-cards.js";
 import { parseOverviewCustomId, renderOverview } from "./overview-texts.js";
 import { allianceCardMessage, napStatusFor, allianceFailureMessage, allowedMentions, answer, callerOf, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, withCallerUsage, } from "./lookup.js";
-import { recordFoundExile } from "./reaper.js";
+import { mayMemberKeepReaper, recordFoundExile } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
 import { refusalMessage } from "./usage-texts.js";
 import { isOwner, pageOf, parseCustomId, } from "./pick-sessions.js";
@@ -84,19 +83,20 @@ async function pickPlayerMatch(interaction, match, context) {
  */
 async function pickExileMatch(interaction, match, reason, context) {
     const parsedUid = match === undefined ? undefined : parseUid(match.uid);
-    const { reaper, channels, editorOf, homeKingdom } = context;
+    const { reaper, channels, editorOf, homeKingdom, napHistory } = context;
     if (match === undefined ||
         parsedUid === undefined ||
         !parsedUid.ok ||
         reaper === undefined ||
         channels === undefined ||
         editorOf === undefined ||
-        homeKingdom === undefined) {
+        homeKingdom === undefined ||
+        napHistory === undefined) {
         await replyPrivately(interaction, lookupMessages.unavailable);
         return;
     }
-    const editor = editorOf(interaction.user.id);
-    if (editor === undefined || !mayChangeReaper(editor, homeKingdom)) {
+    const keeper = { editorOf, homeKingdom, napHistory, officerRoleIds: context.officerRoleIds };
+    if (!mayMemberKeepReaper(interaction.user.id, interaction.memberRoleIds(), keeper)) {
         await replyPrivately(interaction, reaperMessages.refused);
         return;
     }

@@ -1,19 +1,18 @@
-import { mayChangeReaper } from "../domain/exile.js";
 import { parseUid } from "../domain/lookup-input.js";
 import { allowedMentions, answer, replyPrivately } from "./lookup.js";
+import { mayMemberKeepReaper } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
 /** Discord shows at most 25 choices. */
 const MAX_CHOICES = 25;
 /** Discord takes at most 100 characters of a choice's label. */
 const MAX_LABEL_LENGTH = 100;
 /**
- * Answers /reaper remove, privately: only Home Kingdom R5s, and only an Exile that is in REAPER. A removal is confirmed
- * privately and logged with the R5. The find and the remove run without an await between them.
+ * Answers /reaper remove, privately: only the NaP Council, or an Officer while the NaP has no members, and only an Exile
+ * that is in REAPER. A removal is confirmed privately and logged with the Member who removed it. The find and the remove run without an await between them.
  */
 export async function handleReaperRemove(interaction, context) {
     await answer("/reaper remove", context, async () => {
-        const editor = context.editorOf(interaction.user.id);
-        if (editor === undefined || !mayChangeReaper(editor, context.homeKingdom)) {
+        if (!mayMemberKeepReaper(interaction.user.id, interaction.memberRoleIds(), context)) {
             await replyPrivately(interaction, reaperMessages.refused);
             return;
         }

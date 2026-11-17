@@ -131,4 +131,11 @@ export function voteResult(votes, members) {
 export function mayLeave(allianceTag, history) {
     return isNapCouncilMember(allianceTag, history);
 }
+/**
+ * Whether a Member may keep REAPER (add and remove Exiles): they are on the NaP Council, or they are an Officer while the
+ * NaP has no members. The same rule as deciding a join request.
+ */
+export function mayKeepReaper(member, history) {
+    return mayDecide(member, history) !== undefined;
+}
 //# sourceMappingURL=nap.js.map

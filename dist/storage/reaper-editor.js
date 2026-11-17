@@ -1,5 +1,5 @@
 /**
- * The Member as REAPER's and the City Rotation's editor check sees them: the Alliance Rank on their Link and the Kingdom
+ * The Member as the editor checks of REAPER (the NaP Council), the City Rotation and the NaP see them: the Alliance Rank on their Link and the Kingdom
  * and tag of the Alliance they were last applied in. Undefined without a Link; the Kingdom and tag are undefined when no
  * Alliance is recorded.
  */

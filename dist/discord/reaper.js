@@ -1,5 +1,7 @@
 import { MessageFlags, } from "discord.js";
-import { exileReasonOf, mayChangeReaper, rankExiles, } from "../domain/exile.js";
+import { exileReasonOf, rankExiles, } from "../domain/exile.js";
+import { linkedR5AllianceOf, mayKeepReaper } from "../domain/nap.js";
+import { isOfficer } from "../domain/officer.js";
 import { parsePlayerName } from "../domain/lookup-input.js";
 import { listedPlayerMatches } from "../domain/player.js";
 import { answer, allowedMentions, errorText, parseOptionalKingdom, replyPrivately, sharedPlayerFailureText, } from "./lookup.js";
@@ -7,6 +9,13 @@ import { escapeText, lookupMessages, renderPlayerPickList } from "./lookup-cards
 import { closestAnswer, CLOSEST_PAGE_SIZE, LIST_PAGE_SIZE, listAnswer } from "./reaper-cards.js";
 import { isOwner, parseReaperCustomId, reaperPageCount, } from "./reaper-pages.js";
 import { reaperMessages } from "./reaper-texts.js";
+/** Whether the Member may keep REAPER now: on the NaP Council, or an Officer while the NaP has no members. */
+export function mayMemberKeepReaper(memberId, memberRoleIds, context) {
+    const editor = context.editorOf(memberId);
+    const allianceTag = editor === undefined ? undefined : linkedR5AllianceOf(editor, context.homeKingdom);
+    const officer = isOfficer(memberRoleIds, context.officerRoleIds);
+    return mayKeepReaper({ allianceTag, officer }, context.napHistory());
+}
 /** The position of a Player as the Game read it, or undefined when it gave none. */
 function positionOf(player) {
     const location = player.details?.location;
@@ -78,11 +87,13 @@ async function findNamed(name, kingdom, context) {
         return undefined;
     }
 }
-/** Answers /reaper add: only Home Kingdom R5s, the reason and the name checked before any Game API request. */
+/**
+ * Answers /reaper add: only the NaP Council, or an Officer while the NaP has no members; the reason and the name checked
+ * before any Game API request.
+ */
 export async function handleReaperAdd(interaction, context) {
     await answer("/reaper add", context, async () => {
-        const editor = context.editorOf(interaction.user.id);
-        if (editor === undefined || !mayChangeReaper(editor, context.homeKingdom)) {
+        if (!mayMemberKeepReaper(interaction.user.id, interaction.memberRoleIds(), context)) {
             await replyPrivately(interaction, reaperMessages.refused);
             return;
         }
