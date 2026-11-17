@@ -250,6 +250,15 @@ export const rotation = new SlashCommandBuilder()
     .setName("holder")
     .setDescription("Name the Holding Alliance (Officers)")
     .addStringOption((option) => option.setName("tag").setDescription("The tag of the Alliance holding the Royal City").setRequired(true).setMaxLength(40)));
+/** The NaP register: any Member sees who is in it; R5s ask to join and leave; the council and Officers see the history. */
+export const nap = new SlashCommandBuilder()
+    .setName("nap")
+    .setDescription("NaP: see which Alliances are in the non-aggression pact")
+    .setContexts(InteractionContextType.Guild)
+    .addSubcommand((sub) => sub.setName("show").setDescription("The Alliances in the NaP since when, and the join requests waiting"))
+    .addSubcommand((sub) => sub.setName("join").setDescription("Ask for your Alliance to join the NaP (R5s)"))
+    .addSubcommand((sub) => sub.setName("leave").setDescription("Take your Alliance out of the NaP (R5s of its Alliances)"))
+    .addSubcommand((sub) => sub.setName("history").setDescription("Every join and leave, with who asked, approved or left (NaP Council, Officers)"));
 /** Everything registered for the configured server, as REST payloads. */
 export const commands = [
     ping.toJSON(),
@@ -270,5 +279,6 @@ export const commands = [
     eventKinds.toJSON(),
     rotation.toJSON(),
     raidPlan.toJSON(),
+    nap.toJSON(),
 ];
 //# sourceMappingURL=commands.js.map

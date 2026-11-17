@@ -272,6 +272,29 @@ const migrations = [
      posted_at TEXT NOT NULL,
      PRIMARY KEY (siege_at, kind)
    )`,
+    // Migration 21: the NaP register (slice 038, ADR 20): the history of every join and leave, oldest first, and the open
+    // join requests. Members are kept only as Discord user ids (who asked, who approved or left), with times; no names,
+    // nicknames or uids. The history is the NaP's record of its decisions and is not deleted at Unlink.
+    `CREATE TABLE nap_history (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     tag TEXT NOT NULL CHECK (tag <> ''),
+     kind TEXT NOT NULL CHECK (kind IN ('joined', 'left')),
+     at TEXT NOT NULL,
+     actor_id TEXT NOT NULL CHECK (actor_id <> '' AND actor_id NOT GLOB '*[^0-9]*'),
+     requested_by TEXT CHECK (requested_by IS NULL OR (requested_by <> '' AND requested_by NOT GLOB '*[^0-9]*')),
+     requested_at TEXT,
+     approved_as TEXT CHECK (approved_as IS NULL OR approved_as IN ('council', 'officer')),
+     CHECK ((kind = 'joined') = (requested_by IS NOT NULL)),
+     CHECK ((kind = 'joined') = (requested_at IS NOT NULL)),
+     CHECK ((kind = 'joined') = (approved_as IS NOT NULL))
+   );
+   CREATE TABLE nap_join_requests (
+     tag TEXT PRIMARY KEY COLLATE NOCASE CHECK (tag <> ''),
+     requested_by TEXT NOT NULL CHECK (requested_by <> '' AND requested_by NOT GLOB '*[^0-9]*'),
+     requested_at TEXT NOT NULL,
+     channel_id TEXT,
+     message_id TEXT
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

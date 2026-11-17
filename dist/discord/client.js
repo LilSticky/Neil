@@ -9,6 +9,8 @@ import { createHandoverReminders } from "./handover-reminders.js";
 import { createCityRotation } from "./city-rotation.js";
 import { cityRotationServerOf } from "./city-rotation-server.js";
 import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
+import { createNap } from "./nap.js";
+import { NAP_APPROVE_PREFIX, napMessages } from "./nap-texts.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
@@ -270,6 +272,9 @@ export function createClient(handlers, options) {
                 case "rotation":
                     void handlers.rotation(interaction);
                     break;
+                case "nap":
+                    void handlers.nap(interaction);
+                    break;
                 case "raid-plan":
                     void handlers.raidPlan(interaction);
                     break;
@@ -322,6 +327,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(ROTATION_CONFIRM_PREFIX)) {
                 void handlers.rotationButton(interaction);
+            }
+            else if (interaction.customId.startsWith(NAP_APPROVE_PREFIX)) {
+                void handlers.napButton(interaction);
             }
             else if (interaction.customId.startsWith(RAID_PREFIX)) {
                 void handlers.raidButton(interaction);
@@ -662,6 +670,44 @@ async function routeRotation(cityRotation, interaction) {
             break;
         default:
             await replyPrivately(interaction, cityRotationMessages.unknownSubcommand);
+    }
+}
+/** The discord.js /nap command as the NaP register reads it: the caller and their roles, and the reply. */
+function napCommandLike(command) {
+    return {
+        user: command.user,
+        memberRoleIds: () => memberRoleIds(command.member),
+        reply: (options) => command.reply(options),
+    };
+}
+/** The discord.js press of an Approve button: the presser and their roles, a private reply, or the message replaced. */
+function napButtonLike(button) {
+    return {
+        customId: button.customId,
+        user: button.user,
+        memberRoleIds: () => memberRoleIds(button.member),
+        reply: (options) => button.reply(options),
+        update: (options) => button.update(options),
+    };
+}
+/** Hands a /nap command to the NaP register's subcommand. */
+async function routeNap(nap, interaction) {
+    const command = napCommandLike(interaction);
+    switch (interaction.options.getSubcommand()) {
+        case "show":
+            await nap.show(command);
+            break;
+        case "join":
+            await nap.join(command);
+            break;
+        case "leave":
+            await nap.leave(command);
+            break;
+        case "history":
+            await nap.history(command);
+            break;
+        default:
+            await replyPrivately(interaction, napMessages.unknownSubcommand);
     }
 }
 /** The discord.js /channels command as the choices read it: the caller, and the private reply. */
@@ -1067,6 +1113,8 @@ export async function connect(token, options) {
         preferencesPress: async (press) => (await services).preferenceChoices.press(preferencesPressLike(press)),
         rotation: (interaction) => answer("/rotation", { logError }, async () => routeRotation((await services).cityRotation, interaction)),
         rotationButton: (button) => answer("rotation button", { logError }, async () => (await services).cityRotation.confirm(rotationButtonLike(button))),
+        nap: (interaction) => answer("/nap", { logError }, async () => routeNap((await services).nap, interaction)),
+        napButton: (button) => answer("nap button", { logError }, async () => (await services).nap.approve(napButtonLike(button))),
     }, { guildId: options.guildId, logError });
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
     // apply); both are stopped again on disconnect.
@@ -1312,16 +1360,29 @@ export async function connect(token, options) {
             logError,
         });
         // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
+        const cityRotationServer = cityRotationServerOf(guild, { log: (message) => channels.log(message) });
         const cityRotation = createCityRotation({
             store: options.cityRotation,
             knownAlliances: options.knownAlliances,
             links: options.links,
             editorOf: editorOfMember,
             gameApi: options.gameApi,
-            server: cityRotationServerOf(guild, { log: (message) => channels.log(message) }),
+            server: cityRotationServer,
             homeKingdom: options.homeKingdom,
             mode: options.cityRotationMode,
             siegeTime: options.royalCitySiegeTime,
+            officerRoleIds: options.officerRoleIds,
+            now,
+            logError,
+        });
+        // The NaP register: its join requests and leaves in #nap-leaders, through the City Rotation's server, so the channel
+        // is named once; its lines in #neil-log.
+        const nap = createNap({
+            store: options.nap,
+            knownAlliances: options.knownAlliances,
+            editorOf: editorOfMember,
+            server: cityRotationServer,
+            homeKingdom: options.homeKingdom,
             officerRoleIds: options.officerRoleIds,
             now,
             logError,
@@ -1369,6 +1430,7 @@ export async function connect(token, options) {
         });
         openServices({
             cityRotation,
+            nap,
             raidPlanning,
             availabilityPoll,
             interviews,

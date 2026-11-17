@@ -17,6 +17,7 @@ import { InterviewStore } from "./storage/interview-store.js";
 import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
+import { NapStore } from "./storage/nap-store.js";
 import { RaidStore } from "./storage/raid-store.js";
 import { AvailabilityStore } from "./storage/availability-store.js";
 import { ReaperStore } from "./storage/reaper-store.js";
@@ -52,6 +53,7 @@ await start({
             handovers: new HandoverStore(db),
             raids: new RaidStore(db),
             availability: new AvailabilityStore(db),
+            nap: new NapStore(db),
             preferences: createPreferenceStore(db, (line) => {
                 console.error(line);
             }),
