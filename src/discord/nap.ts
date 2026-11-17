@@ -14,14 +14,14 @@ import {
 import { isOfficer } from "../domain/officer.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { KnownAllianceStore } from "../storage/known-alliance-store.js";
-import type { NapStore } from "../storage/nap-store.js";
+import type { NapJoinRequest, NapStore } from "../storage/nap-store.js";
 import type { CityRotationServer } from "./city-rotation.js";
 import { allianceLabel } from "./city-rotation-texts.js";
 import { allowedMentions } from "./lookup.js";
 import { napApproveOf, napApproveRow, napHistoryEmbed, napMessages as messages, napShowEmbed } from "./nap-texts.js";
 
-/** The Discord server as the NaP register uses it: #nap-leaders, Neil's own posts there, and #neil-log. */
-export type NapServer = Pick<CityRotationServer, "leadersChannelId" | "post" | "log">;
+/** The Discord server as the NaP register uses it: #nap-leaders, Neil's own posts and edits there, and #neil-log. */
+export type NapServer = Pick<CityRotationServer, "leadersChannelId" | "post" | "edit" | "log">;
 
 /** The part of a discord.js chat-input interaction of /nap that its subcommands use. */
 export interface NapCommand {
@@ -78,6 +78,8 @@ const UNPOSTED_REQUEST_MS = 60_000;
 
 export function createNap(deps: NapDeps): Nap {
   const { store, server } = deps;
+  /** The tags (case-folded) of the open requests whose message /nap join is checking or posting again right now. */
+  const checking = new Set<string>();
 
   function labeller(): (tag: string) => string {
     const known = deps.knownAlliances.all(deps.now()).filter((alliance) => alliance.kingdom === deps.homeKingdom);
@@ -126,6 +128,10 @@ export function createNap(deps: NapDeps): Nap {
       await replyPrivately(command, messages.alreadyMember(label));
       return;
     }
+    if (checking.has(tag.toLowerCase())) {
+      await replyPrivately(command, messages.requestOpen(label));
+      return;
+    }
     // A request never posted (Neil stopped between saving and posting it) has no button; after a minute it is asked again.
     const stuck = store.request(tag);
     if (
@@ -134,6 +140,11 @@ export function createNap(deps: NapDeps): Nap {
       deps.now().getTime() - stuck.requestedAt.getTime() > UNPOSTED_REQUEST_MS
     ) {
       store.removeRequest(tag);
+    }
+    // A posted request whose message was deleted could never be approved (#148): check it, and post it again if gone.
+    if (stuck !== undefined && stuck.messageId !== undefined) {
+      await checkRequestMessage(command, stuck, stuck.messageId, label, napMembers(history).length === 0);
+      return;
     }
     if (!mayAskToJoin(tag, history, store.openRequests().map((request) => request.tag))) {
       await replyPrivately(command, messages.requestOpen(label));
@@ -163,6 +174,54 @@ export function createNap(deps: NapDeps): Nap {
     }
     await replyPrivately(command, messages.asked(label));
     await log(messages.logRequested(asker, tag));
+  }
+
+  /**
+   * Refreshes the message of an open join request, or posts the same request again (same asker, time and button) when
+   * the message is gone or not in the current #nap-leaders. The request stays open whatever happens.
+   */
+  async function checkRequestMessage(
+    command: NapCommand,
+    request: NapJoinRequest,
+    messageId: string,
+    label: string,
+    napEmpty: boolean,
+  ): Promise<void> {
+    const key = request.tag.toLowerCase();
+    checking.add(key);
+    try {
+      const channelId = server.leadersChannelId();
+      if (channelId === undefined) {
+        await replyPrivately(command, messages.noLeaders);
+        await log(messages.logRepostNoLeaders(request.tag));
+        return;
+      }
+      const message = {
+        content: messages.joinRequest(label, request.requestedBy, napEmpty),
+        components: [napApproveRow(request.tag, request.requestedAt)],
+        allowedMentions,
+      };
+      let stillThere: boolean;
+      try {
+        stillThere = request.channelId === channelId && (await server.edit(channelId, messageId, message));
+        if (!stillThere) {
+          const newId = await server.post(channelId, message);
+          store.setRequestMessage(request.tag, request.requestedAt, channelId, newId);
+        }
+      } catch (error) {
+        await replyPrivately(command, messages.postFailed);
+        await log(messages.logRepostFailed(request.tag, reasonOf(error)));
+        return;
+      }
+      if (stillThere) {
+        await replyPrivately(command, messages.requestOpen(label));
+        return;
+      }
+      await replyPrivately(command, messages.reposted(label));
+      await log(messages.logReposted(command.user.id, request.tag));
+    } finally {
+      checking.delete(key);
+    }
   }
 
   async function approve(button: NapButton): Promise<void> {

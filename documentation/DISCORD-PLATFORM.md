@@ -86,7 +86,9 @@ by listing every Member over REST. In `#nap-announcements` it posts and pins the
 (Pin Messages, slice 035) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
 again. In `#nap-leaders` it posts the Handover question after each Royal City siege and the Handover Reminders (slices
 035 and 037), and the NaP join requests with their Approve button and the leave notices (slice 038); it edits a join
-request through the button's interaction (`update`), which needs no permission beyond the post. Every NaP message has
+request through the button's interaction (`update`), which needs no permission beyond the post. When the R5 runs `/nap join` again while the request is open, Neil edits the
+request's message; when Discord answers **10008** (or the message is not in the current `#nap-leaders`), it posts the
+same request again with the same Approve button (issue #148). Every NaP message has
 mentions off. Missing permissions surface as REST error **50013**
 (`src/discord/member-roles.ts`). Neil has no Manage Events (ADR 14) and no Manage Channels (ADR 12).
 
