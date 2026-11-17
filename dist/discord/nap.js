@@ -1,10 +1,10 @@
 import { MessageFlags } from "discord.js";
 import { sameTag } from "../domain/city-rotation.js";
-import { isNapCouncilMember, isNapMember, linkedR5AllianceOf, mayApprove, mayAskToJoin, mayLeave, napMembers, } from "../domain/nap.js";
+import { isNapCouncilMember, isNapMember, linkedR5AllianceOf, mayApprove, mayAskToJoin, mayLeave, napFormerMembers, napMembers, } from "../domain/nap.js";
 import { isOfficer } from "../domain/officer.js";
 import { allianceLabel } from "./city-rotation-texts.js";
 import { allowedMentions } from "./lookup.js";
-import { napApproveOf, napApproveRow, napHistoryEmbed, napMessages as messages, napShowEmbed } from "./nap-texts.js";
+import { napApproveOf, napApproveRow, napHistoryEmbed, napListEmbed, napMessages as messages, napShowEmbed, } from "./nap-texts.js";
 /**
  * The NaP register: which Alliances are in the NaP, the open join requests, and the history of joins and leaves with
  * who asked, who approved or left, and when. No Game API requests. Every request, approval and leave writes one
@@ -39,7 +39,8 @@ export function createNap(deps) {
         await to.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions });
     }
     async function show(command) {
-        const embed = napShowEmbed(napMembers(store.history()), store.openRequests(), labeller());
+        const events = store.history();
+        const embed = napShowEmbed(napMembers(events), napFormerMembers(events), store.openRequests(), labeller());
         await command.reply({ embeds: [embed], flags: MessageFlags.Ephemeral, allowedMentions });
     }
     async function join(command) {
@@ -161,6 +162,7 @@ export function createNap(deps) {
             return;
         }
         store.removeRequest(request.tag);
+        const at = deps.now();
         store.append({
             kind: "joined",
             tag: request.tag,
@@ -168,7 +170,7 @@ export function createNap(deps) {
             requestedAt: request.requestedAt,
             approvedBy: approver,
             approvedAs: as,
-            at: deps.now(),
+            at,
         });
         const label = labeller()(request.tag);
         await button.update({
@@ -177,6 +179,7 @@ export function createNap(deps) {
             allowedMentions,
         });
         await log(messages.logApproved(approver, as, request.tag, request.requestedBy));
+        await announce(request.tag, messages.joinedAnnouncement(label, at));
     }
     async function leave(command) {
         const member = command.user.id;
@@ -187,20 +190,79 @@ export function createNap(deps) {
             await replyPrivately(command, messages.refusedLeave);
             return;
         }
-        store.append({ kind: "left", tag: inNap.tag, leftBy: member, at: deps.now() });
+        const at = deps.now();
+        store.append({ kind: "left", tag: inNap.tag, leftBy: member, at });
         const label = labeller()(inNap.tag);
         await replyPrivately(command, messages.leftReply(label));
         await log(messages.logLeft(member, inNap.tag));
+        await noticeLeaders(inNap.tag, messages.leftNotice(label, member));
+        await announce(inNap.tag, messages.leftAnnouncement(label, at));
+    }
+    /** Tells the NaP Council in #nap-leaders that an Alliance left; a missing channel or failed post only logs a line. */
+    async function noticeLeaders(tag, content) {
         const channelId = server.leadersChannelId();
         if (channelId === undefined) {
-            await log(messages.logLeaveNoLeaders(inNap.tag));
+            await log(messages.logLeaveNoLeaders(tag));
             return;
         }
         try {
-            await server.post(channelId, { content: messages.leftNotice(label, member), allowedMentions });
+            await server.post(channelId, { content, allowedMentions });
         }
         catch (error) {
-            await log(messages.logLeavePostFailed(inNap.tag, reasonOf(error)));
+            await log(messages.logLeavePostFailed(tag, reasonOf(error)));
+        }
+    }
+    /**
+     * Announces a join or leave in #nap-announcements, then brings the NaP list there up to date. Runs after the change is
+     * stored and answered: a missing channel or a failure only logs a line, and the list is left alone without a channel.
+     */
+    async function announce(tag, content) {
+        const channelId = server.announcementsChannelId();
+        if (channelId === undefined) {
+            await log(messages.logNoAnnouncements(tag));
+            return;
+        }
+        try {
+            await server.post(channelId, { content, allowedMentions });
+        }
+        catch (error) {
+            await log(messages.logAnnouncementFailed(tag, reasonOf(error)));
+        }
+        await refreshList();
+    }
+    /** The refreshes of the NaP list, chained so they run one at a time and two quick changes never post two lists. */
+    let listRefreshes = Promise.resolve();
+    function refreshList() {
+        const next = listRefreshes.then(updateList);
+        listRefreshes = next;
+        return next;
+    }
+    async function updateList() {
+        try {
+            const channelId = server.announcementsChannelId();
+            if (channelId === undefined) {
+                await log(messages.logListNoAnnouncements);
+                return;
+            }
+            const events = store.history();
+            const list = {
+                embeds: [napListEmbed(napMembers(events), napFormerMembers(events), labeller())],
+                allowedMentions,
+            };
+            const messageId = store.listMessageId();
+            if (messageId !== undefined && (await server.edit(channelId, messageId, list)))
+                return;
+            const newId = await server.post(channelId, list);
+            store.setListMessageId(newId);
+            try {
+                await server.pin(channelId, newId);
+            }
+            catch (error) {
+                await log(messages.logListPinFailed(reasonOf(error)));
+            }
+        }
+        catch (error) {
+            await log(messages.logListFailed(reasonOf(error)));
         }
     }
     async function history(command) {
@@ -212,7 +274,7 @@ export function createNap(deps) {
         }
         await command.reply({ embeds: [napHistoryEmbed(events)], flags: MessageFlags.Ephemeral, allowedMentions });
     }
-    return { show, join, leave, history, approve };
+    return { show, join, leave, history, approve, refreshList };
 }
 function reasonOf(error) {
     return error instanceof Error ? error.message : String(error);

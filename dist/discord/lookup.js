@@ -9,6 +9,21 @@ import { listedAllianceMatches, listedPlayerMatches, } from "../domain/player.js
 import { allianceLookAgainRow, lookAgainRow, lookupMessages, renderAllianceCard, renderAllianceComponents, renderAlliancePickList, renderCloseAlliancePickList, renderPlayerCard, renderPlayerPickList, withNewerData, } from "./lookup-cards.js";
 import { allowanceSpentText, refusalMessage, withUsage } from "./usage-texts.js";
 /**
+ * The NaP status an Alliance card shows: none without a reader, and none when reading it fails, which is logged. The card
+ * is shown either way.
+ */
+export function napStatusFor(context, alliance) {
+    if (context.napStatusOf === undefined)
+        return undefined;
+    try {
+        return context.napStatusOf({ kingdom: alliance.kingdom, tag: alliance.tag });
+    }
+    catch (error) {
+        context.logError(`Reading the NaP status failed: ${errorText(error)}`);
+        return undefined;
+    }
+}
+/**
  * Adds the caller's usage line to a reply that is about to be shown. Every reply of a charged lookup goes through here, so
  * the line is read after the request, and it is the same line on a card, a pick list, a failure and an Overview. When the
  * line cannot be read, the failure is logged and the reply is given without the line: the Member still gets the answer.
@@ -131,8 +146,8 @@ export function playerCardMessage(player, asOf, now, ownerId) {
  * again button of `ownerId`. The card always says where current data is. The menu's pick list is opened for the owner,
  * with the roster in the order the card lists it.
  */
-export function allianceCardMessage(alliance, asOf, now, ownerId, pickSessions) {
-    const embeds = [withNewerData(renderAllianceCard(alliance, asOf, now), alliance.kingdom)];
+export function allianceCardMessage(alliance, asOf, now, ownerId, pickSessions, nap) {
+    const embeds = [withNewerData(renderAllianceCard(alliance, asOf, now, 0, nap), alliance.kingdom)];
     if (alliance.roster.length === 0) {
         const again = allianceLookAgainRow(alliance, "alliance", ownerId);
         return { embeds, components: again === undefined ? [] : [again] };
@@ -257,7 +272,7 @@ export async function handlePlayer(interaction, context) {
  */
 async function showAlliance(interaction, context, caller, ask, failureMessage) {
     const ownerId = interaction.user.id;
-    await showLookup(interaction, context, caller, ask, (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions), failureMessage);
+    await showLookup(interaction, context, caller, ask, (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)), failureMessage);
 }
 /** The Known Alliances close to a name, best first; a store that cannot be read is logged and leaves none. */
 function closeKnownAlliances(name, context, now) {

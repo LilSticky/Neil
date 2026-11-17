@@ -1,6 +1,6 @@
 import { MessageFlags } from "discord.js";
 import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input.js";
-import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, callerOf, errorText, playerCardMessage, playerFailureText, replyPrivately, withCallerUsage, } from "./lookup.js";
+import { allianceCardMessage, napStatusFor, allianceFailureMessage, allowedMentions, answer, callerOf, errorText, playerCardMessage, playerFailureText, replyPrivately, withCallerUsage, } from "./lookup.js";
 import { lookupMessages } from "./lookup-cards.js";
 import { openOverviewSession } from "./pick.js";
 import { renderOverview } from "./overview-texts.js";
@@ -91,7 +91,7 @@ async function repeatTarget(press, target, context, caller, ownerId) {
         }
         case "alliance": {
             const { kingdom, tag } = target;
-            await refreshCard(press, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, tag, "live"), (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions), (failure, now) => allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, kingdom), ownerId, context.pickSessions, now));
+            await refreshCard(press, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, tag, "live"), (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)), (failure, now) => allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, kingdom), ownerId, context.pickSessions, now));
             return;
         }
         case "overview": {

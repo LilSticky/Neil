@@ -5,7 +5,7 @@ import { parseAllianceKey, parseKingdom, parseUid } from "../domain/lookup-input
 import { listedPlayerMatches, rankedAllianceMatches, } from "../domain/player.js";
 import { alliancePickLabel, lookupMessages, playerPickLabel, renderAllianceCard, renderAllianceComponents, withNewerData, } from "./lookup-cards.js";
 import { parseOverviewCustomId, renderOverview } from "./overview-texts.js";
-import { allianceCardMessage, allianceFailureMessage, allowedMentions, answer, callerOf, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, withCallerUsage, } from "./lookup.js";
+import { allianceCardMessage, napStatusFor, allianceFailureMessage, allowedMentions, answer, callerOf, errorText, playerCardMessage, playerFailureText, replyPrivately, showLookup, withCallerUsage, } from "./lookup.js";
 import { recordFoundExile } from "./reaper.js";
 import { reaperMessages } from "./reaper-texts.js";
 import { refusalMessage } from "./usage-texts.js";
@@ -137,7 +137,7 @@ async function pickAllianceMatch(interaction, match, context) {
     const { kingdom, key } = target;
     const ownerId = interaction.user.id;
     const caller = callerOf(interaction, context.officerRoleIds);
-    await answerPick(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key), (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions), (failure, now) => allianceFailureMessage(failure, key, lookupMessages.allianceNotFound(key, kingdom), ownerId, context.pickSessions, now));
+    await answerPick(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key), (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)), (failure, now) => allianceFailureMessage(failure, key, lookupMessages.allianceNotFound(key, kingdom), ownerId, context.pickSessions, now));
 }
 /**
  * The owner picked a member of the roster menu's page: the member's Player card is posted publicly as a reply under
@@ -184,7 +184,9 @@ async function turnRosterPage(interaction, session, page, context) {
     context.pickSessions.turnPage(session.id, page);
     const caller = callerOf(interaction, context.officerRoleIds);
     await interaction.update(withCallerUsage(context, caller, {
-        embeds: [withNewerData(renderAllianceCard(choice.alliance, choice.asOf, context.now(), page), choice.alliance.kingdom)],
+        embeds: [
+            withNewerData(renderAllianceCard(choice.alliance, choice.asOf, context.now(), page, napStatusFor(context, choice.alliance)), choice.alliance.kingdom),
+        ],
         components: renderAllianceComponents(choice.alliance, page, session.id, interaction.user.id),
     }));
 }

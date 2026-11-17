@@ -4,6 +4,8 @@ import { timestamp } from "./timestamps.js";
 export const NAP_APPROVE_PREFIX = "nap-approve:";
 /** The most history entries /nap history shows. */
 export const MAX_HISTORY_ENTRIES = 20;
+/** The most former members the NaP list shows. */
+export const MAX_FORMER_MEMBERS = 20;
 /** The colour of the NaP embeds. */
 const NAP_COLOUR = 0x3b88c3;
 /** The Approve button of the join request of `tag`, made at `requestedAt`. */
@@ -34,8 +36,14 @@ export function napApproveOf(customId) {
         return undefined;
     return { tag, requestedAt };
 }
-/** /nap show: the Alliances in the NaP since when, then the open join requests by tag. No Members are named. */
-export function napShowEmbed(members, requests, label) {
+/**
+ * The NaP list, pinned in #nap-announcements and shown by /nap show: the Alliances in the NaP since when, then the former
+ * members with when each left, newest first, at most MAX_FORMER_MEMBERS. Only Alliances and times; no Members are named.
+ */
+export function napListEmbed(members, former, label) {
+    return { title: "NaP", color: NAP_COLOUR, description: napListLines(members, former, label).join("\n") };
+}
+function napListLines(members, former, label) {
     const lines = [];
     if (members.length === 0) {
         lines.push("No Alliance is in the NaP yet.");
@@ -43,10 +51,21 @@ export function napShowEmbed(members, requests, label) {
     else {
         lines.push("**Members**", ...members.map((member) => `- ${label(member.tag)}, since ${timestamp(member.since, "D")}`));
     }
-    if (requests.length > 0) {
-        lines.push("", "**Waiting for approval**", ...requests.map((request) => `- [${request.tag}]`));
+    if (former.length > 0) {
+        const shown = former.slice(0, MAX_FORMER_MEMBERS);
+        lines.push("", "**Former members**", ...shown.map((entry) => `- ${label(entry.tag)}, left ${timestamp(entry.leftAt, "D")}`));
+        if (former.length > shown.length)
+            lines.push(`…and ${(former.length - shown.length).toString()} more.`);
     }
-    return { title: "NaP", color: NAP_COLOUR, description: lines.join("\n") };
+    return lines;
+}
+/** /nap show: the NaP list, then the open join requests by tag. No Members are named. */
+export function napShowEmbed(members, former, requests, label) {
+    const list = napListEmbed(members, former, label);
+    if (requests.length === 0)
+        return list;
+    const waiting = ["", "**Waiting for approval**", ...requests.map((request) => `- [${request.tag}]`)];
+    return { ...list, description: [list.description ?? "", ...waiting].join("\n") };
 }
 /** One history entry: when, which Alliance, joined or left, and the Members behind it as mentions. */
 export function napHistoryLine(event) {
@@ -85,6 +104,10 @@ export const napMessages = {
     approved: (alliance, asker, approver, as) => `${alliance} is now in the NaP: asked by <@${asker}>, approved by <@${approver}>${as === "officer" ? " (Officer)" : ""}.`,
     /** The line in #nap-leaders when an Alliance leaves. */
     leftNotice: (alliance, member) => `${alliance} has left the NaP, by its R5 <@${member}>.`,
+    /** The announcement in #nap-announcements when an Alliance joins: the Alliance and the time, no Member. */
+    joinedAnnouncement: (alliance, at) => `🤝 ${alliance} has joined the NaP (${timestamp(at, "f")}).`,
+    /** The announcement in #nap-announcements when an Alliance leaves: the Alliance and the time, no Member. */
+    leftAnnouncement: (alliance, at) => `${alliance} has left the NaP (${timestamp(at, "f")}).`,
     logRequested: (memberId, tag) => `<@${memberId}> asked for [${tag}] to join the NaP.`,
     logApproved: (memberId, as, tag, asker) => `${as === "officer" ? "Officer" : "NaP Council member"} <@${memberId}> approved [${tag}] joining the NaP (asked by <@${asker}>).`,
     logLeft: (memberId, tag) => `<@${memberId}> took [${tag}] out of the NaP.`,
@@ -95,5 +118,10 @@ export const napMessages = {
     logRepostFailed: (tag, reason) => `Posting the NaP join request for [${tag}] in #nap-leaders again failed: ${reason}`,
     logLeaveNoLeaders: (tag) => `The NaP leave of [${tag}] was not posted: the server has no #nap-leaders.`,
     logLeavePostFailed: (tag, reason) => `Posting the NaP leave of [${tag}] in #nap-leaders failed: ${reason}`,
+    logNoAnnouncements: (tag) => `The NaP change of [${tag}] was not announced: the server has no #nap-announcements.`,
+    logAnnouncementFailed: (tag, reason) => `Announcing the NaP change of [${tag}] in #nap-announcements failed: ${reason}`,
+    logListNoAnnouncements: "The NaP list was not posted: the server has no #nap-announcements.",
+    logListFailed: (reason) => `Updating the NaP list in #nap-announcements failed: ${reason}`,
+    logListPinFailed: (reason) => `Pinning the NaP list in #nap-announcements failed: ${reason}`,
 };
 //# sourceMappingURL=nap-texts.js.map

@@ -308,7 +308,7 @@ function rosterSection(shown, fixed) {
  * in menu order; a page past the last one is clamped), so the card follows the menu's page. The Alliance fields are the
  * same on every page. Every Game API text is escaped; a missing Leader reads Unknown.
  */
-export function renderAllianceCard(alliance, asOf, now, page = 0) {
+export function renderAllianceCard(alliance, asOf, now, page = 0, nap) {
     const details = alliance.details;
     const fields = [
         { name: "Might", value: thousands(alliance.might), inline: true },
@@ -326,6 +326,7 @@ export function renderAllianceCard(alliance, asOf, now, page = 0) {
         ...optionalField("Alliance Level", allianceLevelText(details?.level, details?.xp)),
         ...optionalField("Gift Level", shownWhenKnown(details?.giftLevel, (level) => level.toString())),
         ...optionalField("Language", shownWhenKnown(details?.language, languageText)),
+        ...optionalField("NaP", nap === undefined ? undefined : napStatusText(nap)),
     ];
     const thumbnail = thumbnailOf(details?.badgePath);
     const joinRequirements = shownWhenKnown(details?.joinRequirements, joinRequirementsText);
@@ -342,6 +343,12 @@ export function renderAllianceCard(alliance, asOf, now, page = 0) {
     const shown = pageOf(sortRoster(alliance.roster), page);
     const fixed = embedCharacters(embed) + USAGE_FOOTER_ROOM + NEWER_DATA_ROOM;
     return { ...embed, fields: [...fields, ...rosterSection(shown, fixed)] };
+}
+/** The NaP line of an Alliance card: a member since when, or not a member, with when it left if it ever did. */
+function napStatusText(nap) {
+    if (nap.kind === "member")
+        return `Member since ${timestamp(nap.since, "D")}`;
+    return nap.leftAt === undefined ? "Not a member" : `Not a member (left ${timestamp(nap.leftAt, "D")})`;
 }
 /**
  * The Newer data field: how to get current data when a card's map time is old. It names the Kingdom's map, which the
