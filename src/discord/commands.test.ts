@@ -455,7 +455,36 @@ describe("commands", () => {
     );
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /raid-plan and /rotation", () => {
+  test("hold /nap, open to every Member, guild only, with subcommands show, join, leave and history naming who may use them", () => {
+    expect(commands).toContainEqual(
+      expect.objectContaining({
+        name: "nap",
+        type: ApplicationCommandType.ChatInput,
+        default_member_permissions: undefined,
+        contexts: [InteractionContextType.Guild],
+        options: [
+          expect.objectContaining({ type: ApplicationCommandOptionType.Subcommand, name: "show" }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "join",
+            description: expect.stringContaining("R5s") as unknown,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "leave",
+            description: expect.stringContaining("R5s") as unknown,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "history",
+            description: expect.stringContaining("NaP Council, Officers") as unknown,
+          }),
+        ],
+      }),
+    );
+  });
+
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /raid-plan, /rotation and /nap", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "booty",
@@ -466,6 +495,7 @@ describe("commands", () => {
       "help",
       "interview",
       "link",
+      "nap",
       "ping",
       "player",
       "quota",

@@ -137,6 +137,17 @@ discovery.
   `#home-kingdom-announcements`
 * Only in Rotation mode
 
+## NaP
+* The non-aggression pact of the Home Kingdom's top Alliances, agreed outside the game
+* An Alliance is in it or not; there are no levels
+* An Alliance joins when its R5 asks and a member of the NaP Council approves; it leaves by its R5's choice alone
+* Neil keeps the history of joins and leaves: who asked, who approved or left, and when
+* While the NaP has no members, an Officer approves a join request instead
+
+## NaP Council
+* The Members Linked to the R5 of an Alliance in the NaP
+* They decide for the NaP and approve join requests
+
 ## Home Kingdom Member
 * A Member whose Linked Player is in the Home Kingdom
 
@@ -382,7 +393,7 @@ discovery.
 * Not a Managed Role; Neil creates it without permissions on first use and removes it at Unlink
 
 ## NaP discussions
-* The Interest for talking about non-aggression pacts (NaP) between Alliances
+* The Interest for talking about non-aggression pacts between Alliances, such as the NaP
 * Offered only to a Member Linked to an R4; a Member Linked to an R5 gets it without asking; anyone else loses it
 * Other Members see only the NaP publications
 

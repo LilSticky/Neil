@@ -18,6 +18,7 @@ import { openDatabase } from "../storage/database.js";
 import { CityRotationStore } from "../storage/city-rotation-store.js";
 import { EventStore } from "../storage/event-store.js";
 import { HandoverStore } from "../storage/handover-store.js";
+import { NapStore } from "../storage/nap-store.js";
 import { RaidStore } from "../storage/raid-store.js";
 import { AvailabilityStore } from "../storage/availability-store.js";
 import { InterviewStore } from "../storage/interview-store.js";
@@ -315,6 +316,7 @@ describe("connect", () => {
       royalCitySiegeTime: undefined,
       cityRotationMode: "rotation",
       handovers: new HandoverStore(db),
+      nap: new NapStore(db),
     };
   }
 

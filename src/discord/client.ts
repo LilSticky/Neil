@@ -44,6 +44,9 @@ import { createHandoverReminders } from "./handover-reminders.js";
 import { createCityRotation, type CityRotation, type RotationButton, type RotationCommand } from "./city-rotation.js";
 import { cityRotationServerOf } from "./city-rotation-server.js";
 import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
+import type { NapStore } from "../storage/nap-store.js";
+import { createNap, type Nap, type NapButton, type NapCommand } from "./nap.js";
+import { NAP_APPROVE_PREFIX, napMessages } from "./nap-texts.js";
 import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations, type EventInvitationsInteraction } from "./event-invitations.js";
@@ -245,6 +248,10 @@ export interface CommandHandlers {
   readonly rotation: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** A button whose custom id starts with `rotation-confirm:`, the Confirm handover button. */
   readonly rotationButton: (button: ButtonInteraction) => Promise<void>;
+  /** The /nap command: the NaP register, its join requests, leaves and history. */
+  readonly nap: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** A button whose custom id starts with `nap-approve:`, the Approve button of a NaP join request. */
+  readonly napButton: (button: ButtonInteraction) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
@@ -272,6 +279,8 @@ interface Services {
   readonly bootyCalls: BootyCalls;
   /** /rotation, the Confirm handover button, the pinned card and the after-siege step. */
   readonly cityRotation: CityRotation;
+  /** /nap and the Approve button of its join requests. */
+  readonly nap: Nap;
   /** /raid-plan, its autocomplete and the Read and confirmed button. */
   readonly raidPlanning: RaidPlanning;
   /** The Availability Poll's buttons. */
@@ -510,6 +519,9 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "rotation":
           void handlers.rotation(interaction);
           break;
+        case "nap":
+          void handlers.nap(interaction);
+          break;
         case "raid-plan":
           void handlers.raidPlan(interaction);
           break;
@@ -548,6 +560,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.preferencesPress(interaction);
       } else if (interaction.customId.startsWith(ROTATION_CONFIRM_PREFIX)) {
         void handlers.rotationButton(interaction);
+      } else if (interaction.customId.startsWith(NAP_APPROVE_PREFIX)) {
+        void handlers.napButton(interaction);
       } else if (interaction.customId.startsWith(RAID_PREFIX)) {
         void handlers.raidButton(interaction);
       } else if (interaction.customId.startsWith(AVAILABILITY_PREFIX)) {
@@ -628,6 +642,11 @@ export interface ConnectOptions {
   readonly cityRotationMode: CityRotationMode;
   /** The Handover Reminders and next-holder announcements handled per Royal City siege, in neil.db. */
   readonly handovers: Pick<HandoverStore, "handoverPosted" | "recordHandoverPosted">;
+  /** The NaP register: the history of joins and leaves and the open join requests, in neil.db. */
+  readonly nap: Pick<
+    NapStore,
+    "history" | "append" | "openRequests" | "request" | "addRequest" | "setRequestMessage" | "removeRequest"
+  >;
 }
 
 /** discord.js's code for a user who is not a member of the guild. */
@@ -965,6 +984,47 @@ async function routeRotation(cityRotation: CityRotation, interaction: ChatInputC
       break;
     default:
       await replyPrivately(interaction, cityRotationMessages.unknownSubcommand);
+  }
+}
+
+/** The discord.js /nap command as the NaP register reads it: the caller and their roles, and the reply. */
+function napCommandLike(command: ChatInputCommandInteraction): NapCommand {
+  return {
+    user: command.user,
+    memberRoleIds: () => memberRoleIds(command.member),
+    reply: (options) => command.reply(options),
+  };
+}
+
+/** The discord.js press of an Approve button: the presser and their roles, a private reply, or the message replaced. */
+function napButtonLike(button: ButtonInteraction): NapButton {
+  return {
+    customId: button.customId,
+    user: button.user,
+    memberRoleIds: () => memberRoleIds(button.member),
+    reply: (options) => button.reply(options),
+    update: (options) => button.update(options),
+  };
+}
+
+/** Hands a /nap command to the NaP register's subcommand. */
+async function routeNap(nap: Nap, interaction: ChatInputCommandInteraction): Promise<void> {
+  const command = napCommandLike(interaction);
+  switch (interaction.options.getSubcommand()) {
+    case "show":
+      await nap.show(command);
+      break;
+    case "join":
+      await nap.join(command);
+      break;
+    case "leave":
+      await nap.leave(command);
+      break;
+    case "history":
+      await nap.history(command);
+      break;
+    default:
+      await replyPrivately(interaction, napMessages.unknownSubcommand);
   }
 }
 
@@ -1433,6 +1493,9 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         answer("rotation button", { logError }, async () =>
           (await services).cityRotation.confirm(rotationButtonLike(button)),
         ),
+      nap: (interaction) => answer("/nap", { logError }, async () => routeNap((await services).nap, interaction)),
+      napButton: (button) =>
+        answer("nap button", { logError }, async () => (await services).nap.approve(napButtonLike(button))),
     },
     { guildId: options.guildId, logError },
   );
@@ -1694,16 +1757,29 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
+    const cityRotationServer = cityRotationServerOf(guild, { log: (message) => channels.log(message) });
     const cityRotation = createCityRotation({
       store: options.cityRotation,
       knownAlliances: options.knownAlliances,
       links: options.links,
       editorOf: editorOfMember,
       gameApi: options.gameApi,
-      server: cityRotationServerOf(guild, { log: (message) => channels.log(message) }),
+      server: cityRotationServer,
       homeKingdom: options.homeKingdom,
       mode: options.cityRotationMode,
       siegeTime: options.royalCitySiegeTime,
+      officerRoleIds: options.officerRoleIds,
+      now,
+      logError,
+    });
+    // The NaP register: its join requests and leaves in #nap-leaders, through the City Rotation's server, so the channel
+    // is named once; its lines in #neil-log.
+    const nap = createNap({
+      store: options.nap,
+      knownAlliances: options.knownAlliances,
+      editorOf: editorOfMember,
+      server: cityRotationServer,
+      homeKingdom: options.homeKingdom,
       officerRoleIds: options.officerRoleIds,
       now,
       logError,
@@ -1751,6 +1827,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     });
     openServices({
       cityRotation,
+      nap,
       raidPlanning,
       availabilityPoll,
       interviews,
