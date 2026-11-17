@@ -6,10 +6,15 @@ import {
   isNapCouncilMember,
   isNapMember,
   linkedR5AllianceOf,
-  mayApprove,
   mayAskToJoin,
+  mayDecide,
   mayLeave,
+  NAP_COOLDOWN_MS,
+  NAP_VOTE_MS,
   napMembers,
+  runningCooldownOf,
+  voteResult,
+  type NapVoteChoice,
 } from "../domain/nap.js";
 import { isOfficer } from "../domain/officer.js";
 import type { MemberId } from "../domain/rank-approval.js";
@@ -18,7 +23,7 @@ import type { NapJoinRequest, NapStore } from "../storage/nap-store.js";
 import type { CityRotationServer } from "./city-rotation.js";
 import { allianceLabel } from "./city-rotation-texts.js";
 import { allowedMentions } from "./lookup.js";
-import { napApproveOf, napApproveRow, napHistoryEmbed, napMessages as messages, napShowEmbed } from "./nap-texts.js";
+import { napHistoryEmbed, napMessages as messages, napShowEmbed, napVoteOf, napVoteRow } from "./nap-texts.js";
 
 /** The Discord server as the NaP register uses it: #nap-leaders, Neil's own posts and edits there, and #neil-log. */
 export type NapServer = Pick<CityRotationServer, "leadersChannelId" | "post" | "edit" | "log">;
@@ -30,7 +35,7 @@ export interface NapCommand {
   reply(options: InteractionReplyOptions): Promise<unknown>;
 }
 
-/** The part of a discord.js press of an Approve button that the approval uses. */
+/** The part of a discord.js press of an Approve or Decline button that the vote uses. */
 export interface NapButton {
   readonly customId: string;
   readonly user: { readonly id: string };
@@ -43,7 +48,16 @@ export interface NapButton {
 export interface NapDeps {
   readonly store: Pick<
     NapStore,
-    "history" | "append" | "openRequests" | "request" | "addRequest" | "setRequestMessage" | "removeRequest"
+    | "history"
+    | "append"
+    | "openRequests"
+    | "request"
+    | "addRequest"
+    | "setRequestMessage"
+    | "setVoteEnd"
+    | "castVote"
+    | "votes"
+    | "removeRequest"
   >;
   readonly knownAlliances: Pick<KnownAllianceStore, "all">;
   /** The Member as the R5 check sees them: their rank, and the Kingdom and tag of their Alliance. */
@@ -62,20 +76,28 @@ export interface Nap {
   join(command: NapCommand): Promise<void>;
   /** /nap leave: the Linked R5 of an Alliance in the NaP takes it out. */
   leave(command: NapCommand): Promise<void>;
-  /** /nap history: every join and leave, privately, to the NaP Council and Officers. */
+  /** /nap history: every join, decline and leave, privately, to the NaP Council and Officers. */
   history(command: NapCommand): Promise<void>;
-  /** A press of the Approve button of a join request. */
-  approve(button: NapButton): Promise<void>;
+  /**
+   * A press of the Approve or Decline button of a join request: a vote of the NaP Council in the NaP Vote, or, while the
+   * NaP has no members, an Officer's decision at once.
+   */
+  vote(button: NapButton): Promise<void>;
+  /**
+   * The one-minute tick: opens the NaP Vote on requests made while the NaP had no members, once it has one, and counts
+   * the votes whose end has come. Never throws.
+   */
+  tick(): Promise<void>;
 }
 
-/**
- * The NaP register: which Alliances are in the NaP, the open join requests, and the history of joins and leaves with
- * who asked, who approved or left, and when. No Game API requests. Every request, approval and leave writes one
- * #neil-log line, and no message of Neil's about the NaP mentions anybody.
- */
 /** How long a saved join request may wait for its post before /nap join treats it as lost. */
 const UNPOSTED_REQUEST_MS = 60_000;
 
+/**
+ * The NaP register: which Alliances are in the NaP, the open join requests and their NaP Votes, and the history of
+ * joins, declines and leaves with who asked, how it was decided, and when. No Game API requests. Every request, vote,
+ * result and leave writes one #neil-log line, and no message of Neil's about the NaP mentions anybody.
+ */
 export function createNap(deps: NapDeps): Nap {
   const { store, server } = deps;
   /** The tags (case-folded) of the open requests whose message /nap join is checking or posting again right now. */
@@ -128,6 +150,11 @@ export function createNap(deps: NapDeps): Nap {
       await replyPrivately(command, messages.alreadyMember(label));
       return;
     }
+    const cooldown = runningCooldownOf(history, tag, deps.now());
+    if (cooldown !== undefined) {
+      await replyPrivately(command, messages.cooldown(label, cooldown.declinedAt, cooldown.endsAt));
+      return;
+    }
     if (checking.has(tag.toLowerCase())) {
       await replyPrivately(command, messages.requestOpen(label));
       return;
@@ -143,15 +170,19 @@ export function createNap(deps: NapDeps): Nap {
     }
     // A posted request whose message was deleted could never be approved (#148): check it, and post it again if gone.
     if (stuck !== undefined && stuck.messageId !== undefined) {
-      await checkRequestMessage(command, stuck, stuck.messageId, label, napMembers(history).length === 0);
+      const vote = napMembers(history).length === 0 ? undefined : openVote(stuck);
+      await checkRequestMessage(command, stuck, stuck.messageId, label, vote?.endsAt);
+      if (vote?.opened === true) await log(messages.logVoteOpened(stuck.tag, vote.endsAt));
       return;
     }
-    if (!mayAskToJoin(tag, history, store.openRequests().map((request) => request.tag))) {
+    if (!mayAskToJoin(tag, history, store.openRequests().map((request) => request.tag), deps.now())) {
       await replyPrivately(command, messages.requestOpen(label));
       return;
     }
     const requestedAt = deps.now();
-    store.addRequest({ tag, requestedBy: asker, requestedAt });
+    const voteEndsAt =
+      napMembers(history).length === 0 ? undefined : new Date(requestedAt.getTime() + NAP_VOTE_MS);
+    store.addRequest({ tag, requestedBy: asker, requestedAt, voteEndsAt });
     const channelId = server.leadersChannelId();
     if (channelId === undefined) {
       store.removeRequest(tag);
@@ -161,8 +192,8 @@ export function createNap(deps: NapDeps): Nap {
     }
     try {
       const messageId = await server.post(channelId, {
-        content: messages.joinRequest(label, asker, napMembers(history).length === 0),
-        components: [napApproveRow(tag, requestedAt)],
+        content: messages.joinRequest(label, asker, voteEndsAt),
+        components: [napVoteRow(tag, requestedAt)],
         allowedMentions,
       });
       store.setRequestMessage(tag, requestedAt, channelId, messageId);
@@ -177,15 +208,27 @@ export function createNap(deps: NapDeps): Nap {
   }
 
   /**
-   * Refreshes the message of an open join request, or posts the same request again (same asker, time and button) when
-   * the message is gone or not in the current #nap-leaders. The request stays open whatever happens.
+   * The end of the NaP Vote on an open request, opening the vote now when it is not open yet (the request was made while
+   * the NaP had no members). Synchronous, so it runs in the same block as the caller's checks.
+   */
+  function openVote(request: NapJoinRequest): { readonly endsAt: Date; readonly opened: boolean } {
+    if (request.voteEndsAt !== undefined) return { endsAt: request.voteEndsAt, opened: false };
+    const endsAt = new Date(deps.now().getTime() + NAP_VOTE_MS);
+    store.setVoteEnd(request.tag, request.requestedAt, endsAt);
+    return { endsAt, opened: true };
+  }
+
+  /**
+   * Refreshes the message of an open join request, or posts the same request again (same asker, time and buttons) when
+   * the message is gone or not in the current #nap-leaders. The request stays open whatever happens. Without a vote end,
+   * the text says an Officer decides.
    */
   async function checkRequestMessage(
     command: NapCommand,
     request: NapJoinRequest,
     messageId: string,
     label: string,
-    napEmpty: boolean,
+    voteEndsAt: Date | undefined,
   ): Promise<void> {
     const key = request.tag.toLowerCase();
     checking.add(key);
@@ -197,8 +240,8 @@ export function createNap(deps: NapDeps): Nap {
         return;
       }
       const message = {
-        content: messages.joinRequest(label, request.requestedBy, napEmpty),
-        components: [napApproveRow(request.tag, request.requestedAt)],
+        content: messages.joinRequest(label, request.requestedBy, voteEndsAt),
+        components: [napVoteRow(request.tag, request.requestedAt)],
         allowedMentions,
       };
       let stillThere: boolean;
@@ -224,41 +267,154 @@ export function createNap(deps: NapDeps): Nap {
     }
   }
 
-  async function approve(button: NapButton): Promise<void> {
-    const pressed = napApproveOf(button.customId);
+  async function vote(button: NapButton): Promise<void> {
+    const pressed = napVoteOf(button.customId);
     const request = pressed === undefined ? undefined : store.request(pressed.tag);
     if (pressed === undefined || request === undefined || request.requestedAt.getTime() !== pressed.requestedAt) {
       await replyPrivately(button, messages.notOpen);
       return;
     }
-    const approver = button.user.id;
-    // The check and the write below run without an await in between, so two presses approve once.
+    const presser = button.user.id;
+    const now = deps.now();
+    // The checks and the writes below run without an await in between, so two presses, or a press and the tick, never
+    // both decide.
     const history = store.history();
-    const as = mayApprove(
-      { allianceTag: r5AllianceOf(approver), officer: isOfficer(button.memberRoleIds(), deps.officerRoleIds) },
+    const voterTag = r5AllianceOf(presser);
+    const as = mayDecide(
+      { allianceTag: voterTag, officer: isOfficer(button.memberRoleIds(), deps.officerRoleIds) },
       history,
     );
-    if (as === undefined) {
-      await replyPrivately(button, messages.refusedApprove);
+    if (as === "officer") {
+      await decideAsOfficer(button, request, pressed.vote, presser, now);
       return;
     }
+    const council = napMembers(history).find((member) => voterTag !== undefined && sameTag(member.tag, voterTag));
+    if (as === undefined || council === undefined) {
+      await replyPrivately(button, messages.refusedVote);
+      return;
+    }
+    const endsAt = request.voteEndsAt ?? new Date(now.getTime() + NAP_VOTE_MS);
+    if (now.getTime() >= endsAt.getTime()) {
+      await replyPrivately(button, messages.voteEnded);
+      return;
+    }
+    const opened = request.voteEndsAt === undefined;
+    if (opened) store.setVoteEnd(request.tag, request.requestedAt, endsAt);
+    const earlier = store
+      .votes(request.tag, request.requestedAt)
+      .find((cast) => sameTag(cast.allianceTag, council.tag))?.vote;
+    store.castVote(request.tag, request.requestedAt, {
+      allianceTag: council.tag,
+      voterId: presser,
+      vote: pressed.vote,
+      at: now,
+    });
+    const changedFrom = earlier !== undefined && earlier !== pressed.vote ? earlier : undefined;
+    const label = labeller();
+    await replyPrivately(button, messages.voted(pressed.vote, label(council.tag), label(request.tag), endsAt, changedFrom));
+    await log(messages.logVoted(presser, pressed.vote, council.tag, request.tag, changedFrom));
+    if (opened) await announceVote(request, endsAt);
+  }
+
+  /** While the NaP has no members, an Officer approves or declines at once; a decline starts the NaP Cooldown. */
+  async function decideAsOfficer(
+    button: NapButton,
+    request: NapJoinRequest,
+    choice: NapVoteChoice,
+    officer: MemberId,
+    now: Date,
+  ): Promise<void> {
     store.removeRequest(request.tag);
     store.append({
-      kind: "joined",
+      kind: choice === "approve" ? "joined" : "declined",
       tag: request.tag,
       requestedBy: request.requestedBy,
       requestedAt: request.requestedAt,
-      approvedBy: approver,
-      approvedAs: as,
-      at: deps.now(),
+      decision: { as: "officer", by: officer },
+      at: now,
     });
     const label = labeller()(request.tag);
+    const askAgain = new Date(now.getTime() + NAP_COOLDOWN_MS);
     await button.update({
-      content: messages.approved(label, request.requestedBy, approver, as),
+      content:
+        choice === "approve"
+          ? messages.approved(label, request.requestedBy, officer)
+          : messages.declinedByOfficer(label, request.requestedBy, officer, askAgain),
       components: [],
       allowedMentions,
     });
-    await log(messages.logApproved(approver, as, request.tag, request.requestedBy));
+    await log(
+      choice === "approve"
+        ? messages.logApproved(officer, request.tag, request.requestedBy)
+        : messages.logDeclined(officer, request.tag, request.requestedBy, askAgain),
+    );
+  }
+
+  /** Logs that the NaP Vote on a request opened later than the request, and edits its message to say until when. */
+  async function announceVote(request: NapJoinRequest, endsAt: Date): Promise<void> {
+    await log(messages.logVoteOpened(request.tag, endsAt));
+    await editRequest(request, {
+      content: messages.joinRequest(labeller()(request.tag), request.requestedBy, endsAt),
+      components: [napVoteRow(request.tag, request.requestedAt)],
+      allowedMentions,
+    });
+  }
+
+  /** Edits the message of a request in #nap-leaders; a gone message or a failed edit only writes a #neil-log line. */
+  async function editRequest(request: NapJoinRequest, message: Parameters<NapServer["edit"]>[2]): Promise<void> {
+    if (request.channelId === undefined || request.messageId === undefined) return;
+    try {
+      if (!(await server.edit(request.channelId, request.messageId, message))) {
+        await log(messages.logEditFailed(request.tag, "the message is gone"));
+      }
+    } catch (error) {
+      await log(messages.logEditFailed(request.tag, reasonOf(error)));
+    }
+  }
+
+  async function tick(): Promise<void> {
+    try {
+      for (const { tag } of store.openRequests()) await tickRequest(tag);
+    } catch (error) {
+      deps.logError(`The NaP tick failed: ${reasonOf(error)}`);
+    }
+  }
+
+  /** Opens or counts the NaP Vote on one open, posted request, while the NaP has members. */
+  async function tickRequest(tag: string): Promise<void> {
+    // Read again after the awaits of the requests before: the checks and the writes run with no await in between.
+    const request = store.request(tag);
+    if (request?.messageId === undefined) return;
+    const members = napMembers(store.history());
+    if (members.length === 0) return;
+    const now = deps.now();
+    if (request.voteEndsAt === undefined) {
+      const { endsAt } = openVote(request);
+      await announceVote(request, endsAt);
+      return;
+    }
+    if (request.voteEndsAt.getTime() > now.getTime()) return;
+    const result = voteResult(store.votes(request.tag, request.requestedAt), members);
+    store.removeRequest(request.tag);
+    store.append({
+      kind: result.outcome === "approved" ? "joined" : "declined",
+      tag: request.tag,
+      requestedBy: request.requestedBy,
+      requestedAt: request.requestedAt,
+      decision: { as: "vote", approve: result.approve, decline: result.decline },
+      at: now,
+    });
+    const label = labeller()(request.tag);
+    const askAgain = new Date(now.getTime() + NAP_COOLDOWN_MS);
+    await log(messages.logVoteResult(request.tag, request.requestedBy, result, askAgain));
+    await editRequest(request, {
+      content:
+        result.outcome === "approved"
+          ? messages.approvedByVote(label, request.requestedBy, result.approve, result.decline)
+          : messages.declinedByVote(label, request.requestedBy, result.approve, result.decline, askAgain),
+      components: [],
+      allowedMentions,
+    });
   }
 
   async function leave(command: NapCommand): Promise<void> {
@@ -296,7 +452,7 @@ export function createNap(deps: NapDeps): Nap {
     await command.reply({ embeds: [napHistoryEmbed(events)], flags: MessageFlags.Ephemeral, allowedMentions });
   }
 
-  return { show, join, leave, history, approve };
+  return { show, join, leave, history, vote, tick };
 }
 
 function reasonOf(error: unknown): string {

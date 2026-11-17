@@ -520,6 +520,10 @@ describe("commands", () => {
         ],
       }),
     );
+    const napJson = commands.find((command) => command.name === "nap");
+    const history = napJson?.options?.find((option) => option.name === "history");
+    expect(history?.description).toContain("decline");
+    expect(history?.description.length).toBeLessThanOrEqual(100);
   });
 
   test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /raid-plan, /rotation and /nap", () => {
