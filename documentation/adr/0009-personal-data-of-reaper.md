@@ -4,7 +4,7 @@ Date: 2026-11-05
 
 ## Status
 
-Accepted
+Accepted; partly superseded by [ADR 23](0023-reaper-is-kept-by-the-nap-council.md) (who adds and removes Exiles)
 
 ## Context
 

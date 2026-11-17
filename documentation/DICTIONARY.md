@@ -151,6 +151,16 @@ discovery.
 ## NaP Council
 * The Members Linked to the R5 of an Alliance in the NaP
 * They decide for the NaP and approve join requests
+* They keep REAPER: they add and remove Exiles
+
+## Exile
+* A Player the server's community has exiled for being malicious, on REAPER
+* Added and removed only by the NaP Council, with a reason; while the NaP has no members, by an Officer instead
+* Who added an Exile is not shown to Members
+
+## REAPER
+* Roster of Exiled Antagonists, Pervs, Evildoers & Reprobates: the list of all Exiles
+* Any Member may see it and find the closest Exiles to a position in the same Kingdom, or all of them by distance
 
 ## Home Kingdom Member
 * A Member whose Linked Player is in the Home Kingdom
@@ -228,15 +238,6 @@ discovery.
 
 ## Sync Share
 * The part of the Daily Quota the Daily Sync may use (500, configuration); lookups and the Quota Reserve are never used by it
-
-## Exile
-* A Player the server's community has exiled for being malicious, on REAPER
-* Added and removed only by a Member Linked to the R5 of a Home Kingdom Alliance, with a reason
-* Who added an Exile is not shown to Members
-
-## REAPER
-* Roster of Exiled Antagonists, Pervs, Evildoers & Reprobates: the list of all Exiles
-* Any Member may see it and find the closest Exiles to a position in the same Kingdom, or all of them by distance
 
 ## Booty
 * An alliance excavation in the game that Members want to reach while it lasts
