@@ -14,7 +14,7 @@ import { createKingMoves } from "./king-move.js";
 import { kingMoveServerOf } from "./king-move-server.js";
 import { KING_MOVE_PREFIX } from "./king-move-texts.js";
 import { createNap } from "./nap.js";
-import { NAP_APPROVE_PREFIX, napMessages } from "./nap-texts.js";
+import { NAP_APPROVE_PREFIX, NAP_DECLINE_PREFIX, napMessages } from "./nap-texts.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
@@ -337,7 +337,8 @@ export function createClient(handlers, options) {
             else if (interaction.customId.startsWith(KING_MOVE_PREFIX)) {
                 void handlers.kingMoveButton(interaction);
             }
-            else if (interaction.customId.startsWith(NAP_APPROVE_PREFIX)) {
+            else if (interaction.customId.startsWith(NAP_APPROVE_PREFIX) ||
+                interaction.customId.startsWith(NAP_DECLINE_PREFIX)) {
                 void handlers.napButton(interaction);
             }
             else if (interaction.customId.startsWith(RAID_PREFIX)) {
@@ -716,7 +717,7 @@ function napCommandLike(command) {
         reply: (options) => command.reply(options),
     };
 }
-/** The discord.js press of an Approve button: the presser and their roles, a private reply, or the message replaced. */
+/** The discord.js press of an Approve or Decline button: the presser and their roles, a private reply, or the message replaced. */
 function napButtonLike(button) {
     return {
         customId: button.customId,
@@ -1158,7 +1159,7 @@ export async function connect(token, options) {
         }),
         rotationButton: (button) => answer("rotation button", { logError }, async () => (await services).cityRotation.confirm(rotationButtonLike(button))),
         nap: (interaction) => answer("/nap", { logError }, async () => routeNap((await services).nap, interaction)),
-        napButton: (button) => answer("nap button", { logError }, async () => (await services).nap.approve(napButtonLike(button))),
+        napButton: (button) => answer("nap button", { logError }, async () => (await services).nap.vote(napButtonLike(button))),
         kingMoveButton: (button) => answer("king move button", { logError }, async () => (await services).kingMoves.apply(kingMoveButtonLike(button))),
     }, { guildId: options.guildId, logError });
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
@@ -1586,8 +1587,8 @@ export async function connect(token, options) {
                 clearInterval(timer);
             };
         });
-        // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation
-        // and the Raid clock are ticked once a minute, until disconnect stops them.
+        // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation,
+        // the NaP Votes and the Raid clock are ticked once a minute, until disconnect stops them.
         void eventInvitations.onStartup();
         // The pinned City Rotation card is brought up to date once at startup.
         void cityRotation.refreshCard();
@@ -1604,6 +1605,7 @@ export async function connect(token, options) {
                 .then(() => duelPlan.tick())
                 .then(() => handoverReminders.tick())
                 .then(() => cityRotation.tick())
+                .then(() => nap.tick())
                 .then(() => raidClock.tick())
                 .then(() => availabilityClock.tick())
                 .finally(() => {

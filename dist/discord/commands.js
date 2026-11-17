@@ -289,7 +289,7 @@ export const nap = new SlashCommandBuilder()
     .addSubcommand((sub) => sub.setName("show").setDescription("The Alliances in the NaP since when, and the join requests waiting"))
     .addSubcommand((sub) => sub.setName("join").setDescription("Ask for your Alliance to join the NaP (R5s)"))
     .addSubcommand((sub) => sub.setName("leave").setDescription("Take your Alliance out of the NaP (R5s of its Alliances)"))
-    .addSubcommand((sub) => sub.setName("history").setDescription("Every join and leave, with who asked, approved or left (NaP Council, Officers)"));
+    .addSubcommand((sub) => sub.setName("history").setDescription("Every join, decline and leave, with who asked and decided (NaP Council, Officers)"));
 /** Everything registered for the configured server, as REST payloads. */
 export const commands = [
     ping.toJSON(),

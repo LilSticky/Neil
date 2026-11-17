@@ -1,4 +1,8 @@
 import { sameTag } from "./city-rotation.js";
+/** How long a NaP Vote runs: from when it opens until the NaP Council's votes are counted. */
+export const NAP_VOTE_MS = 48 * 60 * 60 * 1000;
+/** How long a declined Alliance waits before it may ask to join the NaP again: the NaP Cooldown. */
+export const NAP_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 /**
  * The Alliances in the NaP: those whose latest event in the history (oldest first) is a join. Tags are compared ignoring
  * letter case; the members are listed in the order they joined.
@@ -13,6 +17,8 @@ export function napMembers(history) {
 function latestEvents(history) {
     const latest = new Map();
     for (const event of history) {
+        if (event.kind === "declined")
+            continue;
         const key = event.tag.toLowerCase();
         latest.delete(key);
         latest.set(key, event);
@@ -61,24 +67,65 @@ export function isNapCouncilMember(allianceTag, history) {
     return allianceTag !== undefined && isNapMember(history, allianceTag);
 }
 /**
- * Whether the Linked R5 of `allianceTag` may ask for it to join: they are a Linked R5, their Alliance is not in the NaP,
- * and no join request for it is open.
+ * The NaP Cooldown of the Alliance with this tag (ignoring letter case): its latest decline plus NAP_COOLDOWN_MS, when it
+ * has not joined since. Undefined when it was never declined. Whether the cooldown still runs depends on the time.
  */
-export function mayAskToJoin(allianceTag, history, openRequestTags) {
+export function cooldownEndOf(history, tag) {
+    let cooldown;
+    for (const event of history) {
+        if (!sameTag(event.tag, tag))
+            continue;
+        if (event.kind === "declined") {
+            cooldown = { declinedAt: event.at, endsAt: new Date(event.at.getTime() + NAP_COOLDOWN_MS) };
+        }
+        else if (event.kind === "joined") {
+            cooldown = undefined;
+        }
+    }
+    return cooldown;
+}
+/** The NaP Cooldown of the Alliance with this tag when it still runs at `now`; undefined otherwise. */
+export function runningCooldownOf(history, tag, now) {
+    const cooldown = cooldownEndOf(history, tag);
+    return cooldown !== undefined && cooldown.endsAt.getTime() > now.getTime() ? cooldown : undefined;
+}
+/**
+ * Whether the Linked R5 of `allianceTag` may ask for it to join: they are a Linked R5, their Alliance is not in the NaP,
+ * no NaP Cooldown of it runs at `now`, and no join request for it is open.
+ */
+export function mayAskToJoin(allianceTag, history, openRequestTags, now) {
     if (allianceTag === undefined || isNapMember(history, allianceTag))
+        return false;
+    if (runningCooldownOf(history, allianceTag, now) !== undefined)
         return false;
     return !openRequestTags.some((tag) => sameTag(tag, allianceTag));
 }
 /**
- * Whether, and as whom, a Member may approve a join request: as `council` when they are the Linked R5 of an Alliance in
- * the NaP; as `officer` when they are an Officer and the NaP has no members; undefined when they may not.
+ * Whether, and how, a Member may decide a join request: as `council` (they vote in the NaP Vote) when they are the
+ * Linked R5 of an Alliance in the NaP; as `officer` (they decide alone, at once) when they are an Officer and the NaP has
+ * no members; undefined when they may not.
  */
-export function mayApprove(approver, history) {
-    if (isNapCouncilMember(approver.allianceTag, history))
+export function mayDecide(member, history) {
+    if (isNapCouncilMember(member.allianceTag, history))
         return "council";
-    if (approver.officer && napMembers(history).length === 0)
+    if (member.officer && napMembers(history).length === 0)
         return "officer";
     return undefined;
+}
+/**
+ * Counts a NaP Vote: one vote per Alliance, and only the votes of Alliances in the NaP now (votes of Alliances that left
+ * are ignored). More Approve than Decline votes approve; a tie or no votes at all decline.
+ */
+export function voteResult(votes, members) {
+    const counted = new Map();
+    for (const vote of votes) {
+        if (members.some((member) => sameTag(member.tag, vote.allianceTag)))
+            counted.set(vote.allianceTag.toLowerCase(), vote.vote);
+    }
+    const choices = [...counted.values()];
+    const approve = choices.filter((choice) => choice === "approve").length;
+    const decline = choices.length - approve;
+    return { outcome: approve > decline ? "approved" : "declined", approve, decline };
 }
 /** Whether the Linked R5 of `allianceTag` may take it out of the NaP: it is in the NaP. Nobody else's approval is needed. */
 export function mayLeave(allianceTag, history) {
