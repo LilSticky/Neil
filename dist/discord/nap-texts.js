@@ -70,6 +70,7 @@ export const napMessages = {
     requestOpen: (alliance) => `A join request for ${alliance} already waits for approval in #nap-leaders.`,
     asked: (alliance) => `Neil asked the NaP Council in #nap-leaders to approve ${alliance} joining the NaP.`,
     noLeaders: "Neil could not ask the NaP Council: the server has no #nap-leaders. Ask an Officer.",
+    reposted: (alliance) => `The join request for ${alliance} was missing in #nap-leaders, so Neil posted it again.`,
     postFailed: "Neil could not post the join request in #nap-leaders. Try again later, or ask an Officer.",
     refusedLeave: "Only a Member Linked to the R5 of an Alliance in the NaP may take it out of the NaP.",
     leftReply: (alliance) => `${alliance} has left the NaP. It may ask to join again with \`/nap join\`.`,
@@ -89,6 +90,9 @@ export const napMessages = {
     logLeft: (memberId, tag) => `<@${memberId}> took [${tag}] out of the NaP.`,
     logNoLeaders: (tag) => `The NaP join request for [${tag}] was not posted: the server has no #nap-leaders.`,
     logRequestPostFailed: (tag, reason) => `Posting the NaP join request for [${tag}] in #nap-leaders failed: ${reason}`,
+    logReposted: (memberId, tag) => `<@${memberId}> had the NaP join request for [${tag}] posted again in #nap-leaders.`,
+    logRepostNoLeaders: (tag) => `The NaP join request for [${tag}] was not posted again: the server has no #nap-leaders.`,
+    logRepostFailed: (tag, reason) => `Posting the NaP join request for [${tag}] in #nap-leaders again failed: ${reason}`,
     logLeaveNoLeaders: (tag) => `The NaP leave of [${tag}] was not posted: the server has no #nap-leaders.`,
     logLeavePostFailed: (tag, reason) => `Posting the NaP leave of [${tag}] in #nap-leaders failed: ${reason}`,
 };
