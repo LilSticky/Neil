@@ -25,3 +25,4 @@ with a new one and update both statuses here.
 | 17 | [Neil Police acts on the test server](0017-neil-police-acts-on-the-test-server.md) | Accepted |
 | 18 | [Personal data of the City Rotation](0018-personal-data-of-the-city-rotation.md) | Accepted |
 | 19 | [Personal data of Availability](0019-personal-data-of-availability.md) | Accepted |
+| 20 | [Personal data of the NaP register](0020-personal-data-of-the-nap-register.md) | Accepted |

@@ -81,7 +81,10 @@ Source: <https://docs.discord.com/developers/topics/permissions>
 **Neil**: Manage Roles and Manage Nicknames, with its role above the Managed Roles, `Onboarding` and `Doctor`, and
 below Moderator and King (ADR 8, SERVER-SETUP.md). In `#nap-announcements` it posts and pins the City Rotation card
 (Pin Messages, slice 035) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
-again. Missing permissions surface as REST error **50013**
+again. In `#nap-leaders` it posts the Handover question after each Royal City siege and the Handover Reminders (slices
+035 and 037), and the NaP join requests with their Approve button and the leave notices (slice 038); it edits a join
+request through the button's interaction (`update`), which needs no permission beyond the post. Every NaP message has
+mentions off. Missing permissions surface as REST error **50013**
 (`src/discord/member-roles.ts`). Neil has no Manage Events (ADR 14) and no Manage Channels (ADR 12).
 
 ## Rate limits
