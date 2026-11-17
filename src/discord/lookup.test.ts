@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
+import type { NapStatus } from "../domain/nap.js";
 import {
   parseAllianceKey,
   parseKingdom,
@@ -894,6 +895,45 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
     expect(reply?.method === "editReply" ? reply.options.components ?? [] : undefined).toEqual([
       lookAgainRow(`again:${USER_ID}:a:1:NML`),
     ]);
+  });
+});
+
+describe("handleAlliance with the NaP register", () => {
+  function napFieldOf(interaction: FakeLookupInteraction): unknown {
+    const reply = interaction.calls[1];
+    const embeds = reply?.method === "editReply" ? reply.options.embeds ?? [] : [];
+    const card = embeds[0];
+    const json = card === undefined ? undefined : "toJSON" in card ? card.toJSON() : card;
+    return json?.fields?.find((field) => field.name === "NaP");
+  }
+
+  test("shows the NaP status the context gives for the Alliance on its card", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const { context } = allianceContextReturning({ kind: "found", value: alliance, asOf: FETCHED_AT });
+    const asked: unknown[] = [];
+    const napStatusOf = (target: { kingdom: KingdomNumber; tag: string }): NapStatus => {
+      asked.push(target);
+      return { kind: "not-member", leftAt: undefined };
+    };
+
+    await handleAlliance(interaction, { ...context, napStatusOf });
+
+    expect(asked).toEqual([{ kingdom: kingdomOne, tag: "NML" }]);
+    expect(napFieldOf(interaction)).toEqual({ name: "NaP", value: "Not a member", inline: true });
+  });
+
+  test("shows the card without a NaP field, and logs the failure, when reading the status fails", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const { context, logged } = allianceContextReturning({ kind: "found", value: alliance, asOf: FETCHED_AT });
+    const napStatusOf = (): NapStatus => {
+      throw new Error("neil.db is locked");
+    };
+
+    await handleAlliance(interaction, { ...context, napStatusOf });
+
+    expect(interaction.calls[1]?.method).toBe("editReply");
+    expect(napFieldOf(interaction)).toBeUndefined();
+    expect(logged).toEqual(["Reading the NaP status failed: neil.db is locked"]);
   });
 });
 

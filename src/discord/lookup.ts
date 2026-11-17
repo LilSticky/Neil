@@ -9,6 +9,7 @@ import {
 import { matchAlliances, type KnownAlliance } from "../domain/alliance-match.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { isOld } from "../domain/data-age.js";
+import type { NapStatus } from "../domain/nap.js";
 import { isOfficer } from "../domain/officer.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
 import type { ChargedResult, GameApiClient } from "../game-api/client.js";
@@ -82,6 +83,28 @@ export interface LookupContext {
   readonly allowance: () => number;
   /** The usage line of a caller, read after the request, so the count includes it. */
   readonly usage: (caller: LookupCaller) => string;
+  /** Where an Alliance stands in the NaP, for the NaP line of its card; undefined for an Alliance outside the Home Kingdom. */
+  readonly napStatusOf?: NapStatusOf;
+}
+
+/** Where an Alliance stands in the NaP, read from the NaP register; undefined when its card shows no NaP line. */
+export type NapStatusOf = (alliance: { readonly kingdom: KingdomNumber; readonly tag: string }) => NapStatus | undefined;
+
+/**
+ * The NaP status an Alliance card shows: none without a reader, and none when reading it fails, which is logged. The card
+ * is shown either way.
+ */
+export function napStatusFor(
+  context: { readonly napStatusOf?: NapStatusOf; readonly logError: (message: string) => void },
+  alliance: { readonly kingdom: KingdomNumber; readonly tag: string },
+): NapStatus | undefined {
+  if (context.napStatusOf === undefined) return undefined;
+  try {
+    return context.napStatusOf({ kingdom: alliance.kingdom, tag: alliance.tag });
+  } catch (error) {
+    context.logError(`Reading the NaP status failed: ${errorText(error)}`);
+    return undefined;
+  }
 }
 
 /** What a lookup that is charged to a Member needs to show its answer: the clock, the log, the Daily Allowance and the usage line. */
@@ -287,8 +310,9 @@ export function allianceCardMessage(
   now: Date,
   ownerId: string,
   pickSessions: Pick<PickSessions, "open">,
+  nap?: NapStatus,
 ): CardMessage {
-  const embeds = [withNewerData(renderAllianceCard(alliance, asOf, now), alliance.kingdom)];
+  const embeds = [withNewerData(renderAllianceCard(alliance, asOf, now, 0, nap), alliance.kingdom)];
   if (alliance.roster.length === 0) {
     const again = allianceLookAgainRow(alliance, "alliance", ownerId);
     return { embeds, components: again === undefined ? [] : [again] };
@@ -474,7 +498,8 @@ async function showAlliance(
     context,
     caller,
     ask,
-    (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions),
+    (alliance, asOf, now) =>
+      allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)),
     failureMessage,
   );
 }

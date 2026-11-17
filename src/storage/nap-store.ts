@@ -44,6 +44,8 @@ const requestRow = z.object({
   message_id: snowflake.nullable(),
 });
 
+const listRow = z.object({ message_id: snowflake });
+
 const CORRUPT = "the NaP register in neil.db is corrupt; fix or remove it by hand";
 
 /**
@@ -115,6 +117,22 @@ export class NapStore {
   /** Removes the open join request for the Alliance with this tag, if any. */
   removeRequest(tag: string): void {
     this.db.prepare("DELETE FROM nap_join_requests WHERE tag = ?").run(tag);
+  }
+
+  /** The message id of the NaP list pinned in #nap-announcements; undefined before it is first posted. */
+  listMessageId(): string | undefined {
+    const raw = this.db.prepare("SELECT message_id FROM nap_list WHERE id = 1").get();
+    if (raw === undefined) return undefined;
+    const parsed = listRow.safeParse(raw);
+    if (!parsed.success) throw new Error(CORRUPT);
+    return parsed.data.message_id;
+  }
+
+  /** Records the message id of the NaP list, replacing the earlier one. */
+  setListMessageId(messageId: string): void {
+    this.db
+      .prepare("INSERT INTO nap_list (id, message_id) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET message_id = excluded.message_id")
+      .run(messageId);
   }
 }
 

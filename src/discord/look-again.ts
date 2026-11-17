@@ -7,6 +7,8 @@ import type { LinkStore } from "../storage/link-store.js";
 import type { ReaperStore } from "../storage/reaper-store.js";
 import {
   allianceCardMessage,
+  napStatusFor,
+  type NapStatusOf,
   allianceFailureMessage,
   allowedMentions,
   answer,
@@ -61,6 +63,8 @@ export interface LookAgainContext {
   readonly allowance: () => number;
   /** The usage line of a caller, read after the request, so the count includes it. */
   readonly usage: (caller: LookupCaller) => string;
+  /** Where an Alliance stands in the NaP, for the NaP line of its card; undefined for an Alliance outside the Home Kingdom. */
+  readonly napStatusOf?: NapStatusOf;
 }
 
 const againMessages = {
@@ -179,7 +183,8 @@ async function repeatTarget(
         context,
         caller,
         () => context.gameApi.chargedTo(caller).getAlliance(kingdom, tag, "live"),
-        (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions),
+        (alliance, asOf, now) =>
+          allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)),
         (failure, now) =>
           allianceFailureMessage(
             failure,

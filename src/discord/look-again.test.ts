@@ -19,6 +19,7 @@ import {
   type KingdomNumber,
   type Uid,
 } from "../domain/lookup-input.js";
+import type { NapStatus } from "../domain/nap.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import { type Alliance, type LookupResult, type Player, type RosterEntry } from "../domain/player.js";
 import type { LookupCaller } from "../game-api/allowance-keeper.js";
@@ -449,6 +450,19 @@ describe("handleLookAgain on an Alliance card", () => {
       page: 0,
       choice: { kind: "roster", alliance: { tag: "NML" } },
     });
+  });
+
+  test("shows the NaP status the context gives on the refreshed card", async () => {
+    const { context } = contextWith({ alliance: allianceFound(NML, undefined) });
+    const leftAt = new Date("2026-11-03T10:00:00.000Z");
+    const napStatusOf = (): NapStatus => ({ kind: "not-member", leftAt });
+    const press = pressOf(ALLIANCE_ID);
+
+    await handleLookAgain(press, { ...context, napStatusOf });
+
+    expect(JSON.stringify(editOf(press).embeds ?? [])).toContain(
+      `Not a member (left <t:${Math.floor(leftAt.getTime() / 1000).toString()}:D>)`,
+    );
   });
 
   test("keeps the Look again button of the Member under the card's other rows", async () => {

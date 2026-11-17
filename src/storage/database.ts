@@ -318,6 +318,12 @@ const migrations: readonly string[] = [
   // after a skip or a leave (NULL when next simply follows the Holding Alliance). No Discord user ids.
   `ALTER TABLE city_rotation ADD COLUMN paused INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1));
    ALTER TABLE city_rotation ADD COLUMN next_tag TEXT CHECK (next_tag IS NULL OR next_tag <> '')`,
+  // Migration 24: the public NaP list pinned in #nap-announcements (slice 041, ADR 22), one row: its message id, so Neil
+  // edits the same message after every join and leave. No Member is stored.
+  `CREATE TABLE nap_list (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     message_id TEXT NOT NULL CHECK (message_id <> '' AND message_id NOT GLOB '*[^0-9]*')
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */

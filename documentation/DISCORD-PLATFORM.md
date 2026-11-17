@@ -83,8 +83,9 @@ and below Moderator (ADR 8, ADR 21, SERVER-SETUP.md). A bot gives and takes only
 King above Neil, the King Move's Apply gets REST error **50013** (Missing Permissions), which Neil reports with the fix.
 Neil adds and removes King per Member (`PUT`/`DELETE /guilds/{id}/members/{user}/roles/{role}`) and finds its holders
 by listing every Member over REST. In `#nap-announcements` it posts and pins the City Rotation card
-(Pin Messages, slice 035) and edits it later; a card that is gone (REST error **10008**, Unknown Message) is posted
-again. In `#nap-leaders` it posts the Handover question after each Royal City siege and the Handover Reminders (slices
+(Pin Messages, slice 035) and the NaP list (slice 041) and edits them later; a card or list that is gone (REST error
+**10008**, Unknown Message) is posted and pinned again. It also posts there one announcement per NaP join and leave,
+naming only the Alliance and the time (ADR 22). In `#nap-leaders` it posts the Handover question after each Royal City siege and the Handover Reminders (slices
 035 and 037), and the NaP join requests with their Approve button and the leave notices (slice 038); it edits a join
 request through the button's interaction (`update`), which needs no permission beyond the post. When the R5 runs `/nap join` again while the request is open, Neil edits the
 request's message; when Discord answers **10008** (or the message is not in the current `#nap-leaders`), it posts the

@@ -26,6 +26,8 @@ import {
 import { parseOverviewCustomId, renderOverview, type OverviewReply } from "./overview-texts.js";
 import {
   allianceCardMessage,
+  napStatusFor,
+  type NapStatusOf,
   allianceFailureMessage,
   allowedMentions,
   answer,
@@ -81,6 +83,8 @@ export interface PickContext {
   readonly allowance: () => number;
   /** The usage line of a caller, read after the request, so the count includes it. */
   readonly usage: (caller: LookupCaller) => string;
+  /** Where an Alliance stands in the NaP, for the NaP line of its card; undefined for an Alliance outside the Home Kingdom. */
+  readonly napStatusOf?: NapStatusOf;
   /** REAPER and the log channel, which a pick of the /reaper add pick list stores into; without them that pick is unavailable. */
   readonly reaper?: ReaperRecordContext["reaper"];
   readonly channels?: ReaperRecordContext["channels"];
@@ -264,7 +268,8 @@ async function pickAllianceMatch(
     context,
     caller,
     () => context.gameApi.chargedTo(caller).getAlliance(kingdom, key),
-    (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions),
+    (alliance, asOf, now) =>
+      allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)),
     (failure, now) =>
       allianceFailureMessage(
         failure,
@@ -348,7 +353,12 @@ async function turnRosterPage(
   const caller = callerOf(interaction, context.officerRoleIds);
   await interaction.update(
     withCallerUsage(context, caller, {
-      embeds: [withNewerData(renderAllianceCard(choice.alliance, choice.asOf, context.now(), page), choice.alliance.kingdom)],
+      embeds: [
+        withNewerData(
+          renderAllianceCard(choice.alliance, choice.asOf, context.now(), page, napStatusFor(context, choice.alliance)),
+          choice.alliance.kingdom,
+        ),
+      ],
       components: renderAllianceComponents(choice.alliance, page, session.id, interaction.user.id),
     }),
   );
