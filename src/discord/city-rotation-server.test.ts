@@ -50,6 +50,7 @@ describe("cityRotationServerOf", () => {
   const announcements = (): FakeChannel => channelOf("1", ChannelType.GuildAnnouncement, "nap-announcements");
   const copy = (): FakeChannel => channelOf("2", ChannelType.GuildAnnouncement, "nap-announcements-german");
   const leaders = (): FakeChannel => channelOf("3", ChannelType.GuildText, "nap-leaders");
+  const kingdomNews = (): FakeChannel => channelOf("4", ChannelType.GuildAnnouncement, "home-kingdom-announcements");
 
   test("finds the original nap-announcements, an announcement channel, and nap-leaders by name", () => {
     const server = cityRotationServerOf(guildOf([copy(), announcements(), leaders()]), { log: () => Promise.resolve() });
@@ -58,11 +59,18 @@ describe("cityRotationServerOf", () => {
     expect(server.leadersChannelId()).toBe("3");
   });
 
+  test("finds home-kingdom-announcements by name for the news of a change", () => {
+    const server = cityRotationServerOf(guildOf([announcements(), kingdomNews()]), { log: () => Promise.resolve() });
+
+    expect(server.kingdomAnnouncementsChannelId()).toBe("4");
+  });
+
   test("has no channel ids when the channels are missing", () => {
     const server = cityRotationServerOf(guildOf([copy()]), { log: () => Promise.resolve() });
 
     expect(server.announcementsChannelId()).toBeUndefined();
     expect(server.leadersChannelId()).toBeUndefined();
+    expect(server.kingdomAnnouncementsChannelId()).toBeUndefined();
   });
 
   test("posts, edits and pins Neil's message", async () => {

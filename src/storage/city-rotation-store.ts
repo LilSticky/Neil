@@ -25,6 +25,10 @@ export interface CityRotationState {
   readonly lastHandledSiege: Date | undefined;
   /** The pinned City Rotation card in nap-announcements; undefined before it is posted. */
   readonly cardMessageId: string | undefined;
+  /** Whether an R5 paused the City Rotation: no new Holding Alliance is named after a siege until it is resumed. */
+  readonly paused: boolean;
+  /** The Alliance recorded as next after a skip or a leave; undefined when next simply follows the Holding Alliance. */
+  readonly next: string | undefined;
 }
 
 /** The state before anything is set. */
@@ -34,6 +38,8 @@ export const EMPTY_CITY_ROTATION: CityRotationState = {
   handover: undefined,
   lastHandledSiege: undefined,
   cardMessageId: undefined,
+  paused: false,
+  next: undefined,
 };
 
 const snowflake = z.string().regex(/^\d{1,20}$/);
@@ -47,6 +53,8 @@ const row = z.object({
   pending_siege_at: z.iso.datetime().nullable(),
   last_siege_at: z.iso.datetime().nullable(),
   card_message_id: snowflake.nullable(),
+  paused: z.union([z.literal(0), z.literal(1)]),
+  next_tag: z.string().min(1).nullable(),
 });
 
 const orderSchema = z.array(z.string().min(1)).min(1);
@@ -62,7 +70,7 @@ export class CityRotationStore {
     const raw = this.db
       .prepare(
         `SELECT order_json, holding_tag, pending_tag, pending_leader_uid, pending_message_id, pending_siege_at,
-                last_siege_at, card_message_id
+                last_siege_at, card_message_id, paused, next_tag
          FROM city_rotation WHERE id = 1`,
       )
       .get();
@@ -75,12 +83,13 @@ export class CityRotationStore {
     this.db
       .prepare(
         `INSERT INTO city_rotation (id, order_json, holding_tag, pending_tag, pending_leader_uid, pending_message_id,
-                                    pending_siege_at, last_siege_at, card_message_id)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    pending_siege_at, last_siege_at, card_message_id, paused, next_tag)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (id) DO UPDATE SET order_json = excluded.order_json, holding_tag = excluded.holding_tag,
            pending_tag = excluded.pending_tag, pending_leader_uid = excluded.pending_leader_uid,
            pending_message_id = excluded.pending_message_id, pending_siege_at = excluded.pending_siege_at,
-           last_siege_at = excluded.last_siege_at, card_message_id = excluded.card_message_id`,
+           last_siege_at = excluded.last_siege_at, card_message_id = excluded.card_message_id,
+           paused = excluded.paused, next_tag = excluded.next_tag`,
       )
       .run(
         state.order === undefined ? null : JSON.stringify(state.order),
@@ -91,6 +100,8 @@ export class CityRotationStore {
         handover?.siegeAt.toISOString() ?? null,
         state.lastHandledSiege?.toISOString() ?? null,
         state.cardMessageId ?? null,
+        state.paused ? 1 : 0,
+        state.next ?? null,
       );
   }
 
@@ -112,6 +123,8 @@ function stateOf(raw: Record<string, unknown>): CityRotationState {
     handover: handoverOf(data),
     lastHandledSiege: data.last_siege_at === null ? undefined : new Date(data.last_siege_at),
     cardMessageId: data.card_message_id ?? undefined,
+    paused: data.paused === 1,
+    next: data.next_tag ?? undefined,
   };
 }
 

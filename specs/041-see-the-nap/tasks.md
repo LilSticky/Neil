@@ -8,8 +8,8 @@
 
 - [x] T001 [P] `src/domain/nap.ts` (+ test): `NapStatus`, `napFormerMembers` (newest leave first) and `napStatusOf`
   (Home Kingdom only, tags ignoring case; join, leave, rejoin).
-- [x] T002 [P] Migration 23 (`nap_list`) and `NapStore.listMessageId` / `setListMessageId` (+ tests): kept across a
-  reopened database at schema version 23; a corrupt row is an error.
+- [x] T002 [P] Migration 24 (`nap_list`) and `NapStore.listMessageId` / `setListMessageId` (+ tests): kept across a
+  reopened database at schema version 24; a corrupt row is an error.
 
 ## Phase 2: User Stories
 
@@ -22,7 +22,7 @@
   missing channel, failed post, edit and pin each log one line and change nothing else. `/nap show` uses the list.
 - [x] T006 Wiring in `src/discord/client.ts`: `napStatusOf` for every lookup, pick and Look again context, and
   `nap.refreshList()` once at startup.
-- [x] T007 ADR 22, ROADMAP row 040, STATUS, SERVER-SETUP, DISCORD-PLATFORM.
+- [x] T007 ADR 22, ROADMAP row 041, STATUS, SERVER-SETUP, DISCORD-PLATFORM.
 
 ## Phase 3: Polish
 

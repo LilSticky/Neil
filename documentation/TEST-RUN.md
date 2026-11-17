@@ -480,6 +480,20 @@ the receiving Alliance's R5 Linked. Police gives King to a test Member first. Br
 | 6z.5 | Drag Neil below King, prepare a new move, press Apply | A private answer and a log line naming the refused step and the fix; dragging Neil back and pressing again finishes it | | |
 | 6z.6 | Unlink the R5, then confirm a Handover | One "No King Move" line saying an Officer moves King by hand; no card | | |
 
+## 6aa. Change the City Rotation together (slice 040, issue #134)
+
+Setup: a City Rotation of three Alliances set, `ROYAL_CITY_SIEGE_TIME` configured, `npm run commands:register` run;
+a Member Linked to the R5 of an Alliance in it. Branch `040-change-the-city-rotation-together`.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6aa.1 | A Member who is not an R5 in the rotation runs `/rotation move` | A private refusal; nothing in `#neil-log` or `#home-kingdom-announcements` | | |
+| 6aa.2 | The R5 runs `/rotation move` (pick the Alliance, a new place) | A private confirmation; one `#neil-log` line with the order before and after; a post in `#home-kingdom-announcements` mentioning nobody; the pinned card shows the new order and next | | |
+| 6aa.3 | The R5 runs `/rotation skip` | The skipped Alliance keeps its place, the one after it is next on the card; log line and post | | |
+| 6aa.4 | The R5 runs `/rotation leave` for an Alliance | It is gone from the card's order; log line and post | | |
+| 6aa.5 | The R5 runs `/rotation pause`, then `/rotation pause` again | The card shows Paused; the second is refused privately | | |
+| 6aa.6 | The R5 runs `/rotation resume` | The card no longer shows Paused and names the same next Alliance; log line and post | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

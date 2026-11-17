@@ -5,7 +5,7 @@ import {
   type APIButtonComponentWithCustomId,
   type APIEmbed,
 } from "discord.js";
-import type { CityRotationMode, RotationProblem } from "../domain/city-rotation.js";
+import type { CityRotationMode, RotationChangeProblem, RotationProblem } from "../domain/city-rotation.js";
 import type { MemberId } from "../domain/rank-approval.js";
 import type { CityRotationState } from "../storage/city-rotation-store.js";
 import { timestamp } from "./timestamps.js";
@@ -44,6 +44,9 @@ export function cityRotationCard(content: CardContent): APIEmbed {
     lines.push("No City Rotation is set yet. The R5s of the Alliances in it set it with `/rotation set`.");
   } else {
     lines.push("**Mode**: Rotation. The Alliances take the Royal City in this order, one Turn each.");
+    if (state.paused) {
+      lines.push("**Paused**: Neil names no new Holding Alliance after a Royal City siege until an R5 resumes it with `/rotation resume`.");
+    }
     lines.push(`**Holding Alliance**: ${state.holding === undefined ? "not named yet" : label(state.holding)}`);
     if (next !== undefined) lines.push(`**Next Holding Alliance**: ${label(next)}`);
     lines.push("", "**Order**", ...state.order.map((tag, index) => `${(index + 1).toString()}. ${label(tag)}`));
@@ -146,6 +149,63 @@ export const cityRotationMessages = {
   contestedSiegeOver:
     "The Royal City siege is over. An Officer names the new Holding Alliance with `/rotation holder`.",
 
+  noRotationToChange: "No City Rotation is set yet. The R5s set it with `/rotation set` first.",
+  refusedChange: "Only a Member Linked to the R5 of an Alliance in the City Rotation may change it.",
+  changeProblem: (problem: RotationChangeProblem): string => {
+    switch (problem.kind) {
+      case "not-in-rotation":
+        return `[${problem.tag}] is not in the City Rotation.`;
+      case "position-out-of-range":
+        return `Choose a place from 1 to ${problem.length.toString()}.`;
+      case "no-change":
+        return "Nothing changes: the Alliance is already in that place.";
+      case "too-short":
+        return "A City Rotation of one Alliance has no Turn to skip.";
+      case "last-alliance":
+        return "The last Alliance cannot be taken out of the City Rotation.";
+    }
+  },
+  alreadyPaused: "Nothing changes: the City Rotation is already paused.",
+  notPaused: "Nothing changes: the City Rotation is not paused.",
+  moved: (alliance: string, position: number, next: string | undefined): string =>
+    `${alliance} is now in place ${position.toString()} of the City Rotation.${nextSentence(next)}`,
+  skipped: (skipped: string, next: string): string =>
+    `${skipped}'s Turn is skipped by the NaP Council's decision. ${next} is the next Holding Alliance.`,
+  left: (alliance: string, next: string | undefined): string =>
+    `${alliance} is out of the City Rotation.${nextSentence(next)}`,
+  pausedReply: "The City Rotation is paused. Neil names no new Holding Alliance after a Royal City siege until it is resumed.",
+  resumedReply: (next: string | undefined): string => `The City Rotation runs again.${nextSentence(next)}`,
+
+  /** The news in home-kingdom-announcements after each change; it mentions nobody. */
+  announceMoved: (alliance: string, position: number, order: string, next: string | undefined): string =>
+    `**City Rotation**: ${alliance} moves to place ${position.toString()}. The order is now ${order}.${nextSentence(next)}`,
+  announceSkipped: (skipped: string, next: string): string =>
+    `**City Rotation**: by the NaP Council's decision, ${skipped} skips its Turn and keeps its place. ${next} is the next Holding Alliance.`,
+  announceLeft: (alliance: string, holding: boolean, order: string, next: string | undefined): string =>
+    `**City Rotation**: ${alliance} left the NaP and is out of the City Rotation.${holding ? " It holds the Royal City until the next Handover." : ""} The order is now ${order}.${nextSentence(next)}`,
+  announcePaused:
+    "**City Rotation**: the rotation is paused. Neil names no new Holding Alliance after a Royal City siege until it is resumed.",
+  announceResumed: (next: string | undefined): string => `**City Rotation**: the rotation runs again.${nextSentence(next)}`,
+
+  /** The old confirmation request in nap-leaders, once a skip or a leave hands the open Turn to another Alliance. */
+  turnMovedOn: (alliance: string): string =>
+    `This Turn moved on by the NaP Council's decision: Neil now asks ${alliance} to confirm the Handover.`,
+  /** The head of a new confirmation request after a skip or a leave. */
+  turnMovedOnHead: "The NaP Council's decision moved this Turn on.",
+
+  logMoved: (memberId: MemberId, alliance: string, position: number, before: string, after: string, next: string): string =>
+    `<@${memberId}> moved ${alliance} to place ${position.toString()} of the City Rotation: ${before} becomes ${after}; next is ${next}.`,
+  logSkipped: (memberId: MemberId, skipped: string, order: string, next: string, asked: string | undefined): string =>
+    `<@${memberId}> skipped the Turn of ${skipped} in the City Rotation (order ${order}, unchanged); next is ${next}.${askedSentence(asked)}`,
+  logLeft: (memberId: MemberId, alliance: string, before: string, after: string, next: string, asked: string | undefined): string =>
+    `<@${memberId}> recorded that ${alliance} left the NaP: the City Rotation ${before} becomes ${after}; next is ${next}.${askedSentence(asked)}`,
+  logPaused: (memberId: MemberId, order: string): string => `<@${memberId}> paused the City Rotation (order ${order}, unchanged).`,
+  logResumed: (memberId: MemberId, order: string, next: string): string =>
+    `<@${memberId}> resumed the City Rotation (order ${order}, unchanged); next is ${next}.`,
+  logPausedSiege: "A Royal City siege passed while the City Rotation is paused; Neil names no Holding Alliance and asks nobody.",
+  logNoKingdomAnnouncements: "The City Rotation news was not posted: the server has no #home-kingdom-announcements.",
+  logKingdomAnnouncementFailed: (reason: string): string =>
+    `Posting the City Rotation news in #home-kingdom-announcements failed: ${reason}`,
   logSet: (memberId: MemberId, oldOrder: string, oldHolding: string, newOrder: string, newHolding: string): string =>
     `<@${memberId}> set the City Rotation: ${oldOrder} (holding ${oldHolding}) → ${newOrder} (holding ${newHolding}).`,
   logHolder: (memberId: MemberId, holding: string): string =>
@@ -162,6 +222,15 @@ export const cityRotationMessages = {
   logPinFailed: (reason: string): string => `Pinning the City Rotation card in #nap-announcements failed: ${reason}`,
   logSiegePostFailed: (reason: string): string => `Posting the Royal City siege message in #nap-leaders failed: ${reason}`,
 } as const;
+
+function nextSentence(next: string | undefined): string {
+  return next === undefined ? "" : ` ${next} is the next Holding Alliance.`;
+}
+
+/** `leader` is set only when the open Turn now waits for another Alliance: its R5's uid, or "unknown". */
+function askedSentence(leader: string | undefined): string {
+  return leader === undefined ? "" : ` The open Turn now waits for its confirmation; its R5 is ${leader}.`;
+}
 
 /** An order as the log shows it: the tags in brackets, or "none". */
 export function orderText(order: readonly string[] | undefined): string {

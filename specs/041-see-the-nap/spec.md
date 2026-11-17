@@ -1,6 +1,6 @@
 # Feature Specification: See the NaP
 
-**Feature Branch**: `040-see-the-nap`
+**Feature Branch**: `041-see-the-nap`
 
 **Created**: 2026-11-17
 
@@ -48,5 +48,5 @@ gets the usual answer, and Neil writes one `#neil-log` line about it.
 ## Requirements
 
 - No public view shows a Member's mention, id or name (ADR 22).
-- Migration 23 keeps the list's message id; migrations 1 to 22 are unchanged.
+- Migration 24 keeps the list's message id; migrations 1 to 23 are unchanged.
 - No new dependency; `src/domain/` stays pure.

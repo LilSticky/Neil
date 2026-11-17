@@ -18,6 +18,8 @@ const FULL: CityRotationState = {
   },
   lastHandledSiege: new Date("2026-11-20T20:00:00.000Z"),
   cardMessageId: "223456789012345678",
+  paused: true,
+  next: "NML",
 };
 
 describe("CityRotationStore", () => {
