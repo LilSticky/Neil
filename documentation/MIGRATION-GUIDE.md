@@ -37,7 +37,7 @@ Each is a private thread, so expect a wave of them.
 *Whoever runs Neil*, using [SERVER-SETUP.md §4](SERVER-SETUP.md#4-requirements-recommendations-suggestions) and [§6](SERVER-SETUP.md#6-settings-for-whoever-runs-neil):
 
 - Both intents are on, and Neil is on the current version.
-- Neil has Manage Roles and Manage Nicknames, and sits below Moderator and King and above its own roles.
+- Neil has Manage Roles and Manage Nicknames, and sits below Moderator and above King and its own roles (ADR 21).
 - Commands are registered.
 
 Restart Neil. Check `#neil-log`: one line gives the `Doctor` and `Onboarding` counts. Do they match the Members you expect?

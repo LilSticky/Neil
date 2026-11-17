@@ -1689,7 +1689,9 @@ describe("a created Moderator in the hand steps", () => {
     const { report } = await runSetup({ layout, homeKingdom: HOME_KINGDOM, apply: true, port: server, secrets: [] });
 
     expect(lines(report)).toContain("create role Moderator");
-    expect(indexWhere(report, (line) => /Neil's role above every role it gives/.test(line) && /Moderator/.test(line))).toBeGreaterThan(-1);
+    expect(
+      indexWhere(report, (line) => /Neil's role above King and every role it gives, and below Moderator/.test(line)),
+    ).toBeGreaterThan(-1);
   });
 });
 

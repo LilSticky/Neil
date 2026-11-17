@@ -46,7 +46,8 @@ If Interaction Bot isn't on your server yet, invite it and run the script again,
 
 ## 4. Place the roles
 
-Server Settings → **Roles**: drag **Moderator** and **King** above Neil, and Neil above every other role the script made.
+Server Settings → **Roles**: drag **Moderator** above Neil, and Neil above **King** and every other role the script made
+(ADR 21: Neil moves King, but only when an Officer presses Apply on a King Move).
 A bot can't do this itself. Give Moderator and King to your Officers, with the permissions you want them to have.
 
 ## 5. Start Neil
