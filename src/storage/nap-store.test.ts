@@ -47,7 +47,7 @@ describe("NapStore", () => {
     });
   });
 
-  test("keeps the history in order across a reopened database at schema version 21", () => {
+  test("keeps the history in order across a reopened database at schema version 22", () => {
     withStore((store) => {
       store.append(JOINED);
       store.append(LEFT);
@@ -55,7 +55,7 @@ describe("NapStore", () => {
 
     const db = openDatabase(dataDir);
     try {
-      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 21 });
+      expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 22 });
       expect(new NapStore(db).history()).toEqual([JOINED, LEFT]);
     } finally {
       db.close();

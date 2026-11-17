@@ -137,6 +137,10 @@ discovery.
   `#home-kingdom-announcements`
 * Only in Rotation mode
 
+## King Move
+* Neil's prepared move of the King role to the receiving Alliance's R5 after a Handover; an Officer applies it
+* Posted in `#neil-log` with the new King and the Members who lose King; only the latest one can be applied
+
 ## NaP
 * The non-aggression pact of the Home Kingdom's top Alliances, agreed outside the game
 * An Alliance is in it or not; there are no levels

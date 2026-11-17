@@ -93,7 +93,7 @@ Needs a Player whose roster row has no rank. If you can't find one, mark "n/a" (
 ## 6b. Name and roles (slice 006, collected 2026-11-02)
 
 Setup: `HOME_KINGDOM=330` in `.env`; Neil's role gets Manage Roles and Manage Nicknames and is dragged above where
-the new roles will appear, below Moderator and King. Branch `006-give-a-member-their-name-and-roles`.
+the new roles will appear, below Moderator and King (since slice 039, ADR 21: above King, below Moderator). Branch `006-give-a-member-their-name-and-roles`.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
@@ -338,7 +338,7 @@ On the test server, with its token and ID in `.env`. Neil needs a role there fir
 | 6q.3 | Give Neil's role Administrator, run again with `--apply` | The layout appears; forums and announcements are text channels if Community is off | ✅ 2026-11-07: built without Community |
 | 6q.4 | Run it again | `Nothing to do.` | ✅ 2026-11-07 |
 | 6q.5 | Add a role `[TST]`, an unknown channel and an extra overwrite on `#general`, run again | `[TST]` gets an area; the other two are reported and unchanged | |
-| 6q.6 | Take Administrator off, drag Moderator and King above Neil, set the printed IDs, start Neil | Neil starts | |
+| 6q.6 | Take Administrator off, drag Moderator and King above Neil, set the printed IDs, start Neil (since slice 039, ADR 21: Moderator above Neil, King below it) | Neil starts | |
 | 6q.7 | **View Server As Role** | **Onboarding** sees `#onboarding` only; **Doctor** alone sees the Guest area only | |
 | 6q.8 | A Linked Member with a plain `NML` role, after the Daily Sync | The same role, named `[NML]`, still held | |
 | 6q.9 | With Community on, if you can | Announcement channels are created as such | |
@@ -465,6 +465,20 @@ On the test server built by 6v, with the deploy not needed (the script runs loca
 
 
 6y.3 found `#guides` with "no role was allowed to post": Veteran could post but not view it without Events. Fixed in PR #92 (Intermediate and Veteran see and post on their own); a run afterwards said `Nothing to do.`
+
+## 6z. Hand the King role over (slice 039, issue #133)
+
+Setup: Neil's role above King and below Moderator (ADR 21); a City Rotation set and `ROYAL_CITY_SIEGE_TIME` configured;
+the receiving Alliance's R5 Linked. Police gives King to a test Member first. Branch `039-hand-the-king-role-over`.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6z.1 | After a Royal City siege, confirm the Handover (R5 or Officer) | A King Move card in `#neil-log`: the Alliance, the R5 (Player Name and uid), the new King, the Members holding King now, an Apply button; one "King Move prepared" line; no role changed | | |
+| 6z.2 | A Member without Moderator or King presses Apply | A private "Only Officers" answer; nothing changes | | |
+| 6z.3 | An Officer presses Apply | King moves to the new King and off the listed holders only; the card shows who applied it and when, without the button; one "applied" line | | |
+| 6z.4 | Press Apply again on the applied card's earlier state (or a superseded card) | A private "already applied or replaced" answer | | |
+| 6z.5 | Drag Neil below King, prepare a new move, press Apply | A private answer and a log line naming the refused step and the fix; dragging Neil back and pressing again finishes it | | |
+| 6z.6 | Unlink the R5, then confirm a Handover | One "No King Move" line saying an Officer moves King by hand; no card | | |
 
 ## 7. Afterwards
 

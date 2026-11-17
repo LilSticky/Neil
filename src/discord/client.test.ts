@@ -104,6 +104,7 @@ function handlers() {
     rotationButton: vi.fn(() => Promise.resolve()),
     nap: vi.fn(() => Promise.resolve()),
     napButton: vi.fn(() => Promise.resolve()),
+    kingMoveButton: vi.fn(() => Promise.resolve()),
   };
 }
 
@@ -342,6 +343,18 @@ describe("createClient", () => {
     client.emit(Events.InteractionCreate, interaction as never);
 
     expect(routed.napButton).toHaveBeenCalledWith(interaction);
+    expect(routed.rotationButton).not.toHaveBeenCalled();
+    expect(routed.rankButton).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with king: to the King Move button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "king:1795723500000");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.kingMoveButton).toHaveBeenCalledWith(interaction);
     expect(routed.rotationButton).not.toHaveBeenCalled();
     expect(routed.rankButton).not.toHaveBeenCalled();
   });

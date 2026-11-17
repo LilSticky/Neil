@@ -78,7 +78,9 @@ deploy.
 
 **Roles for slice 006** ([ADR 8](adr/0008-neil-creates-managed-roles.md)): Neil's role needs **Manage Roles** and
 **Manage Nicknames**, and must sit **above** the Managed Roles (Alliance roles, `R1`–`R5`, `#<kingdom>`, `T1`–`T10`)
-and **below** the Moderator and King roles. Neil creates missing Managed Roles itself, without permissions; never
+and **below** the Moderator role. Since slice 039 ([ADR 21](adr/0021-neil-moves-the-king-role.md)) it also sits
+**above** the King role, which Neil gives and takes only when an Officer presses Apply on a King Move; a leaked token
+could then hand out King, so rotate it at once. Neil creates missing Managed Roles itself, without permissions; never
 give a role with such a name any permissions (Neil then refuses to use it). Neil cannot rename the server owner.
 
 **Onboarding Role for slice 013**: Neil gives the `Onboarding` role (created by Neil, without permissions) to every
