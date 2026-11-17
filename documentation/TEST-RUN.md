@@ -494,6 +494,20 @@ a Member Linked to the R5 of an Alliance in it. Branch `040-change-the-city-rota
 | 6aa.5 | The R5 runs `/rotation pause`, then `/rotation pause` again | The card shows Paused; the second is refused privately | | |
 | 6aa.6 | The R5 runs `/rotation resume` | The card no longer shows Paused and names the same next Alliance; log line and post | | |
 
+## 6ab. Vote on NaP join requests (slice 041, issue #150)
+
+Setup: `npm run commands:register` run; one Alliance in the NaP (or none, for 6ab.1); test accounts Linked to the R5s
+of Alliances in and outside the NaP. Branch `develop` after the merge.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6ab.1 | With the NaP empty, an R5 runs `/nap join`; an Officer presses Decline | The request says an Officer decides; Decline replaces it with the decline and the date the Alliance may ask again, no buttons; one `#neil-log` line | | |
+| 6ab.2 | The same R5 runs `/nap join` again | A private refusal naming the decline date and when it may ask again, as Discord timestamps | | |
+| 6ab.3 | With an Alliance in the NaP, another R5 runs `/nap join` | The request in `#nap-leaders` has Approve and Decline, says the NaP Council votes until a Discord timestamp 48 hours away, mentions nobody | | |
+| 6ab.4 | The council member presses Approve, then Decline; the asker and an Officer press a button | The council member gets private replies (the second says it changed); two `#neil-log` lines; the asker and the Officer are refused privately; the message does not change | | |
+| 6ab.5 | `/nap show` and `/nap history` | Show lists the request with when its vote ends; history names no voter | | |
+| 6ab.6 | After the deadline (or with the vote end moved back in `neil.db`), wait a minute | The message shows the result and counts without buttons; one `#neil-log` line; `/nap history` shows the decision with the counts | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
