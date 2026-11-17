@@ -47,6 +47,13 @@ stores the request, posts it in `#nap-leaders` naming the Alliance and the askin
 2. Without `#nap-leaders` or when the post fails, the request is dropped, the R5 is told, and one `#neil-log` line says
    why.
 
+**Edge case** ([#148](https://github.com/LilSticky/Neil/issues/148)): when the request's message in `#nap-leaders` was
+deleted, nobody could approve it. A new `/nap join` by the R5 now edits the open request's message with the current
+text and button and is refused as before; if the message is gone (or not in the current `#nap-leaders`), Neil posts the
+same request again (same asker, time and Approve button), tells the R5 privately and writes one `#neil-log` line. If
+Neil cannot check or repost it, the request stays open, the R5 is told, and one `#neil-log` line says why. Two such
+commands at once repost once.
+
 ### User Story 3: The NaP Council approves (P1)
 
 A member of the NaP Council (a Member Linked to the R5 of an Alliance in the NaP) presses **Approve**. The Alliance is
