@@ -7,6 +7,7 @@ import { GameApiClient } from "./game-api/client.js";
 import { AppliedStore } from "./storage/applied-store.js";
 import { BootyAlertsStore } from "./storage/booty-alerts-store.js";
 import { CityRotationStore } from "./storage/city-rotation-store.js";
+import { KingMoveStore } from "./storage/king-move-store.js";
 import { HandoverStore } from "./storage/handover-store.js";
 import { prepareDataDir } from "./storage/data-dir.js";
 import { openDatabase } from "./storage/database.js";
@@ -50,6 +51,7 @@ await start({
             bootyAlerts: new BootyAlertsStore(db),
             events: new EventStore(db),
             cityRotation: new CityRotationStore(db),
+            kingMoves: new KingMoveStore(db),
             handovers: new HandoverStore(db),
             raids: new RaidStore(db),
             availability: new AvailabilityStore(db),

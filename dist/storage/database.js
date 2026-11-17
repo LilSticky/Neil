@@ -295,6 +295,24 @@ const migrations = [
      channel_id TEXT,
      message_id TEXT
    )`,
+    // Migration 22: the latest King Move (slice 039, ADR 21), one row, replaced by the next: the Holding Alliance, its R5's
+    // uid and Player Name, the new King's and the previous holders' Discord user ids (a JSON list), the card in #neil-log,
+    // when it was prepared, and its state with who applied it and when. The log is the record of earlier moves.
+    `CREATE TABLE king_moves (
+     id INTEGER PRIMARY KEY CHECK (id = 1),
+     holding_tag TEXT NOT NULL CHECK (holding_tag <> ''),
+     leader_uid TEXT NOT NULL CHECK (leader_uid <> ''),
+     leader_name TEXT,
+     new_king_id TEXT NOT NULL CHECK (new_king_id <> '' AND new_king_id NOT GLOB '*[^0-9]*'),
+     previous_kings_json TEXT NOT NULL,
+     message_id TEXT,
+     prepared_at TEXT NOT NULL,
+     state TEXT NOT NULL CHECK (state IN ('prepared', 'applied', 'superseded')),
+     applied_by TEXT CHECK (applied_by IS NULL OR (applied_by <> '' AND applied_by NOT GLOB '*[^0-9]*')),
+     applied_at TEXT,
+     CHECK ((state = 'applied') = (applied_by IS NOT NULL)),
+     CHECK ((state = 'applied') = (applied_at IS NOT NULL))
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

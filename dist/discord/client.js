@@ -9,6 +9,9 @@ import { createHandoverReminders } from "./handover-reminders.js";
 import { createCityRotation } from "./city-rotation.js";
 import { cityRotationServerOf } from "./city-rotation-server.js";
 import { cityRotationMessages, ROTATION_CONFIRM_PREFIX } from "./city-rotation-texts.js";
+import { createKingMoves } from "./king-move.js";
+import { kingMoveServerOf } from "./king-move-server.js";
+import { KING_MOVE_PREFIX } from "./king-move-texts.js";
 import { createNap } from "./nap.js";
 import { NAP_APPROVE_PREFIX, napMessages } from "./nap-texts.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
@@ -327,6 +330,9 @@ export function createClient(handlers, options) {
             }
             else if (interaction.customId.startsWith(ROTATION_CONFIRM_PREFIX)) {
                 void handlers.rotationButton(interaction);
+            }
+            else if (interaction.customId.startsWith(KING_MOVE_PREFIX)) {
+                void handlers.kingMoveButton(interaction);
             }
             else if (interaction.customId.startsWith(NAP_APPROVE_PREFIX)) {
                 void handlers.napButton(interaction);
@@ -653,6 +659,15 @@ function rotationButtonLike(button) {
         memberRoleIds: () => memberRoleIds(button.member),
         reply: (options) => button.reply(options),
         update: (options) => button.update(options),
+    };
+}
+/** The discord.js press of a King Move's Apply button: the presser and their roles, and a private reply. */
+function kingMoveButtonLike(button) {
+    return {
+        customId: button.customId,
+        user: button.user,
+        memberRoleIds: () => memberRoleIds(button.member),
+        reply: (options) => button.reply(options),
     };
 }
 /** Hands a /rotation command to the City Rotation's subcommand. */
@@ -1115,6 +1130,7 @@ export async function connect(token, options) {
         rotationButton: (button) => answer("rotation button", { logError }, async () => (await services).cityRotation.confirm(rotationButtonLike(button))),
         nap: (interaction) => answer("/nap", { logError }, async () => routeNap((await services).nap, interaction)),
         napButton: (button) => answer("nap button", { logError }, async () => (await services).nap.approve(napButtonLike(button))),
+        kingMoveButton: (button) => answer("king move button", { logError }, async () => (await services).kingMoves.apply(kingMoveButtonLike(button))),
     }, { guildId: options.guildId, logError });
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
     // apply); both are stopped again on disconnect.
@@ -1359,6 +1375,24 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The King Move (ADR 21): after each Handover a card in #neil-log; only an Officer's Apply moves the King role, and
+        // the adapter can reach no other role.
+        const kingMoves = createKingMoves({
+            store: options.kingMoves,
+            links: options.links,
+            gameApi: options.gameApi,
+            server: kingMoveServerOf({
+                channels: { fetch: (channelId) => guild.channels.fetch(channelId) },
+                addRole: (memberId, roleId) => guild.members.addRole({ user: memberId, role: roleId }),
+                removeRole: (memberId, roleId) => guild.members.removeRole({ user: memberId, role: roleId }),
+                everyMember: async () => (await everyMemberOf(guild)).map((member) => ({ id: member.id, roleIds: [...member.roles.cache.keys()] })),
+                isOnServer,
+            }, { kingRoleId, logChannelId: options.logChannelId, log: (message) => channels.log(message) }),
+            homeKingdom: options.homeKingdom,
+            officerRoleIds: options.officerRoleIds,
+            now,
+            logError,
+        });
         // The City Rotation: its card in #nap-announcements, its Handover in #nap-leaders, its lines in #neil-log.
         const cityRotationServer = cityRotationServerOf(guild, { log: (message) => channels.log(message) });
         const cityRotation = createCityRotation({
@@ -1374,6 +1408,7 @@ export async function connect(token, options) {
             officerRoleIds: options.officerRoleIds,
             now,
             logError,
+            onHandover: (holdingTag) => kingMoves.afterHandover(holdingTag),
         });
         // The NaP register: its join requests and leaves in #nap-leaders, through the City Rotation's server, so the channel
         // is named once; its lines in #neil-log.
@@ -1430,6 +1465,7 @@ export async function connect(token, options) {
         });
         openServices({
             cityRotation,
+            kingMoves,
             nap,
             raidPlanning,
             availabilityPoll,

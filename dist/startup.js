@@ -92,6 +92,7 @@ export async function start(deps) {
             syncHourUtc: config.syncHourUtc,
             syncShare: config.syncShare,
             cityRotation: store.cityRotation,
+            kingMoves: store.kingMoves,
             handovers: store.handovers,
             nap: store.nap,
             royalCitySiegeTime: config.royalCitySiegeTime,

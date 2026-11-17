@@ -149,6 +149,8 @@ export function createCityRotation(deps) {
         await replyPrivately(command, messages.holderNamed(label));
         await log(messages.logHolder(command.user.id, `[${tag}]`));
         await refreshCard();
+        if (deps.mode === "contested")
+            await deps.onHandover?.(tag);
     }
     async function confirm(button) {
         const pressed = confirmHandoverOf(button.customId);
@@ -173,6 +175,7 @@ export function createCityRotation(deps) {
         await button.update({ content: messages.confirmed(label, button.user.id), components: [], allowedMentions });
         await log(messages.logConfirmed(button.user.id, isLeader ? "R5" : "Officer", `[${waiting.expected}]`));
         await refreshCard();
+        await deps.onHandover?.(waiting.expected);
     }
     /** Reads the expected Alliance live; its R5 and the R5's Player Name, or why there is none. */
     async function expectedLeaderOf(tag) {
