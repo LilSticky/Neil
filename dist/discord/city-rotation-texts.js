@@ -32,9 +32,7 @@ export function cityRotationCard(content) {
     if (state.handover !== undefined) {
         lines.push("", `**Handover**: waiting for ${label(state.handover.expected)} to confirm.`);
     }
-    lines.push("", nextSiege === undefined
-        ? "**Next Royal City siege**: the siege time is not set."
-        : `**Next Royal City siege**: ${timestamp(nextSiege, "F")} (${timestamp(nextSiege, "R")})`);
+    lines.push("", `**Next Royal City siege**: ${timestamp(nextSiege, "F")} (${timestamp(nextSiege, "R")})`);
     return { title: "City Rotation", color: CARD_COLOUR, description: lines.join("\n") };
 }
 /** The Confirm handover button of a Handover after the siege at `siegeAt`, to `tag`. */

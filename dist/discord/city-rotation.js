@@ -38,7 +38,7 @@ export function createCityRotation(deps) {
             state,
             label: labeller(),
             next: nextOf(state),
-            nextSiege: deps.siegeTime === undefined ? undefined : nextRoyalCitySiege(now, deps.siegeTime),
+            nextSiege: nextRoyalCitySiege(now),
         });
         return { embeds: [embed], allowedMentions };
     }
@@ -451,9 +451,7 @@ export function createCityRotation(deps) {
      * sieges after it starts keeping the City Rotation.
      */
     async function afterSiege() {
-        if (deps.siegeTime === undefined)
-            return;
-        const last = lastRoyalCitySiege(deps.now(), deps.siegeTime);
+        const last = lastRoyalCitySiege(deps.now());
         // The check and the record run without an await in between.
         const handled = store.load();
         const before = handled.lastHandledSiege;

@@ -1416,7 +1416,6 @@ export async function connect(token, options) {
             rotation: options.cityRotation,
             handovers: options.handovers,
             mode: options.cityRotationMode,
-            siegeTime: options.royalCitySiegeTime,
             now,
             logError,
         });
@@ -1449,7 +1448,6 @@ export async function connect(token, options) {
             server: cityRotationServer,
             homeKingdom: options.homeKingdom,
             mode: options.cityRotationMode,
-            siegeTime: options.royalCitySiegeTime,
             officerRoleIds: options.officerRoleIds,
             now,
             logError,

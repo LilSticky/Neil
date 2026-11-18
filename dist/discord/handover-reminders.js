@@ -66,13 +66,11 @@ export function createHandoverReminders(deps) {
         await server.post(channelId, nextHolderAnnouncement(alliances, siege));
     }
     async function postDue() {
-        if (deps.siegeTime === undefined)
-            return;
         const alliances = alliancesOfHandover();
         if (alliances === undefined)
             return;
         const now = deps.now();
-        const siege = nextRoyalCitySiege(now, deps.siegeTime);
+        const siege = nextRoyalCitySiege(now);
         const sent = new Set(HANDOVER_POST_KINDS.filter((kind) => handovers.handoverPosted(siege, kind)));
         const due = dueHandoverPosts(siege, sent, now);
         for (const kind of due.drop)
