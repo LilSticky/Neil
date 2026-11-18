@@ -383,6 +383,7 @@ Branch `027-see-what-neil-can-do`. New command: `/help`. Before: run `npm run co
 | 6t.1 | `/help` as a Member | A private list of commands with usage and purpose; no `/quota`, `/rank` or `/link` | | |
 | 6t.2 | `/help` as an Officer | The same list, then the Officer commands | | |
 | 6t.3 | Read `/player`, `/rank` and `/reaper closest` in the list | Required options as `<name>`, optional ones as `[name]`; each `/reaper` subcommand on its own line | | |
+| 6t.4 | `/help` as an Officer (issue #166) | The Member embeds without a title, then the embed titled 'Officer commands' with `/quota`, `/rank` and `/link`; if the list needs more than one message, the rest follows privately right after | | |
 
 ## 6u. Call out a booty (slice 026, collected 2026-11-07)
 

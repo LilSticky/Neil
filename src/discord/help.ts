@@ -1,18 +1,18 @@
-import {
-  MessageFlags,
-  type InteractionReplyOptions,
-  type RESTPostAPIApplicationCommandsJSONBody,
-} from "discord.js";
+import { MessageFlags, type InteractionReplyOptions, type RESTPostAPIApplicationCommandsJSONBody } from "discord.js";
 import { isOfficer } from "../domain/officer.js";
-import { helpReply } from "./help-texts.js";
+import { helpPages } from "./help-texts.js";
 
 /** The answer when the list cannot be built. */
 const HELP_UNAVAILABLE = "Help is not available right now. Please tell an Officer.";
 
-/** The part of a discord.js chat-input interaction that /help uses: the caller's roles and the private reply. */
+/**
+ * The part of a discord.js chat-input interaction that /help uses: the caller's roles, the private reply and the
+ * private follow-ups.
+ */
 export interface HelpInteraction {
   memberRoleIds(): readonly string[];
   reply(options: InteractionReplyOptions): Promise<unknown>;
+  followUp(options: InteractionReplyOptions): Promise<unknown>;
 }
 
 export interface HelpContext {
@@ -23,21 +23,32 @@ export interface HelpContext {
 }
 
 /**
- * Answers /help privately with the commands the caller can use, and what they are for; mentions are switched off. An
- * answer that cannot be built is logged and said to be unavailable; a failed reply is logged, never thrown.
+ * Answers /help privately with the commands the caller can use, and what they are for; mentions are switched off. The
+ * first page goes out as the reply, every further page as a follow-up. An answer that cannot be built is logged and
+ * said to be unavailable; a failed send is logged, stops the rest and is never thrown.
  */
 export async function handleHelp(interaction: HelpInteraction, context: HelpContext): Promise<void> {
-  let answer: Pick<InteractionReplyOptions, "content" | "embeds">;
+  let answers: readonly Pick<InteractionReplyOptions, "content" | "embeds">[];
   try {
     const officer = isOfficer(interaction.memberRoleIds(), context.officerRoleIds);
-    answer = { embeds: [helpReply(context.commands, { officer })] };
+    answers = helpPages(context.commands, { officer }).map((embeds) => ({
+      embeds: [...embeds],
+    }));
   } catch (error) {
     context.logError(`Building /help failed: ${error instanceof Error ? error.message : String(error)}`);
-    answer = { content: HELP_UNAVAILABLE };
+    answers = [{ content: HELP_UNAVAILABLE }];
   }
-  try {
-    await interaction.reply({ ...answer, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  } catch (error) {
-    context.logError(`Replying to /help failed: ${error instanceof Error ? error.message : String(error)}`);
+  for (const [index, answer] of answers.entries()) {
+    const options: InteractionReplyOptions = {
+      ...answer,
+      flags: MessageFlags.Ephemeral,
+      allowedMentions: { parse: [] },
+    };
+    try {
+      await (index === 0 ? interaction.reply(options) : interaction.followUp(options));
+    } catch (error) {
+      context.logError(`Replying to /help failed: ${error instanceof Error ? error.message : String(error)}`);
+      return;
+    }
   }
 }

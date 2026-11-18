@@ -1610,6 +1610,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           {
             memberRoleIds: () => memberRoleIds(interaction.member),
             reply: (reply) => interaction.reply(reply),
+            followUp: (reply) => interaction.followUp(reply),
           },
           { commands, officerRoleIds: options.officerRoleIds, logError },
         ),

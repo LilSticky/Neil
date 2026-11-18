@@ -37,7 +37,12 @@ function linesOf(command: RESTPostAPIChatInputApplicationCommandsJSONBody): Help
   const options = command.options ?? [];
   const subcommands = options.filter((option) => option.type === ApplicationCommandOptionType.Subcommand);
   if (subcommands.length === 0) {
-    return [{ usage: `/${command.name}${optionsSyntax(options)}`, description: command.description }];
+    return [
+      {
+        usage: `/${command.name}${optionsSyntax(options)}`,
+        description: command.description,
+      },
+    ];
   }
   return subcommands.map((subcommand) => ({
     usage: `/${command.name} ${subcommand.name}${optionsSyntax(subcommand.options ?? [])}`,
@@ -49,20 +54,104 @@ function formatLine(line: HelpLine): string {
   return `\`${line.usage}\` — ${line.description}`;
 }
 
-/** The /help answer: the Member commands, and for an Officer a section after them with the Officer commands. */
-export function helpReply(
+/** Discord's limit for the description of one embed. */
+export const EMBED_DESCRIPTION_LIMIT = 4096;
+/** Discord's limit for the embeds of one message. */
+export const MESSAGE_EMBED_LIMIT = 10;
+/** Discord's limit for the characters across all embeds of one message. */
+export const MESSAGE_CHARACTER_LIMIT = 6000;
+
+/** The title of every embed that holds Officer commands. */
+const OFFICER_TITLE = "Officer commands";
+
+/** The formatted lines of each command, one group per top-level command, in the order of the definitions. */
+function groupsOf(commands: readonly RESTPostAPIChatInputApplicationCommandsJSONBody[]): string[][] {
+  return commands.map((command) => linesOf(command).map(formatLine));
+}
+
+/** The length of lines joined by "\n". */
+function joinedLength(lines: readonly string[]): number {
+  return lines.reduce((sum, line) => sum + line.length, 0) + Math.max(lines.length - 1, 0);
+}
+
+/**
+ * The lines of the groups, packed into embed descriptions of at most EMBED_DESCRIPTION_LIMIT characters. A group stays
+ * in one embed; it is split by lines only when it does not fit into an empty embed on its own.
+ */
+function packGroups(groups: readonly (readonly string[])[]): string[][] {
+  const embeds: string[][] = [];
+  let current: string[] = [];
+  const fits = (lines: readonly string[]): boolean => joinedLength(lines) <= EMBED_DESCRIPTION_LIMIT;
+  for (const group of groups) {
+    if (fits([...current, ...group])) {
+      current.push(...group);
+      continue;
+    }
+    if (fits(group)) {
+      embeds.push(current);
+      current = [...group];
+      continue;
+    }
+    for (const line of group) {
+      if (current.length > 0 && !fits([...current, line])) {
+        embeds.push(current);
+        current = [];
+      }
+      current.push(line);
+    }
+  }
+  if (current.length > 0 || embeds.length === 0) {
+    embeds.push(current);
+  }
+  return embeds;
+}
+
+/** The characters an embed counts toward MESSAGE_CHARACTER_LIMIT. */
+function embedLength(embed: APIEmbed): number {
+  return (embed.title?.length ?? 0) + (embed.description?.length ?? 0);
+}
+
+/**
+ * The /help answer as pages, one inner array of embeds per message: the Member commands, and for an Officer embeds
+ * titled "Officer commands" after them. Each page holds at most MESSAGE_EMBED_LIMIT embeds and MESSAGE_CHARACTER_LIMIT
+ * characters.
+ */
+export function helpPages(
   commands: readonly RESTPostAPIApplicationCommandsJSONBody[],
   { officer }: { readonly officer: boolean },
-): APIEmbed {
+): readonly (readonly APIEmbed[])[] {
   const slashCommands = commands.filter(isSlashCommand);
-  const memberLines = slashCommands
-    .filter((command) => command.default_member_permissions !== "0")
-    .flatMap(linesOf)
-    .map(formatLine);
-  const officerLines = slashCommands
-    .filter((command) => command.default_member_permissions === "0")
-    .flatMap(linesOf)
-    .map(formatLine);
-  const officerSection = officer && officerLines.length > 0 ? ["", "**Officer commands**", ...officerLines] : [];
-  return { description: [...memberLines, ...officerSection].join("\n") };
+  const memberGroups = groupsOf(slashCommands.filter((command) => command.default_member_permissions !== "0"));
+  const officerGroups = groupsOf(slashCommands.filter((command) => command.default_member_permissions === "0")).filter(
+    (group) => group.length > 0,
+  );
+  const memberEmbeds: APIEmbed[] = packGroups(memberGroups).map((lines) => ({
+    description: lines.join("\n"),
+  }));
+  const showOfficer = officer && officerGroups.length > 0;
+  const hasMemberLines = memberGroups.some((group) => group.length > 0);
+  const embeds: APIEmbed[] = showOfficer && !hasMemberLines ? [] : memberEmbeds;
+  if (showOfficer) {
+    embeds.push(
+      ...packGroups(officerGroups).map((lines) => ({
+        title: OFFICER_TITLE,
+        description: lines.join("\n"),
+      })),
+    );
+  }
+  const pages: APIEmbed[][] = [];
+  let page: APIEmbed[] = [];
+  let characters = 0;
+  for (const embed of embeds) {
+    const length = embedLength(embed);
+    if (page.length > 0 && (page.length >= MESSAGE_EMBED_LIMIT || characters + length > MESSAGE_CHARACTER_LIMIT)) {
+      pages.push(page);
+      page = [];
+      characters = 0;
+    }
+    page.push(embed);
+    characters += length;
+  }
+  pages.push(page);
+  return pages;
 }
