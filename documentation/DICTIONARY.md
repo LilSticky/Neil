@@ -150,7 +150,8 @@ discovery.
 
 ## NaP Council
 * The Members Linked to the R5 of an Alliance in the NaP
-* They decide for the NaP and vote on join requests, one vote per Alliance
+* They decide for the NaP and vote on join requests and NaP Motions, one vote per Alliance
+* Any of them may open a NaP Motion
 * They keep REAPER: they add and remove Exiles
 
 ## Exile
@@ -166,6 +167,12 @@ discovery.
 * The NaP Council's decision on one join request, with Approve and Decline in `#nap-leaders`
 * Runs 48 hours from when it opens; each Alliance in the NaP has one vote and may change it until then
 * More Approve than Decline votes of the Alliances still in the NaP approve the request; a tie or no votes decline it
+
+## NaP Motion
+* A matter the NaP Council decides by vote, opened by one of its members with a text and a deadline (`/nap motion`)
+* Each Alliance in the NaP has one vote, Approve or Decline in `#nap-leaders`, changeable until the deadline; votes stay hidden while it runs
+* More Approve than Decline votes of the Alliances still in the NaP approve it; a tie or no votes reject it; there is no quorum
+* Once closed, its result and each Alliance's vote are posted in the decision log in `#nap-announcements`, naming no Member
 
 ## NaP Cooldown
 * The 30 days after a declined join request during which its Alliance may not ask to join the NaP again
