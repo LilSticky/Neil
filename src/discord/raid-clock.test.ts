@@ -11,9 +11,9 @@ import { createRaidClock, type RaidClock } from "./raid-clock.js";
 import type { RaidSettings } from "./raid-plan.js";
 
 const RAID_ID = "2026-11-21";
-const START = new Date("2026-11-21T22:00:00.000Z");
+const START = new Date("2026-11-21T14:00:00.000Z");
 const LEADERS = "800000000000000002";
-const SETTINGS: RaidSettings = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID, startMinutes: 20 * 60, planHours: 24, confirmationHours: 2 };
+const SETTINGS: RaidSettings = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID, planHours: 24, confirmationHours: 2 };
 const TAGS = ["ABC", "NML", "XYZ"];
 const HOUR = 3_600_000;
 
@@ -26,10 +26,10 @@ function hoursBeforeStart(hours: number): Date {
   return new Date(START.getTime() - hours * HOUR);
 }
 
-/** Published Thursday: Phase Opening at 20:00 with NML, Phase Push at 21:00 with nobody, ABC for the whole Raid. */
+/** Published Thursday: Phase Opening at 12:00 with NML, Phase Push at 13:00 with nobody, ABC for the whole Raid. */
 function publishedRaid(): Raid {
-  let raid = ok(addPhase(newRaid(RAID_ID, START), "Opening", "20:00"));
-  raid = ok(addPhase(raid, "Push", "21:00"));
+  let raid = ok(addPhase(newRaid(RAID_ID, START), "Opening", "12:00"));
+  raid = ok(addPhase(raid, "Push", "13:00"));
   raid = ok(assign(raid, { tag: "NML", objective: "Royal City", phase: "Opening", task: undefined }, TAGS));
   raid = ok(assign(raid, { tag: "ABC", objective: "Enemy sanctuaries", phase: undefined, task: undefined }, TAGS));
   return ok(publish(raid, new Date("2026-11-19T12:00:00.000Z")));
@@ -67,7 +67,7 @@ describe("the Raid clock", () => {
   });
 
   test("does nothing while the War Council role is unset", async () => {
-    clock = clockWith({ ...SETTINGS, warCouncilRoleId: undefined, startMinutes: undefined });
+    clock = clockWith({ ...SETTINGS, warCouncilRoleId: undefined });
     await tickAt(hoursBeforeStart(1));
 
     expect(server.posts).toEqual([]);

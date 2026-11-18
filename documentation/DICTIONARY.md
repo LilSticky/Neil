@@ -323,7 +323,7 @@ discovery.
 * Independent of the King role, and not an Officer role. Without it configured, Raid planning is off
 
 ## Raid
-* The Home Kingdom's one fight window of a KvK week: Saturday, starting at a fixed time in Server Time from Neil's configuration
+* The Home Kingdom's one fight window of a KvK week: Saturday, starting at 12:00 Server Time (14:00 UTC), the owner's decision
 * From Sunday 00:00 to Saturday 23:59 Server Time, the current Raid is that week's Saturday's. A cancelled Raid stays cancelled for that week
 
 ## Battle Plan

@@ -58,7 +58,6 @@ describe("loadConfig", () => {
       syncShare: 500,
       cityRotationMode: "rotation",
       warCouncilRoleId: undefined,
-      raidStartMinutes: undefined,
       raidPlanDeadlineHours: 24,
       raidConfirmationDeadlineHours: 2,
       fighterClassThresholds: {
@@ -597,53 +596,49 @@ describe("loadConfig", () => {
   describe("Raid planning", () => {
     const WAR_COUNCIL_ROLE_ID = "623456789012345678";
 
-    test("is off without DISCORD_WAR_COUNCIL_ROLE_ID, and needs no RAID_START then", () => {
+    test("is off without DISCORD_WAR_COUNCIL_ROLE_ID", () => {
       const config = loadConfig(validEnv());
 
       expect(config.warCouncilRoleId).toBeUndefined();
-      expect(config.raidStartMinutes).toBeUndefined();
     });
 
-    test("reads the War Council role, the Raid start and both deadlines", () => {
+    test("loads with the War Council role set and no Raid start setting: the Raid start is fixed", () => {
+      const config = loadConfig(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID }));
+
+      expect(config.warCouncilRoleId).toBe(WAR_COUNCIL_ROLE_ID);
+    });
+
+    test("ignores a leftover RAID_START, whatever its value", () => {
+      const withLeftover = loadConfig(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID, RAID_START: "evening" }));
+
+      expect(withLeftover).toEqual(loadConfig(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID })));
+    });
+
+    test("reads the War Council role and both deadlines", () => {
       const config = loadConfig(
         validEnv({
           DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID,
-          RAID_START: "20:30",
           RAID_PLAN_DEADLINE_HOURS: "48",
           RAID_CONFIRMATION_DEADLINE_HOURS: "0",
         }),
       );
 
       expect(config.warCouncilRoleId).toBe(WAR_COUNCIL_ROLE_ID);
-      expect(config.raidStartMinutes).toBe(20 * 60 + 30);
       expect(config.raidPlanDeadlineHours).toBe(48);
       expect(config.raidConfirmationDeadlineHours).toBe(0);
     });
 
     test("defaults the Plan Deadline to 24 hours and the Confirmation Deadline to 2 hours before the start", () => {
-      const config = loadConfig(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID, RAID_START: "20:00" }));
+      const config = loadConfig(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID }));
 
       expect(config.raidPlanDeadlineHours).toBe(24);
       expect(config.raidConfirmationDeadlineHours).toBe(2);
     });
 
-    test("stops startup when the War Council role is set without RAID_START", () => {
-      const error = failureOf(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID }));
-
-      expect(error.problems).toEqual(["RAID_START: required when DISCORD_WAR_COUNCIL_ROLE_ID is set"]);
-    });
-
     test("reports a War Council role that is not a Discord ID", () => {
-      const error = failureOf(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: "council", RAID_START: "20:00" }));
+      const error = failureOf(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: "council" }));
 
       expect(error.problems).toEqual(["DISCORD_WAR_COUNCIL_ROLE_ID: must be a Discord ID (17–20 digits)"]);
-    });
-
-    test.each(["24:00", "8:00", "20:60", "20.00", "evening"])("reports RAID_START %s, without showing it", (value) => {
-      const error = failureOf(validEnv({ DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID, RAID_START: value }));
-
-      expect(error.problems).toEqual(["RAID_START: must be a time HH:MM from 00:00 to 23:59 (Server Time, Saturday)"]);
-      expect(error.message).not.toContain(value);
     });
 
     test.each(["0", "145", "1.5", "-3"])("reports RAID_PLAN_DEADLINE_HOURS %s", (value) => {
@@ -666,7 +661,6 @@ describe("loadConfig", () => {
       const error = failureOf(
         validEnv({
           DISCORD_WAR_COUNCIL_ROLE_ID: WAR_COUNCIL_ROLE_ID,
-          RAID_START: "20:00",
           RAID_PLAN_DEADLINE_HOURS: plan,
           RAID_CONFIRMATION_DEADLINE_HOURS: confirmation,
         }),

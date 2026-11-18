@@ -66,7 +66,7 @@ nickname and roles matching the game.
 | **Neil** (the bot's own role) | Discord, when the bot is invited | 🔴 Requirement | Holds Neil's permissions. Its **position** matters. |
 | **Moderator** | you | 🔴 Requirement | Officers. Can use the Officer commands and see the Daily Quota. |
 | **King** | you | 🔴 Requirement | Officers too, treated the same as Moderator. |
-| **War Council** | the setup script, or you | 🟡 Recommendation | Its holders plan Saturday's Raid with `/raid-plan` (slice 034). Not an Officer role. Put its ID in `.env` as `DISCORD_WAR_COUNCIL_ROLE_ID`, with `RAID_START`; without the ID, Raid planning is off. |
+| **War Council** | the setup script, or you | 🟡 Recommendation | Its holders plan Saturday's Raid with `/raid-plan` (slice 034). Not an Officer role. Put its ID in `.env` as `DISCORD_WAR_COUNCIL_ROLE_ID`; without the ID, Raid planning is off. |
 | **Onboarding** | Neil, at a start with an unlinked Member, or you | automatic | Held by every Member who isn't Linked yet. |
 | **Doctor** | Neil, at a start or at the first Link, or you | automatic | Held by every Linked Member, Guests included. |
 | Alliance roles (e.g. `[NML]`) | Neil, when first needed | automatic | One per Home Kingdom Alliance, its tag in brackets. Shows that Alliance's area. The brackets are how the setup script finds it, so don't give another role such a name. |

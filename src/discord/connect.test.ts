@@ -301,7 +301,7 @@ describe("connect", () => {
       dailySync,
       events,
       raids: new RaidStore(db),
-      raidSettings: { warCouncilRoleId: undefined, startMinutes: undefined, planHours: 24, confirmationHours: 2 },
+      raidSettings: { warCouncilRoleId: undefined, planHours: 24, confirmationHours: 2 },
       availability: new AvailabilityStore(db),
       fighterClassThresholds: {
         whale: { bracket: "T10", might: 150_000_000 },
