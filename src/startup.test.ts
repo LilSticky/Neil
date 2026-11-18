@@ -262,7 +262,7 @@ describe("start", () => {
   test("passes the Raid settings and the Raid store from configuration to connect", async () => {
     const seen: ConnectOptions[] = [];
     const fake = fakeDeps({
-      env: { ...VALID_ENV, DISCORD_WAR_COUNCIL_ROLE_ID: "623456789012345678", RAID_START: "20:00", RAID_PLAN_DEADLINE_HOURS: "36" },
+      env: { ...VALID_ENV, DISCORD_WAR_COUNCIL_ROLE_ID: "623456789012345678", RAID_PLAN_DEADLINE_HOURS: "36" },
       connect: (_token, options) => {
         seen.push(options);
         return Promise.resolve({ disconnect: () => Promise.resolve() });
@@ -273,7 +273,6 @@ describe("start", () => {
 
     expect(seen[0]?.raidSettings).toEqual({
       warCouncilRoleId: "623456789012345678",
-      startMinutes: 1200,
       planHours: 36,
       confirmationHours: 2,
     });

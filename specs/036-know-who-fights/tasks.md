@@ -29,8 +29,8 @@
 
 - [x] T008 Dictionary (Availability Poll, Availability Summary, Fighter Class), ADR 19, ROADMAP row 036, STATUS,
   MIGRATION-GUIDE.md, SERVER-SETUP.md and the `#kvk-leaders` description in `server-layout.json`.
-- [ ] T009 Manual check on test Neil: with `DISCORD_WAR_COUNCIL_ROLE_ID` and `RAID_START` set (a start just over 72 hours
-  ahead, or a start within the next days so the poll opens at once), the poll appears in each `alliance-chat` and the
+- [ ] T009 Manual check on test Neil: with `DISCORD_WAR_COUNCIL_ROLE_ID` set (the poll opens on Wednesday at
+  12:00 Server Time, 72 hours before the fixed Raid start, so run the check from then on), the poll appears in each `alliance-chat` and the
   summary in `#kvk-leaders`, nobody is pinged, Available shows the suggested class highlighted, the counts update after an
   answer, and the cards close at the start. Run `npm run server:setup -- --apply` for the new `#kvk-leaders` description.
   Verify each result through Neil Police.

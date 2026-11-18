@@ -1,6 +1,5 @@
 import { pollStep, type AvailabilityCounts, type PollCloseReason, type PollState } from "../domain/availability.js";
-import { currentRaidOf, newRaid, type Raid, type RaidId } from "../domain/raid.js";
-import { serverTimeInstant } from "../domain/server-time.js";
+import { currentRaidOf, newRaid, raidStartOf, type Raid, type RaidId } from "../domain/raid.js";
 import type { AvailabilityStore, StoredPoll } from "../storage/availability-store.js";
 import type { RaidStore } from "../storage/raid-store.js";
 import { createAvailabilityBoard, type AvailabilityBoard } from "./availability-board.js";
@@ -12,7 +11,7 @@ export interface AvailabilityClockDeps {
   readonly availability: Pick<AvailabilityStore, "poll" | "openPolls" | "open" | "saveCard" | "saveSummaryCard" | "close" | "answers">;
   readonly raids: Pick<RaidStore, "find">;
   readonly server: RaidServer;
-  readonly settings: Pick<RaidSettings, "warCouncilRoleId" | "startMinutes">;
+  readonly settings: Pick<RaidSettings, "warCouncilRoleId">;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
   /** The cards as the poll handler edits them too; one is made when none is given. */
@@ -103,16 +102,16 @@ export function createAvailabilityClock(deps: AvailabilityClockDeps): Availabili
   }
 
   async function run(): Promise<void> {
-    const { warCouncilRoleId, startMinutes } = deps.settings;
-    if (warCouncilRoleId === undefined || startMinutes === undefined) return;
+    const { warCouncilRoleId } = deps.settings;
+    if (warCouncilRoleId === undefined) return;
     const now = deps.now();
     const raidOf = (id: RaidId, start: Date): Raid => deps.raids.find(id)?.raid ?? newRaid(id, start);
-    const current = currentRaidOf(now, startMinutes);
+    const current = currentRaidOf(now);
     // A poll left open from an earlier week (Neil was off at its start) closes too, so its answers do not stay.
     const ids = [...new Set([...availability.openPolls(), current.id])];
     for (const id of ids) {
       try {
-        await step(raidOf(id, id === current.id ? current.start : serverTimeInstant(id, startMinutes)), now);
+        await step(raidOf(id, id === current.id ? current.start : raidStartOf(id)), now);
       } catch (error) {
         await logFailure(`The Availability Poll of the Raid of ${id} failed: ${errorMessage(error)}`);
       }

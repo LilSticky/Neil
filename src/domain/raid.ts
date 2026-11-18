@@ -1,3 +1,4 @@
+import { RAID_START_TIME } from "./city-rotation.js";
 import { serverDatePlusDays, serverDayOf, serverTimeInstant } from "./server-time.js";
 
 /**
@@ -105,11 +106,16 @@ export type RaidResult = { readonly ok: true; readonly raid: Raid } | { readonly
 
 const EMPTY_PLAN: BattlePlan = { customObjectives: [], phases: [], assignments: [], notes: "" };
 
+/** The start of the Raid on that Saturday: always 12:00 Server Time (14:00 UTC). */
+export function raidStartOf(id: RaidId): Date {
+  return serverTimeInstant(id, RAID_START_TIME.hour * 60 + RAID_START_TIME.minute);
+}
+
 /** The current Raid's Saturday and start: from Sunday 00:00 to Saturday 23:59 Server Time, that week's Saturday. */
-export function currentRaidOf(now: Date, startMinutes: number): { readonly id: RaidId; readonly start: Date } {
+export function currentRaidOf(now: Date): { readonly id: RaidId; readonly start: Date } {
   const day = serverDayOf(now);
   const id = serverDatePlusDays(day.date, SATURDAY - day.weekday);
-  return { id, start: serverTimeInstant(id, startMinutes) };
+  return { id, start: raidStartOf(id) };
 }
 
 /** A new Raid: a draft with the fixed Objectives only. */

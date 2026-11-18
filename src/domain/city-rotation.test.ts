@@ -8,6 +8,8 @@ import {
   moveAlliance,
   nextHoldingAlliance,
   nextRoyalCitySiege,
+  RAID_START_TIME,
+  ROYAL_CITY_SIEGE_TIME,
   skipTurn,
   upcomingAlliance,
   type RotationTurns,
@@ -19,6 +21,16 @@ import { kingdomOf } from "./__fixtures__/players.js";
 /** Friday 2026-11-20 at 12:00 Server Time, which is 14:00 UTC. */
 const FRIDAY_SIEGE = new Date("2026-11-20T14:00:00Z");
 const WEEK_MS = 7 * 24 * 3_600_000;
+
+describe("fixed times", () => {
+  test("the Royal City siege starts at 12:00 Server Time", () => {
+    expect(ROYAL_CITY_SIEGE_TIME).toEqual({ hour: 12, minute: 0 });
+  });
+
+  test("the Raid starts at 12:00 Server Time", () => {
+    expect(RAID_START_TIME).toEqual({ hour: 12, minute: 0 });
+  });
+});
 
 describe("nextRoyalCitySiege", () => {
   test("is the coming Friday at the siege time in Server Time", () => {

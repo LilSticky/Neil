@@ -14,9 +14,9 @@ import { createRaidPlanning, type RaidConfirmPress, type RaidPlanInteraction, ty
 const RAID_ID = "2026-11-21";
 const ANNOUNCEMENTS = "800000000000000001";
 const LEADERS = "800000000000000002";
-/** Thursday, before the Raid of Saturday 2026-11-21 at 20:00 Server Time (22:00 UTC). */
+/** Thursday, before the Raid of Saturday 2026-11-21 at 12:00 Server Time (14:00 UTC). */
 const THURSDAY = new Date("2026-11-19T12:00:00.000Z");
-const SETTINGS: RaidSettings = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID, startMinutes: 20 * 60, planHours: 24, confirmationHours: 2 };
+const SETTINGS: RaidSettings = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID, planHours: 24, confirmationHours: 2 };
 const WAR_COUNCIL: EventRole[] = [{ id: WAR_COUNCIL_ROLE_ID, name: "War Council" }];
 
 interface Answers {
@@ -99,7 +99,7 @@ describe("/raid-plan", () => {
   }
 
   async function draftPlan(): Promise<void> {
-    await run("phase-add", { name: "Opening", time: "20:00" });
+    await run("phase-add", { name: "Opening", time: "12:00" });
     await run("assign", { alliance: "NML", objective: "Royal City", phase: "Opening", task: "Hold the gate" });
   }
 
@@ -119,7 +119,7 @@ describe("/raid-plan", () => {
 
   test("answers that Raid planning is not set up when no War Council role is configured", async () => {
     const interaction = command("show");
-    await planning({ ...SETTINGS, warCouncilRoleId: undefined, startMinutes: undefined }).onCommand(interaction);
+    await planning({ ...SETTINGS, warCouncilRoleId: undefined }).onCommand(interaction);
 
     expect(interaction.replies[0]?.content).toBe("Raid planning is not set up on this server.");
   });
@@ -134,15 +134,15 @@ describe("/raid-plan", () => {
   });
 
   test("a change is saved at once, logged, and answered with the private preview", async () => {
-    const answer = await run("phase-add", { name: "Opening", time: "20:00" });
+    const answer = await run("phase-add", { name: "Opening", time: "12:00" });
 
     expect(answer).toContain("Saved.");
-    expect(raids.find(RAID_ID)?.raid.plan.phases[0]?.at.toISOString()).toBe("2026-11-21T22:00:00.000Z");
+    expect(raids.find(RAID_ID)?.raid.plan.phases[0]?.at.toISOString()).toBe("2026-11-21T14:00:00.000Z");
     expect(server.logs[0]).toContain("added a Phase");
   });
 
   test("a refused change answers why and saves nothing", async () => {
-    const answer = await run("phase-add", { name: "Early", time: "19:00" });
+    const answer = await run("phase-add", { name: "Early", time: "11:00" });
 
     expect(answer).toContain("can't start before the Raid");
     expect(raids.find(RAID_ID)).toBeUndefined();
@@ -307,7 +307,7 @@ describe("the Read and confirmed button", () => {
     const run = async (subcommand: string, values: Record<string, string> = {}) => {
       await planning.onCommand(command(subcommand, values));
     };
-    await run("phase-add", { name: "Opening", time: "20:00" });
+    await run("phase-add", { name: "Opening", time: "12:00" });
     await run("assign", { alliance: "NML", objective: "Royal City", phase: "Opening" });
     await run("publish");
   });

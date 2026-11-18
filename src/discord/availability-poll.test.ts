@@ -22,10 +22,10 @@ import { createAvailabilityClock } from "./availability-clock.js";
 import { createAvailabilityPoll, type AvailabilityPoll, type AvailabilityPress } from "./availability-poll.js";
 
 const RAID_ID = "2026-11-21";
-const START = new Date("2026-11-21T22:00:00.000Z");
-const OPENS = new Date("2026-11-18T22:00:00.000Z");
+const START = new Date("2026-11-21T14:00:00.000Z");
+const OPENS = new Date("2026-11-18T14:00:00.000Z");
 const THURSDAY = new Date("2026-11-19T12:00:00.000Z");
-const SETTINGS = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID, startMinutes: 20 * 60 };
+const SETTINGS = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID };
 const THRESHOLDS: FighterClassThresholds = {
   whale: { bracket: "T10", might: 150_000_000 },
   dolphin: { bracket: "T9", might: 60_000_000 },

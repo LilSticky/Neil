@@ -71,10 +71,9 @@ Check that Home Kingdom Members hold `#<Home Kingdom>`: nearly every channel wil
 4. `npm run server:setup -- --apply`.
 5. 🔴 **Take Administrator off Neil's role straight away.**
 6. Check with **View Server As Role**: `Onboarding` alone, **Doctor** alone, then **Doctor** plus `#<Home Kingdom>`.
-7. For Raid planning (slice 034): copy the ID of the new **War Council** role into `.env` as `DISCORD_WAR_COUNCIL_ROLE_ID`, set
-   `RAID_START` (HH:MM in Server Time, Saturday) and, if you want other deadlines, `RAID_PLAN_DEADLINE_HOURS` and
-   `RAID_CONFIRMATION_DEADLINE_HOURS` (see `env.example`), give the role to the War Council and restart Neil. Without the
-   ID, Raid planning stays off.
+7. For Raid planning (slice 034): copy the ID of the new **War Council** role into `.env` as `DISCORD_WAR_COUNCIL_ROLE_ID` and,
+   if you want other deadlines, `RAID_PLAN_DEADLINE_HOURS` and `RAID_CONFIRMATION_DEADLINE_HOURS` (see `env.example`), give the role to the War Council and restart Neil. Without the
+   ID, Raid planning stays off. The Raid always starts on Saturday at 12:00 Server Time (14:00 UTC); there is nothing to set.
 8. Optional, for the Availability Poll (slice 036): it runs with the Raid planning settings of step 7. To change which Fighter
    Class Neil suggests, set `FIGHTER_WHALE_BRACKET`, `FIGHTER_WHALE_MIGHT`, `FIGHTER_DOLPHIN_BRACKET`, `FIGHTER_DOLPHIN_MIGHT`,
    `FIGHTER_SEAL_BRACKET` and `FIGHTER_SEAL_MIGHT` (see `env.example`; Whale above Dolphin above Seal) and restart Neil. Run

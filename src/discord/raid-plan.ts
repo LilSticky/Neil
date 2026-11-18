@@ -13,7 +13,6 @@ import {
   confirmationDeadlineOf,
   confirmPlan,
   currentRaidOf,
-  FIXED_OBJECTIVES,
   newRaid,
   objectivesOf,
   planDeadlineOf,
@@ -51,8 +50,6 @@ export const LEADERS_CHANNEL = "kvk-leaders";
 /** The Raid settings from configuration; planning is off while the War Council role is unset. */
 export interface RaidSettings {
   readonly warCouncilRoleId: string | undefined;
-  /** The Raid start on Saturday, minutes after 00:00 Server Time. */
-  readonly startMinutes: number | undefined;
   readonly planHours: number;
   readonly confirmationHours: number;
 }
@@ -140,8 +137,8 @@ const CHANGE_NAMES: Record<string, string> = {
 export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
   const { raids, server, settings } = deps;
 
-  function current(startMinutes: number): StoredRaid {
-    const { id, start } = currentRaidOf(deps.now(), startMinutes);
+  function current(): StoredRaid {
+    const { id, start } = currentRaidOf(deps.now());
     return raids.find(id) ?? { raid: newRaid(id, start), planCard: undefined, confirmationCard: undefined };
   }
 
@@ -250,8 +247,8 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
     return preview(result.raid, note);
   }
 
-  async function answerCommand(interaction: RaidPlanInteraction, startMinutes: number): Promise<InteractionEditReplyOptions> {
-    const stored = current(startMinutes);
+  async function answerCommand(interaction: RaidPlanInteraction): Promise<InteractionEditReplyOptions> {
+    const stored = current();
     const subcommand = interaction.options.getSubcommand();
     const caller = interaction.user.id;
     if (subcommand === "show") return preview(stored.raid, "The Battle Plan of this week's Raid:");
@@ -267,8 +264,8 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
   return {
     async onCommand(interaction) {
       try {
-        const { warCouncilRoleId, startMinutes } = settings;
-        if (warCouncilRoleId === undefined || startMinutes === undefined) {
+        const { warCouncilRoleId } = settings;
+        if (warCouncilRoleId === undefined) {
           await replyPrivately(interaction, raidMessages.notSetUp);
           return;
         }
@@ -279,7 +276,7 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         let answer: InteractionEditReplyOptions;
         try {
-          answer = await answerCommand(interaction, startMinutes);
+          answer = await answerCommand(interaction);
         } catch (error) {
           deps.logError(`/raid-plan failed: ${errorMessage(error)}`);
           await server.log(`/raid-plan ${interaction.options.getSubcommand()} by <@${interaction.user.id}> failed: ${errorMessage(error)}`).catch(() => undefined);
@@ -301,11 +298,9 @@ export function createRaidPlanning(deps: RaidPlanningDeps): RaidPlanning {
         const focused = interaction.options.getFocused(true);
         const typed = focused.value.trim().toLowerCase();
         let names: readonly string[] = [];
-        if (settings.startMinutes !== undefined) {
-          const { raid } = current(settings.startMinutes);
-          if (focused.name === "objective") names = objectivesOf(raid.plan);
-          if (focused.name === "phase") names = raid.plan.phases.map((phase) => phase.name);
-        } else if (focused.name === "objective") names = FIXED_OBJECTIVES;
+        const { raid } = current();
+        if (focused.name === "objective") names = objectivesOf(raid.plan);
+        if (focused.name === "phase") names = raid.plan.phases.map((phase) => phase.name);
         if (focused.name === "alliance") names = server.allianceTags();
         const choices = names
           .filter((name) => name.toLowerCase().includes(typed))
