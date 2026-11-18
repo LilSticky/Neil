@@ -34,3 +34,4 @@
   refused, the first R5's press approves. The second R5 runs `/nap leave`; Police sees the line in `#nap-leaders`. Any
   Member's `/nap show` lists the first Alliance only; the first R5's `/nap history` lists the three entries, newest first;
   a Member outside the council is refused. A human confirms the texts read clearly and show local times.
+  Partial (2026-11-18): `/nap show` answers privately with no members and no waiting requests; `/nap join` by a Linked R4 is refused. Open: a request, its approval, `/nap leave` and `/nap history`, because the test server has no Linked R5.

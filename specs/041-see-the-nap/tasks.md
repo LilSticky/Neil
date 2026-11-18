@@ -30,3 +30,4 @@
   NaP list pinned in `#nap-announcements`. An R5 runs `/nap join` and an Officer approves; Police sees the join
   announcement and the list updated. The R5 runs `/nap leave`; Police sees the leave announcement and the list with the
   former member. `/alliance` on that Alliance shows its NaP line. A human confirms the texts read well and name no Member.
+  Partial (2026-11-18): Police sees the NaP list pinned in `#nap-announcements` ("No Alliance is in the NaP yet."); the `/alliance` card of REB shows "Not a member". Open: the announcements of a join and a leave, because the test server has no Linked R5.
