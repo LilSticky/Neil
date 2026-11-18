@@ -5,7 +5,7 @@ import { z } from "zod";
 import { redact } from "../startup.js";
 import { PIN_MARK } from "../domain/channel-description.js";
 import { forumHowTo } from "../domain/forum-how-to.js";
-import { BOT_TARGET, EVERYONE_TARGET, POLICE_TARGET, ROLE_PERMISSION_BITS, expandLayout, translatedDescription, } from "../domain/server-layout.js";
+import { ALLIANCE_LEADERS_PLACEHOLDER, BOT_TARGET, EVERYONE_TARGET, POLICE_TARGET, ROLE_PERMISSION_BITS, expandLayout, translatedDescription, } from "../domain/server-layout.js";
 import { allianceRoleNamesOf, planSetup, } from "../domain/setup-plan.js";
 const ROLE_OVERWRITE = 0;
 const MEMBER_OVERWRITE = 1;
@@ -118,7 +118,9 @@ export function parseLayout(text) {
             channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames, translations)),
         };
     });
-    const allianceChannels = raw.allianceArea.channels.map((channel) => checkChannel("allianceArea", channel, known, channelNames, translations));
+    // The Alliance area may also name its own Alliance Leaders Role, by placeholder (slice 045).
+    const allianceKnown = new Set([...known, ALLIANCE_LEADERS_PLACEHOLDER]);
+    const allianceChannels = raw.allianceArea.channels.map((channel) => checkChannel("allianceArea", channel, allianceKnown, channelNames, translations));
     const layout = {
         roles: [...raw.roles],
         externalRoles: [...raw.externalRoles],

@@ -29,7 +29,10 @@ function linesOf(command) {
 function formatLine(line) {
     return `\`${line.usage}\` — ${line.description}`;
 }
-/** The /help answer: the Member commands, and for an Officer a section after them with the Officer commands. */
+/**
+ * The /help answer: an embed with the Member commands, and for an Officer a second embed after it with the Officer
+ * commands, so each list has Discord's whole description limit to itself.
+ */
 export function helpReply(commands, { officer }) {
     const slashCommands = commands.filter(isSlashCommand);
     const memberLines = slashCommands
@@ -40,7 +43,10 @@ export function helpReply(commands, { officer }) {
         .filter((command) => command.default_member_permissions === "0")
         .flatMap(linesOf)
         .map(formatLine);
-    const officerSection = officer && officerLines.length > 0 ? ["", "**Officer commands**", ...officerLines] : [];
-    return { description: [...memberLines, ...officerSection].join("\n") };
+    const memberEmbed = { description: memberLines.join("\n") };
+    if (!officer || officerLines.length === 0) {
+        return [memberEmbed];
+    }
+    return [memberEmbed, { description: ["**Officer commands**", ...officerLines].join("\n") }];
 }
 //# sourceMappingURL=help-texts.js.map

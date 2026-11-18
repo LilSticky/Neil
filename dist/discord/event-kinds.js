@@ -1,6 +1,7 @@
 import { MessageFlags } from "discord.js";
 import { parseLeadTimes, } from "../domain/events.js";
 import { nextDuelReset } from "../domain/duel-plan.js";
+import { SHIELD_KIND_NAME, shieldDeadlineOf, shieldLeadMinutesOf, shieldWeekOf } from "../domain/shield.js";
 import { isOfficer } from "../domain/officer.js";
 import { unixOf } from "./timestamps.js";
 import { ledAllianceOf } from "./alliance-standing.js";
@@ -19,6 +20,9 @@ const messages = {
     notListed: (name, label) => `"${name}" is not listed for ${label}. Nothing was removed.`,
     empty: (label) => `${label} has no Event Kinds yet.`,
     listed: (label, lines) => [`Event Kinds of ${label}:`, ...lines].join("\n"),
+    shieldWithoutSignup: "The Shield kind has no Sign-up Deadline. Neil has changed nothing.",
+    shieldDefaultsBack: "The Shield Reminders remind 12h, 4h and 1h before Friday's reset again.",
+    shield: (leads, deadline, marked) => `- **Shield**: ${leads} before Friday's reset; next <t:${deadline}:F> (<t:${deadline}:R>), KvK Week: ${marked ? "marked" : "not marked"}`,
     allianceDuel: (nextReset) => `- **Alliance Duel**: daily plan in #event-announcements at 00:00 Server Time, Monday to Saturday; next <t:${nextReset}:t> (<t:${nextReset}:R>)`,
 };
 /**
@@ -107,6 +111,10 @@ function add(interaction, context, standing) {
     const signUp = signUpOf(interaction.options.getString("signup-deadline"), interaction.options.getString("before-signup"));
     if (!signUp.ok)
         return signUp.refusal;
+    // The built-in Shield kind of the kingdom counts back from Friday's reset, which has no Sign-up Deadline.
+    if (owner.value === KINGDOM && isShieldName(name.value) && signUp.value.signupOffsetMinutes !== undefined) {
+        return messages.shieldWithoutSignup;
+    }
     const kind = {
         name: name.value,
         beforeStart: beforeStart.value,
@@ -160,23 +168,34 @@ function remove(interaction, context, standing) {
     if (!listed)
         return messages.notListed(name.value, labelOf(owner.value));
     context.events.removeKind(owner.value, name.value);
-    return messages.removed(name.value, labelOf(owner.value));
+    const removed = messages.removed(name.value, labelOf(owner.value));
+    return owner.value === KINGDOM && isShieldName(name.value) ? `${removed} ${messages.shieldDefaultsBack}` : removed;
 }
 function list(interaction, context, standing) {
     const owner = listFor(interaction, standing);
     if (!owner.ok)
         return owner.refusal;
     const kinds = context.events.listKinds(owner.value);
-    const lines = kinds.map((kind) => `- ${describe(kind)}`);
-    // The kingdom's list always ends with the Alliance Duel: its Duel Plan is built in, not a stored kind.
-    if (owner.value === KINGDOM)
-        lines.push(messages.allianceDuel(unixOf(nextDuelReset(context.now()))));
+    // The kingdom's Shield kind is shown by its built-in line, not as a stored kind.
+    const shown = owner.value === KINGDOM ? kinds.filter((kind) => !isShieldName(kind.name)) : kinds;
+    const lines = shown.map((kind) => `- ${describe(kind)}`);
+    // The kingdom's list always ends with the Alliance Duel and the Shield: both are built in, not stored kinds.
+    if (owner.value === KINGDOM) {
+        const now = context.now();
+        lines.push(messages.allianceDuel(unixOf(nextDuelReset(now))));
+        const deadline = shieldDeadlineOf(now);
+        const marked = context.shield.markOf(shieldWeekOf(deadline)) !== undefined;
+        lines.push(messages.shield(shieldLeadMinutesOf(kinds).map(formatLead).join(", "), unixOf(deadline), marked));
+    }
     if (lines.length === 0)
         return messages.empty(labelOf(owner.value));
     return messages.listed(labelOf(owner.value), lines);
 }
 function sameName(a, b) {
     return a.toLowerCase() === b.toLowerCase();
+}
+function isShieldName(name) {
+    return sameName(name, SHIELD_KIND_NAME);
 }
 /** One Event Kind as a line: its name, the lead times of its start reminders and, if any, its Sign-up Deadline. */
 function describe(kind) {

@@ -11,7 +11,7 @@ export async function handleHelp(interaction, context) {
     let answer;
     try {
         const officer = isOfficer(interaction.memberRoleIds(), context.officerRoleIds);
-        answer = { embeds: [helpReply(context.commands, { officer })] };
+        answer = { embeds: helpReply(context.commands, { officer }) };
     }
     catch (error) {
         context.logError(`Building /help failed: ${error instanceof Error ? error.message : String(error)}`);

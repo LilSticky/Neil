@@ -27,6 +27,9 @@ async function unlinkMember(deps, memberId, reason) {
     attempt(deps, memberId, "forgetting the Availability answers", () => {
         deps.availability.forget(memberId);
     });
+    attempt(deps, memberId, "forgetting the Shield Confirmations and Shield Reminders Off", () => {
+        deps.shield.forget(memberId);
+    });
     let notChanged = [];
     if (!removedByDiscord(reason)) {
         notChanged = await takeOffOnServer(deps, memberId, applied);

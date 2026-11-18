@@ -20,6 +20,7 @@ import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { NapMotionStore } from "./storage/nap-motion-store.js";
 import { NapRulesStore } from "./storage/nap-rules-store.js";
+import { ShieldStore } from "./storage/shield-store.js";
 import { NapStore } from "./storage/nap-store.js";
 import { RaidStore } from "./storage/raid-store.js";
 import { AvailabilityStore } from "./storage/availability-store.js";
@@ -60,6 +61,7 @@ await start({
             nap: new NapStore(db),
             napMotions: new NapMotionStore(db),
             napRules: new NapRulesStore(db),
+            shield: new ShieldStore(db),
             preferences: createPreferenceStore(db, (line) => {
                 console.error(line);
             }),
