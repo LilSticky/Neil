@@ -287,7 +287,6 @@ These live with Neil's hosting, not in Discord ([HOSTING.md §3](HOSTING.md#3-wi
 | `GAME_API_QUOTA_RESERVE` | ⚪ Suggestion | Requests kept back for Interviews. It also shrinks the Daily Allowance | `100` |
 | `GAME_API_CACHE_MINUTES` | ⚪ Suggestion | How long a lookup is cached (at least 10) | `10` |
 | `TROOP_BRACKET_LEVELS` | ⚪ Suggestion | Sanctuary level where each of T1–T10 starts | `1,3,6,10,14,17,20,24,27,30` |
-| `ROYAL_CITY_SIEGE_TIME` | 🟡 Recommendation | Friday time of the Royal City siege in Server Time (UTC-2), `HH:MM`. Without it the City Rotation card says the time is not set, and Neil asks for no Handover | — |
 | `CITY_ROTATION_MODE` | ⚪ Suggestion | `rotation` (a fixed order) or `contested` (an Officer names each Holding Alliance) | `rotation` |
 | `DISCORD_GUIDES_FORUM_ID` | ⚪ Suggestion | ID of the guides forum, named in the Veteran and New guides line of the Preferences message | — (the line says "the guides forum") |
 

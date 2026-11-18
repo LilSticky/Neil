@@ -56,7 +56,6 @@ describe("loadConfig", () => {
       troopBracketLevels: [1, 3, 6, 10, 14, 17, 20, 24, 27, 30],
       syncHourUtc: 3,
       syncShare: 500,
-      royalCitySiegeTime: undefined,
       cityRotationMode: "rotation",
       warCouncilRoleId: undefined,
       raidStartMinutes: undefined,
@@ -560,30 +559,10 @@ describe("loadConfig", () => {
   });
 
   describe("ROYAL_CITY_SIEGE_TIME", () => {
-    const rule = "must be a time HH:MM from 00:00 to 23:59 (Server Time)";
+    test("is ignored when a server still sets it, even to an invalid time", () => {
+      const config = loadConfig(validEnv({ ROYAL_CITY_SIEGE_TIME: "31:77" }));
 
-    test("is unset when it is not given", () => {
-      expect(loadConfig(validEnv()).royalCitySiegeTime).toBeUndefined();
-    });
-
-    test.each([
-      ["00:00", 0, 0],
-      ["18:30", 18, 30],
-      ["23:59", 23, 59],
-    ])("exposes ROYAL_CITY_SIEGE_TIME %s as hour %d and minute %d", (value, hour, minute) => {
-      expect(loadConfig(validEnv({ ROYAL_CITY_SIEGE_TIME: value })).royalCitySiegeTime).toEqual({ hour, minute });
-    });
-
-    test.each([["24:00"], ["12:60"], ["7:30"], ["noon"], [""], ["12:30:00"]])("rejects %j", (value) => {
-      const error = failureOf(validEnv({ ROYAL_CITY_SIEGE_TIME: value }));
-
-      expect(error.problems).toEqual([`ROYAL_CITY_SIEGE_TIME: ${rule}`]);
-    });
-
-    test("never shows the ROYAL_CITY_SIEGE_TIME value when it is invalid", () => {
-      const error = failureOf(validEnv({ ROYAL_CITY_SIEGE_TIME: "31:77" }));
-
-      expect(error.message).not.toContain("31:77");
+      expect(config).not.toHaveProperty("royalCitySiegeTime");
     });
   });
 

@@ -17,7 +17,6 @@ import {
   upcomingAlliance,
   type CityRotationMode,
   type RotationTurns,
-  type SiegeTime,
 } from "../domain/city-rotation.js";
 import type { Editor } from "../domain/exile.js";
 import { parseAllianceKey, type KingdomNumber, type Uid } from "../domain/lookup-input.js";
@@ -94,7 +93,6 @@ export interface CityRotationDeps {
   readonly server: CityRotationServer;
   readonly homeKingdom: KingdomNumber;
   readonly mode: CityRotationMode;
-  readonly siegeTime: SiegeTime | undefined;
   readonly officerRoleIds: readonly string[];
   readonly now: () => Date;
   readonly logError: (message: string) => void;
@@ -164,7 +162,7 @@ export function createCityRotation(deps: CityRotationDeps): CityRotation {
       state,
       label: labeller(),
       next: nextOf(state),
-      nextSiege: deps.siegeTime === undefined ? undefined : nextRoyalCitySiege(now, deps.siegeTime),
+      nextSiege: nextRoyalCitySiege(now),
     });
     return { embeds: [embed], allowedMentions };
   }
@@ -602,8 +600,7 @@ export function createCityRotation(deps: CityRotationDeps): CityRotation {
    * sieges after it starts keeping the City Rotation.
    */
   async function afterSiege(): Promise<void> {
-    if (deps.siegeTime === undefined) return;
-    const last = lastRoyalCitySiege(deps.now(), deps.siegeTime);
+    const last = lastRoyalCitySiege(deps.now());
     // The check and the record run without an await in between.
     const handled = store.load();
     const before = handled.lastHandledSiege;

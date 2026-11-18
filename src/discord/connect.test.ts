@@ -315,7 +315,6 @@ describe("connect", () => {
       syncShare: 500,
       cityRotation: new CityRotationStore(db),
       kingMoves: new KingMoveStore(db),
-      royalCitySiegeTime: undefined,
       cityRotationMode: "rotation",
       handovers: new HandoverStore(db),
       nap: new NapStore(db),
@@ -937,11 +936,11 @@ describe("connect", () => {
     test("ticks the Handover Reminders on the one-minute reminder clock, posting in #nap-leaders", async () => {
       const { guild, officerRoleIds } = eventGuild();
       guild.addChannel(NAP_LEADERS_CHANNEL_ID, { type: ChannelType.GuildText, name: "nap-leaders" });
-      // Thursday 19 November 2026, 22:00 UTC: the Royal City siege at 18:00 Server Time is 22 hours ahead.
-      const thursday = new Date("2026-11-19T22:00:00Z");
+      // Thursday 19 November 2026, 16:00 UTC: the Royal City siege at 12:00 Server Time (14:00 UTC Friday) is 22 hours ahead.
+      const thursday = new Date("2026-11-19T16:00:00Z");
       dailySync.save({ day: utcDayOf(thursday), leftOver: [] });
       const cityRotation = new CityRotationStore(db);
-      cityRotation.save({ ...cityRotation.load(), order: ["ABC", "XYZ"], holding: "ABC", lastHandledSiege: new Date("2026-11-13T20:00:00Z") });
+      cityRotation.save({ ...cityRotation.load(), order: ["ABC", "XYZ"], holding: "ABC", lastHandledSiege: new Date("2026-11-13T14:00:00Z") });
       vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
       try {
         connection = await connect(TOKEN, {
@@ -949,7 +948,6 @@ describe("connect", () => {
           officerRoleIds,
           now: () => thursday,
           cityRotation,
-          royalCitySiegeTime: { hour: 18, minute: 0 },
         });
         await vi.waitFor(() => {
           expect(guild.scheduledListings).toBe(1);

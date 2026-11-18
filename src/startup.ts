@@ -184,7 +184,6 @@ export async function start(deps: StartupDeps): Promise<void> {
       kingMoves: store.kingMoves,
       handovers: store.handovers,
       nap: store.nap,
-      royalCitySiegeTime: config.royalCitySiegeTime,
       cityRotationMode: config.cityRotationMode,
     });
   } catch (error) {

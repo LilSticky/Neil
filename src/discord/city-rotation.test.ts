@@ -1,7 +1,7 @@
 import { MessageFlags, type APIEmbed, type BaseMessageOptions, type InteractionReplyOptions } from "discord.js";
 import { describe, expect, test } from "vitest";
 import type { KnownAlliance } from "../domain/alliance-match.js";
-import type { CityRotationMode, SiegeTime } from "../domain/city-rotation.js";
+import type { CityRotationMode } from "../domain/city-rotation.js";
 import type { Editor } from "../domain/exile.js";
 import type { KingdomNumber, Uid } from "../domain/lookup-input.js";
 import type { Alliance, LookupResult } from "../domain/player.js";
@@ -17,10 +17,9 @@ import {
 import { confirmHandoverRow } from "./city-rotation-texts.js";
 
 const HOME = kingdomOf(330);
-const SIEGE: SiegeTime = { hour: 18, minute: 0 };
-/** Friday 2026-11-20 at 18:00 Server Time. */
-const FRIDAY = new Date("2026-11-20T20:00:00.000Z");
-const NEXT_FRIDAY = new Date("2026-11-27T20:00:00.000Z");
+/** Friday 2026-11-20 at 12:00 Server Time, the Royal City siege. */
+const FRIDAY = new Date("2026-11-20T14:00:00.000Z");
+const NEXT_FRIDAY = new Date("2026-11-27T14:00:00.000Z");
 const WEDNESDAY = new Date("2026-11-18T12:00:00.000Z");
 const MODERATOR_ROLE = "900000000000000001";
 const OFFICER = "500000000000000005";
@@ -138,9 +137,7 @@ class Setup {
   /** The Holding Alliances the King Move was told of, in order. */
   readonly handovers: string[] = [];
 
-  /** The service; `"none"` stands for no configured siege time. */
-  service(mode: CityRotationMode = "rotation", siege: SiegeTime | "none" = SIEGE): CityRotation {
-    const siegeTime = siege === "none" ? undefined : siege;
+  service(mode: CityRotationMode = "rotation"): CityRotation {
     return createCityRotation({
       store: {
         load: () => this.state,
@@ -161,7 +158,6 @@ class Setup {
       server: this.server,
       homeKingdom: HOME,
       mode,
-      siegeTime,
       officerRoleIds: [MODERATOR_ROLE, "900000000000000002"],
       now: () => this.now,
       logError: (line) => {
@@ -264,7 +260,7 @@ describe("/rotation show", () => {
     expect(embed.description).toContain("**Holding Alliance**: [ABC] Alpha Bravo");
     expect(embed.description).toContain("**Next Holding Alliance**: [XYZ] Ex Why Zed");
     expect(embed.description).toContain("1. [NML] No Man's Land\n2. [ABC] Alpha Bravo\n3. [XYZ] Ex Why Zed");
-    expect(embed.description).toContain(`<t:${unix(FRIDAY)}:F> (<t:${unix(FRIDAY)}:R>)`);
+    expect(embed.description).toContain(`**Next Royal City siege**: <t:${unix(FRIDAY)}:F> (<t:${unix(FRIDAY)}:R>)`);
     expect(embed.title).not.toContain("<t:");
     expect(setup.reads).toEqual([]);
   });
@@ -276,16 +272,6 @@ describe("/rotation show", () => {
     await setup.service().show(command);
 
     expect(embedOf(command.replies[0]).description).toContain("No City Rotation is set yet");
-  });
-
-  test("says the siege time is not set when it is not configured", async () => {
-    const setup = new Setup();
-    setup.state = rotationState(["NML", "ABC"], "NML");
-    const command = new FakeCommand(R4_NML);
-
-    await setup.service("rotation", "none").show(command);
-
-    expect(embedOf(command.replies[0]).description).toContain("the siege time is not set");
   });
 
   test("in Contested shows the Holding Alliance and no next holder or order", async () => {
@@ -592,16 +578,6 @@ describe("the after-siege step", () => {
     expect(setup.server.postsIn(LEADERS)).toEqual([]);
     expect(setup.reads).toEqual([]);
     expect(setup.state.lastHandledSiege).toEqual(NEXT_FRIDAY);
-  });
-
-  test("runs no step without a siege time", async () => {
-    const setup = new Setup();
-    beforeSiege(setup);
-    setup.now = new Date(FRIDAY.getTime() + 60_000);
-
-    await setup.service("rotation", "none").tick();
-
-    expect(setup.server.posts).toEqual([]);
   });
 
   test("a missing nap-leaders writes one log line and the Handover still waits", async () => {
