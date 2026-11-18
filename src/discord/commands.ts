@@ -1,5 +1,11 @@
 import { InteractionContextType, SlashCommandBuilder, type SlashCommandStringOption } from "discord.js";
 import { MAX_ROTATION_LENGTH } from "../domain/city-rotation.js";
+import {
+  NAP_MOTION_DEFAULT_HOURS,
+  NAP_MOTION_MAX_HOURS,
+  NAP_MOTION_MAX_TEXT,
+  NAP_MOTION_MIN_HOURS,
+} from "../domain/nap-motion.js";
 
 /**
  * Officer commands are hidden from Members: only Administrators see them until the server allows the Moderator and
@@ -436,7 +442,10 @@ export const rotation = new SlashCommandBuilder()
   )
   .addSubcommand((sub) => sub.setName("resume").setDescription("Resume the paused rotation (R5s in the rotation)"));
 
-/** The NaP register: any Member sees who is in it; R5s ask to join and leave; the council and Officers see the history. */
+/**
+ * The NaP register: any Member sees who is in it; R5s ask to join and leave; the council and Officers see the history;
+ * the council opens NaP Motions.
+ */
 export const nap = new SlashCommandBuilder()
   .setName("nap")
   .setDescription("NaP: see which Alliances are in the non-aggression pact")
@@ -446,6 +455,26 @@ export const nap = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("leave").setDescription("Take your Alliance out of the NaP (R5s of its Alliances)"))
   .addSubcommand((sub) =>
     sub.setName("history").setDescription("Every join, decline and leave, with who asked and decided (NaP Council, Officers)"),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("motion")
+      .setDescription("Open a NaP Motion: the NaP Council votes, one vote per Alliance (NaP Council)")
+      .addStringOption((option) =>
+        option
+          .setName("text")
+          .setDescription("What the NaP Council decides")
+          .setRequired(true)
+          .setMaxLength(NAP_MOTION_MAX_TEXT),
+      )
+      .addIntegerOption((option) =>
+        option
+          .setName("hours")
+          .setDescription(`How many hours the vote runs (${NAP_MOTION_DEFAULT_HOURS.toString()} if left out)`)
+          .setRequired(false)
+          .setMinValue(NAP_MOTION_MIN_HOURS)
+          .setMaxValue(NAP_MOTION_MAX_HOURS),
+      ),
   );
 
 /** Everything registered for the configured server, as REST payloads. */

@@ -514,6 +514,19 @@ of Alliances in and outside the NaP. Branch `develop` after the merge.
 | 6ab.5 | `/nap show` and `/nap history` | Show lists the request with when its vote ends; history names no voter | | |
 | 6ab.6 | After the deadline (or with the vote end moved back in `neil.db`), wait a minute | The message shows the result and counts without buttons; one `#neil-log` line; `/nap history` shows the decision with the counts | | |
 
+## 6ac. Decide by NaP Motion (slice 043, issue #158)
+
+Setup: `npm run commands:register` run; at least two Alliances in the NaP; test accounts Linked to the R5s of Alliances
+in and outside the NaP, and an Officer outside the council. Branch `develop` after the merge.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6ac.1 | The R5 of an Alliance outside the NaP, and the Officer, run `/nap motion text:Test` | Both are refused privately; nothing in `#nap-leaders` or `#neil-log` | | |
+| 6ac.2 | A council member runs `/nap motion text:Test motion hours:2` | A private answer with the deadline as a Discord timestamp; the motion in `#nap-leaders` names the opener and their Alliance, the text, the deadline and the rule, has Approve and Decline, mentions nobody; one `#neil-log` line | | |
+| 6ac.3 | One council member presses Approve, then Decline; the outside R5 presses a button | Private replies (the second says it changed); two `#neil-log` lines; the outside R5 is refused; the motion shows no count | | |
+| 6ac.4 | Wait until an hour before the deadline (halfway) | One reminder in `#nap-leaders` mentioning only the R5s of the Alliances that have not voted, naming no vote; one `#neil-log` line | | |
+| 6ac.5 | Wait until the deadline, then a minute | The motion shows the result and counts without buttons; `#nap-announcements` has the decision-log entry with the text, opening Alliance, times, result, counts and each Alliance's vote, no Member; the translated copies read clearly | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |
