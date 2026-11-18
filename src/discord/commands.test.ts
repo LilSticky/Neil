@@ -493,7 +493,7 @@ describe("commands", () => {
     );
   });
 
-  test("hold /nap, open to every Member, guild only, with subcommands show, join, leave, history and motion naming who may use them", () => {
+  test("hold /nap, open to every Member, guild only, with subcommands show, join, leave, history, motion, rules, rules-history and rules-propose naming who may use them", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "nap",
@@ -536,6 +536,24 @@ describe("commands", () => {
                 max_value: 168,
               }),
             ],
+          }),
+          expect.objectContaining({ type: ApplicationCommandOptionType.Subcommand, name: "rules" }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "rules-history",
+            options: [
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.Integer,
+                name: "version",
+                required: false,
+                min_value: 1,
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "rules-propose",
+            description: expect.stringContaining("NaP Council") as unknown,
           }),
         ],
       }),

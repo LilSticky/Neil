@@ -31,3 +31,4 @@ with a new one and update both statuses here.
 | 23 | [Votes of the NaP Council](0023-votes-of-the-nap-council.md) | Accepted |
 | 24 | [REAPER is kept by the NaP Council](0024-reaper-is-kept-by-the-nap-council.md) | Accepted |
 | 25 | [NaP Motions and the decision log](0025-nap-motions-and-decision-log.md) | Accepted |
+| 26 | [NaP Rules and their versions](0026-nap-rules-and-their-versions.md) | Accepted |

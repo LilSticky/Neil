@@ -527,6 +527,20 @@ in and outside the NaP, and an Officer outside the council. Branch `develop` aft
 | 6ac.4 | Wait until an hour before the deadline (halfway) | One reminder in `#nap-leaders` mentioning only the R5s of the Alliances that have not voted, naming no vote; one `#neil-log` line | | |
 | 6ac.5 | Wait until the deadline, then a minute | The motion shows the result and counts without buttons; `#nap-announcements` has the decision-log entry with the text, opening Alliance, times, result, counts and each Alliance's vote, no Member; the translated copies read clearly | | |
 
+## 6ad. Agree on the NaP Rules (slice 044, issue #157)
+
+Setup: as 6ac (`npm run commands:register` run, at least two Alliances in the NaP, R5s in and outside the NaP).
+Branch `develop` after the merge.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6ad.1 | Anyone runs `/nap rules` and `/nap rules-history` before any rules exist | Private answers saying there are no rules yet | | |
+| 6ad.2 | The R5 of an Alliance outside the NaP runs `/nap rules-propose` | Refused privately; no form | | |
+| 6ad.3 | A council member runs `/nap rules-propose`, fills in a text and what changed | A private answer naming version 1 and its NaP Motion; the motion in `#nap-leaders` names version 1, what changed and `/nap rules-history version:1`; one `#neil-log` line naming the proposer | | |
+| 6ad.4 | A second council member runs `/nap rules-propose` | Refused privately, naming version 1 | | |
+| 6ad.5 | The council approves the motion; wait until its deadline and a minute | `#nap-announcements` has "NaP Rules version 1 are now in effect" with what changed and the full text, mentioning nobody; the Interaction Bot's translated copies show it; `/nap rules` shows version 1 | | |
+| 6ad.6 | Propose version 2 and let its motion be rejected | No rules announcement for version 2; `/nap rules` still shows version 1; `/nap rules-history` lists 2 rejected and 1 in effect, naming no Member | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

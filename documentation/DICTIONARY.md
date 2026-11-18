@@ -174,6 +174,15 @@ discovery.
 * More Approve than Decline votes of the Alliances still in the NaP approve it; a tie or no votes reject it; there is no quorum
 * Once closed, its result and each Alliance's vote are posted in the decision log in `#nap-announcements`, naming no Member
 
+## NaP Rules
+* The rules the NaP agreed on: the text of the NaP Rules Version in effect (`/nap rules`)
+* Changed only by a NaP Motion on a proposed NaP Rules Version; every change in effect is announced in `#nap-announcements`
+
+## NaP Rules Version
+* One numbered text of the NaP Rules with a note on what changed, proposed by a member of the NaP Council (`/nap rules-propose`)
+* Every proposal gets the next number; it is proposed, in effect, replaced (by a later one in effect) or rejected
+* Only one can be proposed at a time; all of them stay in the history (`/nap rules-history`), naming no Member
+
 ## NaP Cooldown
 * The 30 days after a declined join request during which its Alliance may not ask to join the NaP again
 
