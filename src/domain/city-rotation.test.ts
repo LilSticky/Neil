@@ -11,65 +11,63 @@ import {
   skipTurn,
   upcomingAlliance,
   type RotationTurns,
-  type SiegeTime,
 } from "./city-rotation.js";
 import type { Editor } from "./exile.js";
 import type { RankOnLink } from "./link.js";
 import { kingdomOf } from "./__fixtures__/players.js";
 
-/** 18:00 Server Time is 20:00 UTC. */
-const SIEGE: SiegeTime = { hour: 18, minute: 0 };
-/** Friday 2026-11-20 at 18:00 Server Time. */
-const FRIDAY_SIEGE = new Date("2026-11-20T20:00:00Z");
+/** Friday 2026-11-20 at 12:00 Server Time, which is 14:00 UTC. */
+const FRIDAY_SIEGE = new Date("2026-11-20T14:00:00Z");
 const WEEK_MS = 7 * 24 * 3_600_000;
 
 describe("nextRoyalCitySiege", () => {
   test("is the coming Friday at the siege time in Server Time", () => {
-    expect(nextRoyalCitySiege(new Date("2026-11-16T10:00:00Z"), SIEGE)).toEqual(FRIDAY_SIEGE);
+    expect(nextRoyalCitySiege(new Date("2026-11-16T10:00:00Z"))).toEqual(FRIDAY_SIEGE);
   });
 
   test("is this Friday's siege a minute before it", () => {
-    expect(nextRoyalCitySiege(new Date("2026-11-20T19:59:00Z"), SIEGE)).toEqual(FRIDAY_SIEGE);
+    expect(nextRoyalCitySiege(new Date("2026-11-20T13:59:00Z"))).toEqual(FRIDAY_SIEGE);
   });
 
   test("is next week's siege at the moment of the siege and just after it", () => {
     const nextWeek = new Date(FRIDAY_SIEGE.getTime() + WEEK_MS);
-    expect(nextRoyalCitySiege(FRIDAY_SIEGE, SIEGE)).toEqual(nextWeek);
-    expect(nextRoyalCitySiege(new Date("2026-11-20T20:01:00Z"), SIEGE)).toEqual(nextWeek);
-  });
-
-  test("counts the weekday in Server Time across the UTC date line", () => {
-    // 23:30 Server Time on Friday is 01:30 UTC on Saturday.
-    const late: SiegeTime = { hour: 23, minute: 30 };
-    const siege = new Date("2026-11-21T01:30:00Z");
-
-    expect(nextRoyalCitySiege(new Date("2026-11-21T01:00:00Z"), late)).toEqual(siege);
-    expect(lastRoyalCitySiege(new Date("2026-11-21T02:00:00Z"), late)).toEqual(siege);
+    expect(nextRoyalCitySiege(FRIDAY_SIEGE)).toEqual(nextWeek);
+    expect(nextRoyalCitySiege(new Date("2026-11-20T14:01:00Z"))).toEqual(nextWeek);
   });
 
   test("counts the weekday in Server Time when Server Time is still Thursday", () => {
-    // 01:00 UTC on Friday is 23:00 Server Time on Thursday; an early siege at 00:30 Server Time is 02:30 UTC Friday.
-    const early: SiegeTime = { hour: 0, minute: 30 };
+    // 01:00 UTC on Friday is 23:00 Server Time on Thursday.
+    expect(nextRoyalCitySiege(new Date("2026-11-20T01:00:00Z"))).toEqual(FRIDAY_SIEGE);
+  });
 
-    expect(nextRoyalCitySiege(new Date("2026-11-20T01:00:00Z"), early)).toEqual(new Date("2026-11-20T02:30:00Z"));
+  test("counts the weekday in Server Time when Server Time is still Friday", () => {
+    // 01:00 UTC on Saturday is 23:00 Server Time on Friday, after the siege.
+    expect(nextRoyalCitySiege(new Date("2026-11-21T01:00:00Z"))).toEqual(new Date(FRIDAY_SIEGE.getTime() + WEEK_MS));
+    expect(lastRoyalCitySiege(new Date("2026-11-21T01:00:00Z"))).toEqual(FRIDAY_SIEGE);
+  });
+
+  test("counts the week in Server Time when Server Time is still Sunday", () => {
+    // 01:00 UTC on Monday is 23:00 Server Time on Sunday.
+    expect(nextRoyalCitySiege(new Date("2026-11-23T01:00:00Z"))).toEqual(new Date(FRIDAY_SIEGE.getTime() + WEEK_MS));
+    expect(lastRoyalCitySiege(new Date("2026-11-23T01:00:00Z"))).toEqual(FRIDAY_SIEGE);
   });
 
   test("on a Saturday is the next week's Friday", () => {
-    expect(nextRoyalCitySiege(new Date("2026-11-21T12:00:00Z"), SIEGE)).toEqual(new Date(FRIDAY_SIEGE.getTime() + WEEK_MS));
+    expect(nextRoyalCitySiege(new Date("2026-11-21T12:00:00Z"))).toEqual(new Date(FRIDAY_SIEGE.getTime() + WEEK_MS));
   });
 });
 
 describe("lastRoyalCitySiege", () => {
   test("is the siege itself at its moment", () => {
-    expect(lastRoyalCitySiege(FRIDAY_SIEGE, SIEGE)).toEqual(FRIDAY_SIEGE);
+    expect(lastRoyalCitySiege(FRIDAY_SIEGE)).toEqual(FRIDAY_SIEGE);
   });
 
   test("is last week's siege a minute before this one", () => {
-    expect(lastRoyalCitySiege(new Date("2026-11-20T19:59:00Z"), SIEGE)).toEqual(new Date(FRIDAY_SIEGE.getTime() - WEEK_MS));
+    expect(lastRoyalCitySiege(new Date("2026-11-20T13:59:00Z"))).toEqual(new Date(FRIDAY_SIEGE.getTime() - WEEK_MS));
   });
 
   test("is this Friday's siege on the following days", () => {
-    expect(lastRoyalCitySiege(new Date("2026-11-23T08:00:00Z"), SIEGE)).toEqual(FRIDAY_SIEGE);
+    expect(lastRoyalCitySiege(new Date("2026-11-23T08:00:00Z"))).toEqual(FRIDAY_SIEGE);
   });
 });
 

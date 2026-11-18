@@ -3,7 +3,6 @@ import {
   nextRoyalCitySiege,
   sameTag,
   type CityRotationMode,
-  type SiegeTime,
 } from "../domain/city-rotation.js";
 import { dueHandoverPosts, HANDOVER_POST_KINDS, type HandoverPostKind } from "../domain/handover.js";
 import { allianceRoleName } from "../domain/managed-roles.js";
@@ -36,8 +35,6 @@ export interface HandoverReminderDeps {
   readonly rotation: Pick<CityRotationStore, "load">;
   readonly handovers: Pick<HandoverStore, "handoverPosted" | "recordHandoverPosted">;
   readonly mode: CityRotationMode;
-  /** The Friday time of the Royal City siege in Server Time; undefined when not set, and then nothing is posted. */
-  readonly siegeTime: SiegeTime | undefined;
   readonly now: () => Date;
   readonly logError: (line: string) => void;
 }
@@ -112,11 +109,10 @@ export function createHandoverReminders(deps: HandoverReminderDeps): HandoverRem
   }
 
   async function postDue(): Promise<void> {
-    if (deps.siegeTime === undefined) return;
     const alliances = alliancesOfHandover();
     if (alliances === undefined) return;
     const now = deps.now();
-    const siege = nextRoyalCitySiege(now, deps.siegeTime);
+    const siege = nextRoyalCitySiege(now);
     const sent = new Set(HANDOVER_POST_KINDS.filter((kind) => handovers.handoverPosted(siege, kind)));
     const due = dueHandoverPosts(siege, sent, now);
     for (const kind of due.drop) handovers.recordHandoverPosted(siege, kind, now);
