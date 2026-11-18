@@ -17,6 +17,7 @@ import type { LinkStore } from "./storage/link-store.js";
 import type { CityRotationStore } from "./storage/city-rotation-store.js";
 import type { KingMoveStore } from "./storage/king-move-store.js";
 import type { HandoverStore } from "./storage/handover-store.js";
+import type { NapMotionStore } from "./storage/nap-motion-store.js";
 import type { NapStore } from "./storage/nap-store.js";
 import type { ReaperStore } from "./storage/reaper-store.js";
 import type { PreferenceStore } from "./storage/preference-store.js";
@@ -67,6 +68,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly raids: RaidStore;
   readonly availability: AvailabilityStore;
   readonly nap: NapStore;
+  readonly napMotions: NapMotionStore;
 }
 
 export interface Connection {
@@ -184,6 +186,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       kingMoves: store.kingMoves,
       handovers: store.handovers,
       nap: store.nap,
+      napMotions: store.napMotions,
       royalCitySiegeTime: config.royalCitySiegeTime,
       cityRotationMode: config.cityRotationMode,
     });

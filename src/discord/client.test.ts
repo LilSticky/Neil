@@ -105,6 +105,7 @@ function handlers() {
     rotationAutocomplete: vi.fn(() => Promise.resolve()),
     nap: vi.fn(() => Promise.resolve()),
     napButton: vi.fn(() => Promise.resolve()),
+    napMotionButton: vi.fn(() => Promise.resolve()),
     kingMoveButton: vi.fn(() => Promise.resolve()),
   };
 }
@@ -346,6 +347,7 @@ describe("createClient", () => {
     expect(routed.napButton).toHaveBeenCalledWith(interaction);
     expect(routed.rotationButton).not.toHaveBeenCalled();
     expect(routed.rankButton).not.toHaveBeenCalled();
+    expect(routed.napMotionButton).not.toHaveBeenCalled();
   });
 
   test("hands a button whose custom id starts with nap-decline: to the nap button handler and nothing else", () => {
@@ -360,6 +362,21 @@ describe("createClient", () => {
     expect(routed.rankButton).not.toHaveBeenCalled();
     expect(routed.kingMoveButton).not.toHaveBeenCalled();
   });
+
+  test.each(["nap-motion-approve:1", "nap-motion-decline:12"])(
+    "hands a NaP Motion button (%s) to the NaP Motion button handler and nothing else",
+    (customId) => {
+      const routed = handlers();
+      const client = createClient(routed, { guildId: GUILD_ID });
+      const interaction = component("button", customId);
+
+      client.emit(Events.InteractionCreate, interaction as never);
+
+      expect(routed.napMotionButton).toHaveBeenCalledWith(interaction);
+      expect(routed.napButton).not.toHaveBeenCalled();
+      expect(routed.rotationButton).not.toHaveBeenCalled();
+    },
+  );
 
   test("hands a button whose custom id starts with king: to the King Move button handler and nothing else", () => {
     const routed = handlers();
