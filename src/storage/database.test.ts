@@ -1262,7 +1262,7 @@ describe("openDatabase", () => {
       const at = "2026-11-18T12:00:00.000Z";
       const insert = db.prepare(
         `INSERT INTO nap_motions (text, opened_by, opener_tag, opened_at, ends_at, closed_at, outcome, approve_votes, decline_votes)
-         VALUES (?, ?, 'NML', '${"${at}"}', '${"${at}"}', ?, ?, ?, ?)`,
+         VALUES (?, ?, 'NML', '${at}', '${at}', ?, ?, ?, ?)`,
       );
       insert.run("Open", "111111111111111111", null, null, null, null);
       insert.run("Closed", "111111111111111111", at, "approved", 2, 1);
@@ -1276,7 +1276,7 @@ describe("openDatabase", () => {
       expect(() => insert.run("Text", "1", at, "approved", -1, 0)).toThrow(/CHECK/);
 
       const vote = db.prepare(
-        `INSERT INTO nap_motion_votes (motion_id, alliance_tag, voter_id, vote, at) VALUES (1, ?, ?, ?, '${"${at}"}')`,
+        `INSERT INTO nap_motion_votes (motion_id, alliance_tag, voter_id, vote, at) VALUES (1, ?, ?, ?, '${at}')`,
       );
       vote.run("NML", "111111111111111111", "approve");
       vote.run("ABC", "111111111111111112", "decline");
