@@ -94,6 +94,7 @@ export async function start(deps) {
             kingMoves: store.kingMoves,
             handovers: store.handovers,
             nap: store.nap,
+            napMotions: store.napMotions,
             cityRotationMode: config.cityRotationMode,
         });
     }

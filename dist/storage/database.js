@@ -361,6 +361,37 @@ const migrations = [
      at TEXT NOT NULL,
      PRIMARY KEY (tag, requested_at, alliance_tag)
    )`,
+    // 26: NaP Motions (ADR 25). nap_motions keeps each motion the NaP Council decides by vote: its text, the Discord user id
+    // of the Member who opened it and their Alliance, when it opened and ends, its message in #nap-leaders, when the
+    // Linked R5s who had not voted were reminded, and once closed its outcome and counts. nap_motion_votes keeps one vote
+    // per Alliance per motion with its voter's Discord user id. Both are kept as long as the NaP history, also after the
+    // motion closed, and are not deleted at Unlink.
+    `CREATE TABLE nap_motions (
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     text TEXT NOT NULL CHECK (text <> ''),
+     opened_by TEXT NOT NULL CHECK (opened_by <> '' AND opened_by NOT GLOB '*[^0-9]*'),
+     opener_tag TEXT NOT NULL CHECK (opener_tag <> ''),
+     opened_at TEXT NOT NULL,
+     ends_at TEXT NOT NULL,
+     channel_id TEXT CHECK (channel_id IS NULL OR (channel_id <> '' AND channel_id NOT GLOB '*[^0-9]*')),
+     message_id TEXT CHECK (message_id IS NULL OR (message_id <> '' AND message_id NOT GLOB '*[^0-9]*')),
+     reminded_at TEXT,
+     closed_at TEXT,
+     outcome TEXT CHECK (outcome IS NULL OR outcome IN ('approved', 'rejected')),
+     approve_votes INTEGER CHECK (approve_votes IS NULL OR approve_votes >= 0),
+     decline_votes INTEGER CHECK (decline_votes IS NULL OR decline_votes >= 0),
+     CHECK ((closed_at IS NULL) = (outcome IS NULL)),
+     CHECK ((closed_at IS NULL) = (approve_votes IS NULL)),
+     CHECK ((closed_at IS NULL) = (decline_votes IS NULL))
+   );
+   CREATE TABLE nap_motion_votes (
+     motion_id INTEGER NOT NULL,
+     alliance_tag TEXT NOT NULL COLLATE NOCASE CHECK (alliance_tag <> ''),
+     voter_id TEXT NOT NULL CHECK (voter_id <> '' AND voter_id NOT GLOB '*[^0-9]*'),
+     vote TEXT NOT NULL CHECK (vote IN ('approve', 'decline')),
+     at TEXT NOT NULL,
+     PRIMARY KEY (motion_id, alliance_tag)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {
