@@ -2,7 +2,7 @@ import type { Editor } from "./exile.js";
 import type { KingdomNumber } from "./lookup-input.js";
 import { SERVER_TIME_OFFSET_MINUTES, serverTimeOf } from "./server-time.js";
 
-/** The time of day of the Royal City siege in Server Time, from ROYAL_CITY_SIEGE_TIME. */
+/** A time of day in Server Time. */
 export interface SiegeTime {
   readonly hour: number;
   readonly minute: number;
@@ -17,28 +17,30 @@ export const MAX_ROTATION_LENGTH = 10;
 
 /** The Royal City siege is on Friday, weekday 5 in Server Time. */
 const FRIDAY = 5;
+/** The Royal City siege starts at 12:00 Server Time (14:00 UTC), the owner's decision. */
+export const ROYAL_CITY_SIEGE_TIME: SiegeTime = { hour: 12, minute: 0 };
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const WEEK_MS = 7 * DAY_MS;
 const OFFSET_MS = SERVER_TIME_OFFSET_MINUTES * MINUTE_MS;
 
-/** The Royal City siege of the Server Time week the moment falls in (Friday at the siege time), as a real moment. */
-function siegeOfWeek(now: Date, siegeTime: SiegeTime): Date {
+/** The Royal City siege of the Server Time week the moment falls in (Friday at 12:00 Server Time), as a real moment. */
+function siegeOfWeek(now: Date): Date {
   const shifted = serverTimeOf(now);
   const midnight = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
   const friday = midnight + (FRIDAY - shifted.getUTCDay()) * DAY_MS;
-  return new Date(friday + (siegeTime.hour * 60 + siegeTime.minute) * MINUTE_MS - OFFSET_MS);
+  return new Date(friday + (ROYAL_CITY_SIEGE_TIME.hour * 60 + ROYAL_CITY_SIEGE_TIME.minute) * MINUTE_MS - OFFSET_MS);
 }
 
-/** The first Royal City siege strictly after the moment: Friday at the siege time in Server Time. */
-export function nextRoyalCitySiege(now: Date, siegeTime: SiegeTime): Date {
-  const siege = siegeOfWeek(now, siegeTime);
+/** The first Royal City siege strictly after the moment: Friday at 12:00 Server Time. */
+export function nextRoyalCitySiege(now: Date): Date {
+  const siege = siegeOfWeek(now);
   return siege.getTime() > now.getTime() ? siege : new Date(siege.getTime() + WEEK_MS);
 }
 
 /** The latest Royal City siege at or before the moment. */
-export function lastRoyalCitySiege(now: Date, siegeTime: SiegeTime): Date {
-  const siege = siegeOfWeek(now, siegeTime);
+export function lastRoyalCitySiege(now: Date): Date {
+  const siege = siegeOfWeek(now);
   return siege.getTime() <= now.getTime() ? siege : new Date(siege.getTime() - WEEK_MS);
 }
 

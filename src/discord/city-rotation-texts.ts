@@ -29,8 +29,8 @@ export interface CardContent {
   readonly label: (tag: string) => string;
   /** The tag whose Turn follows the Holding Alliance's; undefined in Contested or without an order. */
   readonly next: string | undefined;
-  /** The next Royal City siege; undefined when the siege time is not set. */
-  readonly nextSiege: Date | undefined;
+  /** The next Royal City siege. */
+  readonly nextSiege: Date;
 }
 
 /** The City Rotation card, pinned in nap-announcements and shown by /rotation show. Timestamps only in the description. */
@@ -54,12 +54,7 @@ export function cityRotationCard(content: CardContent): APIEmbed {
   if (state.handover !== undefined) {
     lines.push("", `**Handover**: waiting for ${label(state.handover.expected)} to confirm.`);
   }
-  lines.push(
-    "",
-    nextSiege === undefined
-      ? "**Next Royal City siege**: the siege time is not set."
-      : `**Next Royal City siege**: ${timestamp(nextSiege, "F")} (${timestamp(nextSiege, "R")})`,
-  );
+  lines.push("", `**Next Royal City siege**: ${timestamp(nextSiege, "F")} (${timestamp(nextSiege, "R")})`);
   return { title: "City Rotation", color: CARD_COLOUR, description: lines.join("\n") };
 }
 

@@ -37,7 +37,7 @@ import type { EventStore } from "../storage/event-store.js";
 import type { CityRotationStore } from "../storage/city-rotation-store.js";
 import type { KingMoveStore } from "../storage/king-move-store.js";
 import type { HandoverStore } from "../storage/handover-store.js";
-import type { CityRotationMode, SiegeTime } from "../domain/city-rotation.js";
+import type { CityRotationMode } from "../domain/city-rotation.js";
 import { napStatusOf } from "../domain/nap.js";
 import { DUEL_PLAN } from "../duel-plan.js";
 import { handleAllianceAutocomplete } from "./alliance-autocomplete.js";
@@ -670,8 +670,6 @@ export interface ConnectOptions {
   readonly syncShare: number;
   /** The City Rotation, its waiting Handover and its pinned card, in neil.db. */
   readonly cityRotation: Pick<CityRotationStore, "load" | "update">;
-  /** The Friday time of the Royal City siege in Server Time, from ROYAL_CITY_SIEGE_TIME; undefined when not set. */
-  readonly royalCitySiegeTime: SiegeTime | undefined;
   /** Rotation or Contested, from CITY_ROTATION_MODE. */
   readonly cityRotationMode: CityRotationMode;
   /** The latest King Move, in neil.db. */
@@ -1890,7 +1888,6 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       rotation: options.cityRotation,
       handovers: options.handovers,
       mode: options.cityRotationMode,
-      siegeTime: options.royalCitySiegeTime,
       now,
       logError,
     });
@@ -1927,7 +1924,6 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       server: cityRotationServer,
       homeKingdom: options.homeKingdom,
       mode: options.cityRotationMode,
-      siegeTime: options.royalCitySiegeTime,
       officerRoleIds: options.officerRoleIds,
       now,
       logError,

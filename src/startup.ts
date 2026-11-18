@@ -187,7 +187,6 @@ export async function start(deps: StartupDeps): Promise<void> {
       handovers: store.handovers,
       nap: store.nap,
       napMotions: store.napMotions,
-      royalCitySiegeTime: config.royalCitySiegeTime,
       cityRotationMode: config.cityRotationMode,
     });
   } catch (error) {

@@ -111,7 +111,7 @@ discovery.
 
 ## Royal City siege
 * The weekly Friday moment when the Royal City, and with it the King, changes hands
-* At a fixed time in Server Time, from configuration (`ROYAL_CITY_SIEGE_TIME`)
+* At a fixed time: 12:00 Server Time (14:00 UTC), the owner's decision
 * Not a Raid: "siege" always means the Royal City siege
 
 ## City Rotation

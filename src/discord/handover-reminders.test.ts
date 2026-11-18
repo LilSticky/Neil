@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import type { CityRotationMode, SiegeTime } from "../domain/city-rotation.js";
+import type { CityRotationMode } from "../domain/city-rotation.js";
 import { CityRotationStore, EMPTY_CITY_ROTATION, type CityRotationState } from "../storage/city-rotation-store.js";
 import { openDatabase } from "../storage/database.js";
 import { HandoverStore } from "../storage/handover-store.js";
@@ -15,9 +15,8 @@ import {
 import { createHandoverReminders, type HandoverReminders } from "./handover-reminders.js";
 
 const HOUR_MS = 60 * 60_000;
-/** Friday 20 November 2026, 18:00 Server Time. */
-const SIEGE = new Date("2026-11-20T20:00:00Z");
-const SIEGE_TIME: SiegeTime = { hour: 18, minute: 0 };
+/** Friday 20 November 2026, 12:00 Server Time (14:00 UTC): the Royal City siege. */
+const SIEGE = new Date("2026-11-20T14:00:00Z");
 const ROTATION: CityRotationState = { ...EMPTY_CITY_ROTATION, order: ["NML", "ABC", "XYZ"], holding: "ABC" };
 
 const ANNA = "111111111111111111";
@@ -66,13 +65,12 @@ describe("the Handover Reminders", () => {
     rmSync(dataDir, { recursive: true, force: true });
   });
 
-  function reminders(options: { readonly mode?: CityRotationMode; readonly siegeTime?: SiegeTime | null } = {}): HandoverReminders {
+  function reminders(options: { readonly mode?: CityRotationMode } = {}): HandoverReminders {
     return createHandoverReminders({
       server,
       rotation,
       handovers,
       mode: options.mode ?? "rotation",
-      siegeTime: options.siegeTime === null ? undefined : (options.siegeTime ?? SIEGE_TIME),
       now: () => clock,
       logError: (line) => {
         errors.push(line);
@@ -178,12 +176,6 @@ describe("the Handover Reminders", () => {
 
   test("posts nothing in Contested mode", async () => {
     await reminders({ mode: "contested" }).tick();
-
-    expect(server.posts).toEqual([]);
-  });
-
-  test("posts nothing while the siege time is not set (the rotation is paused)", async () => {
-    await reminders({ siegeTime: null }).tick();
 
     expect(server.posts).toEqual([]);
   });

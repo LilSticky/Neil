@@ -26,3 +26,4 @@
 - [ ] T011 Manual check on test Neil: set `ROYAL_CITY_SIEGE_TIME`, rerun the setup script, `npm run commands:register`;
   the pinned card and `/rotation show` read clearly and the siege time shows in the reader's own clock; a set, a holder
   and a confirmation each update the card and write one `#neil-log` line.
+  Partial (2026-11-18, test Neil, Police and the user): the pinned City Rotation card in `#nap-announcements` and `/rotation show` name the next siege as Friday 2026-11-20 14:00 UTC (12:00 Server Time). Open: `/rotation set`, `/rotation holder` and the after-siege confirmation, because the test server has no Linked R5.

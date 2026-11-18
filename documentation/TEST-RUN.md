@@ -474,7 +474,7 @@ On the test server built by 6v, with the deploy not needed (the script runs loca
 
 ## 6z. Hand the King role over (slice 039, issue #133)
 
-Setup: Neil's role above King and below Moderator (ADR 21); a City Rotation set and `ROYAL_CITY_SIEGE_TIME` configured;
+Setup: Neil's role above King and below Moderator (ADR 21); a City Rotation set;
 the receiving Alliance's R5 Linked. Police gives King to a test Member first. Branch `039-hand-the-king-role-over`.
 
 | # | Do | Expect | Result | Feedback |
@@ -488,7 +488,7 @@ the receiving Alliance's R5 Linked. Police gives King to a test Member first. Br
 
 ## 6aa. Change the City Rotation together (slice 040, issue #134)
 
-Setup: a City Rotation of three Alliances set, `ROYAL_CITY_SIEGE_TIME` configured, `npm run commands:register` run;
+Setup: a City Rotation of three Alliances set, `npm run commands:register` run;
 a Member Linked to the R5 of an Alliance in it. Branch `040-change-the-city-rotation-together`.
 
 | # | Do | Expect | Result | Feedback |
