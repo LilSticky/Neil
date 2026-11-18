@@ -1,8 +1,7 @@
 import { MessageFlags, } from "discord.js";
 import { answerRefusal, suggestFighterClass, } from "../domain/availability.js";
 import { allianceRoleName } from "../domain/managed-roles.js";
-import { newRaid } from "../domain/raid.js";
-import { serverTimeInstant } from "../domain/server-time.js";
+import { newRaid, raidStartOf } from "../domain/raid.js";
 import { bracketFor } from "../domain/troop-bracket.js";
 import { createAvailabilityBoard } from "./availability-board.js";
 import { availabilityMessages, classRows, parseAvailabilityButton, } from "./availability-texts.js";
@@ -18,11 +17,11 @@ export function createAvailabilityPoll(deps) {
         await press.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     }
     /** The poll and its Raid, or the refusal to answer with. */
-    function pollOf(button, startMinutes) {
+    function pollOf(button) {
         const poll = availability.poll(button.raidId);
         if (poll === undefined)
             return availabilityMessages.unknownPoll;
-        const raid = deps.raids.find(button.raidId)?.raid ?? newRaid(button.raidId, serverTimeInstant(button.raidId, startMinutes));
+        const raid = deps.raids.find(button.raidId)?.raid ?? newRaid(button.raidId, raidStartOf(button.raidId));
         const refusal = answerRefusal(raid, poll.state, deps.now());
         if (refusal === "cancelled")
             return availabilityMessages.cancelled;
@@ -96,8 +95,8 @@ export function createAvailabilityPoll(deps) {
         async onButton(press) {
             try {
                 const button = parseAvailabilityButton(press.customId);
-                const { warCouncilRoleId, startMinutes } = deps.settings;
-                if (warCouncilRoleId === undefined || startMinutes === undefined) {
+                const { warCouncilRoleId } = deps.settings;
+                if (warCouncilRoleId === undefined) {
                     await replyPrivately(press, availabilityMessages.notSetUp);
                     return;
                 }
@@ -105,7 +104,7 @@ export function createAvailabilityPoll(deps) {
                     await replyPrivately(press, availabilityMessages.unknownPoll);
                     return;
                 }
-                const found = pollOf(button, startMinutes);
+                const found = pollOf(button);
                 if (typeof found === "string") {
                     await replyPrivately(press, found);
                     return;

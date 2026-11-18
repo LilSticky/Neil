@@ -40,11 +40,9 @@ const syncHourRule = "must be a whole number from 0 to 23";
 const DEFAULT_SYNC_SHARE = 500;
 const syncShareRule = "must be a whole number of at least 1";
 const cityRotationModeRule = "must be rotation or contested";
-const raidStartRule = "must be a time HH:MM from 00:00 to 23:59 (Server Time, Saturday)";
 const raidPlanDeadlineRule = "must be a whole number of hours from 1 to 144";
 const raidConfirmationDeadlineRule = "must be a whole number of hours from 0 to 143";
 const raidDeadlinesOrderRule = "must be fewer hours than RAID_PLAN_DEADLINE_HOURS: the Plan Deadline comes before the Confirmation Deadline";
-const raidStartRequiredRule = "required when DISCORD_WAR_COUNCIL_ROLE_ID is set";
 const DEFAULT_RAID_PLAN_DEADLINE_HOURS = 24;
 const DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS = 2;
 const fighterBracketRule = "must be a Troop Bracket from T1 to T10";
@@ -174,11 +172,6 @@ const schema = z.object({
     CITY_ROTATION_MODE: z.enum(["rotation", "contested"], cityRotationModeRule).optional(),
     DATA_DIR: z.string().min(1).default("./data"),
     DISCORD_WAR_COUNCIL_ROLE_ID: snowflake.optional(),
-    RAID_START: z
-        .string()
-        .regex(/^([01]\d|2[0-3]):[0-5]\d$/, raidStartRule)
-        .transform((value) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)))
-        .optional(),
     RAID_PLAN_DEADLINE_HOURS: hoursSetting(1, 144, raidPlanDeadlineRule),
     RAID_CONFIRMATION_DEADLINE_HOURS: hoursSetting(0, 143, raidConfirmationDeadlineRule),
     FIGHTER_WHALE_BRACKET: fighterBracket,
@@ -188,9 +181,6 @@ const schema = z.object({
     FIGHTER_SEAL_BRACKET: fighterBracket,
     FIGHTER_SEAL_MIGHT: fighterMight,
 }).superRefine((data, ctx) => {
-    if (data.DISCORD_WAR_COUNCIL_ROLE_ID !== undefined && data.RAID_START === undefined) {
-        ctx.addIssue({ code: "custom", path: ["RAID_START"], message: raidStartRequiredRule });
-    }
     const planHours = data.RAID_PLAN_DEADLINE_HOURS ?? DEFAULT_RAID_PLAN_DEADLINE_HOURS;
     const confirmationHours = data.RAID_CONFIRMATION_DEADLINE_HOURS ?? DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS;
     // A setting that already broke its own rule gets only that problem: the order is compared between valid hours alone.
@@ -239,7 +229,6 @@ export function loadConfig(env) {
         syncShare: result.data.SYNC_SHARE ?? DEFAULT_SYNC_SHARE,
         cityRotationMode: result.data.CITY_ROTATION_MODE ?? "rotation",
         warCouncilRoleId: result.data.DISCORD_WAR_COUNCIL_ROLE_ID,
-        raidStartMinutes: result.data.RAID_START,
         raidPlanDeadlineHours: result.data.RAID_PLAN_DEADLINE_HOURS ?? DEFAULT_RAID_PLAN_DEADLINE_HOURS,
         raidConfirmationDeadlineHours: result.data.RAID_CONFIRMATION_DEADLINE_HOURS ?? DEFAULT_RAID_CONFIRMATION_DEADLINE_HOURS,
         fighterClassThresholds: fighterClassThresholdsOf(result.data),

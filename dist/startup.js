@@ -81,7 +81,6 @@ export async function start(deps) {
             raids: store.raids,
             raidSettings: {
                 warCouncilRoleId: config.warCouncilRoleId,
-                startMinutes: config.raidStartMinutes,
                 planHours: config.raidPlanDeadlineHours,
                 confirmationHours: config.raidConfirmationDeadlineHours,
             },

@@ -1,5 +1,5 @@
 import { MessageFlags, } from "discord.js";
-import { addObjective, addPhase, assign, cancel, confirmationDeadlineOf, confirmPlan, currentRaidOf, FIXED_OBJECTIVES, newRaid, objectivesOf, planDeadlineOf, publish, removeObjective, removePhase, setNotes, unassign, } from "../domain/raid.js";
+import { addObjective, addPhase, assign, cancel, confirmationDeadlineOf, confirmPlan, currentRaidOf, newRaid, objectivesOf, planDeadlineOf, publish, removeObjective, removePhase, setNotes, unassign, } from "../domain/raid.js";
 import { ledAllianceOf } from "./alliance-standing.js";
 import { textWithMentions } from "./mentions.js";
 import { confirmationCard, confirmRefusalText, confirmRow, fitsDiscord, planCard, raidIdOfButton, raidMessages, refusalText, stateLine, } from "./raid-texts.js";
@@ -35,8 +35,8 @@ const CHANGE_NAMES = {
  */
 export function createRaidPlanning(deps) {
     const { raids, server, settings } = deps;
-    function current(startMinutes) {
-        const { id, start } = currentRaidOf(deps.now(), startMinutes);
+    function current() {
+        const { id, start } = currentRaidOf(deps.now());
         return raids.find(id) ?? { raid: newRaid(id, start), planCard: undefined, confirmationCard: undefined };
     }
     function confirmationDeadline(raid) {
@@ -140,8 +140,8 @@ export function createRaidPlanning(deps) {
         const note = result.raid.state.kind === "published" ? "Saved. Publish again to update the posted cards." : "Saved.";
         return preview(result.raid, note);
     }
-    async function answerCommand(interaction, startMinutes) {
-        const stored = current(startMinutes);
+    async function answerCommand(interaction) {
+        const stored = current();
         const subcommand = interaction.options.getSubcommand();
         const caller = interaction.user.id;
         if (subcommand === "show")
@@ -158,8 +158,8 @@ export function createRaidPlanning(deps) {
     return {
         async onCommand(interaction) {
             try {
-                const { warCouncilRoleId, startMinutes } = settings;
-                if (warCouncilRoleId === undefined || startMinutes === undefined) {
+                const { warCouncilRoleId } = settings;
+                if (warCouncilRoleId === undefined) {
                     await replyPrivately(interaction, raidMessages.notSetUp);
                     return;
                 }
@@ -170,7 +170,7 @@ export function createRaidPlanning(deps) {
                 await interaction.deferReply({ flags: MessageFlags.Ephemeral });
                 let answer;
                 try {
-                    answer = await answerCommand(interaction, startMinutes);
+                    answer = await answerCommand(interaction);
                 }
                 catch (error) {
                     deps.logError(`/raid-plan failed: ${errorMessage(error)}`);
@@ -193,15 +193,11 @@ export function createRaidPlanning(deps) {
                 const focused = interaction.options.getFocused(true);
                 const typed = focused.value.trim().toLowerCase();
                 let names = [];
-                if (settings.startMinutes !== undefined) {
-                    const { raid } = current(settings.startMinutes);
-                    if (focused.name === "objective")
-                        names = objectivesOf(raid.plan);
-                    if (focused.name === "phase")
-                        names = raid.plan.phases.map((phase) => phase.name);
-                }
-                else if (focused.name === "objective")
-                    names = FIXED_OBJECTIVES;
+                const { raid } = current();
+                if (focused.name === "objective")
+                    names = objectivesOf(raid.plan);
+                if (focused.name === "phase")
+                    names = raid.plan.phases.map((phase) => phase.name);
                 if (focused.name === "alliance")
                     names = server.allianceTags();
                 const choices = names

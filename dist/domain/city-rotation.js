@@ -6,6 +6,8 @@ export const MAX_ROTATION_LENGTH = 10;
 const FRIDAY = 5;
 /** The Royal City siege starts at 12:00 Server Time (14:00 UTC), the owner's decision. */
 export const ROYAL_CITY_SIEGE_TIME = { hour: 12, minute: 0 };
+/** The Raid starts on Saturday at 12:00 Server Time (14:00 UTC), the owner's decision. */
+export const RAID_START_TIME = { hour: 12, minute: 0 };
 const MINUTE_MS = 60_000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 const WEEK_MS = 7 * DAY_MS;

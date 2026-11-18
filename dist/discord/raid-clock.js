@@ -76,11 +76,11 @@ export function createRaidClock(deps) {
         await server.log(`Raid Reminder (${phase === undefined ? "before the start" : `Phase ${phase.name}`}) for ${tags.map((tag) => `[${tag}]`).join(", ")}.`);
     }
     async function run() {
-        const { warCouncilRoleId, startMinutes } = settings;
-        if (warCouncilRoleId === undefined || startMinutes === undefined)
+        const { warCouncilRoleId } = settings;
+        if (warCouncilRoleId === undefined)
             return;
         const now = deps.now();
-        const { id, start } = currentRaidOf(now, startMinutes);
+        const { id, start } = currentRaidOf(now);
         const raid = raids.find(id)?.raid ?? newRaid(id, start);
         const plan = dueNotices(raid, { planHours: settings.planHours, confirmationHours: settings.confirmationHours }, raids.noticesHandled(id), now);
         for (const notice of plan.record)

@@ -1,3 +1,4 @@
+import { RAID_START_TIME } from "./city-rotation.js";
 import { serverDatePlusDays, serverDayOf, serverTimeInstant } from "./server-time.js";
 /**
  * The Raid: Saturday's KvK Raid of the Home Kingdom, and its Battle Plan (slice 034). The War Council drafts, publishes,
@@ -28,11 +29,15 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const SATURDAY = 6;
 const EMPTY_PLAN = { customObjectives: [], phases: [], assignments: [], notes: "" };
+/** The start of the Raid on that Saturday: always 12:00 Server Time (14:00 UTC). */
+export function raidStartOf(id) {
+    return serverTimeInstant(id, RAID_START_TIME.hour * 60 + RAID_START_TIME.minute);
+}
 /** The current Raid's Saturday and start: from Sunday 00:00 to Saturday 23:59 Server Time, that week's Saturday. */
-export function currentRaidOf(now, startMinutes) {
+export function currentRaidOf(now) {
     const day = serverDayOf(now);
     const id = serverDatePlusDays(day.date, SATURDAY - day.weekday);
-    return { id, start: serverTimeInstant(id, startMinutes) };
+    return { id, start: raidStartOf(id) };
 }
 /** A new Raid: a draft with the fixed Objectives only. */
 export function newRaid(id, start) {

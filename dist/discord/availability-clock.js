@@ -1,6 +1,5 @@
 import { pollStep } from "../domain/availability.js";
-import { currentRaidOf, newRaid } from "../domain/raid.js";
-import { serverTimeInstant } from "../domain/server-time.js";
+import { currentRaidOf, newRaid, raidStartOf } from "../domain/raid.js";
 import { createAvailabilityBoard } from "./availability-board.js";
 import { pollCard, pollRows, summaryCard } from "./availability-texts.js";
 import { LEADERS_CHANNEL } from "./raid-plan.js";
@@ -78,17 +77,17 @@ export function createAvailabilityClock(deps) {
         await server.log(line).catch(() => undefined);
     }
     async function run() {
-        const { warCouncilRoleId, startMinutes } = deps.settings;
-        if (warCouncilRoleId === undefined || startMinutes === undefined)
+        const { warCouncilRoleId } = deps.settings;
+        if (warCouncilRoleId === undefined)
             return;
         const now = deps.now();
         const raidOf = (id, start) => deps.raids.find(id)?.raid ?? newRaid(id, start);
-        const current = currentRaidOf(now, startMinutes);
+        const current = currentRaidOf(now);
         // A poll left open from an earlier week (Neil was off at its start) closes too, so its answers do not stay.
         const ids = [...new Set([...availability.openPolls(), current.id])];
         for (const id of ids) {
             try {
-                await step(raidOf(id, id === current.id ? current.start : serverTimeInstant(id, startMinutes)), now);
+                await step(raidOf(id, id === current.id ? current.start : raidStartOf(id)), now);
             }
             catch (error) {
                 await logFailure(`The Availability Poll of the Raid of ${id} failed: ${errorMessage(error)}`);
