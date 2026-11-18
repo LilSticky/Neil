@@ -110,10 +110,10 @@ export function createRaidClock(deps: RaidClockDeps): RaidClock {
   }
 
   async function run(): Promise<void> {
-    const { warCouncilRoleId, startMinutes } = settings;
-    if (warCouncilRoleId === undefined || startMinutes === undefined) return;
+    const { warCouncilRoleId } = settings;
+    if (warCouncilRoleId === undefined) return;
     const now = deps.now();
-    const { id, start } = currentRaidOf(now, startMinutes);
+    const { id, start } = currentRaidOf(now);
     const raid = raids.find(id)?.raid ?? newRaid(id, start);
     const plan = dueNotices(
       raid,

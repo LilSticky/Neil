@@ -30,7 +30,6 @@
 - [x] T009 Dictionary (War Council, Raid, Battle Plan, Objective, Phase, Assignment, Plan Confirmation, Plan Deadline,
   Confirmation Deadline, Confirmation Chase, Raid Reminder; Kingdom vs Kingdom gains Raid), ROADMAP row 034, STATUS,
   SERVER-SETUP.md, MIGRATION-GUIDE.md, DISCORD-PLATFORM.md.
-- [ ] T010 Manual check on test Neil: after `npm run server:setup -- --apply`, `.env` (`DISCORD_WAR_COUNCIL_ROLE_ID`,
-  `RAID_START`) and `npm run commands:register`, a War Council holder drafts, publishes, amends and cancels a plan; the
+- [ ] T010 Manual check on test Neil: after `npm run server:setup -- --apply`, `.env` (`DISCORD_WAR_COUNCIL_ROLE_ID`) and `npm run commands:register`, a War Council holder drafts, publishes, amends and cancels a plan; the
   cards read clearly, times show in Server Time and in the reader's own time, an R5 confirms, and every step appears in
   `#neil-log`. Also check whether Interaction Bot translates the plan card. Verify each result through Neil Police.

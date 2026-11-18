@@ -14,8 +14,7 @@ import type { RequestPurpose } from "../domain/daily-quota.js";
 import type { Uid } from "../domain/lookup-input.js";
 import { allianceRoleName } from "../domain/managed-roles.js";
 import type { LookupResult, Player } from "../domain/player.js";
-import { newRaid, type Raid } from "../domain/raid.js";
-import { serverTimeInstant } from "../domain/server-time.js";
+import { newRaid, raidStartOf, type Raid } from "../domain/raid.js";
 import { bracketFor } from "../domain/troop-bracket.js";
 import type { AvailabilityStore, StoredPoll } from "../storage/availability-store.js";
 import type { LinkStore } from "../storage/link-store.js";
@@ -51,7 +50,7 @@ export interface AvailabilityPollDeps {
   /** The uncharged Player lookup: Neil's cached copy, as a Booty Call reads it. */
   readonly game: { getPlayer(uid: Uid, purpose: RequestPurpose): Promise<LookupResult<Player>> };
   readonly server: Pick<RaidServer, "edit" | "log">;
-  readonly settings: Pick<RaidSettings, "warCouncilRoleId" | "startMinutes">;
+  readonly settings: Pick<RaidSettings, "warCouncilRoleId">;
   readonly thresholds: FighterClassThresholds;
   readonly troopBracketLevels: readonly number[];
   readonly now: () => Date;
@@ -78,10 +77,10 @@ export function createAvailabilityPoll(deps: AvailabilityPollDeps): Availability
   }
 
   /** The poll and its Raid, or the refusal to answer with. */
-  function pollOf(button: AvailabilityButton, startMinutes: number): { readonly poll: StoredPoll; readonly raid: Raid } | string {
+  function pollOf(button: AvailabilityButton): { readonly poll: StoredPoll; readonly raid: Raid } | string {
     const poll = availability.poll(button.raidId);
     if (poll === undefined) return availabilityMessages.unknownPoll;
-    const raid = deps.raids.find(button.raidId)?.raid ?? newRaid(button.raidId, serverTimeInstant(button.raidId, startMinutes));
+    const raid = deps.raids.find(button.raidId)?.raid ?? newRaid(button.raidId, raidStartOf(button.raidId));
     const refusal = answerRefusal(raid, poll.state, deps.now());
     if (refusal === "cancelled") return availabilityMessages.cancelled;
     if (refusal === "closed") return availabilityMessages.closed;
@@ -154,8 +153,8 @@ export function createAvailabilityPoll(deps: AvailabilityPollDeps): Availability
     async onButton(press) {
       try {
         const button = parseAvailabilityButton(press.customId);
-        const { warCouncilRoleId, startMinutes } = deps.settings;
-        if (warCouncilRoleId === undefined || startMinutes === undefined) {
+        const { warCouncilRoleId } = deps.settings;
+        if (warCouncilRoleId === undefined) {
           await replyPrivately(press, availabilityMessages.notSetUp);
           return;
         }
@@ -163,7 +162,7 @@ export function createAvailabilityPoll(deps: AvailabilityPollDeps): Availability
           await replyPrivately(press, availabilityMessages.unknownPoll);
           return;
         }
-        const found = pollOf(button, startMinutes);
+        const found = pollOf(button);
         if (typeof found === "string") {
           await replyPrivately(press, found);
           return;

@@ -10,6 +10,7 @@ import {
   FIXED_OBJECTIVES,
   newRaid,
   objectivesOf,
+  raidStartOf,
   onPlan,
   publish,
   removeObjective,
@@ -51,15 +52,24 @@ function minutesBefore(moment: Date, minutes: number): Date {
 }
 
 describe("currentRaidOf", () => {
-  test("from Sunday to Saturday, the Raid is that week's Saturday at the start time", () => {
-    expect(currentRaidOf(new Date("2026-11-16T12:00:00.000Z"), 20 * 60)).toEqual({ id: RAID_ID, start: START });
+  test("from Sunday to Saturday, the Raid is that week's Saturday at 12:00 Server Time", () => {
+    expect(currentRaidOf(new Date("2026-11-16T12:00:00.000Z"))).toEqual({
+      id: RAID_ID,
+      start: new Date("2026-11-21T14:00:00.000Z"),
+    });
     // Sunday 00:30 Server Time is 02:30 UTC.
-    expect(currentRaidOf(new Date("2026-11-15T02:30:00.000Z"), 20 * 60).id).toBe(RAID_ID);
+    expect(currentRaidOf(new Date("2026-11-15T02:30:00.000Z")).id).toBe(RAID_ID);
   });
 
   test("Saturday 23:59 Server Time is still that Saturday's Raid; 00:00 starts the next week", () => {
-    expect(currentRaidOf(new Date("2026-11-22T01:59:00.000Z"), 20 * 60).id).toBe(RAID_ID);
-    expect(currentRaidOf(new Date("2026-11-22T02:00:00.000Z"), 20 * 60).id).toBe("2026-11-28");
+    expect(currentRaidOf(new Date("2026-11-22T01:59:00.000Z")).id).toBe(RAID_ID);
+    expect(currentRaidOf(new Date("2026-11-22T02:00:00.000Z")).id).toBe("2026-11-28");
+  });
+});
+
+describe("raidStartOf", () => {
+  test("is the Saturday at 12:00 Server Time, which is 14:00 UTC", () => {
+    expect(raidStartOf("2026-11-28")).toEqual(new Date("2026-11-28T14:00:00.000Z"));
   });
 });
 

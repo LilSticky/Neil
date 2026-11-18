@@ -13,12 +13,12 @@ import { createAvailabilityClock, type AvailabilityClock } from "./availability-
 import type { RaidSettings } from "./raid-plan.js";
 
 const RAID_ID = "2026-11-21";
-/** Saturday 20:00 Server Time. */
-const START = new Date("2026-11-21T22:00:00.000Z");
-/** 72 hours before: Wednesday 20:00 Server Time. */
-const OPENS = new Date("2026-11-18T22:00:00.000Z");
+/** Saturday 12:00 Server Time. */
+const START = new Date("2026-11-21T14:00:00.000Z");
+/** 72 hours before: Wednesday 12:00 Server Time. */
+const OPENS = new Date("2026-11-18T14:00:00.000Z");
 const LEADERS = "800000000000000002";
-const SETTINGS: Pick<RaidSettings, "warCouncilRoleId" | "startMinutes"> = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID, startMinutes: 20 * 60 };
+const SETTINGS: Pick<RaidSettings, "warCouncilRoleId"> = { warCouncilRoleId: WAR_COUNCIL_ROLE_ID };
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 
@@ -36,7 +36,7 @@ describe("the Availability clock", () => {
   let errors: string[];
   let clock: AvailabilityClock;
 
-  function clockWith(settings: Pick<RaidSettings, "warCouncilRoleId" | "startMinutes">): AvailabilityClock {
+  function clockWith(settings: Pick<RaidSettings, "warCouncilRoleId">): AvailabilityClock {
     return createAvailabilityClock({
       availability,
       raids,
@@ -69,7 +69,7 @@ describe("the Availability clock", () => {
   });
 
   test("is off without the War Council role", async () => {
-    clock = clockWith({ warCouncilRoleId: undefined, startMinutes: undefined });
+    clock = clockWith({ warCouncilRoleId: undefined });
     await tickAt(new Date(OPENS.getTime() + MINUTE));
 
     expect(server.posts).toEqual([]);

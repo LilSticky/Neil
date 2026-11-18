@@ -170,7 +170,6 @@ export async function start(deps: StartupDeps): Promise<void> {
       raids: store.raids,
       raidSettings: {
         warCouncilRoleId: config.warCouncilRoleId,
-        startMinutes: config.raidStartMinutes,
         planHours: config.raidPlanDeadlineHours,
         confirmationHours: config.raidConfirmationDeadlineHours,
       },
