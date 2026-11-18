@@ -3,7 +3,7 @@ import type { MemberId } from "./rank-approval.js";
 import { serverDatePlusDays, serverDayOf, serverTimeInstant } from "./server-time.js";
 
 /**
- * Shield Reminders (slice 044): in a KvK Week, Neil reminds the Members of each Home Kingdom Alliance to shield before
+ * Shield Reminders (slice 045): in a KvK Week, Neil reminds the Members of each Home Kingdom Alliance to shield before
  * the Shield Deadline, Friday's reset. The Game API cannot tell whether a city is shielded, so a Member confirms it.
  */
 

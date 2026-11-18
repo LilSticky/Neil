@@ -471,7 +471,7 @@ export const rotation = new SlashCommandBuilder()
 
 /**
  * The NaP register: any Member sees who is in it; R5s ask to join and leave; the council and Officers see the history;
- * the council opens NaP Motions.
+ * the council opens NaP Motions; any Member reads the NaP Rules and their history, and the council proposes new versions.
  */
 export const nap = new SlashCommandBuilder()
   .setName("nap")
@@ -502,6 +502,18 @@ export const nap = new SlashCommandBuilder()
           .setMinValue(NAP_MOTION_MIN_HOURS)
           .setMaxValue(NAP_MOTION_MAX_HOURS),
       ),
+  )
+  .addSubcommand((sub) => sub.setName("rules").setDescription("The NaP Rules in effect: version, since when, and the full text"))
+  .addSubcommand((sub) =>
+    sub
+      .setName("rules-history")
+      .setDescription("Every version of the NaP Rules with its state and what changed, or one version's full text")
+      .addIntegerOption((option) =>
+        option.setName("version").setDescription("The version whose full text to show").setRequired(false).setMinValue(1),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub.setName("rules-propose").setDescription("Propose a new version of the NaP Rules, put to a NaP Motion (NaP Council)"),
   );
 
 /** Everything registered for the configured server, as REST payloads. */

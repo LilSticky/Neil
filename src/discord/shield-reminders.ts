@@ -54,7 +54,7 @@ export interface ShieldReminders {
 const KINGDOM = "kingdom";
 
 /**
- * The Shield Reminders (slice 044), on the one-minute tick: in a KvK Week, at each lead time before the Shield Deadline,
+ * The Shield Reminders (slice 045), on the one-minute tick: in a KvK Week, at each lead time before the Shield Deadline,
  * a reminder in every Alliance's alliance-chat mentioning its Linked Members who have not confirmed and have not switched
  * the reminders off, and a Shield List in its alliance-leaders. Lead times missed collapse into one sent now. Each lead
  * time is recorded before anything is posted, so a failed post is logged once and never sent twice. Confirmations of
@@ -133,7 +133,7 @@ export function createShieldReminders(deps: ShieldRemindersDeps): ShieldReminder
     const now = deps.now();
     const deadline = shieldDeadlineOf(now);
     const week = shieldWeekOf(deadline);
-    // Once Friday's reset has passed, the Shield Confirmations of that week are no longer needed (ADR 26).
+    // Once Friday's reset has passed, the Shield Confirmations of that week are no longer needed (ADR 27).
     shield.deleteConfirmationsBefore(week);
     if (shield.markOf(week) === undefined) return;
     const leads = shieldLeadMinutesOf(deps.events.listKinds(KINGDOM));

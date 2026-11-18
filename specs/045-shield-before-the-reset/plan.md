@@ -16,11 +16,11 @@
   View, Send, Embed Links, Read History. `expandLayout` resolves the placeholder per Alliance and adds each Leaders Role to
   the wanted roles, so `planSetup` creates it before the channels; `parseLayout` accepts the placeholder in the Alliance
   area only.
-- **Storage** migration 27 and `src/storage/shield-store.ts` (synchronous, rows validated with zod).
+- **Storage** migration 28 and `src/storage/shield-store.ts` (synchronous, rows validated with zod).
 - **Discord** `src/discord/shield.ts` (`/kvk-week`, `/shield-reminders`, the `shield:<week>` button),
   `src/discord/shield-reminders.ts` (the tick and its server view), `src/discord/shield-texts.ts`; `/event-kinds` shows the
   Shield line; `client.ts` routes and ticks; `unlink.ts` forgets.
-- **Docs** ADR 26, ADR 8 amendment, DICTIONARY (proposed terms), SERVER-SETUP, STARTUP-GUIDE, ROADMAP, STATUS, TEST-RUN.
+- **Docs** ADR 27, ADR 8 amendment, DICTIONARY (proposed terms), SERVER-SETUP, STARTUP-GUIDE, ROADMAP, STATUS, TEST-RUN.
 
 ## Constitution check
 

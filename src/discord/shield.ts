@@ -63,7 +63,7 @@ export function shieldButtonId(week: string): string {
 }
 
 /**
- * The Shielded button, /shield-reminders and /kvk-week (slice 044). Every answer is private. A failed read or write is
+ * The Shielded button, /shield-reminders and /kvk-week (slice 045). Every answer is private. A failed read or write is
  * logged and answered as unavailable; a failed reply is logged, never thrown.
  */
 export function createShieldCommands(deps: ShieldDeps): ShieldCommands {

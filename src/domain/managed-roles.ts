@@ -28,7 +28,7 @@ export function tagOfAllianceRole(name: string): string | undefined {
 
 /**
  * The Managed Role names a Member should hold for a Player (FR-003 to FR-006): the Alliance tag for a Home Kingdom
- * Alliance, the Alliance Rank for a known rank in one and, for an R4 or R5, the Alliance Leaders Role (slice 044),
+ * Alliance, the Alliance Rank for a known rank in one and, for an R4 or R5, the Alliance Leaders Role (slice 045),
  * `#<kingdom>` always, and the Troop Bracket when the sanctuary level unlocks one.
  */
 export function rolesFor(

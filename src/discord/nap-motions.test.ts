@@ -292,6 +292,34 @@ describe("createNapMotions", () => {
     });
   });
 
+  describe("mayOpen and openFor", () => {
+    test("follow the rule of /nap motion: only a member of the NaP Council", () => {
+      expect(motions.mayOpen(R5_NML)).toBe(true);
+      expect(motions.mayOpen(R4_NML)).toBe(false);
+      expect(motions.mayOpen(OUTSIDER)).toBe(false);
+      expect(motions.mayOpen(OFFICER)).toBe(false);
+    });
+
+    test("openFor opens a motion of the default length, posted in #nap-leaders and logged, and gives its id", async () => {
+      const opening = await motions.openFor(R5_NML, "A longer text than a command allows. ".repeat(20));
+      const [motion] = store.open();
+      expect(opening).toEqual({ kind: "opened", id: motion?.id, endsAt: new Date(NOW.getTime() + 48 * HOUR) });
+      expect(server.postsIn(LEADERS)).toHaveLength(1);
+      expect(server.logs).toHaveLength(1);
+    });
+
+    test("openFor refuses someone outside the NaP Council, and keeps nothing when #nap-leaders is missing or refuses", async () => {
+      expect(await motions.openFor(OUTSIDER, TEXT)).toEqual({ kind: "refused" });
+      server.leaders = undefined;
+      expect(await motions.openFor(R5_NML, TEXT)).toEqual({ kind: "no-leaders" });
+      server.leaders = LEADERS;
+      server.refusePost = true;
+      expect(await motions.openFor(R5_NML, TEXT)).toEqual({ kind: "post-failed", reason: "Missing Permissions" });
+      expect(store.open()).toEqual([]);
+      expect(server.logs).toEqual([]);
+    });
+  });
+
   describe("vote", () => {
     test("records one vote per Alliance, cast by any of its Linked R5s, the latest press counting", async () => {
       const id = await openOne();

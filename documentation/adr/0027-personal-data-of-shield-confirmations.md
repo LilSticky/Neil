@@ -1,4 +1,4 @@
-# 26. Personal data of Shield Confirmations
+# 27. Personal data of Shield Confirmations
 
 Date: 2026-11-18
 
@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 
-Slice 044 reminds the Members of each Home Kingdom Alliance to shield their city before Friday's reset in a KvK Week
+Slice 045 reminds the Members of each Home Kingdom Alliance to shield their city before Friday's reset in a KvK Week
 (issue #118). The Game API cannot tell whether a city is shielded (its `shielding` field always reads 0, GAME-API.md),
 so Neil relies on each Member pressing Shielded. The Alliance's R4s and R5s get a Shield List of who has not confirmed,
 so they can follow up in the game. The constitution (principle V) asks that personal data is kept to what a feature
@@ -16,7 +16,7 @@ needs, and that what is stored, and for how long, is documented in an ADR.
 
 ## Decision
 
-We will store, in `neil.db` (migration 27):
+We will store, in `neil.db` (migration 28):
 
 - `shield_confirmation`: per week and Member, the Member id and when they pressed Shielded. Deleted on the first tick
   after that week's Shield Deadline, when an Officer unmarks the week, and at Unlink.

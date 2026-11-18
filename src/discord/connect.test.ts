@@ -20,6 +20,7 @@ import { KingMoveStore } from "../storage/king-move-store.js";
 import { EventStore } from "../storage/event-store.js";
 import { HandoverStore } from "../storage/handover-store.js";
 import { NapMotionStore } from "../storage/nap-motion-store.js";
+import { NapRulesStore } from "../storage/nap-rules-store.js";
 import { ShieldStore } from "../storage/shield-store.js";
 import { NapStore } from "../storage/nap-store.js";
 import { RaidStore } from "../storage/raid-store.js";
@@ -321,6 +322,7 @@ describe("connect", () => {
       handovers: new HandoverStore(db),
       nap: new NapStore(db),
       napMotions: new NapMotionStore(db),
+      napRules: new NapRulesStore(db),
       shield: new ShieldStore(db),
     };
   }

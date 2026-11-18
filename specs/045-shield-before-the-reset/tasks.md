@@ -7,7 +7,7 @@
 ## Phase 1: Foundational
 
 - [x] T001 [P] `src/domain/shield.ts` (+ test): Shield Deadline, weeks, lead times, standing.
-- [x] T002 [P] Migration 27 and `ShieldStore` (+ tests): upgrade from version 26, CHECKs, round trips, forget.
+- [x] T002 [P] Migration 28 and `ShieldStore` (+ tests): upgrade from version 26, CHECKs, round trips, forget.
 - [x] T003 [P] Alliance Leaders Role in `managed-roles.ts` (+ tests in managed-roles, name-and-roles, daily-sync, unlink).
 - [x] T004 [P] `alliance-leaders` in `server-layout.json`, its placeholder in `expandLayout` and `parseLayout`
   (+ tests in server-layout, setup-plan, server-setup).
@@ -21,8 +21,8 @@
 
 ## Phase 3: Polish
 
-- [x] T009 ADR 26, ADR 8 amendment, DICTIONARY (proposed terms, for the owner's approval).
-- [x] T010 SERVER-SETUP, STARTUP-GUIDE, ROADMAP row 044, STATUS, TEST-RUN.md §6ad.
+- [x] T009 ADR 27, ADR 8 amendment, DICTIONARY (proposed terms, for the owner's approval).
+- [x] T010 SERVER-SETUP, STARTUP-GUIDE, ROADMAP row 045, STATUS, TEST-RUN.md §6ae.
 - [ ] T011 After the merge: run the setup script on both servers (each Alliance gets `alliance-leaders` and
   `[TAG] Leaders`), `npm run commands:register`, then the manual check on test Neil through Neil Police (TEST-RUN.md
-  §6ad), which needs a Linked R4 or R5; record each result here.
+  §6ae), which needs a Linked R4 or R5; record each result here.

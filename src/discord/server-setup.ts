@@ -284,7 +284,7 @@ export function parseLayout(text: string): ServerLayout {
       channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames, translations)),
     };
   });
-  // The Alliance area may also name its own Alliance Leaders Role, by placeholder (slice 044).
+  // The Alliance area may also name its own Alliance Leaders Role, by placeholder (slice 045).
   const allianceKnown = new Set([...known, ALLIANCE_LEADERS_PLACEHOLDER]);
   const allianceChannels = raw.allianceArea.channels.map((channel) =>
     checkChannel("allianceArea", channel, allianceKnown, channelNames, translations),

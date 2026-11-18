@@ -1,6 +1,6 @@
 # Feature Specification: Shield before the reset
 
-**Feature Branch**: `044-shield-before-the-reset`
+**Feature Branch**: `045-shield-before-the-reset`
 
 **Created**: 2026-11-18
 
@@ -30,7 +30,7 @@ The approved choices:
    lead times collapse into one reminder sent on the next tick.
 5. `/shield-reminders on|off` for Members; without the option it shows the current choice.
 6. Shield Confirmations are kept until the Shield Deadline, the unmark or the Unlink; Shield Reminders Off until switched
-   on or the Unlink (ADR 26).
+   on or the Unlink (ADR 27).
 
 Out of scope: marking weeks further ahead, an editable status card, `#kvk-leaders`.
 
@@ -75,12 +75,12 @@ option Neil shows the choice. They may still press Shielded.
 - **FR-005**: `[TAG] Leaders` follows Link, Rank Approval, `/rank`, the Daily Sync, live game data and Unlink.
 - **FR-006**: Unlink forgets the Member's confirmations and Shield Reminders Off; the tick deletes confirmations of
   passed weeks.
-- **FR-007**: Data in `neil.db`, migration 27: `kvk_week`, `shield_reminder_sent`, `shield_confirmation`,
-  `shield_reminders_off` (ADR 26).
+- **FR-007**: Data in `neil.db`, migration 28: `kvk_week`, `shield_reminder_sent`, `shield_confirmation`,
+  `shield_reminders_off` (ADR 27).
 
 ## Success Criteria
 
 - Automated tests cover FR-001 to FR-007; typecheck, lint, test and build pass as in CI.
 - On test Neil, after the setup script ran, Neil Police sees an `alliance-leaders` per Alliance that only that Alliance's
   R5s and R4s and Neil can see and post in, and a marked week gives a Shield Reminder, a working Shielded button and a
-  Shield List (TEST-RUN.md §6ad).
+  Shield List (TEST-RUN.md §6ae).

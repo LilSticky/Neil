@@ -132,7 +132,7 @@ export const BOT_TARGET = "Neil";
 export const POLICE_TARGET = "Neil Police";
 
 const KINGDOM_PLACEHOLDER = "#<Home Kingdom>";
-/** In the Alliance area only: the Alliance Leaders Role of the Alliance the area is for (slice 044). */
+/** In the Alliance area only: the Alliance Leaders Role of the Alliance the area is for (slice 045). */
 export const ALLIANCE_LEADERS_PLACEHOLDER = "<Alliance> Leaders";
 const KING_ROLE = "King";
 const TRANSLATION_BOT_ROLE = "Interaction Bot";

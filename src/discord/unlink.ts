@@ -50,7 +50,7 @@ export interface UnlinkDeps {
   readonly events: Pick<EventStore, "forgetMember">;
   /** Deletes a Member's Availability answers when their Link ends, so they do not outlive the Link (ADR 19). */
   readonly availability: Pick<AvailabilityStore, "forget">;
-  /** Deletes a Member's Shield Confirmations and Shield Reminders Off when their Link ends (ADR 26). */
+  /** Deletes a Member's Shield Confirmations and Shield Reminders Off when their Link ends (ADR 27). */
   readonly shield: Pick<ShieldStore, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;

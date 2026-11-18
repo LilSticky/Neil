@@ -109,6 +109,7 @@ function handlers() {
     nap: vi.fn(() => Promise.resolve()),
     napButton: vi.fn(() => Promise.resolve()),
     napMotionButton: vi.fn(() => Promise.resolve()),
+    napRulesModal: vi.fn(() => Promise.resolve()),
     kingMoveButton: vi.fn(() => Promise.resolve()),
   };
 }
@@ -753,6 +754,18 @@ describe("createClient", () => {
     expect(routed.interviewModal).toHaveBeenCalledWith(interaction);
     expect(routed.interviewButton).not.toHaveBeenCalled();
     expect(routed.pick).not.toHaveBeenCalled();
+    expect(routed.napRulesModal).not.toHaveBeenCalled();
+  });
+
+  test("hands a modal submit whose custom id starts with nap-rules: to the NaP Rules form handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = modal("nap-rules:propose");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.napRulesModal).toHaveBeenCalledWith(interaction);
+    expect(routed.interviewModal).not.toHaveBeenCalled();
   });
 
   test("hands a button whose custom id starts with link: to the link button handler and nothing else", () => {

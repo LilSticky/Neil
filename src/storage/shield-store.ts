@@ -27,7 +27,7 @@ function parsed<T>(schema: z.ZodType<T>, raw: unknown): T {
 }
 
 /**
- * Keeps the Shield Reminders in neil.db (slice 044, ADR 26): the KvK Weeks, the lead times sent per week, the Members'
+ * Keeps the Shield Reminders in neil.db (slice 045, ADR 27): the KvK Weeks, the lead times sent per week, the Members'
  * Shield Confirmations per week, and the Members with Shield Reminders Off. A row that does not read is refused, not reset.
  */
 export class ShieldStore {

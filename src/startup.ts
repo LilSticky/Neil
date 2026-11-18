@@ -18,6 +18,7 @@ import type { CityRotationStore } from "./storage/city-rotation-store.js";
 import type { KingMoveStore } from "./storage/king-move-store.js";
 import type { HandoverStore } from "./storage/handover-store.js";
 import type { NapMotionStore } from "./storage/nap-motion-store.js";
+import type { NapRulesStore } from "./storage/nap-rules-store.js";
 import type { ShieldStore } from "./storage/shield-store.js";
 import type { NapStore } from "./storage/nap-store.js";
 import type { ReaperStore } from "./storage/reaper-store.js";
@@ -70,6 +71,7 @@ export interface StartupStorage extends StartRecordStorage {
   readonly availability: AvailabilityStore;
   readonly nap: NapStore;
   readonly napMotions: NapMotionStore;
+  readonly napRules: NapRulesStore;
   readonly shield: ShieldStore;
 }
 
@@ -188,6 +190,7 @@ export async function start(deps: StartupDeps): Promise<void> {
       handovers: store.handovers,
       nap: store.nap,
       napMotions: store.napMotions,
+      napRules: store.napRules,
       shield: store.shield,
       cityRotationMode: config.cityRotationMode,
     });
