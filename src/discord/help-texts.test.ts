@@ -6,9 +6,12 @@ import { helpReply } from "./help-texts.js";
 /** Discord's limit for an embed description. */
 const EMBED_DESCRIPTION_LIMIT = 4096;
 
-/** The description of a reply embed; a reply without one fails the assertions that read it. */
-function textOf(embed: APIEmbed): string {
-  return embed.description ?? "";
+/** Discord's limit for all embeds of one message together. */
+const MESSAGE_EMBEDS_LIMIT = 6000;
+
+/** The descriptions of the reply embeds, one paragraph each; a reply without one fails the assertions that read it. */
+function textOf(embeds: readonly APIEmbed[]): string {
+  return embeds.map((embed) => embed.description ?? "").join("\n\n");
 }
 
 /** Command definitions as the bot registers them, with a few Member commands and a few Officer commands. */
@@ -74,9 +77,10 @@ const MEMBER_TEXT = [
 
 describe("helpReply for a Member", () => {
   test("gives one line per command the caller can use, its usage and its purpose, in the order of the command definitions", () => {
-    const embed = helpReply(fixture, { officer: false });
+    const embeds = helpReply(fixture, { officer: false });
 
-    expect(textOf(embed)).toBe(MEMBER_TEXT);
+    expect(embeds).toHaveLength(1);
+    expect(textOf(embeds)).toBe(MEMBER_TEXT);
   });
 
   test("leaves out every Officer command", () => {
@@ -133,10 +137,23 @@ describe("helpReply for an Officer", () => {
     expect(text).toContain("`/help`");
   });
 
-  test("keeps the answer for the real command definitions within the embed description limit", () => {
-    const text = textOf(helpReply(commands, { officer: true }));
+  test("puts the Officer commands in an embed of their own, after the Member commands", () => {
+    const embeds = helpReply(fixture, { officer: true });
 
-    expect(text.length).toBeLessThanOrEqual(EMBED_DESCRIPTION_LIMIT);
+    expect(embeds).toHaveLength(2);
+    expect(embeds[0]?.description).not.toContain("**Officer commands**");
+    expect(embeds[1]?.description?.startsWith("**Officer commands**\n")).toBe(true);
+  });
+
+  test("keeps the answer for the real command definitions within Discord's embed limits", () => {
+    const embeds = helpReply(commands, { officer: true });
+
+    for (const embed of embeds) {
+      expect(embed.description?.length ?? 0).toBeLessThanOrEqual(EMBED_DESCRIPTION_LIMIT);
+    }
+    expect(embeds.reduce((total, embed) => total + (embed.description?.length ?? 0), 0)).toBeLessThanOrEqual(
+      MESSAGE_EMBEDS_LIMIT,
+    );
   });
 });
 
