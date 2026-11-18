@@ -546,7 +546,7 @@ describe("commands", () => {
     expect(history?.description.length).toBeLessThanOrEqual(100);
   });
 
-  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /raid-plan, /rotation and /nap", () => {
+  test("hold no command other than /ping, /player, /alliance, /quota, /channels, /interview, /unlink, /rank, /link, /reaper, /usage, /help, /booty, /booty-alerts, /event-invitations, /event-kinds, /shield-reminders, /kvk-week, /raid-plan, /rotation and /nap", () => {
     expect(commands.map((command) => command.name).sort()).toEqual([
       "alliance",
       "booty",
@@ -556,6 +556,7 @@ describe("commands", () => {
       "event-kinds",
       "help",
       "interview",
+      "kvk-week",
       "link",
       "nap",
       "ping",
@@ -565,8 +566,34 @@ describe("commands", () => {
       "rank",
       "reaper",
       "rotation",
+      "shield-reminders",
       "unlink",
       "usage",
+    ]);
+  });
+
+  test("hold /kvk-week, hidden from Members, guild only, with mark, unmark and show", () => {
+    const kvkWeek = commands.find((command) => command.name === "kvk-week");
+
+    expect(kvkWeek?.default_member_permissions).toBe("0");
+    expect(kvkWeek?.contexts).toEqual([0]);
+    expect(kvkWeek?.options?.map((option) => option.name)).toEqual(["mark", "unmark", "show"]);
+  });
+
+  test("hold /shield-reminders for every Member, guild only, with an optional On or Off", () => {
+    const shieldReminders = commands.find((command) => command.name === "shield-reminders");
+
+    expect(shieldReminders?.default_member_permissions).toBeUndefined();
+    expect(shieldReminders?.contexts).toEqual([0]);
+    expect(shieldReminders?.options).toEqual([
+      expect.objectContaining({
+        name: "reminders",
+        required: false,
+        choices: [
+          { name: "On", value: "on" },
+          { name: "Off", value: "off" },
+        ],
+      }),
     ]);
   });
 

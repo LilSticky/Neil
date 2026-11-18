@@ -701,6 +701,24 @@
         }
       },
       {
+        "name": "alliance-leaders",
+        "type": "text",
+        "description": "Your Alliance's leaders' room, for its R5 and R4s: Neil's Shield Lists land here 🛡️",
+        "seenBy": [
+          "<Alliance> Leaders"
+        ],
+        "overwrites": {
+          "Neil": {
+            "allow": [
+              "ViewChannel",
+              "SendMessages",
+              "EmbedLinks",
+              "ReadMessageHistory"
+            ]
+          }
+        }
+      },
+      {
         "name": "alliance-voice",
         "type": "voice",
         "description": "Your Alliance's own voice channel 🎙️"

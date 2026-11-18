@@ -3,6 +3,7 @@ import { cancel, type MemberId, type RankApproval } from "../domain/rank-approva
 import type { AppliedState, AppliedStore } from "../storage/applied-store.js";
 import type { AvailabilityStore } from "../storage/availability-store.js";
 import type { BootyAlertsStore } from "../storage/booty-alerts-store.js";
+import type { ShieldStore } from "../storage/shield-store.js";
 import type { EventStore } from "../storage/event-store.js";
 import type { LinkStore } from "../storage/link-store.js";
 import { applyNameAndRoles } from "./member-roles.js";
@@ -49,6 +50,8 @@ export interface UnlinkDeps {
   readonly events: Pick<EventStore, "forgetMember">;
   /** Deletes a Member's Availability answers when their Link ends, so they do not outlive the Link (ADR 19). */
   readonly availability: Pick<AvailabilityStore, "forget">;
+  /** Deletes a Member's Shield Confirmations and Shield Reminders Off when their Link ends (ADR 26). */
+  readonly shield: Pick<ShieldStore, "forget">;
   readonly now: () => Date;
   readonly sendPrivateMessage: (memberId: MemberId, message: BaseMessageOptions) => Promise<void>;
   readonly officerRoles: OfficerRoles;
@@ -80,6 +83,9 @@ async function unlinkMember(deps: UnlinkDeps, memberId: MemberId, reason: Unlink
   });
   attempt(deps, memberId, "forgetting the Availability answers", () => {
     deps.availability.forget(memberId);
+  });
+  attempt(deps, memberId, "forgetting the Shield Confirmations and Shield Reminders Off", () => {
+    deps.shield.forget(memberId);
   });
   let notChanged: readonly string[] = [];
   if (!removedByDiscord(reason)) {

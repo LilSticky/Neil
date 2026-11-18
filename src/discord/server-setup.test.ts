@@ -293,6 +293,34 @@ describe("parseLayout", () => {
     expect(message).toContain("guest rules");
   });
 
+  test("accepts the Alliance Leaders placeholder in the Alliance area", () => {
+    const text = layoutFile({
+      allianceArea: {
+        channels: [{ name: "alliance-leaders", type: "text", description: "A test channel.", seenBy: ["<Alliance> Leaders"] }],
+      },
+    });
+
+    expect(parseLayout(text).allianceArea.channels[0]?.seenBy).toEqual(["<Alliance> Leaders"]);
+  });
+
+  test("refuses the Alliance Leaders placeholder outside the Alliance area", () => {
+    const message = refusal(
+      layoutFile({ categories: hangout([{ name: "general", type: "text", description: "A test channel.", seenBy: ["<Alliance> Leaders"] }]) }),
+    );
+
+    expect(message).toContain("<Alliance> Leaders");
+  });
+
+  test("the shipped layout gives every Alliance area an alliance-leaders seen only by its Leaders Role and Neil", () => {
+    const expanded = expandLayout(shippedLayout(), 330, ["[NML]"]);
+    const area = expanded.categories.find((category) => category.name === "[NML]");
+    const leaders = area?.channels.find((channel) => channel.name === "alliance-leaders");
+    expect(leaders?.type).toBe("text");
+    expect(leaders?.overwrites.map((overwrite) => overwrite.target)).toEqual(["@everyone", "[NML] Leaders", "Neil"]);
+    expect(leaders?.overwrites.find((overwrite) => overwrite.target === "@everyone")?.deny).toEqual(["ViewChannel"]);
+    expect(expanded.roles).toContain("[NML] Leaders");
+  });
+
   test("accepts overwrites on an alliance-chat channel of the Alliance area and keeps them", () => {
     const text = layoutFile({
       allianceArea: {

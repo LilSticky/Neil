@@ -6,6 +6,7 @@ import { redact } from "../startup.js";
 import { PIN_MARK } from "../domain/channel-description.js";
 import { forumHowTo } from "../domain/forum-how-to.js";
 import {
+  ALLIANCE_LEADERS_PLACEHOLDER,
   BOT_TARGET,
   EVERYONE_TARGET,
   POLICE_TARGET,
@@ -283,8 +284,10 @@ export function parseLayout(text: string): ServerLayout {
       channels: category.channels.map((channel) => checkChannel(container, channel, known, channelNames, translations)),
     };
   });
+  // The Alliance area may also name its own Alliance Leaders Role, by placeholder (slice 044).
+  const allianceKnown = new Set([...known, ALLIANCE_LEADERS_PLACEHOLDER]);
   const allianceChannels = raw.allianceArea.channels.map((channel) =>
-    checkChannel("allianceArea", channel, known, channelNames, translations),
+    checkChannel("allianceArea", channel, allianceKnown, channelNames, translations),
   );
 
   const layout: ServerLayout = {

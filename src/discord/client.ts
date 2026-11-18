@@ -77,6 +77,16 @@ import {
 } from "./raid-plan.js";
 import { raidServerOf } from "./raid-server.js";
 import { RAID_PREFIX } from "./raid-texts.js";
+import type { ShieldStore } from "../storage/shield-store.js";
+import {
+  createShieldCommands,
+  type KvkWeekInteraction,
+  type ShieldCommands,
+  type ShieldPress,
+  type ShieldRemindersInteraction,
+} from "./shield.js";
+import { createShieldReminders, shieldServerOf } from "./shield-reminders.js";
+import { SHIELD_PREFIX } from "./shield-texts.js";
 import { createEventInvitations, eventIdOf, type EventInvitations } from "./events.js";
 import {
   createBootyCalls,
@@ -212,6 +222,12 @@ export interface CommandHandlers {
   readonly eventInvitations: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** The /event-kinds command: the Event Kinds of the kingdom or an Alliance, privately. */
   readonly eventKinds: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /shield-reminders command: a Linked Member shows or switches their Shield Reminders, privately. */
+  readonly shieldReminders: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** The /kvk-week command: an Officer marks, unmarks or shows the KvK Week, privately. */
+  readonly kvkWeek: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** A button whose custom id starts with `shield:`, the Shielded button of a Shield Reminder. */
+  readonly shieldButton: (button: ButtonInteraction) => Promise<void>;
   /** The /raid-plan command: the War Council plans Saturday's Raid, privately. */
   readonly raidPlan: (interaction: ChatInputCommandInteraction) => Promise<void>;
   /** An autocomplete request of /raid-plan, for its objective, phase and alliance options. */
@@ -308,6 +324,8 @@ interface Services {
   readonly raidPlanning: RaidPlanning;
   /** The Availability Poll's buttons. */
   readonly availabilityPoll: AvailabilityPoll;
+  /** /kvk-week, /shield-reminders and the Shielded button. */
+  readonly shield: ShieldCommands;
 }
 
 /** The custom id prefix of every pick list component; other component custom ids are not Neil's. */
@@ -539,6 +557,12 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         case "event-kinds":
           void handlers.eventKinds(interaction);
           break;
+        case "shield-reminders":
+          void handlers.shieldReminders(interaction);
+          break;
+        case "kvk-week":
+          void handlers.kvkWeek(interaction);
+          break;
         case "rotation":
           void handlers.rotation(interaction);
           break;
@@ -600,6 +624,8 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
         void handlers.raidButton(interaction);
       } else if (interaction.customId.startsWith(AVAILABILITY_PREFIX)) {
         void handlers.availabilityButton(interaction);
+      } else if (interaction.customId.startsWith(SHIELD_PREFIX)) {
+        void handlers.shieldButton(interaction);
       }
       return;
     }
@@ -660,6 +686,8 @@ export interface ConnectOptions {
   readonly raidSettings: RaidSettings;
   /** The Availability Polls, their cards and the Members' answers, in neil.db: an Unlink forgets the answers. */
   readonly availability: AvailabilityStore;
+  /** The KvK Weeks, the Shield Reminders sent, the Shield Confirmations and Shield Reminders Off, in neil.db (ADR 26). */
+  readonly shield: ShieldStore;
   /** The Fighter Class thresholds from config, for Neil's suggestion in the Availability Poll. */
   readonly fighterClassThresholds: FighterClassThresholds;
   /** The guides forum channel from DISCORD_GUIDES_FORUM_ID, named in the guides line; undefined when not set. */
@@ -1274,6 +1302,37 @@ function eventKindsLike(command: ChatInputCommandInteraction): EventKindsInterac
   };
 }
 
+/** The discord.js /shield-reminders command as the Shield Reminders read it: the caller, the option and the private reply. */
+function shieldRemindersLike(command: ChatInputCommandInteraction): ShieldRemindersInteraction {
+  return {
+    user: { id: command.user.id },
+    options: { getString: (name) => command.options.getString(name) },
+    reply: (reply) => command.reply(reply),
+  };
+}
+
+/** The discord.js /kvk-week command as the KvK Week reads it: the caller, their role ids, the subcommand and the reply. */
+function kvkWeekLike(command: ChatInputCommandInteraction): KvkWeekInteraction {
+  return {
+    user: { id: command.user.id },
+    options: { getSubcommand: () => command.options.getSubcommand() },
+    memberRoleIds: () => memberRoleIds(command.member),
+    reply: (reply) => command.reply(reply),
+  };
+}
+
+/** The discord.js Shielded button press as the Shield Confirmation reads it: the presser, their roles, the channel and the reply. */
+function shieldPressLike(button: ButtonInteraction): ShieldPress {
+  const channel = bootyChannelOf(button.channel);
+  return {
+    customId: button.customId,
+    user: { id: button.user.id },
+    channel: channel === undefined ? undefined : { name: channel.name, categoryName: channel.categoryName },
+    memberRoleNames: () => rolesOfMember(button.member).map((role) => role.name),
+    reply: (reply) => button.reply(reply),
+  };
+}
+
 /** The roles of the Member behind an interaction, by id and name; none outside a guild. */
 function rolesOfMember(member: unknown): { readonly id: string; readonly name: string }[] {
   return member instanceof GuildMember ? [...member.roles.cache.values()].map((role) => ({ id: role.id, name: role.name })) : [];
@@ -1508,9 +1567,16 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           links: options.links,
           events: options.events,
           officerRoleIds: options.officerRoleIds,
+          shield: options.shield,
           now,
           logError,
         }),
+      shieldReminders: (interaction) =>
+        answer("/shield-reminders", { logError }, async () => (await services).shield.onReminders(shieldRemindersLike(interaction))),
+      kvkWeek: (interaction) =>
+        answer("/kvk-week", { logError }, async () => (await services).shield.onKvkWeek(kvkWeekLike(interaction))),
+      shieldButton: (button) =>
+        answer("shield button", { logError }, async () => (await services).shield.onPress(shieldPressLike(button))),
       raidPlan: async (interaction) =>
         answer("/raid-plan", { logError }, async () => {
           const { raidPlanning } = await services;
@@ -1725,6 +1791,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       bootyAlerts: options.bootyAlerts,
       events: options.events,
       availability: options.availability,
+      shield: options.shield,
       now,
       sendPrivateMessage,
       officerRoles,
@@ -1995,7 +2062,26 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
       board: availabilityBoard,
     });
+    // Shield Reminders (slice 044): /kvk-week, /shield-reminders and the Shielded button, and the reminders and Shield
+    // Lists on the one-minute tick after the Availability clock.
+    const shield = createShieldCommands({
+      shield: options.shield,
+      links: options.links,
+      officerRoleIds: options.officerRoleIds,
+      now,
+      log: (line) => channels.log({ content: line, allowedMentions: { parse: [] } }),
+      logError,
+    });
+    const shieldReminders = createShieldReminders({
+      shield: options.shield,
+      events: options.events,
+      links: options.links,
+      server: shieldServerOf(guild, { log: (message) => channels.log(message) }),
+      now,
+      logError,
+    });
     openServices({
+      shield,
       cityRotation,
       kingMoves,
       nap,
@@ -2114,6 +2200,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         .then(() => napMotions.tick())
         .then(() => raidClock.tick())
         .then(() => availabilityClock.tick())
+        .then(() => shieldReminders.tick())
         .finally(() => {
           reminderTickRunning = false;
         });

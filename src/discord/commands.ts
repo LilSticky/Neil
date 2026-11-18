@@ -139,6 +139,33 @@ export const eventInvitations = new SlashCommandBuilder()
       .addChoices({ name: "On", value: "on" }, { name: "Off", value: "off" }),
   );
 
+export const shieldReminders = new SlashCommandBuilder()
+  .setName("shield-reminders")
+  .setDescription("Shield Reminders before Friday's reset, on or off")
+  .setContexts(InteractionContextType.Guild)
+  .addStringOption((option) =>
+    option
+      .setName("reminders")
+      .setDescription("On or off; without it, shows your current choice")
+      .setRequired(false)
+      .addChoices({ name: "On", value: "on" }, { name: "Off", value: "off" }),
+  );
+
+export const kvkWeek = new SlashCommandBuilder()
+  .setName("kvk-week")
+  .setDescription("The KvK Week of the next Friday's reset, for Shield Reminders (Officers)")
+  .setDefaultMemberPermissions(HIDDEN_FROM_MEMBERS)
+  .setContexts(InteractionContextType.Guild)
+  .addSubcommand((subcommand) =>
+    subcommand.setName("mark").setDescription("Mark this week as a KvK Week"),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand.setName("unmark").setDescription("Unmark this week"),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand.setName("show").setDescription("Is this week a KvK Week?"),
+  );
+
 /** The list an /event-kinds option picks: the kingdom's, or the Alliance's. */
 const listChoice = (option: SlashCommandStringOption): SlashCommandStringOption =>
   option
@@ -495,6 +522,8 @@ export const commands = [
   bootyAlerts.toJSON(),
   eventInvitations.toJSON(),
   eventKinds.toJSON(),
+  shieldReminders.toJSON(),
+  kvkWeek.toJSON(),
   rotation.toJSON(),
   raidPlan.toJSON(),
   nap.toJSON(),

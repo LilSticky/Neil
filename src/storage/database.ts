@@ -393,6 +393,30 @@ const migrations: readonly string[] = [
      at TEXT NOT NULL,
      PRIMARY KEY (motion_id, alliance_tag)
    )`,
+  // 27: Shield Reminders (slice 044, ADR 26). kvk_week keeps each KvK Week by the Server Time date of its Saturday, with
+  // when and by which Officer it was marked; shield_reminder_sent the lead times already sent per week. Neither is
+  // deleted. shield_confirmation keeps a Member's Shield Confirmation for a week: deleted after that week's Shield
+  // Deadline, when the week is unmarked, and at Unlink. shield_reminders_off keeps the Members who switched Shield
+  // Reminders off: no row means on; deleted at Unlink.
+  `CREATE TABLE kvk_week (
+     week TEXT PRIMARY KEY CHECK (week <> ''),
+     marked_at TEXT NOT NULL,
+     marked_by TEXT NOT NULL CHECK (marked_by <> '' AND marked_by NOT GLOB '*[^0-9]*')
+   );
+   CREATE TABLE shield_reminder_sent (
+     week TEXT NOT NULL CHECK (week <> ''),
+     lead_minutes INTEGER NOT NULL CHECK (lead_minutes > 0),
+     PRIMARY KEY (week, lead_minutes)
+   );
+   CREATE TABLE shield_confirmation (
+     week TEXT NOT NULL CHECK (week <> ''),
+     member_id TEXT NOT NULL CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*'),
+     confirmed_at TEXT NOT NULL,
+     PRIMARY KEY (week, member_id)
+   );
+   CREATE TABLE shield_reminders_off (
+     member_id TEXT PRIMARY KEY CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*')
+   )`,
 ];
 
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
