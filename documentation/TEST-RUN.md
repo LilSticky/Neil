@@ -527,6 +527,21 @@ in and outside the NaP, and an Officer outside the council. Branch `develop` aft
 | 6ac.4 | Wait until an hour before the deadline (halfway) | One reminder in `#nap-leaders` mentioning only the R5s of the Alliances that have not voted, naming no vote; one `#neil-log` line | | |
 | 6ac.5 | Wait until the deadline, then a minute | The motion shows the result and counts without buttons; `#nap-announcements` has the decision-log entry with the text, opening Alliance, times, result, counts and each Alliance's vote, no Member; the translated copies read clearly | | |
 
+## 6ad. Shield before the reset (slice 044, issue #118)
+
+Setup: the setup script applied (each Alliance area has `alliance-leaders` and its `[TAG] Leaders` role),
+`npm run commands:register` run; test accounts Linked to an R5 or R4 and to an R1 of one Alliance, and an Officer. Branch
+`develop` after the merge.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6ad.1 | Through Police, read the Alliance area and the role list | `alliance-leaders` is seen only by `[TAG] Leaders`, Neil (and Police); the Linked R5 or R4 holds `[TAG] Leaders`, the R1 does not | | |
+| 6ad.2 | The R1 runs `/kvk-week mark`; the Officer runs `/kvk-week show`, then `mark` | The R1 is refused privately; the Officer sees "not a KvK Week", then the Friday's reset as Discord timestamps; one `#neil-log` line | | |
+| 6ad.3 | Wait a minute (the late reminder) | A Shield Reminder in `alliance-chat` mentioning the Linked Members, with the Shielded button; a Shield List in `alliance-leaders`, pinging nobody | | |
+| 6ad.4 | The R1 presses Shielded twice; a Member of another Alliance presses it | Recorded, then already recorded; the other Member is refused; all private | | |
+| 6ad.5 | `/shield-reminders off`, then without option | Off recorded; shown as off; the next Shield List shows the Member under Shield Reminders Off | | |
+| 6ad.6 | The Officer runs `/kvk-week unmark` | Unmarked; no more Shield Reminders; one `#neil-log` line | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

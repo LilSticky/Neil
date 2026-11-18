@@ -20,6 +20,16 @@ discovery.
 * A Discord role Neil may give and remove: the Alliance, Alliance Rank, Kingdom and Troop Bracket roles
 * An Alliance role carries the tag in brackets, `[NML]`; the brackets set it apart from every other role
 * Neil creates a missing Managed Role on first use; apart from the Onboarding Role, the Doctor Role and the Preference Roles, it never touches any other role
+* Also the Alliance Leaders Role of a Home Kingdom Alliance, `[NML] Leaders`, which Neil gives its Linked R4s and R5s (slice 044)
+
+## Alliance Leaders Role *(proposed)*
+* The Managed Role `[TAG] Leaders` of a Home Kingdom Alliance, held by the Members Linked to its R4 or R5, from the Game API or a Rank Approval
+* Neil gives it with the Alliance role and takes it off when the rank or Alliance changes or the Member Unlinks
+* Not an Alliance role: it has no Alliance area of its own. It only lets its holders see the Alliance Leaders channel
+
+## Alliance Leaders channel *(proposed)*
+* `alliance-leaders` in each Alliance's area: seen only by holders of that Alliance's Leaders Role, and Neil
+* Neil posts the Alliance's Shield Lists there; the setup script creates it with its permissions
 
 ## Home Kingdom information
 * Channels only Members of the Home Kingdom see, shown to its Kingdom role (e.g. `#330`)
@@ -288,6 +298,7 @@ discovery.
 * A named kind of Event, with its Reminder lead times and, if it has a Sign-up, its Sign-up Deadline offset
 * Each Alliance keeps its own list, managed by the Members Linked to its R4 or R5. The kingdom's list is managed by the Officers
 * Neil gives an Event the kind whose name appears in the Discord event's name, looking only in that Event's own list (the Alliance's or the kingdom's). With no match, one Event Reminder goes out 30 minutes before the start, and there is no Sign-up Deadline
+* The kingdom's list also shows the built-in Shield kind: the lead times of the Shield Reminders, 12h, 4h and 1h before the Shield Deadline unless the Officers add a kind named Shield with their own. It has no Sign-up Deadline
 
 ## Sign-up
 * A Player's registration in the game for an Event, which must happen before the Sign-up Deadline
@@ -315,6 +326,33 @@ discovery.
 * Neil's card in `#event-announcements` at each daily reset, Monday to Saturday in Server Time: what scores in the Alliance Duel today, and what to save for a later day
 * Mentions nobody. Posted at most once per Duel day; if Neil was off at the reset, later that day, never on a later day
 * Its texts live in the repository, one per Duel day, and change through a pull request. The kingdom's Event Kinds list shows it as a built-in Alliance Duel line
+
+# Shield
+
+## KvK Week *(proposed)*
+* A week in which the Home Kingdom fights a KvK, marked by an Officer with `/kvk-week mark`: always the week of the next Shield Deadline
+* Shield Reminders go out only in a KvK Week. Unmarking it stops them and deletes its Shield Confirmations
+
+## Shield Deadline *(proposed)*
+* Friday's reset before the KvK: Saturday 00:00 Server Time (02:00 UTC). Every Shield Reminder counts back from it
+* At that moment the next week's Shield Deadline begins
+
+## Shield Reminder *(proposed)*
+* Neil's message in each Alliance's `alliance-chat` at a lead time of the Shield kind before the Shield Deadline, in a KvK Week only
+* Mentions the Alliance's Linked Members who have no Shield Confirmation and no Shield Reminders Off, and carries the Shielded button. Neil cannot see shields in the game, so it relies on the button
+* Each lead time goes out at most once; lead times missed collapse into one reminder
+
+## Shield Confirmation *(proposed)*
+* A Member's press of Shielded for a week: no more Shield Reminders mention them that week
+* Deleted after the Shield Deadline, when the week is unmarked, and at Unlink
+
+## Shield Reminders Off *(proposed)*
+* A Member's recorded choice, with `/shield-reminders off`, not to be mentioned in Shield Reminders; until they record it, they are mentioned
+* They may still press Shielded, and the Shield List shows them apart. Forgotten at Unlink
+
+## Shield List *(proposed)*
+* Neil's list after each Shield Reminder round, in the Alliance Leaders channel: how many of the Alliance's Linked Members have confirmed, who has not, and who has Shield Reminders Off
+* Names Members but pings nobody, so the R4s and R5s can follow up in the game
 
 # Raid
 
