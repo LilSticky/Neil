@@ -392,6 +392,22 @@ const migrations = [
      at TEXT NOT NULL,
      PRIMARY KEY (motion_id, alliance_tag)
    )`,
+    // 27: the NaP Rules (slice 044, ADR 26). nap_rules_versions keeps every NaP Rules Version: its number (one per proposal,
+    // also a rejected one), its text and the note on what changed, the Discord user id of the Member who proposed it, when,
+    // its state (proposed, approved or rejected; in effect and replaced are worked out, never stored), when it was decided,
+    // and the id of the NaP Motion it was put to. Rows are kept as long as the NaP history and are not deleted at Unlink.
+    `CREATE TABLE nap_rules_versions (
+     number INTEGER PRIMARY KEY CHECK (number >= 1),
+     text TEXT NOT NULL CHECK (text <> ''),
+     change TEXT NOT NULL CHECK (change <> ''),
+     proposed_by TEXT NOT NULL CHECK (proposed_by <> '' AND proposed_by NOT GLOB '*[^0-9]*'),
+     proposed_at TEXT NOT NULL,
+     status TEXT NOT NULL CHECK (status IN ('proposed', 'approved', 'rejected')),
+     decided_at TEXT,
+     motion INTEGER,
+     CHECK ((status = 'proposed') = (decided_at IS NULL)),
+     CHECK (status = 'proposed' OR motion IS NOT NULL)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

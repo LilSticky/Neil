@@ -17,6 +17,8 @@ import { createNap } from "./nap.js";
 import { NAP_APPROVE_PREFIX, NAP_DECLINE_PREFIX, napMessages } from "./nap-texts.js";
 import { createNapMotions } from "./nap-motions.js";
 import { NAP_MOTION_APPROVE_PREFIX, NAP_MOTION_DECLINE_PREFIX } from "./nap-motion-texts.js";
+import { createNapRules } from "./nap-rules.js";
+import { NAP_RULES_PREFIX } from "./nap-rules-texts.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
 import { handleEventInvitations } from "./event-invitations.js";
@@ -303,6 +305,8 @@ export function createClient(handlers, options) {
         if (interaction.isModalSubmit()) {
             if (interaction.customId.startsWith(INTERVIEW_PREFIX))
                 void handlers.interviewModal(interaction);
+            else if (interaction.customId.startsWith(NAP_RULES_PREFIX))
+                void handlers.napRulesModal(interaction);
             return;
         }
         if (interaction.isButton()) {
@@ -763,8 +767,26 @@ function napMotionButtonLike(button) {
         reply: (options) => button.reply(options),
     };
 }
-/** Hands a /nap command to the NaP register's subcommand, or /nap motion to NaP Motions. */
-async function routeNap({ nap, napMotions }, interaction) {
+/** The discord.js /nap rules, rules-history and rules-propose command as the NaP Rules read it. */
+function napRulesCommandLike(command) {
+    return {
+        user: command.user,
+        options: { getInteger: (name) => command.options.getInteger(name) },
+        reply: (options) => command.reply(options),
+        showModal: (modal) => command.showModal(modal),
+    };
+}
+/** The discord.js submit of the /nap rules-propose form as the NaP Rules read it. */
+function napRulesModalLike(modal) {
+    return {
+        customId: modal.customId,
+        user: modal.user,
+        fields: { getTextInputValue: (id) => modal.fields.getTextInputValue(id) },
+        reply: (options) => modal.reply(options),
+    };
+}
+/** Hands a /nap command to the NaP register's subcommand, /nap motion to NaP Motions, or /nap rules… to the NaP Rules. */
+async function routeNap({ nap, napMotions, napRules }, interaction) {
     const command = napCommandLike(interaction);
     switch (interaction.options.getSubcommand()) {
         case "show":
@@ -781,6 +803,15 @@ async function routeNap({ nap, napMotions }, interaction) {
             break;
         case "motion":
             await napMotions.open(napMotionCommandLike(interaction));
+            break;
+        case "rules":
+            await napRules.show(napRulesCommandLike(interaction));
+            break;
+        case "rules-history":
+            await napRules.history(napRulesCommandLike(interaction));
+            break;
+        case "rules-propose":
+            await napRules.propose(napRulesCommandLike(interaction));
             break;
         default:
             await replyPrivately(interaction, napMessages.unknownSubcommand);
@@ -1200,6 +1231,7 @@ export async function connect(token, options) {
         nap: (interaction) => answer("/nap", { logError }, async () => routeNap(await services, interaction)),
         napButton: (button) => answer("nap button", { logError }, async () => (await services).nap.vote(napButtonLike(button))),
         napMotionButton: (button) => answer("nap motion button", { logError }, async () => (await services).napMotions.vote(napMotionButtonLike(button))),
+        napRulesModal: (modal) => answer("nap rules form", { logError }, async () => (await services).napRules.submit(napRulesModalLike(modal))),
         kingMoveButton: (button) => answer("king move button", { logError }, async () => (await services).kingMoves.apply(kingMoveButtonLike(button))),
     }, { guildId: options.guildId, logError });
     // The sweeper and the Daily Sync run from the moment the channels are checked (the Daily Sync from the end of the startup
@@ -1507,6 +1539,16 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The NaP Rules (ADR 26): proposed through a NaP Motion, settled on the tick after the NaP Motions', announced in
+        // #nap-announcements through the same server; their lines in #neil-log.
+        const napRules = createNapRules({
+            store: options.napRules,
+            motions: napMotions,
+            motionOf: (id) => options.napMotions.get(id),
+            server: cityRotationServer,
+            now,
+            logError,
+        });
         // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
         const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
         const raidPlanning = createRaidPlanning({
@@ -1553,6 +1595,7 @@ export async function connect(token, options) {
             kingMoves,
             nap,
             napMotions,
+            napRules,
             raidPlanning,
             availabilityPoll,
             interviews,
@@ -1643,7 +1686,7 @@ export async function connect(token, options) {
             };
         });
         // The Events ahead are invited at startup; the reminders, the Duel Plan, the Handover Reminders, then the City Rotation,
-        // the NaP Votes, the NaP Motions and the Raid clock are ticked once a minute, until disconnect stops them.
+        // the NaP Votes, the NaP Motions, the NaP Rules and the Raid clock are ticked once a minute, until disconnect stops them.
         void eventInvitations.onStartup();
         // The pinned City Rotation card is brought up to date once at startup.
         void cityRotation.refreshCard();
@@ -1662,6 +1705,7 @@ export async function connect(token, options) {
                 .then(() => cityRotation.tick())
                 .then(() => nap.tick())
                 .then(() => napMotions.tick())
+                .then(() => napRules.tick())
                 .then(() => raidClock.tick())
                 .then(() => availabilityClock.tick())
                 .finally(() => {

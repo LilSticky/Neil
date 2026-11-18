@@ -36,12 +36,48 @@ export function createNapMotions(deps) {
     async function replyPrivately(to, content) {
         await to.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions });
     }
-    async function open(command) {
-        const opener = command.user.id;
-        const tag = r5AllianceOf(opener);
+    /** The NaP Council member's Alliance in the NaP; undefined when the Member may not open a NaP Motion. */
+    function councilOf(memberId) {
+        const tag = r5AllianceOf(memberId);
         const history = deps.napHistory();
         const council = napMembers(history).find((member) => tag !== undefined && sameTag(member.tag, tag));
-        if (council === undefined || !mayOpenMotion(tag, history)) {
+        return council !== undefined && mayOpenMotion(tag, history) ? council : undefined;
+    }
+    /** Stores the motion and posts it in #nap-leaders; a motion that could not be posted is removed again. */
+    async function openMotion(opener, council, text, hours) {
+        const openedAt = deps.now();
+        const endsAt = motionEndsAt(openedAt, hours);
+        const id = store.add({ text, openedBy: opener, openerTag: council.tag, openedAt, endsAt });
+        const channelId = server.leadersChannelId();
+        if (channelId === undefined) {
+            store.remove(id);
+            return { kind: "no-leaders" };
+        }
+        try {
+            const messageId = await server.post(channelId, {
+                content: messages.motion(id, opener, labeller()(council.tag), text, endsAt),
+                components: [napMotionVoteRow(id)],
+                allowedMentions,
+            });
+            store.setMessage(id, channelId, messageId);
+        }
+        catch (error) {
+            store.remove(id);
+            return { kind: "post-failed", reason: reasonOf(error) };
+        }
+        await log(messages.logOpened(opener, council.tag, id, endsAt));
+        return { kind: "opened", id, endsAt };
+    }
+    async function openFor(memberId, text) {
+        const council = councilOf(memberId);
+        if (council === undefined)
+            return { kind: "refused" };
+        return openMotion(memberId, council, text, NAP_MOTION_DEFAULT_HOURS);
+    }
+    async function open(command) {
+        const opener = command.user.id;
+        const council = councilOf(opener);
+        if (council === undefined) {
             await replyPrivately(command, messages.refusedOpen);
             return;
         }
@@ -59,32 +95,23 @@ export function createNapMotions(deps) {
             await replyPrivately(command, messages.badHours);
             return;
         }
-        const openedAt = deps.now();
-        const endsAt = motionEndsAt(openedAt, hours);
-        const id = store.add({ text, openedBy: opener, openerTag: council.tag, openedAt, endsAt });
-        const channelId = server.leadersChannelId();
-        if (channelId === undefined) {
-            store.remove(id);
-            await replyPrivately(command, messages.noLeaders);
-            await log(messages.logNoLeaders(opener));
-            return;
+        const opening = await openMotion(opener, council, text, hours);
+        switch (opening.kind) {
+            case "opened":
+                await replyPrivately(command, messages.opened(opening.id, opening.endsAt));
+                return;
+            case "no-leaders":
+                await replyPrivately(command, messages.noLeaders);
+                await log(messages.logNoLeaders(opener));
+                return;
+            case "post-failed":
+                await replyPrivately(command, messages.postFailed);
+                await log(messages.logPostFailed(opener, opening.reason));
+                return;
+            case "refused":
+                await replyPrivately(command, messages.refusedOpen);
+                return;
         }
-        try {
-            const messageId = await server.post(channelId, {
-                content: messages.motion(id, opener, labeller()(council.tag), text, endsAt),
-                components: [napMotionVoteRow(id)],
-                allowedMentions,
-            });
-            store.setMessage(id, channelId, messageId);
-        }
-        catch (error) {
-            store.remove(id);
-            await replyPrivately(command, messages.postFailed);
-            await log(messages.logPostFailed(opener, reasonOf(error)));
-            return;
-        }
-        await replyPrivately(command, messages.opened(id, endsAt));
-        await log(messages.logOpened(opener, council.tag, id, endsAt));
     }
     async function vote(button) {
         const pressed = napMotionVoteOf(button.customId);
@@ -223,7 +250,7 @@ export function createNapMotions(deps) {
             await log(messages.logAnnouncementFailed(id, reasonOf(error)));
         }
     }
-    return { open, vote, tick };
+    return { open, mayOpen: (memberId) => councilOf(memberId) !== undefined, openFor, vote, tick };
 }
 function reasonOf(error) {
     return error instanceof Error ? error.message : String(error);
