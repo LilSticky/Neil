@@ -18,6 +18,7 @@ import { RaidStore } from "./storage/raid-store.js";
 import { AvailabilityStore } from "./storage/availability-store.js";
 import { NapMotionStore } from "./storage/nap-motion-store.js";
 import { NapRulesStore } from "./storage/nap-rules-store.js";
+import { ShieldStore } from "./storage/shield-store.js";
 import { NapStore } from "./storage/nap-store.js";
 import { EventStore } from "./storage/event-store.js";
 import { DailySyncStore } from "./storage/daily-sync-store.js";
@@ -119,6 +120,7 @@ function stubStores(): {
   readonly nap: NapStore;
   readonly napMotions: NapMotionStore;
   readonly napRules: NapRulesStore;
+  readonly shield: ShieldStore;
 } {
   return {
     memberUsage: new MemberUsageStore(new DatabaseSync(":memory:")),
@@ -132,6 +134,7 @@ function stubStores(): {
     nap: new NapStore(new DatabaseSync(":memory:")),
     napMotions: new NapMotionStore(new DatabaseSync(":memory:")),
     napRules: new NapRulesStore(new DatabaseSync(":memory:")),
+    shield: new ShieldStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     preferences: createPreferenceStore(new DatabaseSync(":memory:")),
     reaper: new ReaperStore(new DatabaseSync(":memory:")),
@@ -287,6 +290,7 @@ describe("start", () => {
     expect(seen[0]?.nap).toBe(fake.stores.nap);
     expect(seen[0]?.napMotions).toBe(fake.stores.napMotions);
     expect(seen[0]?.napRules).toBe(fake.stores.napRules);
+    expect(seen[0]?.shield).toBe(fake.stores.shield);
     expect(seen[0]?.fighterClassThresholds).toEqual({
       whale: { bracket: "T10", might: 150_000_000 },
       dolphin: { bracket: "T9", might: 60_000_000 },

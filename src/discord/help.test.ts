@@ -122,10 +122,10 @@ describe("handleHelp for an Officer", () => {
 
     await handleHelp(interaction, contextWith());
 
-    expect(interaction.replies[0]?.embeds).toHaveLength(1);
+    expect(interaction.replies[0]?.embeds).toHaveLength(2);
     expect(interaction.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
     expect(interaction.replies[0]?.allowedMentions).toEqual(NO_MENTIONS);
-    const embed = interaction.replies[0]?.embeds?.[0] as APIEmbed | undefined;
+    const embed = interaction.replies[0]?.embeds?.[1] as APIEmbed | undefined;
     expect(textOf(embed)).toContain("`/quota` — Show today's Daily Quota of Game API requests (Officers)");
     expect(textOf(embed)).toContain("`/rank <member> <rank>`");
     expect(textOf(embed)).toContain("`/link <member> <uid>`");

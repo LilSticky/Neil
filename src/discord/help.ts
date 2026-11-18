@@ -30,7 +30,7 @@ export async function handleHelp(interaction: HelpInteraction, context: HelpCont
   let answer: Pick<InteractionReplyOptions, "content" | "embeds">;
   try {
     const officer = isOfficer(interaction.memberRoleIds(), context.officerRoleIds);
-    answer = { embeds: [helpReply(context.commands, { officer })] };
+    answer = { embeds: helpReply(context.commands, { officer }) };
   } catch (error) {
     context.logError(`Building /help failed: ${error instanceof Error ? error.message : String(error)}`);
     answer = { content: HELP_UNAVAILABLE };

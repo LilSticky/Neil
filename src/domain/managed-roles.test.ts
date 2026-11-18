@@ -1,5 +1,12 @@
 import { describe, expect, test } from "vitest";
-import { allianceRoleName, tagOfAllianceRole, isManagedRoleName, planApply, rolesFor } from "./managed-roles.js";
+import {
+  allianceLeadersRoleName,
+  allianceRoleName,
+  tagOfAllianceRole,
+  isManagedRoleName,
+  planApply,
+  rolesFor,
+} from "./managed-roles.js";
 import {
   allied,
   approvedRank,
@@ -18,7 +25,20 @@ describe("rolesFor", () => {
   test("gives the Alliance, Alliance Rank, Kingdom and Troop Bracket roles to a Home Kingdom Player", () => {
     const player = allied({ name: "Rogue", kingdom: 330, sanctuaryLevel: 21, tag: "NML", rank: "R4" });
 
-    expect(rolesFor(player, gameApiRank("R4"), HOME_KINGDOM, LEVELS)).toEqual(["[NML]", "R4", "#330", "T7"]);
+    expect(rolesFor(player, gameApiRank("R4"), HOME_KINGDOM, LEVELS)).toEqual(["[NML]", "R4", "[NML] Leaders", "#330", "T7"]);
+  });
+
+  test("gives an R5 the Alliance Leaders Role, from the Game API or a Rank Approval", () => {
+    const player = allied({ name: "Rogue", kingdom: 330, sanctuaryLevel: 6, tag: "NML", rank: "R5" });
+
+    expect(rolesFor(player, gameApiRank("R5"), HOME_KINGDOM, LEVELS)).toContain("[NML] Leaders");
+    expect(rolesFor(player, approvedRank("R5"), HOME_KINGDOM, LEVELS)).toContain("[NML] Leaders");
+  });
+
+  test.each(["R1", "R2", "R3"] as const)("gives an %s no Alliance Leaders Role", (rank) => {
+    const player = allied({ name: "Rogue", kingdom: 330, sanctuaryLevel: 6, tag: "NML", rank });
+
+    expect(rolesFor(player, gameApiRank(rank), HOME_KINGDOM, LEVELS).some((role) => role.endsWith("Leaders"))).toBe(false);
   });
 
   test("gives the Alliance Rank from a Rank Approval", () => {
@@ -52,7 +72,23 @@ describe("rolesFor", () => {
   });
 });
 
+describe("allianceLeadersRoleName", () => {
+  test("is the Alliance role's name, then Leaders, and never reads as an Alliance role", () => {
+    expect(allianceLeadersRoleName("NML")).toBe("[NML] Leaders");
+    expect(tagOfAllianceRole("[NML] Leaders")).toBeUndefined();
+  });
+});
+
 describe("isManagedRoleName", () => {
+  test("recognises the Alliance Leaders Role of any tag", () => {
+    expect(isManagedRoleName("[NML] Leaders", [])).toBe(true);
+    expect(isManagedRoleName("[OLD] Leaders", ["NML"])).toBe(true);
+  });
+
+  test.each(["Leaders", "NML Leaders", "[NML] leaders"])("does not recognise %j as an Alliance Leaders Role", (name) => {
+    expect(isManagedRoleName(name, [])).toBe(false);
+  });
+
   test.each(["R1", "R2", "R3", "R4", "R5"])("recognises the Alliance Rank role %s", (name) => {
     expect(isManagedRoleName(name, [])).toBe(true);
   });

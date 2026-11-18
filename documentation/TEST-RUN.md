@@ -540,6 +540,20 @@ Branch `develop` after the merge.
 | 6ad.4 | A second council member runs `/nap rules-propose` | Refused privately, naming version 1 | | |
 | 6ad.5 | The council approves the motion; wait until its deadline and a minute | `#nap-announcements` has "NaP Rules version 1 are now in effect" with what changed and the full text, mentioning nobody; the Interaction Bot's translated copies show it; `/nap rules` shows version 1 | | |
 | 6ad.6 | Propose version 2 and let its motion be rejected | No rules announcement for version 2; `/nap rules` still shows version 1; `/nap rules-history` lists 2 rejected and 1 in effect, naming no Member | | |
+## 6ae. Shield before the reset (slice 045, issue #118)
+
+Setup: the setup script applied (each Alliance area has `alliance-leaders` and its `[TAG] Leaders` role),
+`npm run commands:register` run; test accounts Linked to an R5 or R4 and to an R1 of one Alliance, and an Officer. Branch
+`develop` after the merge.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6ae.1 | Through Police, read the Alliance area and the role list | `alliance-leaders` is seen only by `[TAG] Leaders`, Neil (and Police); the Linked R5 or R4 holds `[TAG] Leaders`, the R1 does not | | |
+| 6ae.2 | The R1 runs `/kvk-week mark`; the Officer runs `/kvk-week show`, then `mark` | The R1 is refused privately; the Officer sees "not a KvK Week", then the Friday's reset as Discord timestamps; one `#neil-log` line | | |
+| 6ae.3 | Wait a minute (the late reminder) | A Shield Reminder in `alliance-chat` mentioning the Linked Members, with the Shielded button; a Shield List in `alliance-leaders`, pinging nobody | | |
+| 6ae.4 | The R1 presses Shielded twice; a Member of another Alliance presses it | Recorded, then already recorded; the other Member is refused; all private | | |
+| 6ae.5 | `/shield-reminders off`, then without option | Off recorded; shown as off; the next Shield List shows the Member under Shield Reminders Off | | |
+| 6ae.6 | The Officer runs `/kvk-week unmark` | Unmarked; no more Shield Reminders; one `#neil-log` line | | |
 
 ## 7. Afterwards
 

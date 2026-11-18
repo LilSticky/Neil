@@ -62,7 +62,9 @@ Check: `/ping` answers.
 ## 6. Add Alliance areas
 
 An Alliance's role, for example `[NML]`, appears with its first Linked Member. Then run step 3 again: the script builds an area
-for every `[TAG]` role, seen by that role only, and lets Neil post in its `alliance-chat` for Booty Calls. The same goes for each new Alliance.
+for every `[TAG]` role, seen by that role only, and lets Neil post in its `alliance-chat` for Booty Calls and Shield Reminders.
+It also creates the Alliance's `[TAG] Leaders` role and its `alliance-leaders` channel, which only that role and Neil see: Neil
+gives the role to the Alliance's Linked R4s and R5s and posts the Shield Lists there. The same goes for each new Alliance.
 
 ## 7. Follow the official news
 
