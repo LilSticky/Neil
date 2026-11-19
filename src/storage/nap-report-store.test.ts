@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { Uid } from "../domain/lookup-input.js";
 import { openDatabase } from "./database.js";
+import { LinkStore } from "./link-store.js";
 import { NapReportStore } from "./nap-report-store.js";
 
 const REPORTER = "111111111111111111";
@@ -123,6 +124,44 @@ describe("NapReportStore", () => {
       const store = new NapReportStore(db);
       expect(() => store.reports()).toThrow("corrupt");
       expect(() => store.proposals()).toThrow("corrupt");
+    } finally {
+      db.close();
+    }
+  });
+
+  test("keeps the report and its decided proposal after the reporter's and the proposer's Unlink", () => {
+    const db = openDatabase(dataDir);
+    try {
+      const links = new LinkStore(db);
+      for (const [memberId, uid] of [
+        [REPORTER, "145563254785"],
+        [PROPOSER, "145563254786"],
+      ] as const) {
+        links.confirm(
+          {
+            link: {
+              memberId,
+              uid: uid as Uid,
+              linkedAt: REPORTED,
+              allianceRank: { source: "no-alliance" },
+              madeBy: { kind: "in-game-proof" },
+            },
+          },
+          () => undefined,
+        );
+      }
+      const store = new NapReportStore(db);
+      store.file(REPORT);
+      store.setThread(1, THREAD);
+      const id = store.propose({ report: 1, outcome: "warning", note: undefined, proposedBy: PROPOSER, proposedAt: REPORTED });
+      store.setMotion(id, 1);
+      store.decide(id, "approved", DECIDED);
+
+      expect(links.unlink(REPORTER)).toBeDefined();
+      expect(links.unlink(PROPOSER)).toBeDefined();
+
+      expect(store.reports()).toEqual([{ number: 1, ...REPORT, threadId: THREAD }]);
+      expect(store.proposals().map((proposal) => [proposal.proposedBy, proposal.status.kind])).toEqual([[PROPOSER, "approved"]]);
     } finally {
       db.close();
     }
