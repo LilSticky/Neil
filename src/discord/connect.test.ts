@@ -21,6 +21,7 @@ import { EventStore } from "../storage/event-store.js";
 import { HandoverStore } from "../storage/handover-store.js";
 import { NapMotionStore } from "../storage/nap-motion-store.js";
 import { NapRulesStore } from "../storage/nap-rules-store.js";
+import { NapReportStore } from "../storage/nap-report-store.js";
 import { ShieldStore } from "../storage/shield-store.js";
 import { NapStore } from "../storage/nap-store.js";
 import { RaidStore } from "../storage/raid-store.js";
@@ -323,6 +324,7 @@ describe("connect", () => {
       nap: new NapStore(db),
       napMotions: new NapMotionStore(db),
       napRules: new NapRulesStore(db),
+      napReports: new NapReportStore(db),
       shield: new ShieldStore(db),
     };
   }

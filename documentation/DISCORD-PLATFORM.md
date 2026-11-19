@@ -168,6 +168,21 @@ Sources: <https://docs.discord.com/developers/resources/message>,
   the layout grants. Neil does not crosspost (Publish) the message to following servers. Whether Interaction Bot
   translates a bot's embed into the translated copies is not verified yet.
 
+### Private threads
+
+Sources: <https://docs.discord.com/developers/topics/threads>,
+<https://docs.discord.com/developers/resources/channel#start-thread-without-message>
+
+- A private thread (`ChannelType.PrivateThread`) is seen only by its members and by those with Manage Threads on the
+  parent channel. **A member must also be able to see the parent channel**: someone added to a private thread under a
+  channel they cannot view does not see the thread. So a NaP Report's thread lives under `#nap-leaders`, which every R5
+  (the NaP Council, and so the accused Alliance's R5) can see.
+- Neil opens them with `invitable: false`, so only Neil (and moderators) add members, and needs **Create Private
+  Threads** and **Send Messages in Threads** on the parent (the setup script gives both in `#nap-leaders`). Adding a
+  member is one request per Member; a Member who cannot be added is named in the report's `#neil-log` line.
+- A thread archives itself after its auto-archive time (Neil uses one week); posting in it reopens it. Neil never
+  deletes, archives or locks a NaP Report's thread.
+
 ## Dates and times: Discord timestamps
 
 Source: <https://docs.discord.com/developers/reference#message-formatting> (timestamp styles), read on 2026-11-15.

@@ -1,4 +1,4 @@
-import { ChannelType, RESTJSONErrorCodes, type BaseMessageOptions } from "discord.js";
+import { ChannelType, RESTJSONErrorCodes, ThreadAutoArchiveDuration, type BaseMessageOptions } from "discord.js";
 import { describe, expect, test } from "vitest";
 import { cityRotationServerOf, type CityRotationGuildLike } from "./city-rotation-server.js";
 
@@ -12,6 +12,12 @@ interface FakeChannel {
   editError?: Error;
   send(message: BaseMessageOptions): Promise<{ readonly id: string }>;
   readonly messages: { edit(messageId: string): Promise<unknown>; pin(messageId: string): Promise<void> };
+  readonly created: unknown[];
+  readonly added: string[];
+  refuseAdd?: string;
+  readonly threads: {
+    create(options: unknown): Promise<{ readonly id: string; readonly members: { add(memberId: string): Promise<unknown> } }>;
+  };
 }
 
 function channelOf(id: string, type: ChannelType, name: string): FakeChannel {
@@ -35,6 +41,23 @@ function channelOf(id: string, type: ChannelType, name: string): FakeChannel {
       pin: (messageId) => {
         channel.pinned.push(messageId);
         return Promise.resolve();
+      },
+    },
+    created: [],
+    added: [],
+    threads: {
+      create: (options) => {
+        channel.created.push(options);
+        return Promise.resolve({
+          id: "900000000000000001",
+          members: {
+            add: (memberId) => {
+              if (memberId === channel.refuseAdd) return Promise.reject(new Error("Unknown Member"));
+              channel.added.push(memberId);
+              return Promise.resolve();
+            },
+          },
+        });
       },
     },
   };
@@ -109,5 +132,39 @@ describe("cityRotationServerOf", () => {
     await server.log("a line");
 
     expect(logged).toEqual([{ content: "a line", allowedMentions: { parse: [] } }]);
+  });
+
+  test("posts into a thread of a channel too", async () => {
+    const thread = channelOf("5", ChannelType.PrivateThread, "NaP report 1");
+    const server = cityRotationServerOf(guildOf([thread]), { log: () => Promise.resolve() });
+
+    expect(await server.post("5", { content: "report" })).toBe("800000000000000001");
+    expect(thread.sent).toEqual([{ content: "report" }]);
+  });
+
+  test("opens a private thread that only Neil invites to, adds the Members, and names who could not be added", async () => {
+    const channel = leaders();
+    channel.refuseAdd = "222222222222222222";
+    const server = cityRotationServerOf(guildOf([channel]), { log: () => Promise.resolve() });
+
+    const opened = await server.openPrivateThread("3", "NaP report 1 · [XYZ]", ["111111111111111111", "222222222222222222"]);
+
+    expect(opened).toEqual({ threadId: "900000000000000001", notAdded: ["222222222222222222"] });
+    expect(channel.created).toEqual([
+      {
+        name: "NaP report 1 · [XYZ]",
+        type: ChannelType.PrivateThread,
+        invitable: false,
+        autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+      },
+    ]);
+    expect(channel.added).toEqual(["111111111111111111"]);
+  });
+
+  test("opens a private thread only under a text channel", async () => {
+    const server = cityRotationServerOf(guildOf([announcements()]), { log: () => Promise.resolve() });
+
+    await expect(server.openPrivateThread("1", "NaP report 1", [])).rejects.toThrow("not a text channel");
+    await expect(server.openPrivateThread("9", "NaP report 1", [])).rejects.toThrow("not a text channel");
   });
 });

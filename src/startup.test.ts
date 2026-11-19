@@ -17,6 +17,7 @@ import { HandoverStore } from "./storage/handover-store.js";
 import { RaidStore } from "./storage/raid-store.js";
 import { AvailabilityStore } from "./storage/availability-store.js";
 import { NapMotionStore } from "./storage/nap-motion-store.js";
+import { NapReportStore } from "./storage/nap-report-store.js";
 import { NapRulesStore } from "./storage/nap-rules-store.js";
 import { ShieldStore } from "./storage/shield-store.js";
 import { NapStore } from "./storage/nap-store.js";
@@ -120,6 +121,7 @@ function stubStores(): {
   readonly nap: NapStore;
   readonly napMotions: NapMotionStore;
   readonly napRules: NapRulesStore;
+  readonly napReports: NapReportStore;
   readonly shield: ShieldStore;
 } {
   return {
@@ -134,6 +136,7 @@ function stubStores(): {
     nap: new NapStore(new DatabaseSync(":memory:")),
     napMotions: new NapMotionStore(new DatabaseSync(":memory:")),
     napRules: new NapRulesStore(new DatabaseSync(":memory:")),
+    napReports: new NapReportStore(new DatabaseSync(":memory:")),
     shield: new ShieldStore(new DatabaseSync(":memory:")),
     dailySync: new DailySyncStore(new DatabaseSync(":memory:")),
     preferences: createPreferenceStore(new DatabaseSync(":memory:")),
@@ -290,6 +293,7 @@ describe("start", () => {
     expect(seen[0]?.nap).toBe(fake.stores.nap);
     expect(seen[0]?.napMotions).toBe(fake.stores.napMotions);
     expect(seen[0]?.napRules).toBe(fake.stores.napRules);
+    expect(seen[0]?.napReports).toBe(fake.stores.napReports);
     expect(seen[0]?.shield).toBe(fake.stores.shield);
     expect(seen[0]?.fighterClassThresholds).toEqual({
       whale: { bracket: "T10", might: 150_000_000 },

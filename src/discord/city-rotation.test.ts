@@ -100,6 +100,9 @@ class FakeServer implements CityRotationServer {
   kingdomAnnouncementsChannelId(): string | undefined {
     return this.kingdomNews;
   }
+  openPrivateThread(): Promise<{ readonly threadId: string; readonly notAdded: readonly string[] }> {
+    return Promise.reject(new Error("The City Rotation opens no threads."));
+  }
   post(channelId: string, message: BaseMessageOptions): Promise<string> {
     if (this.refusePost) return Promise.reject(new Error("Missing Permissions"));
     const id = this.nextId.toString();
