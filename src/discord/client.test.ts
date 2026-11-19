@@ -81,6 +81,9 @@ function handlers() {
     bootyAlertsAutocomplete: vi.fn(() => Promise.resolve()),
     eventInvitations: vi.fn(() => Promise.resolve()),
     eventKinds: vi.fn(() => Promise.resolve()),
+    shieldReminders: vi.fn(() => Promise.resolve()),
+    kvkWeek: vi.fn(() => Promise.resolve()),
+    shieldButton: vi.fn(() => Promise.resolve()),
     raidPlan: vi.fn(() => Promise.resolve()),
     raidPlanAutocomplete: vi.fn(() => Promise.resolve()),
     raidButton: vi.fn(() => Promise.resolve()),
@@ -402,6 +405,34 @@ describe("createClient", () => {
     expect(routed.bootyAlerts).not.toHaveBeenCalled();
     expect(routed.quota).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands /shield-reminders and /kvk-week to their handlers and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const reminders = chatInput("shield-reminders");
+    const kvkWeek = chatInput("kvk-week");
+
+    client.emit(Events.InteractionCreate, reminders as never);
+    client.emit(Events.InteractionCreate, kvkWeek as never);
+
+    expect(routed.shieldReminders).toHaveBeenCalledWith(reminders);
+    expect(routed.kvkWeek).toHaveBeenCalledWith(kvkWeek);
+    expect(routed.shieldReminders).toHaveBeenCalledTimes(1);
+    expect(routed.kvkWeek).toHaveBeenCalledTimes(1);
+    expect(routed.eventKinds).not.toHaveBeenCalled();
+  });
+
+  test("hands a button whose custom id starts with shield: to the Shielded button handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const interaction = component("button", "shield:2026-11-21");
+
+    client.emit(Events.InteractionCreate, interaction as never);
+
+    expect(routed.shieldButton).toHaveBeenCalledWith(interaction);
+    expect(routed.bootyButton).not.toHaveBeenCalled();
+    expect(routed.raidButton).not.toHaveBeenCalled();
   });
 
   test("hands /raid-plan to the Raid planning handler and nothing else", () => {

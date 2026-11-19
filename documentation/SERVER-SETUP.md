@@ -45,6 +45,7 @@ nickname and roles matching the game.
 | **Events** | Officers and an Alliance's R4 or R5 create; any Member | Create a Discord scheduled event (Server name → **Create Event**). An event named `[TAG] …` is that Alliance's; any other is the Kingdom's. Neil posts one Event Invitation, in `#event-announcements` mentioning the `Events` role, or in the Alliance's `alliance-chat` mentioning its members, with the links from the event's description as guides. Members who click **Interested** are reminded: 30 minutes before the start, or at the Event Kind's lead times, and before its Sign-up Deadline. Neil only announces an Alliance Event created by that Alliance's R4 or R5 or an Officer, and a Kingdom Event created by an Officer. `/event-kinds` keeps the Event Kinds (Officers for the Kingdom, R4 and R5 for their Alliance); `/event-invitations` switches the invitation mentions off. Neil sees only events in a channel it can view, or with **Somewhere Else** as the location. |
 | **City Rotation** | any Member sees; R5s in the rotation set it; Officers name the holder | `/rotation show` and a card Neil pins in `#nap-announcements` show the Holding Alliance, the next one and the next Royal City siege in your own time. `/rotation set` (Members Linked to the R5 of an Alliance in the rotation) sets the order by Alliance tag; `/rotation holder` (Officers) names the Holding Alliance, the only way when `CITY_ROTATION_MODE` is `contested`. After each Friday siege Neil names the expected Holding Alliance in `#nap-leaders` and asks its R5 (read fresh from the game) to confirm; an Officer may confirm instead. Every change goes to `#neil-log`. After each Handover Neil prepares a **King Move** in `#neil-log` (the new King: the receiving Alliance's R5; who loses King) and moves the King role only when an Officer presses Apply (ADR 21). |
 | **NaP** | any Member sees; R5s ask to join and leave; the NaP Council votes | A list Neil pins in `#nap-announcements` shows the Alliances in the NaP since when and the former members with when each left; Neil announces every join and leave there, and the `/alliance` card of a Home Kingdom Alliance has a NaP line. None of these names a Member (ADR 22). `/nap show` privately shows the same list and the join requests waiting with when their vote ends. `/nap join` (Members Linked to the R5 of a Home Kingdom Alliance) posts a join request with **Approve** and **Decline** buttons in `#nap-leaders`; the NaP Council (the Linked R5s of the Alliances in the NaP) votes on it for 48 hours, one vote per Alliance, changeable until then, and Neil edits the request with the result: more Approve than Decline approves, otherwise it is declined and the Alliance may ask again after 30 days (`/nap join` says when). While the NaP has no members an Officer approves or declines it at once. If the request's message is deleted, the R5 runs `/nap join` again and Neil posts it again. `/nap leave` (the R5 of an Alliance in the NaP) takes it out without approval. `/nap history` (NaP Council and Officers) shows every join, decline and leave with who asked, how it was decided (vote counts or the Officer) and when. Every step goes to `#neil-log`; Neil's NaP messages mention nobody. |
+| **Shield Reminders** | Officers mark the week; every Linked Member of an Alliance; its R4s and R5s see the list | `/kvk-week mark` (Officers) marks the week of the next Friday's reset (00:00 Server Time, 02:00 UTC Saturday) as a KvK Week; `unmark` and `show` too. In a KvK Week Neil posts a Shield Reminder in each Alliance's `alliance-chat` 12, 4 and 1 hour before the reset (the Shield line of `/event-kinds list:kingdom`; Officers change it with `/event-kinds add list:kingdom name:Shield`), mentioning the Alliance's Linked Members who have not pressed **Shielded**. After each round the Alliance's R4s and R5s get a Shield List in their `alliance-leaders`: who has confirmed, who has not, and who switched the reminders off with `/shield-reminders off`. It pings nobody. Neil can't see shields in the game, so it relies on the button. |
 | **Help** | any Member | `/help` privately lists the commands you can use, how to write them and what they are for. Officers see their commands too. |
 | **Ping** | any Member | `/ping` shows that Neil is online, and which version. Temporary. |
 
@@ -71,6 +72,7 @@ nickname and roles matching the game.
 | **Doctor** | Neil, at a start or at the first Link, or you | automatic | Held by every Linked Member, Guests included. |
 | Alliance roles (e.g. `[NML]`) | Neil, when first needed | automatic | One per Home Kingdom Alliance, its tag in brackets. Shows that Alliance's area. The brackets are how the setup script finds it, so don't give another role such a name. |
 | `R1`–`R5` | Neil, when first needed, or you | automatic | Alliance Rank, for Home Kingdom Alliances only. |
+| Alliance Leaders Roles (e.g. `[NML] Leaders`) | the setup script, or Neil when first needed | automatic | Held by the Linked R4s and R5s of that Alliance; Neil takes it off when the rank or Alliance changes or at Unlink. Shows that Alliance's `alliance-leaders` only. Give it no permissions. |
 | `#330`, `#331`, … | Neil, when first needed, or you | automatic | The Kingdom a Member's Player is in. `#<Home Kingdom>` shows nearly everything. |
 | `T1`–`T10` | Neil, when first needed | automatic | Troop Bracket. |
 | **Preference Roles**: languages (e.g. `Italian`), `Americas`, `Europe/Africa`, `Asia/Oceania`, `PvP`, `Events`, `Recruitment`, `Off-topic`, `NaP discussions`, `New`, `Intermediate`, `Veteran` | Neil, when first chosen, or you | automatic | Given by the Member's choices. Regions, `New` and `Intermediate` show no channel. |
@@ -144,7 +146,8 @@ Threads; in a voice channel View Channel, Connect and Speak ✅. So no role need
 | | closed KvK leaders' channel `#kvk-leaders`: Plan Confirmations, chases and deadlines, and the Availability Summary | `R5`, `R4`, War Council, King | 🟡 |
 | | a translated copy of the KvK announcements per translation language | that language's Preference Role | 🟡 |
 | Recruitment | general recruitment, and one text channel per Region (Americas, Europe/Africa, Asia/Oceania) | Recruitment | 🟡 |
-| One per Alliance | text, voice | that Alliance's tag | 🟡 |
+| One per Alliance | text (`alliance-chat`), voice | that Alliance's tag | 🟡 |
+| | closed leaders' channel `alliance-leaders`: the Shield Lists | that Alliance's Leaders Role (`[TAG] Leaders`) | 🟡 |
 
 The translation languages are Russian, French, Italian and German; change them under `translations` in `server-layout.json`.
 Every announcement reaches the whole Kingdom, whichever category it sits in.
@@ -210,7 +213,8 @@ or No (a person must do it).
 | Manage Roles and Manage Nicknames on Neil | All name and role changes; one line in the log | No |
 | Neil in `#onboarding`: View Channel, Send Messages in Threads, Create Private Threads, Manage Threads | Neil won't start | Yes* |
 | Neil in `#neil-log`: View Channel, Send Messages, Read Message History | Neil won't start | Yes* |
-| Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed | Yes* |
+| Neil in every `alliance-chat`: View Channel, Send Messages, Embed Links | No Booty Call card, or one without its embed; no Shield Reminders | Yes* |
+| Neil in every `alliance-leaders`: View Channel, Send Messages, Embed Links, Read Message History | No Shield List; one line in the log | Yes* |
 | Neil in `#nap-announcements` (the original, not the copies): View Channel, Send Messages, Embed Links, Read Message History, Pin Messages | No pinned City Rotation card or NaP list, no NaP join and leave announcements; one line in the log | Yes* |
 | Neil in `#nap-leaders`: View Channel, Send Messages | No Handover question after the Royal City siege, no NaP join requests (`/nap join` is refused) or leave notices; one line in the log | Yes* |
 | Neil in `#kvk-announcements` (View Channel, Send Messages, Embed Links) and `#kvk-leaders` (also Read Message History), with War Council configured | No Battle Plan card, confirmation card, chase or deadline notice | Yes* |
@@ -252,12 +256,12 @@ can use every command everywhere, so test with an account that isn't one.
 
 | Command | **Roles & Members** | **Channels** |
 |---------|---------------------|--------------|
-| `/quota`, `/rank`, `/link` | 🔴 add **Moderator** and **King** | 🟡 Moderator channel |
+| `/quota`, `/rank`, `/link`, `/kvk-week` | 🔴 add **Moderator** and **King** | 🟡 Moderator channel |
 | `/player`, `/alliance`, `/reaper` | leave as is | 🟡 `#alliance-hall` and the intel channels (PvP, Alliance Duel, Kingdom vs Kingdom) |
 | `/channels`, `/usage`, `/ping`, `/help` | leave as is | 🟡 `#alliance-hall` |
 | `/raid-plan` | leave as is: Neil refuses anyone without the War Council role | 🟡 `#kvk-leaders` (answers are private anyway) |
 | `/booty` | leave as is | 🔴 don't limit it, or allow every `alliance-chat`: it works nowhere else |
-| `/booty-alerts`, `/event-invitations` | leave as is | 🟡 `#alliance-hall` |
+| `/booty-alerts`, `/event-invitations`, `/shield-reminders` | leave as is | 🟡 `#alliance-hall` |
 | `/event-kinds` | leave as is (R4 and R5 use it too; Neil checks who may) | 🟡 `#alliance-hall` and the Moderator channel |
 | `/rotation` | leave as is (R5s and Officers use it too; Neil checks who may) | 🟡 `#alliance-hall`, `#nap-leaders` and the Moderator channel |
 | `/nap` | leave as is (R5s, the NaP Council and Officers use it too; Neil checks who may) | 🟡 `#alliance-hall`, `#nap-leaders` and the Moderator channel |

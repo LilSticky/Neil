@@ -41,6 +41,7 @@ describe("RaidStore", () => {
   });
 
   test("migration 17 applies to a version-16 database", () => {
+    db.exec("DROP TABLE shield_reminders_off; DROP TABLE shield_confirmation; DROP TABLE shield_reminder_sent; DROP TABLE kvk_week");
     db.exec("DROP TABLE nap_rules_versions; DROP TABLE nap_motion_votes; DROP TABLE nap_motions; DROP TABLE nap_list; DROP TABLE king_moves; DROP TABLE nap_votes; DROP TABLE nap_history; DROP TABLE nap_join_requests");
     db.exec("DROP TABLE availability_answers; DROP TABLE availability_cards; DROP TABLE availability_polls");
     db.exec("DROP TABLE handover_posts; DROP TABLE city_rotation; DROP TABLE raid_notices_sent; DROP TABLE raid_confirmations; DROP TABLE raids");
@@ -49,7 +50,7 @@ describe("RaidStore", () => {
 
     db = openDatabase(dataDir);
 
-    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 27 });
+    expect(db.prepare("SELECT MAX(version) AS version FROM schema_migrations").get()).toEqual({ version: 28 });
     expect(new RaidStore(db).find(RAID_ID)).toBeUndefined();
   });
 

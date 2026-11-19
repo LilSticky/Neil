@@ -21,6 +21,7 @@ import { FakeRolesGuild, type FakeRolesMember } from "./__fakes__/roles-guild.js
 import { FakeServerMembers } from "./__fakes__/server-members.js";
 import type { OfficerRoles } from "./interview-texts.js";
 import type { RoleLike } from "./member-roles.js";
+import { ShieldStore } from "../storage/shield-store.js";
 import { createUnlink } from "./unlink.js";
 import { rankHandedToOfficersMessage, unlinkedLogLine, unlinkedPrivateMessage, type UnlinkReason } from "./unlink-texts.js";
 
@@ -179,6 +180,7 @@ interface Harness {
   readonly events: EventStore;
   /** The Availability answers of the Members: a real store on the test database, which Unlink forgets from. */
   readonly availability: AvailabilityStore;
+  readonly shield: ShieldStore;
   readonly service: ReturnType<typeof createUnlink>;
 }
 
@@ -293,6 +295,7 @@ describe("createUnlink", () => {
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
     const availability = new AvailabilityStore(db);
+    const shield = new ShieldStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -304,6 +307,7 @@ describe("createUnlink", () => {
       bootyAlerts,
       events,
       availability,
+      shield,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -311,7 +315,7 @@ describe("createUnlink", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, shield, service };
   });
 
   afterEach(() => {
@@ -527,6 +531,16 @@ describe("createUnlink", () => {
       await h.service.unlink(LEAVER, reason);
 
       expect(member.roles.map((role) => role.name)).toEqual(["Friends"]);
+    });
+
+    test.each(CASES)("takes off the Alliance Leaders Role when %s Unlinks", async (_who, reason) => {
+      linkMember(h, LEAVER_ID, LEAVER_UID);
+      h.guild.defineRole("[NML] Leaders");
+      const member = joinServer(h, LEAVER_ID, ["R4", "[NML] Leaders"], undefined);
+
+      await h.service.unlink(LEAVER, reason);
+
+      expect(member.roles.map((role) => role.name)).toEqual([]);
     });
 
     test("takes off [NML] from a Member whose applied state still holds the old NML, when an Officer Unlinks them", async () => {
@@ -774,6 +788,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
     const availability = new AvailabilityStore(db);
+    const shield = new ShieldStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -785,6 +800,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
       bootyAlerts,
       events,
       availability,
+      shield,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -792,7 +808,7 @@ describe("createUnlink: the Preferences of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, shield, service };
   });
 
   afterEach(() => {
@@ -864,6 +880,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
     const availability = new AvailabilityStore(db);
+    const shield = new ShieldStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -875,6 +892,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
       bootyAlerts,
       events,
       availability,
+      shield,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -882,7 +900,7 @@ describe("createUnlink: the Booty Alerts of the Member are forgotten", () => {
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, shield, service };
   });
 
   afterEach(() => {
@@ -962,6 +980,7 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
     const bootyAlerts = new BootyAlertsStore(db);
     const events = new EventStore(db);
     const availability = new AvailabilityStore(db);
+    const shield = new ShieldStore(db);
     const service = createUnlink({
       links,
       applied,
@@ -973,6 +992,7 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
       bootyAlerts,
       events,
       availability,
+      shield,
       now: () => NOW,
       sendPrivateMessage: (memberId, message) => privateMessages.send(memberId, message),
       officerRoles: OFFICERS,
@@ -980,7 +1000,7 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
         errors.push(line);
       },
     });
-    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, service };
+    h = { links, applied, channels, privateMessages, errors, members, guild, onboardingRole, doctorRole, preferenceRoles, bootyAlerts, events, availability, shield, service };
   });
 
   afterEach(() => {
@@ -1047,5 +1067,73 @@ describe("createUnlink: the Event Invitations Off of the Member are forgotten", 
     await h.service.unlink(LEAVER, reason);
 
     expect(h.availability.answers("2026-11-21").map((answer) => answer.memberId)).toEqual([ALICE]);
+  });
+});
+
+describe("createUnlink: the Shield Confirmations and Shield Reminders Off of the Member are forgotten", () => {
+  let dataDir: string;
+  let db: DatabaseSync;
+  let shield: ShieldStore;
+  let errors: string[];
+  let service: ReturnType<typeof createUnlink>;
+  const WEEK = "2026-11-21";
+
+  beforeEach(() => {
+    dataDir = mkdtempSync(join(tmpdir(), "neil-unlink-shield-"));
+    db = openDatabase(dataDir);
+    shield = new ShieldStore(db);
+    errors = [];
+    service = createUnlink({
+      links: new LinkStore(db),
+      applied: new AppliedStore(db),
+      channels: new FakeChannels(),
+      members: new FakeServerMembers(),
+      onboardingRole: new FakeOnboardingRole(),
+      doctorRole: new FakeDoctorRole(),
+      preferenceRoles: new FakePreferenceRoles(),
+      bootyAlerts: new BootyAlertsStore(db),
+      events: new EventStore(db),
+      availability: new AvailabilityStore(db),
+      shield,
+      now: () => NOW,
+      sendPrivateMessage: () => Promise.resolve(),
+      officerRoles: OFFICERS,
+      logError: (line: string) => {
+        errors.push(line);
+      },
+    });
+  });
+
+  afterEach(() => {
+    db.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  test.each<[string, UnlinkReason]>([
+    ["the Member Unlinks themselves", "self"],
+    ["an Officer Unlinks the Member", BY_OFFICER],
+    ["the Member leaves the server", "left"],
+    ["the Member is found missing", "missing"],
+  ])("forgets them when %s, and keeps the other Members'", async (_case, reason) => {
+    shield.confirm(WEEK, LEAVER_ID, NOW);
+    shield.confirm(WEEK, ALICE, NOW);
+    shield.setOff(LEAVER_ID, true);
+    shield.setOff(ALICE, true);
+
+    await service.unlink(LEAVER, reason);
+
+    expect(shield.confirmed(WEEK)).toEqual(new Set([ALICE]));
+    expect(shield.isOff(LEAVER_ID)).toBe(false);
+    expect(shield.isOff(ALICE)).toBe(true);
+  });
+
+  test("a failure to forget them is logged, and the Unlink goes on", async () => {
+    vi.spyOn(shield, "forget").mockImplementation(() => {
+      throw new Error("database is locked");
+    });
+
+    await service.unlink(LEAVER, "left");
+
+    expect(errors).toEqual([expect.stringContaining(LEAVER_ID)]);
   });
 });

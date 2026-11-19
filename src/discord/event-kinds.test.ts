@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import type { EventKind } from "../domain/events.js";
 import { openDatabase } from "../storage/database.js";
 import { EventStore } from "../storage/event-store.js";
+import { ShieldStore } from "../storage/shield-store.js";
 import { FakeEventKindsInteraction, type EventKindsOptionValues } from "./__fakes__/event-kinds-interaction.js";
 import { FakeLinkStore } from "./__fakes__/link-store.js";
 import { handleEventKinds, type EventKindsContext } from "./event-kinds.js";
@@ -33,6 +34,15 @@ function allianceDuelLine(nextReset: string): string {
   return `- **Alliance Duel**: daily plan in #event-announcements at 00:00 Server Time, Monday to Saturday; next <t:${unix}:t> (<t:${unix}:R>)`;
 }
 
+/** The Shield line of the kingdom's list, with the next Shield Deadline as Discord timestamps. */
+function shieldLine(leads: string, deadline: string, marked: boolean): string {
+  const unix = Math.floor(new Date(deadline).getTime() / 1000).toString();
+  return `- **Shield**: ${leads} before Friday's reset; next <t:${unix}:F> (<t:${unix}:R>), KvK Week: ${marked ? "marked" : "not marked"}`;
+}
+
+/** The Shield Deadline after MONDAY_NOON: Saturday 21 November 2026, 02:00 UTC. */
+const NEXT_SHIELD_DEADLINE = "2026-11-21T02:00:00Z";
+
 /** An Event Kind with lead times and no Sign-up Deadline. */
 function plainKind(name: string, beforeStart: readonly number[]): EventKind {
   return { name, beforeStart, signupOffsetMinutes: undefined, beforeSignup: [] };
@@ -42,6 +52,7 @@ describe("/event-kinds", () => {
   let dataDir: string;
   let db: DatabaseSync;
   let events: EventStore;
+  let shield: ShieldStore;
   let links: FakeLinkStore;
   let logged: string[];
   let clock: Date;
@@ -51,6 +62,7 @@ describe("/event-kinds", () => {
     dataDir = mkdtempSync(join(tmpdir(), "neil-event-kinds-cmd-"));
     db = openDatabase(dataDir);
     events = new EventStore(db);
+    shield = new ShieldStore(db);
     links = new FakeLinkStore();
     logged = [];
     links.link(ALICE, { source: "game-api", rank: "R5" });
@@ -70,6 +82,7 @@ describe("/event-kinds", () => {
       links,
       events,
       officerRoleIds: [KING_ROLE.id, MODERATOR_ROLE.id],
+      shield,
       now: () => clock,
       logError: (message: string) => {
         logged.push(message);
@@ -380,6 +393,7 @@ describe("/event-kinds", () => {
         "- **KvK**: 24h before the start",
         "- **Alliance Duel**: 1h before the start",
         allianceDuelLine("2026-11-17T02:00:00Z"),
+        shieldLine("12h, 4h, 1h", NEXT_SHIELD_DEADLINE, false),
       ]);
     });
 
@@ -387,7 +401,11 @@ describe("/event-kinds", () => {
       const interaction = await run(DAN, [KING_ROLE], "list");
 
       expect(interaction.replies[0]?.content).toBe(
-        ["Event Kinds of the Home Kingdom:", allianceDuelLine("2026-11-17T02:00:00Z")].join("\n"),
+        [
+          "Event Kinds of the Home Kingdom:",
+          allianceDuelLine("2026-11-17T02:00:00Z"),
+          shieldLine("12h, 4h, 1h", NEXT_SHIELD_DEADLINE, false),
+        ].join("\n"),
       );
     });
 
@@ -397,6 +415,49 @@ describe("/event-kinds", () => {
       const interaction = await run(DAN, [KING_ROLE], "list");
 
       expect(interaction.replies[0]?.content).toContain(allianceDuelLine("2026-11-23T02:00:00Z"));
+    });
+
+    test("the Shield line shows the Officers' lead times after an add, and says when the week is marked", async () => {
+      await run(DAN, [KING_ROLE], "add", { list: "kingdom", name: "shield", "before-start": "6h, 30m" });
+      shield.mark("2026-11-21", MONDAY_NOON, DAN);
+
+      const interaction = await run(DAN, [KING_ROLE], "list");
+
+      const lines = (interaction.replies[0]?.content ?? "").split("\n");
+      expect(lines).toContain(shieldLine("6h, 30m", NEXT_SHIELD_DEADLINE, true));
+      expect(lines.filter((line) => line.toLowerCase().includes("shield"))).toHaveLength(1);
+    });
+
+    test("removing the Shield kind restores the default lead times", async () => {
+      await run(DAN, [KING_ROLE], "add", { list: "kingdom", name: "Shield", "before-start": "6h" });
+
+      const removed = await run(DAN, [KING_ROLE], "remove", { list: "kingdom", name: "Shield" });
+      const listed = await run(DAN, [KING_ROLE], "list");
+
+      expect(removed.replies[0]?.content).toContain("12h, 4h and 1h");
+      expect(listed.replies[0]?.content).toContain(shieldLine("12h, 4h, 1h", NEXT_SHIELD_DEADLINE, false));
+    });
+
+    test("refuses a Sign-up Deadline for the kingdom's Shield kind, and changes nothing", async () => {
+      const interaction = await run(DAN, [KING_ROLE], "add", {
+        list: "kingdom",
+        name: "Shield",
+        "before-start": "6h",
+        "signup-deadline": "2h",
+      });
+
+      expect(interaction.replies[0]?.content).toBe("The Shield kind has no Sign-up Deadline. Neil has changed nothing.");
+      expect(interaction.replies[0]?.flags).toBe(MessageFlags.Ephemeral);
+      expect(events.listKinds("kingdom")).toEqual([]);
+    });
+
+    test("an Alliance's list has no Shield line, and its own Shield kind is listed as a plain kind", async () => {
+      await run(ALICE, [NML_ROLE], "add", { name: "Shield", "before-start": "1h", "signup-deadline": "2h" });
+
+      const interaction = await run(ALICE, [NML_ROLE], "list");
+
+      expect(interaction.replies[0]?.content).not.toContain("Friday's reset");
+      expect(events.listKinds("NML")).toHaveLength(1);
     });
 
     test("an Alliance's list has no Alliance Duel line", async () => {
@@ -440,6 +501,7 @@ describe("/event-kinds", () => {
           removeKind: () => undefined,
         },
         officerRoleIds: [KING_ROLE.id],
+        shield,
         now: () => clock,
         logError: (message: string) => {
           logged.push(message);

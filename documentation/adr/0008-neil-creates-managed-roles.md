@@ -21,6 +21,12 @@ every new Alliance or Kingdom. Giving a bot Manage Roles is risky: it can give a
   `R5`, slice 028) does not count; any other permission still makes Neil refuse the role.
 - Neil adds and removes only Managed Roles; every other role of a Member is never touched. Amended in slice 013: the
   Onboarding Role is the one other role Neil gives and takes, found, created and refused by the same rules.
+- Amended 2026-11-18 (slice 045, issue #118): the Alliance Leaders Role `[TAG] Leaders` is a Managed Role too. Neil
+  gives it, with the Alliance role, to a Member Linked to the R4 or R5 of a Home Kingdom Alliance, and takes it off on a
+  rank or Alliance change and at Unlink, through the same paths as the other Managed Roles. Every `[TAG] Leaders` role
+  counts as managed, so one of an old tag is taken off as well. It is not an Alliance role: it gets no Alliance area and
+  is never renamed. The setup script also creates it, and gives it the only view of the Alliance's `alliance-leaders`
+  channel; Neil never changes channel permissions itself.
 - Neil's role sits above the Managed Roles and below Officer roles (server setup, HOSTING.md).
 - Per Link, Neil stores the nickname and Managed Role names it last applied, when, and whether the apply was
   complete. This is personal data under ADR 7 and is deleted with the Link.

@@ -234,6 +234,46 @@ describe("expandLayout: languages", () => {
 });
 
 describe("expandLayout: Alliance areas", () => {
+  const withLeaders: ServerLayout = {
+    ...layout,
+    allianceArea: {
+      channels: [
+        { name: "alliance-chat", type: "text", description: "A test channel." },
+        {
+          name: "alliance-leaders",
+          type: "text",
+          description: "A test channel.",
+          seenBy: ["<Alliance> Leaders"],
+          overwrites: { Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks", "ReadMessageHistory"], deny: [] } },
+        },
+      ],
+    },
+  };
+
+  test("each Alliance's alliance-leaders is seen only by that Alliance's Leaders Role and Neil", () => {
+    const result = expandLayout(withLeaders, HOME_KINGDOM, ["[ABC]", "[XYZ]"]);
+    for (const tag of ["ABC", "XYZ"]) {
+      const leaders = channelNamed(categoryNamed(result, `[${tag}]`), "alliance-leaders");
+      expect(targetsOf(leaders.overwrites)).toEqual(["@everyone", "Neil", `[${tag}] Leaders`]);
+      expect(overwriteFor(leaders.overwrites, "@everyone").deny).toEqual(["ViewChannel"]);
+      expect(new Set(overwriteFor(leaders.overwrites, `[${tag}] Leaders`).allow)).toEqual(
+        new Set(["ViewChannel", "ReadMessageHistory", "SendMessages"]),
+      );
+      expect(new Set(overwriteFor(leaders.overwrites, "Neil").allow)).toEqual(
+        new Set(["ViewChannel", "SendMessages", "EmbedLinks", "ReadMessageHistory"]),
+      );
+    }
+  });
+
+  test("the Leaders Role of each Alliance area is a wanted role, after the layout's roles", () => {
+    const roles = expandLayout(withLeaders, HOME_KINGDOM, ["[ABC]", "[XYZ]", "Friends"]).roles;
+    expect(roles.slice(-2)).toEqual(["[ABC] Leaders", "[XYZ] Leaders"]);
+  });
+
+  test("without a channel naming the Leaders Role, no Leaders Role is wanted", () => {
+    expect(expanded(["[ABC]"]).roles.some((role) => role.endsWith("Leaders"))).toBe(false);
+  });
+
   test("each [TAG] role gets a category of its name, seen by that role", () => {
     const area = categoryNamed(expanded(["[ABC]"]), "[ABC]");
     expect(overwriteFor(area.overwrites, "[ABC]").allow).toEqual(["ViewChannel"]);

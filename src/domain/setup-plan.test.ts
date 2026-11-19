@@ -355,6 +355,29 @@ function correctionFor(
 }
 
 describe("planSetup: roles", () => {
+  const leadersLayout: ServerLayout = {
+    ...layout,
+    allianceArea: {
+      channels: [
+        ...layout.allianceArea.channels,
+        { name: "alliance-leaders", type: "text", description: "A test channel.", seenBy: ["<Alliance> Leaders"] },
+      ],
+    },
+  };
+
+  test("a missing Alliance Leaders Role gets a create-role step, before the Alliance area's channels", () => {
+    const plan = planSetup(leadersLayout, server({ roles: [role("[NML]")] }), HOME_KINGDOM);
+    const createRole = plan.steps.findIndex((step) => step.kind === "create-role" && step.name === "[NML] Leaders");
+    const createChannel = plan.steps.findIndex((step) => "name" in step && step.name === "alliance-leaders");
+    expect(createRole).toBeGreaterThanOrEqual(0);
+    expect(createChannel).toBeGreaterThan(createRole);
+  });
+
+  test("an Alliance Leaders Role the server already has gets no create-role step", () => {
+    const plan = planSetup(leadersLayout, server({ roles: [role("[NML]"), role("[NML] Leaders")] }), HOME_KINGDOM);
+    expect(plan.steps).not.toContainEqual(expect.objectContaining({ kind: "create-role", name: "[NML] Leaders" }));
+  });
+
   test("a layout role missing from the server gets a create-role step", () => {
     const plan = planSetup(layout, server(), HOME_KINGDOM);
     expect(plan.steps).toContainEqual(

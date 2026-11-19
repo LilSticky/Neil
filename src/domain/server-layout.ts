@@ -1,6 +1,6 @@
 import { describeChannel } from "./channel-description.js";
 import { forumHowTo, type ForumHowTo } from "./forum-how-to.js";
-import { tagOfAllianceRole } from "./managed-roles.js";
+import { allianceLeadersRoleName, tagOfAllianceRole } from "./managed-roles.js";
 
 export type Permission =
   | "ViewChannel"
@@ -132,6 +132,8 @@ export const BOT_TARGET = "Neil";
 export const POLICE_TARGET = "Neil Police";
 
 const KINGDOM_PLACEHOLDER = "#<Home Kingdom>";
+/** In the Alliance area only: the Alliance Leaders Role of the Alliance the area is for (slice 045). */
+export const ALLIANCE_LEADERS_PLACEHOLDER = "<Alliance> Leaders";
 const KING_ROLE = "King";
 const TRANSLATION_BOT_ROLE = "Interaction Bot";
 const LANGUAGES_CATEGORY = "Languages";
@@ -191,6 +193,26 @@ export function expandLayout(layout: ServerLayout, homeKingdom: number, alliance
     overwrites: toOverwrites(categoryGrants(seenBy.map(resolve))),
     channels: channels.flatMap((channel) => expandWithCopies(channel, seenBy.map(resolve))),
   });
+  // An Alliance area names its own Leaders Role by the placeholder; it is resolved per Alliance, so only that
+  // Alliance's channels name it.
+  const expandAllianceArea = (roleName: string, tag: string): ExpandedCategory => {
+    const leadersRole = allianceLeadersRoleName(tag);
+    const withLeaders = (target: string): string => (target === ALLIANCE_LEADERS_PLACEHOLDER ? leadersRole : target);
+    const areaChannels = layout.allianceArea.channels.map(
+      (channel): LayoutChannel => ({
+        ...channel,
+        ...(channel.seenBy === undefined ? {} : { seenBy: channel.seenBy.map(withLeaders) }),
+        ...(channel.overwrites === undefined
+          ? {}
+          : {
+              overwrites: Object.fromEntries(
+                Object.entries(channel.overwrites).map(([target, spec]) => [withLeaders(target), spec]),
+              ),
+            }),
+      }),
+    );
+    return expand(roleName, [roleName], areaChannels);
+  };
 
   const categories = layout.categories.map((category) => expand(category.name, category.seenBy, category.channels));
   if (layout.languages.length > 0) {
@@ -207,13 +229,22 @@ export function expandLayout(layout: ServerLayout, homeKingdom: number, alliance
       ),
     );
   }
+  const leadersRoles: string[] = [];
+  const namesLeaders = layout.allianceArea.channels.some(
+    (channel) =>
+      (channel.seenBy ?? []).includes(ALLIANCE_LEADERS_PLACEHOLDER) ||
+      Object.hasOwn(channel.overwrites ?? {}, ALLIANCE_LEADERS_PLACEHOLDER),
+  );
   for (const roleName of allianceRoles) {
-    if (tagOfAllianceRole(roleName) === undefined) continue;
-    categories.push(expand(roleName, [roleName], layout.allianceArea.channels));
+    const tag = tagOfAllianceRole(roleName);
+    if (tag === undefined) continue;
+    categories.push(expandAllianceArea(roleName, tag));
+    if (namesLeaders) leadersRoles.push(allianceLeadersRoleName(tag));
   }
 
   return {
-    roles: [...layout.roles.map(resolve), ...layout.languages],
+    // The Alliance Leaders Roles the Alliance areas name are wanted too, so the setup creates them before the channels.
+    roles: [...layout.roles.map(resolve), ...layout.languages, ...leadersRoles],
     externalRoles: [...layout.externalRoles],
     categories,
   };

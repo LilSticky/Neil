@@ -253,7 +253,7 @@ describe("createNameAndRoles", () => {
       await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
 
       expect(alice.nickname).toBe("[NML|R4] Rogue");
-      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]", "[NML] Leaders"]);
       expect(h.gameApi.lookups).toEqual([]);
     });
 
@@ -315,7 +315,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
 
-      expect(heldNames(alice)).toEqual(["#330", "Officer", "R4", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "Officer", "R4", "T7", "[NML]", "[NML] Leaders"]);
     });
 
     test("keeps the nickname when the Player Name is empty, and still gives the roles", async () => {
@@ -325,7 +325,7 @@ describe("createNameAndRoles", () => {
       await h.service.onLinked(ALICE, { ...ROGUE_R4, name: "" }, GAME_RANK_R4);
 
       expect(alice.nickname).toBeUndefined();
-      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]", "[NML] Leaders"]);
     });
 
     test("records the applied state as complete when nothing was skipped", async () => {
@@ -337,7 +337,7 @@ describe("createNameAndRoles", () => {
       expect(h.applied.get(ALICE)).toEqual({
         memberId: ALICE,
         nickname: "[NML|R4] Rogue",
-        roles: ["[NML]", "R4", "#330", "T7"],
+        roles: ["[NML]", "R4", "[NML] Leaders", "#330", "T7"],
         appliedAt: NOW,
         complete: true,
         alliance: { kingdom: HOME_KINGDOM, tag: "NML" },
@@ -380,7 +380,7 @@ describe("createNameAndRoles", () => {
       await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
 
       expect(alice.nickname).toBe("[NML|R4] Rogue");
-      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]", "[NML] Leaders"]);
       expect(h.applied.get(ALICE)).toMatchObject({ complete: true });
       expect(h.errors).toHaveLength(1);
       expect(h.errors[0]).toContain(ALICE);
@@ -391,9 +391,9 @@ describe("createNameAndRoles", () => {
       linkAlice(h);
       const report: ApplyReport = {
         nickname: "set",
-        added: ["[NML]", "R4", "#330", "T7"],
+        added: ["[NML]", "R4", "[NML] Leaders", "#330", "T7"],
         removed: [],
-        created: ["[NML]", "R4", "#330", "T7"],
+        created: ["[NML]", "R4", "[NML] Leaders", "#330", "T7"],
         skipped: [],
       };
 
@@ -408,15 +408,15 @@ describe("createNameAndRoles", () => {
       linkAlice(h);
       const report: ApplyReport = {
         nickname: "set",
-        added: ["[NML]", "#330", "T7"],
+        added: ["[NML]", "[NML] Leaders", "#330", "T7"],
         removed: [],
-        created: ["[NML]", "R4", "#330", "T7"],
+        created: ["[NML]", "R4", "[NML] Leaders", "#330", "T7"],
         skipped: [{ what: "R4", reason: "missing-permissions" }],
       };
 
       await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
 
-      expect(heldNames(alice)).toEqual(["#330", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "T7", "[NML]", "[NML] Leaders"]);
       expect(h.logs).toEqual([nameAndRolesLogLine(ALICE, report, "[NML|R4] Rogue")]);
     });
 
@@ -470,7 +470,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.onLinked(ALICE, kingPlayer, GAME_RANK_R4);
 
-      expect(heldNames(alice)).toEqual(["#330", "R4", "T7"]);
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[King] Leaders"]);
       expect(h.applied.get(ALICE)?.complete).toBe(false);
     });
 
@@ -481,7 +481,7 @@ describe("createNameAndRoles", () => {
 
       await h.service.onLinked(ALICE, ROGUE_R4, GAME_RANK_R4);
 
-      expect(heldNames(alice)).toEqual(["#330", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "T7", "[NML]", "[NML] Leaders"]);
       const lines = h.logs.map(contentOf);
       expect(lines).toHaveLength(1);
       expect(lines[0]).toContain("R4");
@@ -532,7 +532,7 @@ describe("createNameAndRoles", () => {
         { uid: BOB_UID, purpose: "lookup" },
       ]);
       expect(alice.nickname).toBe("[NML|R4] Rogue");
-      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]", "[NML] Leaders"]);
       expect(bob.nickname).toBe("[NML|R4] Rogue");
     });
 
@@ -797,6 +797,28 @@ describe("createNameAndRoles", () => {
       expect(h.preferenceRoles.applied).toEqual([ALICE]);
     });
 
+    test("takes the Alliance Leaders Role off a Member who went from R4 to R3", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      await h.service.syncMember(ALICE, ROGUE_R4, GAME_RANK_R4);
+      expect(heldNames(alice)).toContain("[NML] Leaders");
+
+      await h.service.syncMember(ALICE, { ...ROGUE_R4, allianceRank: "R3" }, GAME_RANK_R3);
+
+      expect(heldNames(alice)).toEqual(["#330", "R3", "T7", "[NML]"]);
+    });
+
+    test("moves the Alliance Leaders Role to the new Alliance of an R4 who changed Alliance", async () => {
+      const alice = joinAlice(h);
+      linkAlice(h);
+      await h.service.syncMember(ALICE, ROGUE_R4, GAME_RANK_R4);
+
+      const moved: Player = { ...ROGUE_R4, alliance: { tag: "ABC", name: "Abc", leaderUid: undefined } };
+      await h.service.syncMember(ALICE, moved, GAME_RANK_R4);
+
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[ABC]", "[ABC] Leaders"]);
+    });
+
     test("when the Preference Roles cannot be applied, the Daily Sync still reports the change", async () => {
       joinAlice(h);
       linkAlice(h);
@@ -842,7 +864,7 @@ describe("createNameAndRoles", () => {
 
       expect(h.gameApi.lookups).toEqual([{ uid: UID, purpose: "lookup" }]);
       expect(alice.nickname).toBe("[NML|R4] Rogue");
-      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]"]);
+      expect(heldNames(alice)).toEqual(["#330", "R4", "T7", "[NML]", "[NML] Leaders"]);
     });
 
     test("a Link ended while the lookup is in flight gives the Member no nickname, roles or applied state", async () => {

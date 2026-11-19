@@ -304,9 +304,9 @@ function syncedAnaInNml(h: Harness): FakeRolesMember {
     rank: GAME_R4,
     alliance: NML,
     nickname: "[NML|R4] Rogue",
-    roles: ["[NML]", "R4", "#330", "T7"],
+    roles: ["[NML]", "R4", "[NML] Leaders", "#330", "T7"],
   });
-  return joinMember(h, ANA, ["[NML]", "R4", "#330", "T7"], "[NML|R4] Rogue");
+  return joinMember(h, ANA, ["[NML]", "R4", "[NML] Leaders", "#330", "T7"], "[NML|R4] Rogue");
 }
 
 describe("runDailySync", () => {
@@ -380,7 +380,7 @@ describe("runDailySync", () => {
     await runDailySync(h.deps);
 
     expect(member.nickname).toBe("[NML|R4] Rogue");
-    expect(heldNames(member)).toEqual(["#330", "R4", "T7", "[NML]"]);
+    expect(heldNames(member)).toEqual(["#330", "R4", "T7", "[NML]", "[NML] Leaders"]);
     expect(h.links.linkFor(ANA)?.allianceRank).toEqual(GAME_R4);
     expect(linesAbout(h, ANA)).toHaveLength(1);
     expect(linesAbout(h, ANA)[0]).toContain("R4");
@@ -418,7 +418,7 @@ describe("runDailySync", () => {
 
     await runDailySync(h.deps);
 
-    expect(heldNames(member)).toEqual(["#330", "R4", "T9", "[NML]"]);
+    expect(heldNames(member)).toEqual(["#330", "R4", "T9", "[NML]", "[NML] Leaders"]);
   });
 
   test("gives a Player who moved Kingdom the Guest nickname and roles, and drops the old Alliance roles", async () => {
@@ -658,8 +658,8 @@ describe("runDailySync", () => {
   test("ends with a summary of the changed, skipped and requests used", async () => {
     linkMember(h, ANA, ANA_UID, { rank: GAME_R3, alliance: NML, nickname: "[NML] Rogue", roles: ["NML", "R3", "#330", "T7"] });
     joinMember(h, ANA, ["[NML]", "R3", "#330", "T7"], "[NML] Rogue");
-    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: NML, nickname: "[NML|R4] Lupa", roles: ["NML", "R4", "#330", "T7"] });
-    joinMember(h, BEN, ["[NML]", "R4", "#330", "T7"], "[NML|R4] Lupa");
+    linkMember(h, BEN, BEN_UID, { rank: GAME_R4, alliance: NML, nickname: "[NML|R4] Lupa", roles: ["NML", "R4", "[NML] Leaders", "#330", "T7"] });
+    joinMember(h, BEN, ["[NML]", "R4", "[NML] Leaders", "#330", "T7"], "[NML|R4] Lupa");
     linkMember(h, CAL, CAL_UID, { rank: GAME_R4, alliance: NML, nickname: "", roles: [] });
     h.gameApi.answerRoster(
       HOME,
