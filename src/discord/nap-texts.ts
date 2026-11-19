@@ -205,6 +205,12 @@ export const napMessages = {
   leftNotice: (alliance: string, member: MemberId): string => `${alliance} has left the NaP, by its R5 <@${member}>.`,
   /** The announcement in #nap-announcements when an Alliance joins: the Alliance and the time, no Member. */
   joinedAnnouncement: (alliance: string, at: Date): string => `🤝 ${alliance} has joined the NaP (${timestamp(at, "f")}).`,
+  /** The line in #nap-leaders when a NaP Motion removed an Alliance from the NaP (a NaP Report's expulsion), no Member. */
+  expelledNotice: (alliance: string, motion: number): string =>
+    `${alliance} was removed from the NaP by NaP Motion #${motion.toString()}.`,
+  /** The announcement in #nap-announcements when a NaP Motion removed an Alliance: the Alliance, the motion and the time. */
+  expelledAnnouncement: (alliance: string, motion: number, at: Date): string =>
+    `${alliance} was removed from the NaP by NaP Motion #${motion.toString()} (${timestamp(at, "f")}).`,
   /** The announcement in #nap-announcements when an Alliance leaves: the Alliance and the time, no Member. */
   leftAnnouncement: (alliance: string, at: Date): string => `${alliance} has left the NaP (${timestamp(at, "f")}).`,
 
@@ -231,6 +237,10 @@ export const napMessages = {
   logEditFailed: (tag: string, reason: string): string =>
     `Editing the NaP join request for [${tag}] in #nap-leaders failed: ${reason}`,
   logLeft: (memberId: MemberId, tag: string): string => `<@${memberId}> took [${tag}] out of the NaP.`,
+  logExpelled: (tag: string, motion: number, proposer: MemberId): string =>
+    `[${tag}] was removed from the NaP by NaP Motion #${motion.toString()}, proposed by <@${proposer}>.`,
+  logExpelSkipped: (tag: string, motion: number): string =>
+    `[${tag}] was not removed from the NaP by NaP Motion #${motion.toString()}: it is no longer in the NaP.`,
   logNoLeaders: (tag: string): string => `The NaP join request for [${tag}] was not posted: the server has no #nap-leaders.`,
   logRequestPostFailed: (tag: string, reason: string): string =>
     `Posting the NaP join request for [${tag}] in #nap-leaders failed: ${reason}`,

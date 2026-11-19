@@ -943,6 +943,38 @@ describe("createNap", () => {
     });
   });
 
+  describe("expel (an approved NaP Report expulsion)", () => {
+    test("appends a leave by the proposer, tells #nap-leaders and #nap-announcements it was by NaP Motion, naming no Member", async () => {
+      seedMember("NML");
+      seedMember("ABC");
+      now = new Date("2026-11-17T08:00:00.000Z");
+      await nap.expel("nml", R5_ABC, 4);
+
+      expect(store.history().at(-1)).toEqual({ kind: "left", tag: "NML", leftBy: R5_ABC, at: now });
+      const notices = server.postsIn(LEADERS);
+      expect(notices.map((post) => post.message.content)).toEqual([
+        "[NML] No Man's Land was removed from the NaP by NaP Motion #4.",
+      ]);
+      const announced = server.postsIn(ANNOUNCEMENTS);
+      expect(announced[0]?.message).toEqual({
+        content: `[NML] No Man's Land was removed from the NaP by NaP Motion #4 (<t:${unix(now)}:f>).`,
+        allowedMentions: { parse: [] },
+      });
+      expect(announced).toHaveLength(2);
+      expect(JSON.stringify(server.posts)).not.toContain("<@");
+      expect(server.logs).toEqual(["[NML] was removed from the NaP by NaP Motion #4, proposed by <@100000000000000002>."]);
+    });
+
+    test("changes nothing when the Alliance already left, and logs one line", async () => {
+      seedMember("ABC");
+      await nap.expel("NML", R5_ABC, 4);
+
+      expect(store.history()).toHaveLength(1);
+      expect(server.posts).toEqual([]);
+      expect(server.logs).toEqual(["[NML] was not removed from the NaP by NaP Motion #4: it is no longer in the NaP."]);
+    });
+  });
+
   describe("#nap-announcements", () => {
     function listOf(post: { message: BaseMessageOptions } | undefined): string {
       const embed = post?.message.embeds?.[0];

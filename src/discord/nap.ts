@@ -92,6 +92,12 @@ export interface Nap {
   join(command: NapCommand): Promise<void>;
   /** /nap leave: the Linked R5 of an Alliance in the NaP takes it out. */
   leave(command: NapCommand): Promise<void>;
+  /**
+   * Takes the Alliance out of the NaP as a NaP Report's approved expulsion (ADR 28): a leave recorded with the proposer of
+   * the outcome, told in #nap-leaders and #nap-announcements as decided by the NaP Motion, naming no Member. Nothing
+   * changes, and one line is logged, when the Alliance is no longer in the NaP. Nothing here throws.
+   */
+  expel(tag: string, by: MemberId, motionId: number): Promise<void>;
   /** /nap history: every join, decline and leave, privately, to the NaP Council and Officers. */
   history(command: NapCommand): Promise<void>;
   /**
@@ -459,6 +465,24 @@ export function createNap(deps: NapDeps): Nap {
     await announce(inNap.tag, messages.leftAnnouncement(label, at));
   }
 
+  async function expel(tag: string, by: MemberId, motionId: number): Promise<void> {
+    try {
+      const inNap = napMembers(store.history()).find((entry) => sameTag(entry.tag, tag));
+      if (inNap === undefined) {
+        await log(messages.logExpelSkipped(tag, motionId));
+        return;
+      }
+      const at = deps.now();
+      store.append({ kind: "left", tag: inNap.tag, leftBy: by, at });
+      const label = labeller()(inNap.tag);
+      await log(messages.logExpelled(inNap.tag, motionId, by));
+      await noticeLeaders(inNap.tag, messages.expelledNotice(label, motionId));
+      await announce(inNap.tag, messages.expelledAnnouncement(label, motionId, at));
+    } catch (error) {
+      deps.logError(`Removing [${tag}] from the NaP by NaP Motion #${motionId.toString()} failed: ${reasonOf(error)}`);
+    }
+  }
+
   /** Tells the NaP Council in #nap-leaders that an Alliance left; a missing channel or failed post only logs a line. */
   async function noticeLeaders(tag: string, content: string): Promise<void> {
     const channelId = server.leadersChannelId();
@@ -536,7 +560,7 @@ export function createNap(deps: NapDeps): Nap {
     await command.reply({ embeds: [napHistoryEmbed(events)], flags: MessageFlags.Ephemeral, allowedMentions });
   }
 
-  return { show, join, leave, history, vote, tick, refreshList };
+  return { show, join, leave, expel, history, vote, tick, refreshList };
 }
 
 function reasonOf(error: unknown): string {
