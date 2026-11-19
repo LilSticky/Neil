@@ -1239,6 +1239,7 @@ export async function connect(token, options) {
         help: (interaction) => handleHelp({
             memberRoleIds: () => memberRoleIds(interaction.member),
             reply: (reply) => interaction.reply(reply),
+            followUp: (reply) => interaction.followUp(reply),
         }, { commands, officerRoleIds: options.officerRoleIds, logError }),
         memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
         memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
