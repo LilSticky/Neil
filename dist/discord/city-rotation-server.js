@@ -1,4 +1,4 @@
-import { ChannelType, RESTJSONErrorCodes } from "discord.js";
+import { ChannelType, RESTJSONErrorCodes, ThreadAutoArchiveDuration } from "discord.js";
 import { z } from "zod";
 /** The channel the City Rotation card is pinned in: the original, not a translated copy. */
 const ANNOUNCEMENTS_CHANNEL = "nap-announcements";
@@ -8,8 +8,16 @@ const LEADERS_CHANNEL = "nap-leaders";
 const KINGDOM_ANNOUNCEMENTS_CHANNEL = "home-kingdom-announcements";
 /** Discord's answer when the message to edit is gone. */
 const unknownMessage = z.object({ code: z.literal(RESTJSONErrorCodes.UnknownMessage) });
+/** A text or announcement channel, or a thread in one (a NaP Report's thread), can hold Neil's posts. */
 function isMessageChannel(channel) {
-    return channel.type === ChannelType.GuildText || channel.type === ChannelType.GuildAnnouncement;
+    return (channel.type === ChannelType.GuildText ||
+        channel.type === ChannelType.GuildAnnouncement ||
+        channel.type === ChannelType.PrivateThread ||
+        channel.type === ChannelType.PublicThread ||
+        channel.type === ChannelType.AnnouncementThread);
+}
+function isThreadParent(channel) {
+    return channel.type === ChannelType.GuildText;
 }
 /** The first cached text or announcement channel with this name. */
 function channelNamed(guild, name) {
@@ -24,7 +32,7 @@ async function messageChannel(guild, channelId) {
 }
 /**
  * The Discord server as the City Rotation uses it: #nap-announcements, #nap-leaders and #home-kingdom-announcements by name, Neil's own posts, edits
- * and pins there, and #neil-log (through `log`, with mentions off).
+ * and pins there, private threads under #nap-leaders for the NaP Reports, and #neil-log (through `log`, with mentions off).
  */
 export function cityRotationServerOf(guild, options) {
     return {
@@ -49,6 +57,27 @@ export function cityRotationServerOf(guild, options) {
         },
         async pin(channelId, messageId) {
             await (await messageChannel(guild, channelId)).messages.pin(messageId);
+        },
+        async openPrivateThread(parentId, name, memberIds) {
+            const parent = await guild.channels.fetch(parentId);
+            if (parent === null || !isThreadParent(parent))
+                throw new Error(`The channel ${parentId} is not a text channel.`);
+            const thread = await parent.threads.create({
+                name,
+                type: ChannelType.PrivateThread,
+                invitable: false,
+                autoArchiveDuration: ThreadAutoArchiveDuration.OneWeek,
+            });
+            const notAdded = [];
+            for (const memberId of memberIds) {
+                try {
+                    await thread.members.add(memberId);
+                }
+                catch {
+                    notAdded.push(memberId);
+                }
+            }
+            return { threadId: thread.id, notAdded };
         },
         // Mentions are off in the log: a line names a Member by id, and must not ping them.
         log: (line) => options.log({ content: line, allowedMentions: { parse: [] } }),

@@ -432,6 +432,35 @@ const migrations = [
    CREATE TABLE shield_reminders_off (
      member_id TEXT PRIMARY KEY CHECK (member_id <> '' AND member_id NOT GLOB '*[^0-9]*')
    )`,
+    // 29: NaP Reports (slice 046, ADR 28). nap_reports keeps every NaP Report: its number, the tag of the accused Alliance,
+    // the accused Player's uid when given, what happened, the Discord user id of the reporting R5 and their Alliance's tag,
+    // when, and the id of its private thread in #nap-leaders once opened. nap_report_proposals keeps each Report Outcome
+    // put to a NaP Motion: the report, the outcome, the optional note, the proposer, when, its state (proposed, approved or
+    // rejected), when it was decided, and the NaP Motion's id. Rows are kept forever and are not deleted at Unlink; only a
+    // report whose thread could not be opened, and a proposal whose NaP Motion could not be opened, are removed at once.
+    `CREATE TABLE nap_reports (
+     number INTEGER PRIMARY KEY CHECK (number >= 1),
+     accused_tag TEXT NOT NULL CHECK (accused_tag <> ''),
+     accused_uid TEXT CHECK (accused_uid IS NULL OR (accused_uid <> '' AND accused_uid NOT GLOB '*[^0-9]*')),
+     what TEXT NOT NULL CHECK (what <> ''),
+     reported_by TEXT NOT NULL CHECK (reported_by <> '' AND reported_by NOT GLOB '*[^0-9]*'),
+     reporter_tag TEXT NOT NULL CHECK (reporter_tag <> ''),
+     reported_at TEXT NOT NULL,
+     thread_id TEXT CHECK (thread_id IS NULL OR (thread_id <> '' AND thread_id NOT GLOB '*[^0-9]*'))
+   );
+   CREATE TABLE nap_report_proposals (
+     id INTEGER PRIMARY KEY,
+     report INTEGER NOT NULL REFERENCES nap_reports (number),
+     outcome TEXT NOT NULL CHECK (outcome IN ('dismissed', 'warning', 'compensation', 'expelled', 'exile')),
+     note TEXT CHECK (note IS NULL OR note <> ''),
+     proposed_by TEXT NOT NULL CHECK (proposed_by <> '' AND proposed_by NOT GLOB '*[^0-9]*'),
+     proposed_at TEXT NOT NULL,
+     status TEXT NOT NULL CHECK (status IN ('proposed', 'approved', 'rejected')),
+     decided_at TEXT,
+     motion INTEGER,
+     CHECK ((status = 'proposed') = (decided_at IS NULL)),
+     CHECK (status = 'proposed' OR motion IS NOT NULL)
+   )`,
 ];
 /** Opens DATA_DIR/neil.db and applies any pending migrations in one transaction. */
 export function openDatabase(dataDir) {

@@ -152,6 +152,10 @@ export const napMessages = {
     leftNotice: (alliance, member) => `${alliance} has left the NaP, by its R5 <@${member}>.`,
     /** The announcement in #nap-announcements when an Alliance joins: the Alliance and the time, no Member. */
     joinedAnnouncement: (alliance, at) => `🤝 ${alliance} has joined the NaP (${timestamp(at, "f")}).`,
+    /** The line in #nap-leaders when a NaP Motion removed an Alliance from the NaP (a NaP Report's expulsion), no Member. */
+    expelledNotice: (alliance, motion) => `${alliance} was removed from the NaP by NaP Motion #${motion.toString()}.`,
+    /** The announcement in #nap-announcements when a NaP Motion removed an Alliance: the Alliance, the motion and the time. */
+    expelledAnnouncement: (alliance, motion, at) => `${alliance} was removed from the NaP by NaP Motion #${motion.toString()} (${timestamp(at, "f")}).`,
     /** The announcement in #nap-announcements when an Alliance leaves: the Alliance and the time, no Member. */
     leftAnnouncement: (alliance, at) => `${alliance} has left the NaP (${timestamp(at, "f")}).`,
     logRequested: (memberId, tag) => `<@${memberId}> asked for [${tag}] to join the NaP.`,
@@ -162,6 +166,8 @@ export const napMessages = {
     logVoteOpened: (tag, endsAt) => `The NaP Council's vote on [${tag}] joining the NaP is open until ${timestamp(endsAt, "f")}.`,
     logEditFailed: (tag, reason) => `Editing the NaP join request for [${tag}] in #nap-leaders failed: ${reason}`,
     logLeft: (memberId, tag) => `<@${memberId}> took [${tag}] out of the NaP.`,
+    logExpelled: (tag, motion, proposer) => `[${tag}] was removed from the NaP by NaP Motion #${motion.toString()}, proposed by <@${proposer}>.`,
+    logExpelSkipped: (tag, motion) => `[${tag}] was not removed from the NaP by NaP Motion #${motion.toString()}: it is no longer in the NaP.`,
     logNoLeaders: (tag) => `The NaP join request for [${tag}] was not posted: the server has no #nap-leaders.`,
     logRequestPostFailed: (tag, reason) => `Posting the NaP join request for [${tag}] in #nap-leaders failed: ${reason}`,
     logReposted: (memberId, tag) => `<@${memberId}> had the NaP join request for [${tag}] posted again in #nap-leaders.`,

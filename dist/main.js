@@ -19,6 +19,7 @@ import { MemberUsageStore } from "./storage/member-usage-store.js";
 import { KnownAllianceStore } from "./storage/known-alliance-store.js";
 import { LinkStore } from "./storage/link-store.js";
 import { NapMotionStore } from "./storage/nap-motion-store.js";
+import { NapReportStore } from "./storage/nap-report-store.js";
 import { NapRulesStore } from "./storage/nap-rules-store.js";
 import { ShieldStore } from "./storage/shield-store.js";
 import { NapStore } from "./storage/nap-store.js";
@@ -61,6 +62,7 @@ await start({
             nap: new NapStore(db),
             napMotions: new NapMotionStore(db),
             napRules: new NapRulesStore(db),
+            napReports: new NapReportStore(db),
             shield: new ShieldStore(db),
             preferences: createPreferenceStore(db, (line) => {
                 console.error(line);

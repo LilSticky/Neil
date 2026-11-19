@@ -18,6 +18,7 @@ import { NAP_APPROVE_PREFIX, NAP_DECLINE_PREFIX, napMessages } from "./nap-texts
 import { createNapMotions } from "./nap-motions.js";
 import { NAP_MOTION_APPROVE_PREFIX, NAP_MOTION_DECLINE_PREFIX } from "./nap-motion-texts.js";
 import { createNapRules } from "./nap-rules.js";
+import { createNapReports } from "./nap-reports.js";
 import { NAP_RULES_PREFIX } from "./nap-rules-texts.js";
 import { createEventReminders, REMINDER_TICK_MS } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
@@ -797,8 +798,24 @@ function napRulesModalLike(modal) {
         reply: (options) => modal.reply(options),
     };
 }
-/** Hands a /nap command to the NaP register's subcommand, /nap motion to NaP Motions, or /nap rules… to the NaP Rules. */
-async function routeNap({ nap, napMotions, napRules }, interaction) {
+/** The discord.js /nap report and report-outcome command as the NaP Reports read it. */
+function napReportCommandLike(command) {
+    return {
+        user: command.user,
+        options: {
+            getString: (name) => command.options.getString(name),
+            getInteger: (name) => command.options.getInteger(name),
+        },
+        reply: (options) => command.reply(options),
+        deferReply: (options) => command.deferReply(options),
+        editReply: (options) => command.editReply(options),
+    };
+}
+/**
+ * Hands a /nap command to the NaP register's subcommand, /nap motion to NaP Motions, /nap rules… to the NaP Rules, or
+ * /nap report… to the NaP Reports.
+ */
+async function routeNap({ nap, napMotions, napRules, napReports }, interaction) {
     const command = napCommandLike(interaction);
     switch (interaction.options.getSubcommand()) {
         case "show":
@@ -824,6 +841,12 @@ async function routeNap({ nap, napMotions, napRules }, interaction) {
             break;
         case "rules-propose":
             await napRules.propose(napRulesCommandLike(interaction));
+            break;
+        case "report":
+            await napReports.report(napReportCommandLike(interaction));
+            break;
+        case "report-outcome":
+            await napReports.proposeOutcome(napReportCommandLike(interaction));
             break;
         default:
             await replyPrivately(interaction, napMessages.unknownSubcommand);
@@ -1595,6 +1618,24 @@ export async function connect(token, options) {
             now,
             logError,
         });
+        // The NaP Reports (ADR 28): a private thread under #nap-leaders per report, outcomes decided by NaP Motion and
+        // settled on the tick after the NaP Rules', carried out through the NaP register and REAPER, and announced in
+        // #nap-announcements through the same server; their lines in #neil-log.
+        const napReports = createNapReports({
+            store: options.napReports,
+            motions: napMotions,
+            motionOf: (id) => options.napMotions.get(id),
+            napHistory: () => options.nap.history(),
+            links: options.links,
+            editorOf: editorOfMember,
+            homeKingdom: options.homeKingdom,
+            server: cityRotationServer,
+            expel: (tag, by, motionId) => nap.expel(tag, by, motionId),
+            readPlayer: (uid) => options.gameApi.getPlayer(uid, "lookup", "copy"),
+            exiles: { reaper: options.reaper, channels, now, logError },
+            now,
+            logError,
+        });
         // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
         const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
         const raidPlanning = createRaidPlanning({
@@ -1661,6 +1702,7 @@ export async function connect(token, options) {
             nap,
             napMotions,
             napRules,
+            napReports,
             raidPlanning,
             availabilityPoll,
             interviews,
@@ -1771,6 +1813,7 @@ export async function connect(token, options) {
                 .then(() => nap.tick())
                 .then(() => napMotions.tick())
                 .then(() => napRules.tick())
+                .then(() => napReports.tick())
                 .then(() => raidClock.tick())
                 .then(() => availabilityClock.tick())
                 .then(() => shieldReminders.tick())

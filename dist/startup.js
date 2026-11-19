@@ -96,6 +96,7 @@ export async function start(deps) {
             nap: store.nap,
             napMotions: store.napMotions,
             napRules: store.napRules,
+            napReports: store.napReports,
             shield: store.shield,
             cityRotationMode: config.cityRotationMode,
         });

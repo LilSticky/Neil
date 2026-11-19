@@ -328,6 +328,24 @@ export function createNap(deps) {
         await noticeLeaders(inNap.tag, messages.leftNotice(label, member));
         await announce(inNap.tag, messages.leftAnnouncement(label, at));
     }
+    async function expel(tag, by, motionId) {
+        try {
+            const inNap = napMembers(store.history()).find((entry) => sameTag(entry.tag, tag));
+            if (inNap === undefined) {
+                await log(messages.logExpelSkipped(tag, motionId));
+                return;
+            }
+            const at = deps.now();
+            store.append({ kind: "left", tag: inNap.tag, leftBy: by, at });
+            const label = labeller()(inNap.tag);
+            await log(messages.logExpelled(inNap.tag, motionId, by));
+            await noticeLeaders(inNap.tag, messages.expelledNotice(label, motionId));
+            await announce(inNap.tag, messages.expelledAnnouncement(label, motionId, at));
+        }
+        catch (error) {
+            deps.logError(`Removing [${tag}] from the NaP by NaP Motion #${motionId.toString()} failed: ${reasonOf(error)}`);
+        }
+    }
     /** Tells the NaP Council in #nap-leaders that an Alliance left; a missing channel or failed post only logs a line. */
     async function noticeLeaders(tag, content) {
         const channelId = server.leadersChannelId();
@@ -404,7 +422,7 @@ export function createNap(deps) {
         }
         await command.reply({ embeds: [napHistoryEmbed(events)], flags: MessageFlags.Ephemeral, allowedMentions });
     }
-    return { show, join, leave, history, vote, tick, refreshList };
+    return { show, join, leave, expel, history, vote, tick, refreshList };
 }
 function reasonOf(error) {
     return error instanceof Error ? error.message : String(error);
