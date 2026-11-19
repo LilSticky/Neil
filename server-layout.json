@@ -296,7 +296,9 @@
             "Neil": {
               "allow": [
                 "ViewChannel",
-                "SendMessages"
+                "SendMessages",
+                "CreatePrivateThreads",
+                "SendMessagesInThreads"
               ]
             }
           }
