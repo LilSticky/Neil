@@ -555,6 +555,21 @@ Setup: the setup script applied (each Alliance area has `alliance-leaders` and i
 | 6ae.5 | `/shield-reminders off`, then without option | Off recorded; shown as off; the next Shield List shows the Member under Shield Reminders Off | | |
 | 6ae.6 | The Officer runs `/kvk-week unmark` | Unmarked; no more Shield Reminders; one `#neil-log` line | | |
 
+## 6af. Report a NaP breach (slice 046, issue #122)
+
+Setup: the setup script applied (Neil may create private threads and post in threads in `#nap-leaders`),
+`npm run commands:register` run; two test accounts Linked to the R5s of two Alliances in the NaP (A reports, B is
+accused), a third Member who is not on the NaP Council, and a Player uid of Alliance B. Branch `develop` after the merge.
+
+| # | Do | Expect | Result | Feedback |
+|---|----|--------|--------|----------|
+| 6af.1 | The third Member runs `/nap report`; R5 A reports its own Alliance and an Alliance outside the NaP | Each refused privately; nothing in `#nap-leaders` or `#neil-log` | | |
+| 6af.2 | R5 A runs `/nap report alliance:<B> what:<text> player:<uid>` | A private answer with the report's number and a link to the thread `NaP report 1 · [B]` under `#nap-leaders`; one `#neil-log` line naming R5 A | | |
+| 6af.3 | Through Police, read the thread's members; the third Member looks for it | R5 A and R5 B (and the other council members) are in it; the third Member cannot see it; Neil's first message gives the report and asks for the evidence | | |
+| 6af.4 | R5 A posts a screenshot in the thread; a council member runs `/nap report-outcome report:1 outcome:Warning note:<text>` | A NaP Motion in `#nap-leaders` reading only "NaP report 1 on [B]: proposed outcome Warning."; the note appears only in the thread | | |
+| 6af.5 | Let the motion be rejected (no votes) and wait for its deadline and a minute | The thread says rejected; nothing about the report in `#nap-announcements` beyond the motion's decision log; another outcome can be proposed | | |
+| 6af.6 | Propose Exile (or Expelled) and approve it | The thread says approved; `#nap-announcements` shows only "NaP report 1 on [B]: Exile (REAPER)" and the date; `/reaper list` shows the Player with reason "NaP report 1: Exile" (or `/nap show` no longer lists B, announced as removed by NaP Motion) | | |
+
 ## 7. Afterwards
 
 | # | Step | Done |

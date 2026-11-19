@@ -193,6 +193,18 @@ discovery.
 * Every proposal gets the next number; it is proposed, in effect, replaced (by a later one in effect) or rejected
 * Only one can be proposed at a time; all of them stay in the history (`/nap rules-history`), naming no Member
 
+## NaP Report *(proposed)*
+* A suspected breach of the NaP by an Alliance in the NaP, filed by a member of the NaP Council of another one (`/nap report`)
+* Numbered; optionally names the accused Player; its evidence and discussion stay in a private thread under `#nap-leaders`
+  that holds the NaP Council and the reporter
+* Open until a Report Outcome for it is approved; kept forever, and only `#neil-log` names the reporter
+
+## Report Outcome *(proposed)*
+* What the NaP Council decided on a NaP Report: Dismissed, Warning, Compensation, Expelled from the NaP, or Exile
+* Proposed by a member of the NaP Council (`/nap report-outcome`) and decided only by a NaP Motion; Neil never decides it
+* An approved one is posted in `#nap-announcements` with only the report's number, the accused Alliance and the date;
+  Expelled takes the Alliance out of the NaP, Exile adds the accused Player to REAPER
+
 ## NaP Cooldown
 * The 30 days after a declined join request during which its Alliance may not ask to join the NaP again
 
