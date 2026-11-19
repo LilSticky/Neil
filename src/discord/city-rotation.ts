@@ -57,6 +57,15 @@ export interface CityRotationServer {
   /** Edits one of Neil's messages; false when the message is gone. */
   edit(channelId: string, messageId: string, message: BaseMessageOptions): Promise<boolean>;
   pin(channelId: string, messageId: string): Promise<void>;
+  /**
+   * Opens a private thread under a text channel that only Neil can invite to (a NaP Report's), adds these Members, and
+   * gives its id and the Members who could not be added. Throws when the thread cannot be opened.
+   */
+  openPrivateThread(
+    parentId: string,
+    name: string,
+    memberIds: readonly string[],
+  ): Promise<{ readonly threadId: string; readonly notAdded: readonly string[] }>;
   /** One line in #neil-log, with mentions off. */
   log(line: string): Promise<void>;
 }
