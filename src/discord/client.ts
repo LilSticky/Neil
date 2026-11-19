@@ -57,6 +57,8 @@ import { createNapMotions, type NapMotionButton, type NapMotionCommand, type Nap
 import { NAP_MOTION_APPROVE_PREFIX, NAP_MOTION_DECLINE_PREFIX } from "./nap-motion-texts.js";
 import type { NapRulesStore } from "../storage/nap-rules-store.js";
 import { createNapRules, type NapRules, type NapRulesCommand, type NapRulesModal } from "./nap-rules.js";
+import type { NapReportStore } from "../storage/nap-report-store.js";
+import { createNapReports, type NapReportCommand, type NapReports } from "./nap-reports.js";
 import { NAP_RULES_PREFIX } from "./nap-rules-texts.js";
 import { createEventReminders, REMINDER_TICK_MS, type EventReminders } from "./event-reminders.js";
 import { eventServerOf } from "./event-server.js";
@@ -325,6 +327,8 @@ interface Services {
   readonly napMotions: NapMotions;
   /** /nap rules, rules-history and rules-propose, its form, and the tick that settles versions by their NaP Motion. */
   readonly napRules: NapRules;
+  /** /nap report and report-outcome, and the tick that records each outcome by its NaP Motion. */
+  readonly napReports: NapReports;
   /** The King Move after each Handover, and its Apply button. */
   readonly kingMoves: KingMoves;
   /** /raid-plan, its autocomplete and the Read and confirmed button. */
@@ -735,6 +739,11 @@ export interface ConnectOptions {
   >;
   /** The NaP Rules: every NaP Rules Version, its proposer and its NaP Motion, in neil.db. */
   readonly napRules: Pick<NapRulesStore, "versions" | "propose" | "setMotion" | "remove" | "decide">;
+  /** The NaP Reports: every report, its thread and the outcomes proposed for it, in neil.db (ADR 28). */
+  readonly napReports: Pick<
+    NapReportStore,
+    "reports" | "proposals" | "file" | "setThread" | "remove" | "propose" | "setMotion" | "removeProposal" | "decide"
+  >;
 }
 
 /** discord.js's code for a user who is not a member of the guild. */
@@ -1176,9 +1185,26 @@ function napRulesModalLike(modal: ModalSubmitInteraction): NapRulesModal {
   };
 }
 
-/** Hands a /nap command to the NaP register's subcommand, /nap motion to NaP Motions, or /nap rules… to the NaP Rules. */
+/** The discord.js /nap report and report-outcome command as the NaP Reports read it. */
+function napReportCommandLike(command: ChatInputCommandInteraction): NapReportCommand {
+  return {
+    user: command.user,
+    options: {
+      getString: (name) => command.options.getString(name),
+      getInteger: (name) => command.options.getInteger(name),
+    },
+    reply: (options) => command.reply(options),
+    deferReply: (options) => command.deferReply(options),
+    editReply: (options) => command.editReply(options),
+  };
+}
+
+/**
+ * Hands a /nap command to the NaP register's subcommand, /nap motion to NaP Motions, /nap rules… to the NaP Rules, or
+ * /nap report… to the NaP Reports.
+ */
 async function routeNap(
-  { nap, napMotions, napRules }: Pick<Services, "nap" | "napMotions" | "napRules">,
+  { nap, napMotions, napRules, napReports }: Pick<Services, "nap" | "napMotions" | "napRules" | "napReports">,
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const command = napCommandLike(interaction);
@@ -1206,6 +1232,12 @@ async function routeNap(
       break;
     case "rules-propose":
       await napRules.propose(napRulesCommandLike(interaction));
+      break;
+    case "report":
+      await napReports.report(napReportCommandLike(interaction));
+      break;
+    case "report-outcome":
+      await napReports.proposeOutcome(napReportCommandLike(interaction));
       break;
     default:
       await replyPrivately(interaction, napMessages.unknownSubcommand);
@@ -2072,6 +2104,24 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       now,
       logError,
     });
+    // The NaP Reports (ADR 28): a private thread under #nap-leaders per report, outcomes decided by NaP Motion and
+    // settled on the tick after the NaP Rules', carried out through the NaP register and REAPER, and announced in
+    // #nap-announcements through the same server; their lines in #neil-log.
+    const napReports = createNapReports({
+      store: options.napReports,
+      motions: napMotions,
+      motionOf: (id) => options.napMotions.get(id),
+      napHistory: () => options.nap.history(),
+      links: options.links,
+      editorOf: editorOfMember,
+      homeKingdom: options.homeKingdom,
+      server: cityRotationServer,
+      expel: (tag, by, motionId) => nap.expel(tag, by, motionId),
+      readPlayer: (uid) => options.gameApi.getPlayer(uid, "lookup", "copy"),
+      exiles: { reaper: options.reaper, channels, now, logError },
+      now,
+      logError,
+    });
     // The Raid: /raid-plan and its button, and the clock of its notices, on the same one-minute tick after the Duel Plan.
     const raidServer = raidServerOf(guild, { log: (message) => channels.log(message) });
     const raidPlanning = createRaidPlanning({
@@ -2138,6 +2188,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       nap,
       napMotions,
       napRules,
+      napReports,
       raidPlanning,
       availabilityPoll,
       interviews,
@@ -2251,6 +2302,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
         .then(() => nap.tick())
         .then(() => napMotions.tick())
         .then(() => napRules.tick())
+        .then(() => napReports.tick())
         .then(() => raidClock.tick())
         .then(() => availabilityClock.tick())
         .then(() => shieldReminders.tick())

@@ -6,6 +6,8 @@ import {
   NAP_MOTION_MAX_TEXT,
   NAP_MOTION_MIN_HOURS,
 } from "../domain/nap-motion.js";
+import { NAP_REPORT_MAX_NOTE, NAP_REPORT_MAX_TEXT, NAP_REPORT_OUTCOMES } from "../domain/nap-report.js";
+import { NAP_REPORT_OUTCOME_LABELS } from "./nap-report-texts.js";
 
 /**
  * Officer commands are hidden from Members: only Administrators see them until the server allows the Moderator and
@@ -471,7 +473,8 @@ export const rotation = new SlashCommandBuilder()
 
 /**
  * The NaP register: any Member sees who is in it; R5s ask to join and leave; the council and Officers see the history;
- * the council opens NaP Motions; any Member reads the NaP Rules and their history, and the council proposes new versions.
+ * the council opens NaP Motions; any Member reads the NaP Rules and their history, and the council proposes new versions;
+ * the council reports a suspected NaP breach and proposes its outcome.
  */
 export const nap = new SlashCommandBuilder()
   .setName("nap")
@@ -514,6 +517,46 @@ export const nap = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName("rules-propose").setDescription("Propose a new version of the NaP Rules, put to a NaP Motion (NaP Council)"),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("report")
+      .setDescription("Report a NaP breach privately (NaP Council)")
+      .addStringOption((option) =>
+        option.setName("alliance").setDescription("The tag of the accused Alliance").setRequired(true).setMaxLength(20),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("what")
+          .setDescription("What happened; post the evidence in the thread")
+          .setRequired(true)
+          .setMaxLength(NAP_REPORT_MAX_TEXT),
+      )
+      .addIntegerOption((option) =>
+        option.setName("player").setDescription("The uid of the accused Player, if any").setRequired(false).setMinValue(1),
+      ),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("report-outcome")
+      .setDescription("Propose a report's outcome (NaP Council)")
+      .addIntegerOption((option) =>
+        option.setName("report").setDescription("The number of the NaP report").setRequired(true).setMinValue(1),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("outcome")
+          .setDescription("The proposed outcome")
+          .setRequired(true)
+          .addChoices(...NAP_REPORT_OUTCOMES.map((value) => ({ name: NAP_REPORT_OUTCOME_LABELS[value], value }))),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("note")
+          .setDescription("A note for the report's thread only")
+          .setRequired(false)
+          .setMaxLength(NAP_REPORT_MAX_NOTE),
+      ),
   );
 
 /** Everything registered for the configured server, as REST payloads. */

@@ -493,7 +493,7 @@ describe("commands", () => {
     );
   });
 
-  test("hold /nap, open to every Member, guild only, with subcommands show, join, leave, history, motion, rules, rules-history and rules-propose naming who may use them", () => {
+  test("hold /nap, open to every Member, guild only, with subcommands show, join, leave, history, motion, rules, rules-history, rules-propose, report and report-outcome naming who may use them", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "nap",
@@ -554,6 +554,62 @@ describe("commands", () => {
             type: ApplicationCommandOptionType.Subcommand,
             name: "rules-propose",
             description: expect.stringContaining("NaP Council") as unknown,
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "report",
+            description: expect.stringContaining("NaP Council") as unknown,
+            options: [
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "alliance",
+                required: true,
+                max_length: 20,
+              }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "what",
+                required: true,
+                max_length: 1000,
+              }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.Integer,
+                name: "player",
+                required: false,
+                min_value: 1,
+              }),
+            ],
+          }),
+          expect.objectContaining({
+            type: ApplicationCommandOptionType.Subcommand,
+            name: "report-outcome",
+            description: expect.stringContaining("NaP Council") as unknown,
+            options: [
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.Integer,
+                name: "report",
+                required: true,
+                min_value: 1,
+              }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "outcome",
+                required: true,
+                choices: [
+                  { name: "Dismissed", value: "dismissed" },
+                  { name: "Warning", value: "warning" },
+                  { name: "Compensation", value: "compensation" },
+                  { name: "Expelled from the NaP", value: "expelled" },
+                  { name: "Exile (REAPER)", value: "exile" },
+                ],
+              }),
+              expect.objectContaining({
+                type: ApplicationCommandOptionType.String,
+                name: "note",
+                required: false,
+                max_length: 500,
+              }),
+            ],
           }),
         ],
       }),
