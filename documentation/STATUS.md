@@ -7,6 +7,8 @@ Issues: [GitHub](https://github.com/LilSticky/Neil/issues)
 
 ## Current slice
 
+Workflow (2026-11-21, [ADR 29](adr/0029-feedback-from-the-real-server-replaces-manual-checks.md), constitution 1.3.0): the user starts a new Discord server for Kingdom 330, and production Neil (`main`, `lap-330-neil`) runs there. Its `#suggestions` and `#feedback` replace the manual checks as testing feedback, log and ideas. Test Neil stays for a smoke test that Police runs alone; no manual steps go to the user. Releases still wait for the user's approval. Every **Open, for the user:** manual check below, recorded before this date, is **superseded**: a problem found in real use becomes an issue. **Next step:** slice 047, Neil forwards each `#suggestions` and `#feedback` post to `#neil-log` naming the Member and reacts to it; sessions read `#neil-log` through Police (read-only on those three channels of the #330 server) and file issues without the Member's name. **Open, for the user:** create the #330 server, invite production Neil and run the setup script there, put its guild ID in `lap-330-neil`'s `.env`, start `lap-330-neil`; invite Police there read-only (View Channels, Read Message History in `#neil-log`, `#suggestions`, `#feedback`).
+
 Test Neil (2026-11-18): today's `develop` build runs on `lap-test-neil` with `ROYAL_CITY_SIEGE_TIME=12:00`. The setup script was applied (the War Council role, `#kvk-leaders`, and Police's read access to the closed channels), and the commands are registered. The role order is Moderator, Neil Test, King, and Administrator was removed again. The checks that need no R5 passed (slices 035, 038, 041 and #145, noted in each tasks.md). Every check that needs a Linked R5 or a second Alliance stays open, because the test server has neither.
 
 
