@@ -11,13 +11,7 @@ import {
   type InteractionReplyOptions,
   type InteractionUpdateOptions,
 } from "discord.js";
-import {
-  isBootyCallCoolingDown,
-  isBootyMatch,
-  isBootyOnline,
-  isConfirmationExpired,
-  type GamePresence,
-} from "../domain/booty.js";
+import { isBootyCallCoolingDown, isBootyMatch, isBootyOnline, isConfirmationExpired } from "../domain/booty.js";
 import type { PresenceStatus } from "../domain/interview-start.js";
 import type { Uid } from "../domain/lookup-input.js";
 import { tagOfAllianceRole } from "../domain/managed-roles.js";
@@ -278,22 +272,22 @@ export function createBootyCalls(deps: BootyCallDeps): BootyCalls {
 
   /** The Members to mention: the roster matched to Links, or the Alliance role's holders when the Game gave no roster. */
   async function alertedMembers(callerId: MemberId, holders: readonly MemberId[], reach: Reach): Promise<MemberId[]> {
-    const candidates: { readonly memberId: MemberId; readonly game: GamePresence | undefined }[] =
+    const candidates: readonly MemberId[] =
       reach === undefined
-        ? holders.map((memberId) => ({ memberId, game: undefined }))
+        ? holders
         : reach.roster.flatMap((row) => {
             const memberId = deps.links.memberForUid(row.uid);
-            return memberId === undefined ? [] : [{ memberId, game: row }];
+            return memberId === undefined ? [] : [memberId];
           });
     const matched: MemberId[] = [];
-    for (const { memberId, game } of candidates) {
-      if (memberId !== callerId && (await matches(memberId, game))) matched.push(memberId);
+    for (const memberId of candidates) {
+      if (memberId !== callerId && (await matches(memberId))) matched.push(memberId);
     }
     return matched;
   }
 
   /** Whether a Member's Booty Alerts match now. A Member whose Booty Alerts do not read, or whose time zone is unknown, is skipped. */
-  async function matches(memberId: MemberId, game: GamePresence | undefined): Promise<boolean> {
+  async function matches(memberId: MemberId): Promise<boolean> {
     let alerts: StoredBootyAlerts | undefined;
     try {
       alerts = deps.bootyAlerts.get(memberId);
@@ -307,7 +301,7 @@ export function createBootyCalls(deps: BootyCallDeps): BootyCalls {
       deps.logError(`Booty Alerts of ${memberId} were skipped: the time zone is not known`);
       return false;
     }
-    const online = isBootyOnline(game, await discordOnline(memberId));
+    const online = isBootyOnline(await discordOnline(memberId));
     return isBootyMatch(alerts, { online, localMinute });
   }
 

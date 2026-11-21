@@ -162,34 +162,11 @@ describe("isBootyCallCoolingDown", () => {
 });
 
 describe("isBootyOnline", () => {
-  const LAST_SEEN = new Date("2026-11-07T11:00:00Z");
-
-  test("is online when Discord shows the Member not offline, even when the game says offline", () => {
-    expect(isBootyOnline({ online: false, lastOnlineAt: LAST_SEEN }, true)).toBe(true);
+  test("is online when Discord shows the Member online, idle or dnd", () => {
+    expect(isBootyOnline(true)).toBe(true);
   });
 
-  test("is online when the game's online flag says so, and Discord shows offline", () => {
-    expect(isBootyOnline({ online: true, lastOnlineAt: undefined }, false)).toBe(true);
-  });
-
-  test("is offline when the game's online flag says offline, a Last Online is given and Discord shows offline", () => {
-    expect(isBootyOnline({ online: false, lastOnlineAt: LAST_SEEN }, false)).toBe(false);
-  });
-
-  test("a Player without a Last Online is online now, even when the online flag says offline", () => {
-    expect(isBootyOnline({ online: false, lastOnlineAt: undefined }, false)).toBe(true);
-  });
-
-  test("with no online flag, is online when no Last Online is given", () => {
-    expect(isBootyOnline({ online: undefined, lastOnlineAt: undefined }, false)).toBe(true);
-  });
-
-  test("with no online flag, is offline when a Last Online is given", () => {
-    expect(isBootyOnline({ online: undefined, lastOnlineAt: LAST_SEEN }, false)).toBe(false);
-  });
-
-  test("with no game reading at all, follows Discord alone", () => {
-    expect(isBootyOnline(undefined, false)).toBe(false);
-    expect(isBootyOnline(undefined, true)).toBe(true);
+  test("is not online when Discord shows the Member offline, whatever the game says", () => {
+    expect(isBootyOnline(false)).toBe(false);
   });
 });

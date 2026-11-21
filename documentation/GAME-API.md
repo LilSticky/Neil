@@ -115,8 +115,8 @@ no approximate (fuzzy) name search in the API; Neil matches Known Alliances itse
   `leader_id` is read since slice 005 as the Alliance leader's uid, leniently (a number or a digit string;
   nullish means no leader).
 - **`alliance_members[]`**: the player's whole alliance roster, same fields as below, including
-  `rank_label`. The player's own rank is their row in it. Since slice 026 Neil also reads `online` and
-  `last_online_at` here, so a Booty Call learns who is online with one request.
+  `rank_label`. The player's own rank is their row in it. Slice 026 read `online` and `last_online_at` here for
+  the Booty Call; both are gone since 2026-11-21 (see Dropped fields), and the roster now only decides who is reached.
 - `ranks`: the Player's places on the Kingdom leaderboards, e.g. `{"power":{"rank":3,"score":"103886869"},"kills":{…},"heroes":{…}}` (seen 2026-11-15 on Kingdom 330; `{}` in older samples). **Not the alliance rank, and no title**: the API has no field for the King or the Royal City.
 - `history[]`: earlier observations (nick, power, alliance, coordinates, `change_flags`)
 - Image paths are relative (`/static/…`) to the tracker's site.
@@ -143,7 +143,7 @@ roster call returns a whole alliance. Bulk sync costs about one request per alli
 Live sample: `/alliances/1/NML` and three of its members by uid (4 requests), compared with the fixtures.
 
 - **Stable** (always present, same type, clear meaning; shown on cards since slice 012): player `kills`, `vip`,
-  `likes`, `language`, `last_online_at` (equals the roster's value), `x`/`y`, `avatar_url`, `server_badge_url`,
+  `likes`, `language`, `last_online_at` (equals the roster's value; dropped since, see below), `x`/`y`, `avatar_url`, `server_badge_url`,
   `alliance_badge_url`; alliance `level`, `exp`, `gift_level`, `rank` (`{"rank":24,"score":"240337604"}`: the score
   is a string and equals the alliance's power, so `rank` is its power rank in the kingdom), `join`
   (`{"auto":true,"power":0,"castle_level":0}`), `language`, `badge_url`, `server_badge_url`; roster rows `power`.
@@ -157,6 +157,15 @@ Live sample: `/alliances/1/NML` and three of its members by uid (4 requests), co
 - **Pictures**: the `/static/…` paths load from `https://lastasylumtracker.com` (also `api.` and `www.`): 200
   `image/png`, without a key and without using quota.
 - `/players/180/drlol` answered **404** `{"detail":"Not Found"}` (the kingdom-180 drlol of 2026-10-30 is gone or renamed).
+
+### Dropped fields (2026-11-21)
+
+Verified on `/players/145563254785?fresh=1` and `/alliances/1/NML` (with and without `?fresh=1`): the player answer no
+longer has `last_online_at` at all, every roster row has `last_online_at: null`, and `online` is `false` on every row.
+The game itself stopped giving the value. Neil no longer reads either field (issue
+[#169](https://github.com/LilSticky/Neil/issues/169)): no Last Online on cards, no online counts or Last Online column in
+the Alliance Overview, and Discord presence alone decides who is online for a Booty Call. Roster rows still carry `joined_at`
+(`null` in the sample) and `active`.
 
 ## Errors
 

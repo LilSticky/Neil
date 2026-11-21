@@ -41,7 +41,6 @@ const RECORDED_PLAYER_DETAILS: PlayerDetails = {
   kills: 4420,
   vipLevel: 4,
   likes: 110,
-  lastOnlineAt: new Date(1793154302 * 1000),
   language: "en",
   location: { x: 807, y: 846 },
   avatarPath: "/static/avatars/head_90002.png",
@@ -49,12 +48,8 @@ const RECORDED_PLAYER_DETAILS: PlayerDetails = {
   shielded: false,
 };
 
-/** The roster of the recorded player-in-alliance.json: its three rows, each with uid, online flag and Last Online (slice 026, T010). */
-const RECORDED_ROSTER = [
-  { uid: "179060285441", online: false, lastOnlineAt: new Date(1793285439 * 1000) },
-  { uid: "93159425", online: false, lastOnlineAt: new Date(1793191591 * 1000) },
-  { uid: "145563254785", online: false, lastOnlineAt: new Date(1793154302 * 1000) },
-];
+/** The roster of the recorded player-in-alliance.json: its three rows, each with its uid alone (slice 026, T010). */
+const RECORDED_ROSTER = [{ uid: "179060285441" }, { uid: "93159425" }, { uid: "145563254785" }];
 
 /** The Alliance details of the recorded alliance.json (slice 012, T001). */
 const RECORDED_ALLIANCE_DETAILS: AllianceDetails = {
@@ -309,7 +304,7 @@ describe("GameApiClient.getPlayer result", () => {
     });
   });
 
-  test("a roster row's uid, online flag and Last Online time are read into the Player's roster", async () => {
+  test("a roster row's uid is read into the Player's roster, and the Game's online flag and last_online_at are not", async () => {
     const body = {
       ...playerInAlliance,
       alliance_members: playerInAlliance.alliance_members.map((row, index) => (index === 0 ? { ...row, online: true } : row)),
@@ -318,19 +313,14 @@ describe("GameApiClient.getPlayer result", () => {
 
     const result = await clientWith(fetch).getPlayer(parsedUid(PLAYER_UID_TEXT), "lookup");
 
-    expect(result).toMatchObject({
-      kind: "found",
-      value: {
-        roster: [
-          { uid: "179060285441", online: true, lastOnlineAt: new Date(1793285439 * 1000) },
-          { uid: "93159425", online: false, lastOnlineAt: new Date(1793191591 * 1000) },
-          { uid: "145563254785", online: false, lastOnlineAt: new Date(1793154302 * 1000) },
-        ],
-      },
-    });
+    expect(foundPlayer(result).roster).toStrictEqual([
+      { uid: parsedUid("179060285441") },
+      { uid: parsedUid("93159425") },
+      { uid: parsedUid("145563254785") },
+    ]);
   });
 
-  test("a roster row with unreadable online data or no Last Online still reads, with those undefined, and the Player's rank still works", async () => {
+  test("a roster row with odd online or last_online_at data still reads as its uid alone, and the Player's rank still works", async () => {
     const body = {
       ...playerInAlliance,
       alliance_members: playerInAlliance.alliance_members.map((row, index) => {
@@ -347,9 +337,11 @@ describe("GameApiClient.getPlayer result", () => {
     const player = result.kind === "found" ? result.value : undefined;
     expect(player?.allianceRank).toBe("R5");
     expect(player?.roster).toHaveLength(3);
-    expect(player?.roster?.[0]).toEqual({ uid: "179060285441", online: undefined, lastOnlineAt: undefined });
-    expect(player?.roster?.[1]).toEqual({ uid: "93159425", online: undefined, lastOnlineAt: undefined });
-    expect(player?.roster?.[2]).toEqual(RECORDED_ROSTER[2]);
+    expect(player?.roster).toStrictEqual([
+      { uid: parsedUid("179060285441") },
+      { uid: parsedUid("93159425") },
+      { uid: parsedUid("145563254785") },
+    ]);
   });
 
   test.each([
@@ -620,8 +612,6 @@ describe("GameApiClient.getAlliance result", () => {
           weeklyActivity: 490,
           dailyHonor: 40,
           dailyTech: 4600,
-          online: false,
-          lastOnlineAt: new Date(1793285439 * 1000),
         },
         {
           uid: parsedUid("93159425"),
@@ -633,8 +623,6 @@ describe("GameApiClient.getAlliance result", () => {
           weeklyActivity: undefined,
           dailyHonor: undefined,
           dailyTech: undefined,
-          online: false,
-          lastOnlineAt: new Date(1793191591 * 1000),
         },
         {
           uid: parsedUid("147744374785"),
@@ -646,8 +634,6 @@ describe("GameApiClient.getAlliance result", () => {
           weeklyActivity: undefined,
           dailyHonor: undefined,
           dailyTech: undefined,
-          online: false,
-          lastOnlineAt: new Date(1792878480 * 1000),
         },
       ],
     };
@@ -667,7 +653,7 @@ describe("GameApiClient.getAlliance result", () => {
     expect(result).toMatchObject({ kind: "found", value: { tag: "NML", leaderUid: undefined } });
   });
 
-  test("a null online and a null last_online_at of a roster member read as undefined", async () => {
+  test("a roster member with null online and last_online_at reads with no online fields, and the rest of the row as before", async () => {
     const [first, ...others] = alliance.members;
     if (first === undefined) throw new Error("the recorded alliance has no members");
     const body = { ...alliance, members: [{ ...first, online: null, last_online_at: null }, ...others] };
@@ -675,36 +661,10 @@ describe("GameApiClient.getAlliance result", () => {
 
     const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
 
-    expect(result).toMatchObject({
-      kind: "found",
-      value: {
-        roster: [{ uid: "179060285441", online: undefined, lastOnlineAt: undefined }, { uid: "93159425" }, { uid: "147744374785" }],
-      },
-    });
-  });
-
-  test("a last_online_at beyond the range of a date reads as an unknown time, not an invalid date", async () => {
-    const [first, ...others] = alliance.members;
-    if (first === undefined) throw new Error("the recorded alliance has no members");
-    const body = { ...alliance, members: [{ ...first, last_online_at: Number.MAX_SAFE_INTEGER }, ...others] };
-    const { fetch } = fakeFetch(() => jsonResponse(200, body));
-
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
-
     if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
-    expect(result.value.roster[0]?.lastOnlineAt).toBeUndefined();
-  });
-
-  test("a last_online_at of 0 for a roster member reads as an unknown time, not the Unix epoch", async () => {
-    const [first, ...others] = alliance.members;
-    if (first === undefined) throw new Error("the recorded alliance has no members");
-    const body = { ...alliance, members: [{ ...first, last_online_at: 0 }, ...others] };
-    const { fetch } = fakeFetch(() => jsonResponse(200, body));
-
-    const result = await clientWith(fetch).getAlliance(parsedKingdom(1), parsedAllianceKey("NML"), "lookup");
-
-    if (result.kind !== "found") throw new Error(`expected the Alliance, got ${result.kind}`);
-    expect(result.value.roster[0]?.lastOnlineAt).toBeUndefined();
+    expect(result.value.roster[0]).not.toHaveProperty("online");
+    expect(result.value.roster[0]).not.toHaveProperty("lastOnlineAt");
+    expect(result.value.roster[0]?.uid).toBe(parsedUid("179060285441"));
   });
 
   test("a roster member's activity figures read as undefined when the Game gives none", async () => {
@@ -1888,15 +1848,6 @@ const UNREADABLE_COUNT: readonly UnreadableValue[] = [
   { label: "a negative number", value: -1 },
 ];
 
-/** Unix times in seconds, which must be a whole number a Date holds. */
-const UNREADABLE_TIME: readonly UnreadableValue[] = [
-  MISSING,
-  NULL_VALUE,
-  { label: "a text", value: "1793154302" },
-  { label: "a fraction", value: 1793154302.5 },
-  { label: "a time beyond the range of a Date", value: Number.MAX_SAFE_INTEGER },
-  { label: "zero", value: 0 },
-];
 
 const UNREADABLE_TEXT: readonly UnreadableValue[] = [
   MISSING,
@@ -1945,7 +1896,6 @@ const playerDetailCases: readonly DetailCase<keyof PlayerDetails>[] = [
   ...casesOf("kills", "kills", UNREADABLE_COUNT),
   ...casesOf("vipLevel", "vip", UNREADABLE_COUNT),
   ...casesOf("likes", "likes", UNREADABLE_COUNT),
-  ...casesOf("lastOnlineAt", "last_online_at", UNREADABLE_TIME),
   ...casesOf("language", "language", UNREADABLE_TEXT),
   ...casesOf("location", "x", UNREADABLE_COUNT),
   ...casesOf("location", "y", UNREADABLE_COUNT),

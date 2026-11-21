@@ -16,8 +16,6 @@ export interface PlayerDetails {
   readonly kills: number | undefined;
   readonly vipLevel: number | undefined;
   readonly likes: number | undefined;
-  /** The last time the Player was seen online (`last_online_at`). */
-  readonly lastOnlineAt: Date | undefined;
   /** The language code the Player uses (`language`). */
   readonly language: string | undefined;
   /** The Player's position on the map (`x`, `y`). */
@@ -30,13 +28,9 @@ export interface PlayerDetails {
   readonly shielded?: boolean | undefined;
 }
 
-/** One row of an Alliance roster as a Player's lookup gives it: the uid, and the game's online reading of it. */
+/** One row of an Alliance roster as a Player's lookup gives it: the uid. */
 export interface RosterPresence {
   readonly uid: Uid;
-  /** The game's online flag (`online`); undefined when the Game gives none readable. */
-  readonly online: boolean | undefined;
-  /** The last time the row's Player was seen online (`last_online_at`); undefined when the Game gives none. */
-  readonly lastOnlineAt: Date | undefined;
 }
 
 interface PlayerProfile {
@@ -59,8 +53,8 @@ export type Player =
   | (PlayerProfile & { readonly alliance: PlayerAlliance; readonly allianceRank: AllianceRank });
 
 /**
- * One Player on an Alliance's roster; the name is "Unknown" when the Game gave none. The activity figures, the online
- * flag and the last online time are undefined when the Game gives no data for them.
+ * One Player on an Alliance's roster; the name is "Unknown" when the Game gave none. The activity figures are undefined
+ * when the Game gives no data for them.
  */
 export interface RosterEntry {
   readonly uid: Uid;
@@ -78,8 +72,6 @@ export interface RosterEntry {
   readonly dailyHonor: number | undefined;
   /** Today's Daily Tech (`daily_tech`). */
   readonly dailyTech: number | undefined;
-  readonly online: boolean | undefined;
-  readonly lastOnlineAt: Date | undefined;
 }
 
 /** The Join Requirements of an Alliance: whether it is open, and the minimums a joiner needs. */

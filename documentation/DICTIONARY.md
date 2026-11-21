@@ -84,10 +84,6 @@ discovery.
 ## Likes
 * How many likes other Players gave a Player's profile (Game API `likes`)
 
-## Last Online
-* When a Player was last online in the game (Game API `last_online_at`), shown as a time ago
-* A Player without a Last Online is online now
-
 ## Language
 * The language a Player or an Alliance has set in the game (Game API `language`), shown as a language name
 

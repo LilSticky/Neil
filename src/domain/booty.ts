@@ -1,4 +1,3 @@
-import { lastSeen } from "./alliance-overview.js";
 import type { ParseResult } from "./lookup-input.js";
 
 export type BootyMode = "off" | "always" | "online" | "offline";
@@ -62,19 +61,9 @@ export function isBootyMatch(bootyAlerts: BootyAlerts, presence: MemberPresence)
   }
 }
 
-/** The game's reading of a Member on the roster: its online flag and its Last Online, each undefined when not given. */
-export interface GamePresence {
-  readonly online: boolean | undefined;
-  readonly lastOnlineAt: Date | undefined;
-}
-
-/**
- * Whether a Member counts as online for a Booty Call: Discord shows them not offline, or the game does, by the rule of
- * `lastSeen` (a Player without a Last Online is online now). Without any game reading, Discord alone decides.
- */
-export function isBootyOnline(game: GamePresence | undefined, discordOnline: boolean): boolean {
-  if (discordOnline) return true;
-  return game !== undefined && lastSeen(game).kind === "online";
+/** Whether a Member counts as online for a Booty Call: Discord shows them not offline. The Game gives no online reading. */
+export function isBootyOnline(discordOnline: boolean): boolean {
+  return discordOnline;
 }
 
 export function isConfirmationExpired(requestedAt: number, now: number): boolean {

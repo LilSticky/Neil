@@ -291,7 +291,7 @@ export function allianceFailureMessage(
  * and carries the Look again button of `ownerId`, the Member who ran the lookup.
  */
 export function playerCardMessage(player: Player, asOf: Date | undefined, now: Date, ownerId: string): CardMessage {
-  const card = renderPlayerCard(player, asOf, now);
+  const card = renderPlayerCard(player, asOf);
   if (!isOld(asOf, now)) return { embeds: [card] };
   return {
     embeds: [withNewerData(card, player.kingdom)],

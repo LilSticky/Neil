@@ -807,7 +807,6 @@ function playerDetailsFrom(body: PlayerBody): PlayerDetails {
     kills: body.kills,
     vipLevel: body.vip,
     likes: body.likes,
-    lastOnlineAt: dateFromSeconds(body.last_online_at),
     language: body.language,
     location: body.x === undefined || body.y === undefined ? undefined : { x: body.x, y: body.y },
     avatarPath: body.avatar_url,
@@ -816,15 +815,15 @@ function playerDetailsFrom(body: PlayerBody): PlayerDetails {
 }
 
 /**
- * The Alliance roster a Player's 200 body gives: each row's uid and online reading. A row whose uid is not a uid is left
- * out; a body with no `alliance_members` gives no roster at all.
+ * The Alliance roster a Player's 200 body gives: each row's uid. A row whose uid is not a uid is left out; a body with no
+ * `alliance_members` gives no roster at all.
  */
 function rosterOf(body: PlayerBody): { readonly roster?: readonly RosterPresence[] } {
   if (body.alliance_members === undefined || body.alliance_members === null) return {};
   const roster = body.alliance_members.flatMap((row): RosterPresence[] => {
     const uid = parseUid(row.uid);
     if (!uid.ok) return [];
-    return [{ uid: uid.value, online: row.online ?? undefined, lastOnlineAt: dateFromSeconds(row.last_online_at) }];
+    return [{ uid: uid.value }];
   });
   return { roster };
 }
@@ -891,18 +890,10 @@ function rosterEntryFrom(member: RosterMemberBody): RosterEntry[] {
       weeklyActivity: member.active ?? undefined,
       dailyHonor: member.daily_honor ?? undefined,
       dailyTech: member.daily_tech ?? undefined,
-      online: member.online ?? undefined,
-      lastOnlineAt: dateFromSeconds(member.last_online_at),
     },
   ];
 }
 
-/** A Game API Unix time in seconds as a Date; undefined when the Game gave none or the time is not one a Date holds. */
-function dateFromSeconds(seconds: number | null | undefined): Date | undefined {
-  if (seconds === null || seconds === undefined) return undefined;
-  const moment = new Date(seconds * 1000);
-  return Number.isFinite(moment.getTime()) ? moment : undefined;
-}
 
 /** Maps one candidate of a 409, leaving out the fields the Game did not give (exactOptionalPropertyTypes). */
 function toMatch(raw: AmbiguousBody["matches"][number]): Match {

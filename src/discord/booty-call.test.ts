@@ -9,7 +9,7 @@ import type { RosterEntry } from "../domain/player.js";
 import { BootyAlertsStore, type StoredBootyAlerts } from "../storage/booty-alerts-store.js";
 import { openDatabase } from "../storage/database.js";
 import { type BootyCallAnswer, type CallTimeline, FakeBootyCallInteraction } from "./__fakes__/booty-call-interaction.js";
-import { FakeBootyCallGameApi, FakeBootyCallLinks, rosterEntry, type RosterState } from "./__fakes__/booty-call-game.js";
+import { FakeBootyCallGameApi, FakeBootyCallLinks, rosterEntry } from "./__fakes__/booty-call-game.js";
 import { FakeBootyCallServer } from "./__fakes__/booty-call-server.js";
 import { type BootyChannel, type BootyCalls, createBootyCalls } from "./booty-call.js";
 import { bootyCallMessages } from "./booty-texts.js";
@@ -352,7 +352,7 @@ describe("/booty and its Booty Call", () => {
   describe("who is alerted (T010)", () => {
     test("the roster is read with one uncharged Player lookup of the caller's uid, for the lookup purpose", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
-      roster(rosterEntry(ALICE_UID, "Alice Game", { online: true }));
+      roster(rosterEntry(ALICE_UID, "Alice Game"));
 
       await bootyCallBy(ALICE);
 
@@ -361,27 +361,27 @@ describe("/booty and its Booty Call", () => {
 
     test("the roster's Player is read from the copy, with no live request", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
-      roster(rosterEntry(ALICE_UID, "Alice Game", { online: true }));
+      roster(rosterEntry(ALICE_UID, "Alice Game"));
 
       await bootyCallBy(ALICE);
 
       expect(game.lookups.map((lookup) => lookup.freshness ?? "copy")).toEqual(["copy"]);
     });
 
-    test("a Member who chose Only when online is mentioned while the game says they are online", async () => {
+    test("a Member who chose Only when online is not mentioned when the game says online but Discord says offline", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("online"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
-      expect(mentionedBy()).toContain(BOB);
+      expect(mentionedBy()).not.toContain(BOB);
     });
 
     test("a Member who chose Only when online is not mentioned when offline in the game and on Discord", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("online"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: false, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
       server.setPresence(BOB, "offline");
 
       await bootyCallBy(ALICE);
@@ -392,7 +392,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member who chose Only when online is mentioned when offline in the game but online on Discord", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("online"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: false, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
       server.setPresence(BOB, "dnd");
 
       await bootyCallBy(ALICE);
@@ -403,7 +403,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member who chose Only when offline is not mentioned when online on Discord, even though the game says offline", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("offline"));
-      roster(rosterEntry(CAROL_UID, "Carol Game", { online: false, lastOnlineAt: NOW }));
+      roster(rosterEntry(CAROL_UID, "Carol Game"));
       server.setPresence(CAROL, "idle");
 
       await bootyCallBy(ALICE);
@@ -414,7 +414,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member who chose Only when offline is mentioned when offline in the game and on Discord", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("offline"));
-      roster(rosterEntry(CAROL_UID, "Carol Game", { online: false, lastOnlineAt: NOW }));
+      roster(rosterEntry(CAROL_UID, "Carol Game"));
       server.setPresence(CAROL, "offline");
 
       await bootyCallBy(ALICE);
@@ -422,29 +422,27 @@ describe("/booty and its Booty Call", () => {
       expect(mentionedBy()).toContain(CAROL);
     });
 
-    test("a Member with no Last Online in the game counts as online", async () => {
+    test("a Member who chose Only when offline is mentioned when Discord says offline, even though the game says online", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
-      enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("online"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: undefined, lastOnlineAt: undefined }));
+      enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("offline"));
+      roster(rosterEntry(CAROL_UID, "Carol Game"));
 
       await bootyCallBy(ALICE);
 
-      expect(mentionedBy()).toContain(BOB);
+      expect(mentionedBy()).toContain(CAROL);
     });
 
-    test.each<[string, BootyMode, RosterState, Presence, boolean]>([
-      ["a roster row online: true is online, even when Discord says offline", "online", { online: true }, "offline", true],
-      ["a roster row without a Last Online is online now, even with online: false and Discord offline", "online", { online: false }, "offline", true],
-      ["a roster row online: false with a Last Online is offline, when Discord says offline", "online", { online: false, lastOnlineAt: NOW }, "offline", false],
-      ["a roster row online: false with a Last Online is offline, but Discord dnd counts as online", "online", { online: false, lastOnlineAt: NOW }, "dnd", true],
-      ["no roster flag and a Last Online is offline, even when Discord says offline", "online", { lastOnlineAt: NOW }, "offline", false],
-      ["no roster flag and a Last Online is offline, but Discord idle counts as online", "online", { lastOnlineAt: NOW }, "idle", true],
-      ["no roster flag and a Last Online is offline, so an Only when offline Member is mentioned", "offline", { lastOnlineAt: NOW }, "offline", true],
-      ["a roster row online: true is not offline, so an Only when offline Member is not mentioned", "offline", { online: true }, "offline", false],
-    ])("%s", async (_label, mode, state, presence, mentioned) => {
+    test.each<[string, BootyMode, Presence, boolean]>([
+      ["a roster Member online on Discord is online", "online", "online", true],
+      ["a roster Member idle on Discord is online", "online", "idle", true],
+      ["a roster Member dnd on Discord is online", "online", "dnd", true],
+      ["a roster Member offline on Discord is not online, so an Only when online Member is not mentioned", "online", "offline", false],
+      ["a roster Member offline on Discord is offline, so an Only when offline Member is mentioned", "offline", "offline", true],
+      ["a roster Member idle on Discord is not offline, so an Only when offline Member is not mentioned", "offline", "idle", false],
+    ])("%s", async (_label, mode, presence, mentioned) => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf(mode));
-      roster(rosterEntry(BOB_UID, "Bob Game", state));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
       server.setPresence(BOB, presence);
 
       await bootyCallBy(ALICE);
@@ -455,7 +453,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member who chose Off is never mentioned", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("off"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
@@ -465,7 +463,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member with no Booty Alerts recorded is not mentioned", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(CAROL, CAROL_UID, [NML_ROLE]);
-      roster(rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(CAROL_UID, "Carol Game"));
 
       await bootyCallBy(ALICE);
 
@@ -476,7 +474,7 @@ describe("/booty and its Booty Call", () => {
       clock = new Date("2026-11-07T23:30:00Z");
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always", "Europe/Lisbon", windowOf(480, 1380)));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
@@ -487,7 +485,7 @@ describe("/booty and its Booty Call", () => {
       clock = new Date("2026-11-07T12:00:00Z");
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("offline", "Europe/Lisbon", windowOf(480, 1380)));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: false, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
       server.setPresence(BOB, "offline");
 
       await bootyCallBy(ALICE);
@@ -499,7 +497,7 @@ describe("/booty and its Booty Call", () => {
       clock = new Date("2026-11-08T01:00:00Z");
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always", "UTC", windowOf(1320, 360)));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
@@ -510,8 +508,8 @@ describe("/booty and its Booty Call", () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE], alertsOf("always"));
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always"));
       roster(
-        rosterEntry(ALICE_UID, "Alice Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(ALICE_UID, "Alice Game"),
+        rosterEntry(BOB_UID, "Bob Game"),
       );
 
       await bootyCallBy(ALICE);
@@ -522,7 +520,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member outside the Alliance is never mentioned, even when opted in", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(EVE, EVE_UID, [], alertsOf("always"));
-      roster(rosterEntry(ALICE_UID, "Alice Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(ALICE_UID, "Alice Game"));
 
       await bootyCallBy(ALICE);
 
@@ -541,8 +539,8 @@ describe("/booty and its Booty Call", () => {
       );
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("always"));
       roster(
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(BOB_UID, "Bob Game"),
+        rosterEntry(CAROL_UID, "Carol Game"),
       );
 
       await bootyCallBy(ALICE);
@@ -556,8 +554,8 @@ describe("/booty and its Booty Call", () => {
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always", "Mars/Olympus"));
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("always"));
       roster(
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(BOB_UID, "Bob Game"),
+        rosterEntry(CAROL_UID, "Carol Game"),
       );
 
       await bootyCallBy(ALICE);
@@ -594,14 +592,14 @@ describe("/booty and its Booty Call", () => {
       expect(mentionedBy().sort()).toEqual([BOB, DAVE].sort());
     });
 
-    test("the log line says the Game API could not answer, so Discord alone decided who is online", async () => {
+    test("the log line says the Game API could not answer, so the Alliance role decided who was reached", async () => {
       allianceWithoutGameData();
       game.failWith({ kind: "unavailable", reason: "unexpected" });
 
       await bootyCallBy(ALICE);
 
       expect(server.logs).toHaveLength(1);
-      expect(server.logs[0]).toMatch(/Game API/);
+      expect(server.logs[0]).toContain("The Game API could not answer, so the Alliance role decided who was reached.");
       expect(server.logs[0]).toContain(ALICE);
       expect(server.logs[0]).toContain("NML");
     });
@@ -627,14 +625,14 @@ describe("/booty and its Booty Call", () => {
       expect(mentionedBy().sort()).toEqual([BOB, DAVE].sort());
     });
 
-    test("an answer with no roster is logged as the Game API could not answer, the same as a failed lookup", async () => {
+    test("an answer with no roster is logged with the same line as a failed lookup", async () => {
       allianceWithoutGameData();
       game.withoutRoster();
 
       await bootyCallBy(ALICE);
 
       expect(server.logs).toHaveLength(1);
-      expect(server.logs[0]).toMatch(/Game API/);
+      expect(server.logs[0]).toContain("The Game API could not answer, so the Alliance role decided who was reached.");
       expect(server.logs[0]).toContain(ALICE);
       expect(server.logs[0]).toContain("NML");
     });
@@ -645,8 +643,8 @@ describe("/booty and its Booty Call", () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always"));
       roster(
-        rosterEntry(ALICE_UID, "Alice Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(ALICE_UID, "Alice Game"),
+        rosterEntry(BOB_UID, "Bob Game"),
       );
 
       await bootyCallBy(ALICE);
@@ -664,9 +662,9 @@ describe("/booty and its Booty Call", () => {
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("always"));
       enrol(DAVE, DAVE_UID, [NML_ROLE]);
       roster(
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(DAVE_UID, "Dave Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(BOB_UID, "Bob Game"),
+        rosterEntry(CAROL_UID, "Carol Game"),
+        rosterEntry(DAVE_UID, "Dave Game"),
       );
 
       await bootyCallBy(ALICE);
@@ -689,7 +687,7 @@ describe("/booty and its Booty Call", () => {
       }));
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       for (const member of crowd) enrol(member.memberId, member.uid, [NML_ROLE], alertsOf("always"));
-      roster(...crowd.map((member) => rosterEntry(member.uid, member.name, { online: true, lastOnlineAt: NOW })));
+      roster(...crowd.map((member) => rosterEntry(member.uid, member.name)));
 
       await bootyCallBy(ALICE);
 
@@ -702,8 +700,8 @@ describe("/booty and its Booty Call", () => {
 
     test("when nobody matches, the card is still posted, with no mentions", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
-      enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("offline"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("online"));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
@@ -717,8 +715,8 @@ describe("/booty and its Booty Call", () => {
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always"));
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("always"));
       roster(
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(BOB_UID, "Bob Game"),
+        rosterEntry(CAROL_UID, "Carol Game"),
       );
 
       await bootyCallBy(ALICE);
@@ -949,7 +947,7 @@ describe("/booty and its Booty Call", () => {
     async function askWithLookupThatThrows(): Promise<string> {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
       const asked = await askBooty(ALICE);
       links.failNextMemberForUid(new Error("the Link store could not read a row"));
       return confirmIdOf(asked);
@@ -987,7 +985,7 @@ describe("/booty and its Booty Call", () => {
     test("a Member whose time zone Intl does not know is logged by Member id, and the time zone text is left out", async () => {
       enrol(ALICE, ALICE_UID, [NML_ROLE]);
       enrol(BOB, BOB_UID, [NML_ROLE], alertsOf("always", "Mars/Olympus"));
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
@@ -1005,7 +1003,7 @@ describe("/booty and its Booty Call", () => {
         0,
         "Mars/Olympus",
       );
-      roster(rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }));
+      roster(rosterEntry(BOB_UID, "Bob Game"));
 
       await bootyCallBy(ALICE);
 
@@ -1019,9 +1017,9 @@ describe("/booty and its Booty Call", () => {
       enrol(CAROL, CAROL_UID, [NML_ROLE], alertsOf("always"));
       enrol(DAVE, DAVE_UID, [NML_ROLE], alertsOf("always"));
       roster(
-        rosterEntry(BOB_UID, "Bob Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(CAROL_UID, "Carol Game", { online: true, lastOnlineAt: NOW }),
-        rosterEntry(DAVE_UID, "Dave Game", { online: true, lastOnlineAt: NOW }),
+        rosterEntry(BOB_UID, "Bob Game"),
+        rosterEntry(CAROL_UID, "Carol Game"),
+        rosterEntry(DAVE_UID, "Dave Game"),
       );
 
       await bootyCallBy(ALICE);

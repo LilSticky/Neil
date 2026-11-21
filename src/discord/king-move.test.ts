@@ -39,8 +39,6 @@ function rosterEntry(uid: Uid): RosterEntry {
     weeklyActivity: undefined,
     dailyHonor: undefined,
     dailyTech: undefined,
-    online: undefined,
-    lastOnlineAt: undefined,
   };
 }
 

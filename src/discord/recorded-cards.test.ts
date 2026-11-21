@@ -38,12 +38,12 @@ describe("cards from recorded Game API answers", () => {
     const result = await clientAnswering(playerBody).getPlayer(uid.value, "lookup");
     if (result.kind !== "found") throw new Error(`expected found, got ${result.kind}`);
 
-    expect(renderPlayerCard(result.value, result.asOf, NOW)).toEqual({
+    expect(renderPlayerCard(result.value, result.asOf)).toEqual({
       title: "DrLOL",
       color: 0xb33a3a,
       author: { name: "Kingdom #1", icon_url: "https://lastasylumtracker.com/static/kingdom/badge_1.png" },
       thumbnail: { url: "https://lastasylumtracker.com/static/avatars/head_90002.png" },
-      description: "Last online 2 days ago\nAs of <t:1793190835:f> (<t:1793190835:R>)",
+      description: "As of <t:1793190835:f> (<t:1793190835:R>)",
       fields: [
         { name: "Might", value: "15,902,728", inline: true },
         { name: "Kills", value: "4,420", inline: true },

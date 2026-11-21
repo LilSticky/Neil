@@ -128,9 +128,9 @@ Branch `008-alliance-overview`.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 6d.1 | `/alliance tag:NML kingdom:330`, press `Overview` | Only you see: totals (Weekly Activity, Daily Honor, Daily Tech; online now / 24 h), top 5 each, 5 Least Active, "no data" count; no uids; `/quota` unchanged | | |
+| 6d.1 | `/alliance tag:NML kingdom:330`, press `Overview` | Only you see: totals (Weekly Activity, Daily Honor, Daily Tech), top 5 each, 5 Least Active, "no data" count; no uids; `/quota` unchanged | | |
 | 6d.2 | Second account presses `Overview` on the same card | They get their own private overview | | |
-| 6d.3 | Page the member table (alliance with > 25 members) | 25 rows per page, sorted by Weekly Activity, "no data" last; last online shown in your time zone | | |
+| 6d.3 | Page the member table (alliance with > 25 members) | 25 rows per page, sorted by Weekly Activity, "no data" last | | |
 | 6d.4 | Second account presses your page buttons (if visible) | "not yours" note | | |
 | 6d.5 | Wait > 10 minutes, press `Overview` on the old card | Overview still comes (one lookup) or a clear "try again" | | |
 | 6d.6 | Do the numbers match the tracker's website? | — | | |
@@ -190,17 +190,16 @@ Branch `012-see-a-fuller-card`. No new commands, no `commands:register` needed.
 
 | # | Do | Expect | Result | Feedback |
 |---|----|--------|--------|----------|
-| 6h.1 | `/player name:DrLOL` | Red accent; "Kingdom #1" with the kingdom badge on top; avatar at the right; "Last online … ago"; grid Might · Kills · Likes / Sanctuary level · VIP Level · Language / Alliance · Alliance Rank · Location | | |
-| 6h.2 | Read the card from 6h.1 | Might, Alliance and Last Online found in under 5 seconds (SC-004); nothing looks cramped or misaligned on desktop and phone | | |
+| 6h.1 | `/player name:DrLOL` | Red accent; "Kingdom #1" with the kingdom badge on top; avatar at the right; no online line; grid Might · Kills · Likes / Sanctuary level · VIP Level · Language / Alliance · Alliance Rank · Location | | |
+| 6h.2 | Read the card from 6h.1 | Might and Alliance found in under 5 seconds (SC-004); nothing looks cramped or misaligned on desktop and phone | | |
 | 6h.3 | `/alliance tag:NML kingdom:1` | Alliance badge at the right; "**Join Requirements:** …" line; Might · Kingdom Might Rank · Members / Leader · Alliance Level · Gift Level / Language; roster rows `Name · 27.6M` | | |
 | 6h.4 | Turn the roster menu to page 2 (an Alliance with more than 25 members) | Same top part; roster rows with Might; no Discord error | | |
 | 6h.5 | `/player` on a Player without an Alliance | "No alliance", no Alliance Rank; other values as in 6h.1 | | |
 | 6h.6 | `/quota` before and after 6h.1–6h.5 | Same number of requests as before this slice (one per uncached lookup) | | |
-| 6h.7 | `/player` on a Player the Game gives no Last Online for (often one online right now) | "Online now" under the name | | |
-| 6h.8 | Press Overview on the card from 6h.3 | Same red accent, "Kingdom #1" with badge, Alliance badge at the right; totals, online counts and Top lists in rows of three (check they read well on desktop and phone); Least Active full width; table rows `Name · 27.6M · …`; members without a Last Online read "online" | | |
+| 6h.8 | Press Overview on the card from 6h.3 | Same red accent, "Kingdom #1" with badge, Alliance badge at the right; totals and Top lists in rows of three, no online counts (check they read well on desktop and phone); Least Active full width; table rows `Name · 27.6M · …` | | |
 | 6h.9 | Turn the Overview's table to page 2 | Same look; no Discord error | | |
-| 6h.10 | Look at the Overview's member table | A card of its own: red accent, "Kingdom #1", title "Members · sorted by Might"; one monospace table `#  Name  Might  Weekly  Honor  Tech  Last` with aligned columns, highest Might first; footer "Page 1 of N" | | |
-| 6h.11 | Press Weekly Activity, Daily Honor, Daily Tech, Last Online, then Might | Page 1 sorted by that column (Last Online: online first), pressed button highlighted; no Discord error | | |
+| 6h.10 | Look at the Overview's member table | A card of its own: red accent, "Kingdom #1", title "Members · sorted by Might"; one monospace table `#  Name  Might  Weekly  Honor  Tech` with aligned columns, highest Might first; footer "Page 1 of N" | | |
+| 6h.11 | Press Weekly Activity, Daily Honor, Daily Tech, then Might | Page 1 sorted by that column (no Last Online button), pressed button highlighted; no Discord error | | |
 | 6h.12 | Sort by Daily Honor, then press Next | Page 2, still sorted by Daily Honor | | |
 | 6h.13 | Another Member presses a sort button on your Overview | Not possible (the Overview is private); if it were, "Only the Member who ran this command…" | | |
 | 6h.14 | Read the table on a phone | Rows may wrap on narrow screens; note whether it is still readable | | |

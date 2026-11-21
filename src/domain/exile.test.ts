@@ -39,7 +39,6 @@ function playerRead(
     kills: undefined,
     vipLevel: undefined,
     likes: undefined,
-    lastOnlineAt: undefined,
     language: undefined,
     location: options.location,
     avatarPath: undefined,

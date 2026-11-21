@@ -48,7 +48,6 @@ function playerIn(language: string | undefined): Player {
       kills: undefined,
       vipLevel: undefined,
       likes: undefined,
-      lastOnlineAt: undefined,
       language,
       location: undefined,
       avatarPath: undefined,
