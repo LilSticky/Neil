@@ -12,7 +12,7 @@ Read [`documentation/STATUS.md`](documentation/STATUS.md) first: the current sli
 step**, known broken/WIP items, and open questions. Then read only what that step needs.
 
 **"go"** means: resume without asking. Orient yourself (`git status`, open pull requests, STATUS's next
-step, open issues), take the next step, and run the usual loop through to the merge and the cleanup.
+step, open issues, new feedback in the #330 server's `#neil-log`), take the next step, and run the usual loop through to the merge and the cleanup.
 Ask only about domain, dictionary or scope questions.
 
 | When you… | Read |
@@ -65,9 +65,12 @@ Ask only about domain, dictionary or scope questions.
 - **Merging**: when CI passes, squash-merge into `develop` yourself (`gh pr merge --squash --delete-branch`),
   then switch to `develop`, pull, and have the `housekeeper` clean up local Git state. CI deploys `develop`
   to test Neil (`deploy-test`); the user restarts `lap-test-neil`.
-- **Testing on test Neil**: run the slice's checks against the `-test` build through Neil Police
-  ([NEIL-POLICE.md](documentation/NEIL-POLICE.md) section 3a): set up with Police, hand the user only what Discord
-  reserves to people (slash commands, buttons, joining), verify every result through Police, record it in `tasks.md`.
+- **Testing on test Neil** ([ADR 29](documentation/adr/0029-feedback-from-the-real-server-replaces-manual-checks.md)):
+  a smoke test against the `-test` build through Neil Police ([NEIL-POLICE.md](documentation/NEIL-POLICE.md) section 3a),
+  only what Police can arrange and read back by itself; hand the user no manual steps. Record it in `tasks.md`.
+- **Feedback from the #330 server**: production Neil forwards `#suggestions` and `#feedback` posts to `#neil-log`. On
+  "go", read the new lines through Police and file bugs and ideas as GitHub Issues in your own words, never with the
+  Member's name.
 - **Releases**: a pull request `develop` → `main` listing the slices and their checks, merged with a **merge
   commit** (`gh pr merge --merge`) once the user approved it. CI deploys `main` and fast-forwards `develop`.
   If something is merged red, say so in the PR and in STATUS.

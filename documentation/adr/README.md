@@ -34,3 +34,4 @@ with a new one and update both statuses here.
 | 26 | [NaP Rules and their versions](0026-nap-rules-and-their-versions.md) | Accepted |
 | 27 | [Personal data of Shield Confirmations](0027-personal-data-of-shield-confirmations.md) | Accepted |
 | 28 | [NaP breach reports](0028-nap-breach-reports.md) | Accepted |
+| 29 | [Feedback from the real server replaces manual checks](0029-feedback-from-the-real-server-replaces-manual-checks.md) | Accepted |

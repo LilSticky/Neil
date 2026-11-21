@@ -104,8 +104,9 @@ Rationale: frequent, visible progress keeps momentum.
   and decisions that change scope.
 - A slice is Done only when ALL of these hold (the gate):
   1. Typecheck, lint and tests are green, locally and in CI.
-  2. It was exercised on the test server against the `develop` build, and the check is recorded in the
-     slice's `tasks.md`.
+  2. It passed a smoke test on the test server against the `develop` build, run by Neil Police without
+     manual steps, and the result is recorded in the slice's `tasks.md`. What needs a person is checked by
+     real use on the production server, through its `#suggestions` and `#feedback` (ADR 29).
   3. STATUS, ROADMAP, DICTIONARY and any affected ADRs are updated.
   4. It is committed on the slice branch, merged into `develop` through a pull request that references
      its issues, and reached `main` through a release pull request.
@@ -121,4 +122,4 @@ Rationale: frequent, visible progress keeps momentum.
 - Every spec, plan and implementation MUST be checked against these principles (the Constitution Check
   in `/speckit-plan`); any deviation MUST be justified in the plan or rejected.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-11-15 (develop and test Neil, ADR 16)
+**Version**: 1.3.0 | **Ratified**: 2026-10-29 | **Last Amended**: 2026-11-21 (feedback from the real server, ADR 29)
