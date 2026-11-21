@@ -89,11 +89,11 @@ const withoutAlliance: Player = {
 
 describe("renderPlayerCard", () => {
   test("titles the card with the Player's name", () => {
-    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({ title: "Vex" });
+    expect(renderPlayerCard(inAlliance, FETCHED_AT)).toMatchObject({ title: "Vex" });
   });
 
   test("shows Might, Sanctuary level, Alliance and Alliance Rank as inline fields, with the Kingdom in the author line", () => {
-    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
+    expect(renderPlayerCard(inAlliance, FETCHED_AT)).toMatchObject({
       author: { name: "Kingdom #330" },
       fields: [
         { name: "Might", value: "15,902,728", inline: true },
@@ -105,7 +105,7 @@ describe("renderPlayerCard", () => {
   });
 
   test("shows No alliance and leaves out the Alliance Rank field without an Alliance", () => {
-    const card = renderPlayerCard(withoutAlliance, FETCHED_AT, NOW);
+    const card = renderPlayerCard(withoutAlliance, FETCHED_AT);
 
     expect(card).toMatchObject({
       fields: [
@@ -118,17 +118,17 @@ describe("renderPlayerCard", () => {
   });
 
   test("shows no uid anywhere on the card, lookups never show one", () => {
-    expect(JSON.stringify(renderPlayerCard(inAlliance, FETCHED_AT, NOW))).not.toContain("145563254785");
+    expect(JSON.stringify(renderPlayerCard(inAlliance, FETCHED_AT))).not.toContain("145563254785");
   });
 
   test("shows Unknown as the Alliance Rank when the Game gives none", () => {
-    const card = renderPlayerCard({ ...inAlliance, allianceRank: "unknown" }, FETCHED_AT, NOW);
+    const card = renderPlayerCard({ ...inAlliance, allianceRank: "unknown" }, FETCHED_AT);
 
     expect(card.fields?.find((field) => field.name === "Alliance Rank")).toMatchObject({ value: "Unknown" });
   });
 
   test("credits Last Asylum Tracker in the footer", () => {
-    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toMatchObject({
+    expect(renderPlayerCard(inAlliance, FETCHED_AT)).toMatchObject({
       footer: { text: "Data from Last Asylum Tracker" },
     });
   });
@@ -138,7 +138,7 @@ describe("renderPlayerCard", () => {
       ...inAlliance,
       name: "*Bold_* `x`",
       alliance: { tag: "NML", name: "_Tilted_ ~Men~", leaderUid: undefined },
-    }, FETCHED_AT, NOW);
+    }, FETCHED_AT);
 
     expect(card).toMatchObject({ title: "\\*Bold\\_\\* \\`x\\`" });
     expect(card.fields?.find((field) => field.name === "Alliance")).toMatchObject({
@@ -293,7 +293,7 @@ describe("card titles within Discord's 256-character limit", () => {
   const longName = "A".repeat(300);
 
   test("truncates a Player's name of 300 characters to at most 256, ending with an ellipsis", () => {
-    const title = renderPlayerCard({ ...inAlliance, name: longName }, FETCHED_AT, NOW).title ?? "";
+    const title = renderPlayerCard({ ...inAlliance, name: longName }, FETCHED_AT).title ?? "";
 
     expect(title.length).toBeLessThanOrEqual(256);
     expect(title.endsWith("…")).toBe(true);
@@ -350,7 +350,7 @@ describe("cards say when the data was fetched, as timestamps in the description"
   test.each([
     {
       label: "the Player card",
-      render: (asOf: Date, now: Date) => renderPlayerCard(inAlliance, asOf, now),
+      render: (asOf: Date) => renderPlayerCard(inAlliance, asOf),
     },
     {
       label: "the Alliance card",
@@ -364,7 +364,7 @@ describe("cards say when the data was fetched, as timestamps in the description"
   });
 
   test("a Player card without details has the as-of line as its whole description", () => {
-    expect(renderPlayerCard(inAlliance, ASOF, NOW).description).toBe(AS_OF_LINE);
+    expect(renderPlayerCard(inAlliance, ASOF).description).toBe(AS_OF_LINE);
   });
 });
 
@@ -381,7 +381,7 @@ describe("cards without a map time", () => {
   });
 
   test("a Player card with no asOf has the tracker credit and no as-of line", () => {
-    const card = renderPlayerCard(inAlliance, undefined, NOW);
+    const card = renderPlayerCard(inAlliance, undefined);
 
     expect(card.footer).toEqual({ text: "Data from Last Asylum Tracker" });
     expect(card.description ?? "").not.toContain("As of");
@@ -515,7 +515,7 @@ describe("renderPlayerPickList with more than 25 matches", () => {
 });
 
 function rosterEntry(uidText: string, name: string, allianceRank: RosterEntry["allianceRank"]): RosterEntry {
-  return { uid: uid(uidText), name, allianceRank, kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined, online: undefined, lastOnlineAt: undefined };
+  return { uid: uid(uidText), name, allianceRank, kingdom: undefined, sanctuaryLevel: undefined, weeklyActivity: undefined, dailyHonor: undefined, dailyTech: undefined };
 }
 
 function fieldValue(embed: APIEmbed, name: string): string | undefined {
@@ -603,8 +603,6 @@ describe("renderAllianceCard with 100 long rows", () => {
     weeklyActivity: undefined,
     dailyHonor: undefined,
     dailyTech: undefined,
-    online: undefined,
-    lastOnlineAt: undefined,
   }));
 
   test("keeps the whole card within Discord's 6,000 characters", () => {
@@ -1062,7 +1060,6 @@ const fullPlayerDetails: PlayerDetails = {
   kills: 4420,
   vipLevel: 4,
   likes: 110,
-  lastOnlineAt: new Date("2026-10-28T02:25:02Z"),
   language: "en",
   location: { x: 807, y: 846 },
   avatarPath: "/static/avatars/head_90002.png",
@@ -1089,7 +1086,7 @@ const fullPlayerCard: APIEmbed = {
   color: ACCENT_COLOR,
   author: { name: "Kingdom #330", icon_url: `${TRACKER}/static/kingdom/badge_1.png` },
   thumbnail: { url: `${TRACKER}/static/avatars/head_90002.png` },
-  description: `Last online 2 days ago\n${FETCHED_AT_LINE}`,
+  description: FETCHED_AT_LINE,
   fields: fullPlayerFields,
   footer: { text: "Data from Last Asylum Tracker" },
 };
@@ -1109,8 +1106,8 @@ const noDetailsPlayerCard: APIEmbed = {
 };
 
 describe("renderPlayerCard with details", () => {
-  test("shows the full card: accent color, Kingdom badge beside the Kingdom, avatar, Last Online, and the fields in order", () => {
-    expect(renderPlayerCard(fullPlayer, FETCHED_AT, NOW)).toEqual(fullPlayerCard);
+  test("shows the full card: accent color, Kingdom badge beside the Kingdom, avatar, the as-of line, and the fields in order", () => {
+    expect(renderPlayerCard(fullPlayer, FETCHED_AT)).toEqual(fullPlayerCard);
   });
 
   test.each([
@@ -1120,7 +1117,7 @@ describe("renderPlayerCard with details", () => {
     { label: "Language", details: { language: undefined }, field: "Language" },
     { label: "Location", details: { location: undefined }, field: "Location" },
   ])("leaves only $label off the card when the Game gives none", ({ details, field }) => {
-    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, ...details } }, FETCHED_AT, NOW);
+    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, ...details } }, FETCHED_AT);
 
     expect(card).toEqual({ ...fullPlayerCard, fields: fullPlayerFields.filter((item) => item.name !== field) });
   });
@@ -1133,35 +1130,24 @@ describe("renderPlayerCard with details", () => {
       change: { author: { name: "Kingdom #330" } },
     },
   ])("leaves only the $label off the card when the Game gives none", ({ details, change }) => {
-    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, ...details } }, FETCHED_AT, NOW);
+    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, ...details } }, FETCHED_AT);
 
     expect(card).toEqual({ ...fullPlayerCard, ...change });
   });
 
-  test("shows Online now as the description when the Game gives no Last Online time", () => {
-    const card = renderPlayerCard({ ...inAlliance, details: { ...fullPlayerDetails, lastOnlineAt: undefined } }, FETCHED_AT, NOW);
-
-    expect(card).toEqual({ ...fullPlayerCard, description: `Online now\n${FETCHED_AT_LINE}` });
-  });
-
-  test("renders a Player whose details are all unknown as Online now, with no picture, badge or detail fields", () => {
+  test("renders a Player whose details are all unknown with the as-of line alone, and no picture, badge or detail fields", () => {
     const allUnknown: PlayerDetails = {
       kills: undefined,
       vipLevel: undefined,
       likes: undefined,
-      lastOnlineAt: undefined,
       language: undefined,
       location: undefined,
       avatarPath: undefined,
       kingdomBadgePath: undefined,
     };
 
-    expect(renderPlayerCard({ ...inAlliance, details: allUnknown }, FETCHED_AT, NOW)).toEqual({
-      ...noDetailsPlayerCard,
-      description: `Online now\n${FETCHED_AT_LINE}`,
-    });
+    expect(renderPlayerCard({ ...inAlliance, details: allUnknown }, FETCHED_AT)).toEqual(noDetailsPlayerCard);
   });
-
   test("leaves out a picture whose path is not a tracker /static/ path", () => {
     const card = renderPlayerCard(
       {
@@ -1173,14 +1159,13 @@ describe("renderPlayerCard with details", () => {
         },
       },
       FETCHED_AT,
-      NOW,
     );
 
     expect(card).toEqual({ ...fullPlayerCard, thumbnail: undefined, author: { name: "Kingdom #330" } });
   });
 
   test("shows No alliance and no Alliance Rank with the details", () => {
-    const card = renderPlayerCard({ ...withoutAlliance, details: fullPlayerDetails }, FETCHED_AT, NOW);
+    const card = renderPlayerCard({ ...withoutAlliance, details: fullPlayerDetails }, FETCHED_AT);
 
     expect(card.fields?.find((field) => field.name === "Alliance")).toEqual({
       name: "Alliance",
@@ -1193,7 +1178,7 @@ describe("renderPlayerCard with details", () => {
 
 describe("renderPlayerCard without details", () => {
   test("shows today's card, with the Kingdom in the author line and no picture or Kingdom field, and only the as-of line as description", () => {
-    expect(renderPlayerCard(inAlliance, FETCHED_AT, NOW)).toEqual(noDetailsPlayerCard);
+    expect(renderPlayerCard(inAlliance, FETCHED_AT)).toEqual(noDetailsPlayerCard);
   });
 });
 

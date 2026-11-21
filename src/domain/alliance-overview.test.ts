@@ -1,18 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { isOnlineNow, lastSeen, leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
+import { leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.js";
 import { parseUid } from "./lookup-input.js";
 import type { RosterEntry } from "./player.js";
 
 const NOW = new Date("2026-11-02T12:00:00Z");
-const HOUR_MS = 3_600_000;
 
 interface Figures {
   readonly might?: number;
   readonly weeklyActivity?: number;
   readonly dailyHonor?: number;
   readonly dailyTech?: number;
-  readonly online?: boolean;
-  readonly lastOnlineAt?: Date;
 }
 
 let nextUid = 100_000_000_001;
@@ -31,8 +28,6 @@ function member(name: string, figures: Figures = {}): RosterEntry {
     weeklyActivity: figures.weeklyActivity,
     dailyHonor: figures.dailyHonor,
     dailyTech: figures.dailyTech,
-    online: figures.online,
-    lastOnlineAt: figures.lastOnlineAt,
     ...(figures.might === undefined ? {} : { might: figures.might }),
   };
 }
@@ -75,74 +70,12 @@ describe("overviewOf totals", () => {
   });
 });
 
-describe("isOnlineNow", () => {
-  test.each([
-    { label: "online flag false with no Last Online", figures: { online: false } },
-    { label: "online flag unknown with no Last Online", figures: {} },
-  ])("is online now for a member with $label", ({ figures }) => {
-    expect(isOnlineNow(member("Alpha", figures))).toBe(true);
-  });
-
-  test("is online now when the online flag is true, whatever the Last Online", () => {
-    expect(isOnlineNow(member("Alpha", { online: true, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(true);
-  });
-
-  test("is not online now when the online flag is false and the Last Online is known", () => {
-    expect(isOnlineNow(member("Alpha", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }))).toBe(false);
-  });
-});
-
-describe("lastSeen", () => {
-  test.each([
-    { label: "online flag true with no Last Online", seen: { online: true } },
-    { label: "online flag true with a Last Online", seen: { online: true, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) } },
-    { label: "online flag false with no Last Online", seen: { online: false } },
-    { label: "online flag unknown with no Last Online", seen: {} },
-  ])("is online for a member with $label", ({ seen }) => {
-    expect(lastSeen(seen)).toEqual({ kind: "online" });
-  });
-
-  test.each([
-    { label: "online flag false", online: false },
-    { label: "online flag unknown", online: undefined },
-  ])("is the Last Online time for a member with $label and a Last Online", ({ online }) => {
-    const at = new Date(NOW.getTime() - 5 * HOUR_MS);
-
-    expect(lastSeen({ online, lastOnlineAt: at })).toEqual({ kind: "lastOnline", at });
-  });
-});
-
 describe("overviewOf online", () => {
-  test("counts a member without a Last Online as online now and in the last 24 hours", () => {
-    const roster = [
-      member("Alpha", { online: false }),
-      member("Beta", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }),
-    ];
+  test("carries no online counts, since the game gives no online data", () => {
+    const overview = overviewOf([member("Alpha"), member("Beta")], NOW);
 
-    const overview = overviewOf(roster, NOW);
-
-    expect(overview.onlineNow).toBe(1);
-    expect(overview.onlineLast24h).toBe(2);
-  });
-
-  test("counts the members online now", () => {
-    const roster = [
-      member("Alpha", { online: true, lastOnlineAt: NOW }),
-      member("Beta", { online: true, lastOnlineAt: NOW }),
-      member("Gamma", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }),
-    ];
-
-    expect(overviewOf(roster, NOW).onlineNow).toBe(2);
-  });
-
-  test("counts the members whose last online time is within the last 24 hours", () => {
-    const roster = [
-      member("Alpha", { online: false, lastOnlineAt: new Date(NOW.getTime() - 23 * HOUR_MS) }),
-      member("Beta", { online: false, lastOnlineAt: new Date(NOW.getTime() - 25 * HOUR_MS) }),
-      member("Gamma", { online: true, lastOnlineAt: NOW }),
-    ];
-
-    expect(overviewOf(roster, NOW).onlineLast24h).toBe(2);
+    expect(overview).not.toHaveProperty("onlineNow");
+    expect(overview).not.toHaveProperty("onlineLast24h");
   });
 });
 
@@ -316,18 +249,6 @@ describe("tablePage", () => {
       expect(namesOf(tablePage(roster, sort, 0).rows)).toEqual(["Mid", "Alpha", "Zeta"]);
     },
   );
-
-  test("sorts by Last Online: members online now first, then the most recently online, ties by name", () => {
-    const roster = [
-      member("Beta", { online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * HOUR_MS) }),
-      member("Gamma", { online: false, lastOnlineAt: new Date(NOW.getTime() - HOUR_MS) }),
-      member("Alpha", { online: true, lastOnlineAt: NOW }),
-      member("Delta"),
-      member("Epsilon", { online: false, lastOnlineAt: new Date(NOW.getTime() - HOUR_MS) }),
-    ];
-
-    expect(namesOf(tablePage(roster, "lastOnline", 0).rows)).toEqual(["Alpha", "Delta", "Epsilon", "Gamma", "Beta"]);
-  });
 
   test("keeps the sorted order across pages for each sort", () => {
     const roster = Array.from({ length: 30 }, (_value, index) =>

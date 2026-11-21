@@ -306,8 +306,6 @@ const ROSTER: readonly RosterEntry[] = Array.from({ length: 30 }, (_value, index
   weeklyActivity: undefined,
   dailyHonor: undefined,
   dailyTech: undefined,
-  online: undefined,
-  lastOnlineAt: undefined,
 }));
 
 /** The Player the roster pick on member 01 gives. */

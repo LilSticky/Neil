@@ -144,8 +144,6 @@ describe("allianceBodySchema roster", () => {
         active: 490,
         daily_honor: 40,
         daily_tech: 4600,
-        online: false,
-        last_online_at: 1793285439,
       },
       {
         uid: "93159425",
@@ -157,8 +155,6 @@ describe("allianceBodySchema roster", () => {
         active: null,
         daily_honor: null,
         daily_tech: null,
-        online: false,
-        last_online_at: 1793191591,
       },
       {
         uid: "147744374785",
@@ -170,8 +166,6 @@ describe("allianceBodySchema roster", () => {
         active: null,
         daily_honor: null,
         daily_tech: null,
-        online: false,
-        last_online_at: 1792878480,
       },
     ]);
   });
@@ -199,10 +193,11 @@ describe("allianceBodySchema roster", () => {
     expect(parsed.members[0]?.lv).toBeUndefined();
   });
 
-  test("reads the activity figures and online fields of a recorded member, null included", () => {
+  test("reads the activity figures of a recorded member, null included, and no online flag", () => {
     const parsed = allianceBodySchema.parse(alliance);
 
-    expect(parsed.members[0]).toMatchObject({ active: 490, daily_honor: 40, daily_tech: 4600, online: false });
+    expect(parsed.members[0]).toMatchObject({ active: 490, daily_honor: 40, daily_tech: 4600 });
+    expect(parsed.members[0]).not.toHaveProperty("online");
     expect(parsed.members[1]).toMatchObject({ active: null, daily_honor: null, daily_tech: null });
   });
 
@@ -243,28 +238,6 @@ describe("allianceBodySchema roster", () => {
     const parsed = allianceBodySchema.parse(body);
 
     expect(parsed.members).toEqual([{ uid: "93159425", nick_name: "Benedict", rank_label: "R3" }]);
-  });
-
-  test("reads a last_online_at beyond the range of a date as absent, and keeps the member", () => {
-    const body = {
-      ...alliance,
-      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: Number.MAX_SAFE_INTEGER }],
-    };
-
-    const parsed = allianceBodySchema.parse(body);
-
-    expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
-  });
-
-  test("reads a last_online_at of 0 as absent, not as the Unix epoch, and keeps the member", () => {
-    const body = {
-      ...alliance,
-      members: [{ uid: 179060285441, nick_name: "etranger", rank_label: "R4", last_online_at: 0 }],
-    };
-
-    const parsed = allianceBodySchema.parse(body);
-
-    expect(parsed.members).toEqual([{ uid: "179060285441", nick_name: "etranger", rank_label: "R4" }]);
   });
 
   test("gives an empty roster when the body has no members", () => {
@@ -364,7 +337,6 @@ const PLAYER_DETAIL_FIELDS = [
   "kills",
   "vip",
   "likes",
-  "last_online_at",
   "language",
   "x",
   "y",
@@ -376,18 +348,20 @@ const PLAYER_DETAIL_FIELDS = [
 const ALLIANCE_DETAIL_FIELDS = ["level", "exp", "gift_level", "language", "rank", "join", "badge_url", "server_badge_url"] as const;
 
 describe("playerBodySchema Player details", () => {
-  test("reads the recorded Player details under the Game's own names", () => {
-    expect(playerBodySchema.parse(playerInAlliance)).toMatchObject({
+  test("reads the recorded Player details under the Game's own names, and no last_online_at", () => {
+    const parsed = playerBodySchema.parse(playerInAlliance);
+
+    expect(parsed).toMatchObject({
       kills: 4420,
       vip: 4,
       likes: 110,
-      last_online_at: 1793154302,
       language: "en",
       x: 807,
       y: 846,
       avatar_url: "/static/avatars/head_90002.png",
       server_badge_url: "/static/kingdom/badge_1.png",
     });
+    expect(parsed).not.toHaveProperty("last_online_at");
   });
 
   test.each(PLAYER_DETAIL_FIELDS)("accepts a body whose %s is unreadable, and keeps the Player's own fields", (field) => {

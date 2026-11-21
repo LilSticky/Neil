@@ -94,7 +94,7 @@ function closestHeader(ranking: ClosestRanking): APIEmbed {
  * One Exile of the answer: the player card as /player shows it when the Game read the Player this time, else the name and
  * Kingdom alone; then coordinates (marked with the stored time when not read now), distance, reason and the day exiled.
  */
-function closestCard(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, now: Date): APIEmbed {
+function closestCard(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>): APIEmbed {
   const { exile } = entry;
   const reaperFields: APIEmbedField[] = [
     {
@@ -115,7 +115,7 @@ function closestCard(entry: RankedExile, reads: ReadonlyMap<Uid, FreshRead>, now
       fields: reaperFields,
     };
   }
-  const card = renderPlayerCard(read.player, read.asOf, now);
+  const card = renderPlayerCard(read.player, read.asOf);
   return { ...card, fields: [...(card.fields ?? []), ...reaperFields] };
 }
 
@@ -165,7 +165,7 @@ export function closestAnswer(
   const pageCount = reaperPageCount(ranking.ranking.length, CLOSEST_PAGE_SIZE);
   const current = clampReaperPage(page, pageCount);
   const shown = reaperPageOf(ranking.ranking, current, CLOSEST_PAGE_SIZE);
-  const cards = shown.map((entry) => closestCard(entry, ranking.reads, now));
+  const cards = shown.map((entry) => closestCard(entry, ranking.reads));
   const old = shown.some((entry) => isOld(positionAsOf(entry, ranking.reads, now), now));
   const header = closestHeader(ranking);
   return {

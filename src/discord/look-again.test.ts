@@ -197,8 +197,6 @@ const ROSTER: readonly RosterEntry[] = [
     weeklyActivity: undefined,
     dailyHonor: undefined,
     dailyTech: undefined,
-    online: undefined,
-    lastOnlineAt: undefined,
   },
 ];
 
@@ -611,7 +609,6 @@ describe("handleLookAgain on /reaper closest", () => {
         kills: undefined,
         vipLevel: undefined,
         likes: undefined,
-        lastOnlineAt: undefined,
         language: undefined,
         location,
         avatarPath: undefined,

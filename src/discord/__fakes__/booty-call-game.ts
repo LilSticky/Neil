@@ -8,14 +8,8 @@ import type { LinkStore } from "../../storage/link-store.js";
 /** A refusal or failure of the lookup: anything but a found Player. */
 export type LookupRefusal = Exclude<LookupResult<Player>, { readonly kind: "found" }>;
 
-/** What the test says about one roster row: the game's online flag and its Last Online, each missing when undefined. */
-export interface RosterState {
-  readonly online?: boolean | undefined;
-  readonly lastOnlineAt?: Date | undefined;
-}
-
 /** A roster row of the Alliance, as the Game API gives it. */
-export function rosterEntry(uid: string, name: string, state: RosterState): RosterEntry {
+export function rosterEntry(uid: string, name: string): RosterEntry {
   return {
     uid: uidOf(uid),
     name,
@@ -25,8 +19,6 @@ export function rosterEntry(uid: string, name: string, state: RosterState): Rost
     weeklyActivity: undefined,
     dailyHonor: undefined,
     dailyTech: undefined,
-    online: state.online,
-    lastOnlineAt: state.lastOnlineAt,
   };
 }
 

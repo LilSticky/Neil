@@ -73,7 +73,7 @@ export const bootyCallMessages = {
   },
   /** The #neil-log line: the caller, the Alliance, how many were mentioned, and a note when the Game API could not answer. */
   logLine: (callerId: string, roleName: string, mentioned: number, gameAnswered: boolean): string => {
-    const note = gameAnswered ? "" : " The Game API could not answer, so Discord alone decided who is online.";
+    const note = gameAnswered ? "" : " The Game API could not answer, so the Alliance role decided who was reached.";
     return `Booty Call by ${callerId} for ${roleName}: ${mentioned.toString()} mentioned.${note}`;
   },
 };

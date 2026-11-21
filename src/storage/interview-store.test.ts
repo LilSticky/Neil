@@ -331,7 +331,6 @@ describe("InterviewStore", () => {
         kills: 4420,
         vipLevel: 4,
         likes: 110,
-        lastOnlineAt: new Date("2026-10-28T02:25:02Z"),
         language: "en",
         location: { x: 807, y: 846 },
         avatarPath: "/static/avatars/head_90002.png",

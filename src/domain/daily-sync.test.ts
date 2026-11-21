@@ -107,8 +107,6 @@ describe("playerFromRoster", () => {
       weeklyActivity: undefined,
       dailyHonor: undefined,
       dailyTech: undefined,
-      online: undefined,
-      lastOnlineAt: undefined,
     };
 
     const player = playerFromRoster(alliance, entry);

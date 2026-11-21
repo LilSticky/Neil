@@ -18,10 +18,7 @@ const TITLE_MAX_LENGTH = 256;
 /** The accent color the Player and Alliance cards share. */
 const ACCENT_COLOR = 0xb33a3a;
 const TRACKER = "https://lastasylumtracker.com";
-const MINUTE_MS = 60_000;
-const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
-const TABLE_HEADER = "#  Name           Might  Weekly  Honor   Tech  Last";
+const TABLE_HEADER = "#  Name           Might  Weekly  Honor   Tech";
 
 /** The table sorts: the key in the button id, and the name the table title and the button show. */
 const SORTS: readonly { readonly sort: TableSort; readonly key: string; readonly name: string }[] = [
@@ -29,7 +26,6 @@ const SORTS: readonly { readonly sort: TableSort; readonly key: string; readonly
   { sort: "weeklyActivity", key: "w", name: "Weekly Activity" },
   { sort: "dailyHonor", key: "h", name: "Daily Honor" },
   { sort: "dailyTech", key: "t", name: "Daily Tech" },
-  { sort: "lastOnline", key: "l", name: "Last Online" },
 ];
 
 function uid(text: string): Uid {
@@ -49,8 +45,6 @@ interface Figures {
   readonly weeklyActivity?: number;
   readonly dailyHonor?: number;
   readonly dailyTech?: number;
-  readonly online?: boolean;
-  readonly lastOnlineAt?: Date;
 }
 
 /** A roster member; a figure left out is undefined, as when the Game gives no data. */
@@ -64,8 +58,6 @@ function member(uidText: string, name: string, figures: Figures = {}): RosterEnt
     weeklyActivity: figures.weeklyActivity,
     dailyHonor: figures.dailyHonor,
     dailyTech: figures.dailyTech,
-    online: figures.online,
-    lastOnlineAt: figures.lastOnlineAt,
     ...(figures.might === undefined ? {} : { might: figures.might }),
   };
 }
@@ -110,17 +102,13 @@ const alpha = member("179060285441", "Alpha", {
   weeklyActivity: 490,
   dailyHonor: 40,
   dailyTech: 4600,
-  online: false,
-  lastOnlineAt: new Date(1793285439 * 1000),
 });
 const beta = member("93159425", "Beta", {
   weeklyActivity: 10,
   dailyHonor: 60,
   dailyTech: 400,
-  online: true,
-  lastOnlineAt: NOW,
 });
-const gamma = member("147744374785", "Gamma", { weeklyActivity: 5, dailyHonor: 2, dailyTech: 9, online: false });
+const gamma = member("147744374785", "Gamma", { weeklyActivity: 5, dailyHonor: 2, dailyTech: 9 });
 const delta = member("300000000001", "Delta");
 
 /** Thirty members with Might 1 to 30, Player0 to Player29, so the table takes two pages. */
@@ -232,11 +220,11 @@ describe("renderOverview: the Alliance Overview embed", () => {
     expect(fieldValue(embed, "Least Active")).toBe("no activity data");
   });
 
-  test("shows how many members are online now and how many were online in the last 24 hours", () => {
+  test("shows no online figure in the overview, since the game gives no online data", () => {
     const embed = overviewOf([alpha, beta, gamma]).embeds[0];
 
-    expect(fieldValue(embed, "Online now")).toBe("2");
-    expect(fieldValue(embed, "Online in the last 24 hours")).toBe("2");
+    expect(fieldValue(embed, "Online now")).toBeUndefined();
+    expect(fieldValue(embed, "Online in the last 24 hours")).toBeUndefined();
   });
 
   test("counts the members without data in words", () => {
@@ -316,8 +304,6 @@ describe("renderOverview: the Alliance Overview embed", () => {
         weeklyActivity: Number.MAX_SAFE_INTEGER - index,
         dailyHonor: Number.MAX_SAFE_INTEGER - index,
         dailyTech: Number.MAX_SAFE_INTEGER - index,
-        online: false,
-        lastOnlineAt: NOW,
       }),
     );
 
@@ -352,15 +338,13 @@ describe("renderOverview: the Alliance card's look", () => {
     expect(overview?.thumbnail).toBeUndefined();
   });
 
-  test("lists the overview fields in rows of three, with Least Active on a row of its own, not inline", () => {
+  test("lists the overview fields without any online field, with Least Active on a row of its own, not inline", () => {
     const fields = overviewOf([alpha, beta, gamma, delta]).embeds[0]?.fields ?? [];
 
     expect(fields.map(({ name, inline }) => ({ name, inline }))).toEqual([
       { name: "Weekly Activity", inline: true },
       { name: "Daily Honor (game day)", inline: true },
       { name: "Daily Tech (game day)", inline: true },
-      { name: "Online now", inline: true },
-      { name: "Online in the last 24 hours", inline: true },
       { name: "No data", inline: true },
       { name: "Top Weekly Activity", inline: true },
       { name: "Top Daily Honor (game day)", inline: true },
@@ -378,29 +362,17 @@ describe("renderOverview: the table embed", () => {
     expect(lines[0]).toBe(TABLE_HEADER);
   });
 
-  test("shows a row per member: rank, name, Might, the three figures in short form, and last online", () => {
+  test("shows a row per member: rank, name, Might and the three figures in short form, with no last online column", () => {
     const [row] = blockLines(overviewOf([alpha]).embeds[1]).slice(1);
 
-    expect(tokens(row)).toEqual(["1", "Alpha", "27.6M", "490", "40", "4.6K", "3d"]);
+    expect(tokens(row)).toEqual(["1", "Alpha", "27.6M", "490", "40", "4.6K"]);
   });
 
-  test("shows a missing figure as –, and a member online now, or with no Last Online, as online", () => {
+  test("shows a missing figure as –, and a member with no figures as – in every figure column", () => {
     const rows = blockLines(overviewOf([beta, delta]).embeds[1]).slice(1);
 
-    expect(tokens(rows[0])).toEqual(["1", "Beta", "–", "10", "60", "400", "online"]);
-    expect(tokens(rows[1])).toEqual(["2", "Delta", "–", "–", "–", "–", "online"]);
-  });
-
-  test("shows the last online time as minutes, hours or days, in short form", () => {
-    const roster = [
-      member("100000000001", "Ann", { might: 30, online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * MINUTE_MS) }),
-      member("100000000002", "Ben", { might: 20, online: false, lastOnlineAt: new Date(NOW.getTime() - 3 * HOUR_MS) }),
-      member("100000000003", "Cy", { might: 10, online: false, lastOnlineAt: new Date(NOW.getTime() - 2 * DAY_MS) }),
-    ];
-
-    const rows = blockLines(overviewOf(roster).embeds[1]).slice(1);
-
-    expect(rows.map((row) => tokens(row).at(-1))).toEqual(["5m", "3h", "2d"]);
+    expect(tokens(rows[0])).toEqual(["1", "Beta", "–", "10", "60", "400"]);
+    expect(tokens(rows[1])).toEqual(["2", "Delta", "–", "–", "–", "–"]);
   });
 
   test("right-aligns each figure under the end of its column header", () => {
@@ -411,15 +383,7 @@ describe("renderOverview: the table embed", () => {
     expect(row.indexOf("27.6M") + "27.6M".length).toBe(header.indexOf("Might") + "Might".length);
     expect(row.indexOf(" 490 ") + " 490".length).toBe(header.indexOf("Weekly") + "Weekly".length);
     expect(row.indexOf(" 40 ") + " 40".length).toBe(header.indexOf("Honor") + "Honor".length);
-    expect(row.indexOf(" 4.6K ") + " 4.6K".length).toBe(header.indexOf("Tech") + "Tech".length);
-  });
-
-  test("starts the Last Online column at the same place in every row, whatever the names", () => {
-    const roster = [alpha, beta, delta, member("100000000005", "Commander Anastasia the Great", { might: 5 })];
-
-    const rows = blockLines(overviewOf(roster).embeds[1]).slice(1);
-
-    expect(new Set(rows.map((row) => row.lastIndexOf(" ") + 1)).size).toBe(1);
+    expect(row.lastIndexOf(" 4.6K") + " 4.6K".length).toBe(header.indexOf("Tech") + "Tech".length);
   });
 
   test("cuts a name longer than 14 characters to 13 and an ellipsis", () => {
@@ -471,16 +435,15 @@ describe("renderOverview: the table embed", () => {
 
   test.each(SORTS)("sorts the rows by $name, and titles the table with that name", ({ sort, name }) => {
     const roster = [
-      member("100000000001", "Ann", { might: 30, weeklyActivity: 5, dailyHonor: 300, dailyTech: 1, online: false, lastOnlineAt: new Date(NOW.getTime() - 2 * DAY_MS) }),
-      member("100000000002", "Ben", { might: 10, weeklyActivity: 50, dailyHonor: 100, dailyTech: 9, online: true }),
-      member("100000000003", "Cy", { might: 20, weeklyActivity: 1, dailyHonor: 900, dailyTech: 3, online: false, lastOnlineAt: new Date(NOW.getTime() - 5 * MINUTE_MS) }),
+      member("100000000001", "Ann", { might: 30, weeklyActivity: 5, dailyHonor: 300, dailyTech: 1 }),
+      member("100000000002", "Ben", { might: 10, weeklyActivity: 50, dailyHonor: 100, dailyTech: 9 }),
+      member("100000000003", "Cy", { might: 20, weeklyActivity: 1, dailyHonor: 900, dailyTech: 3 }),
     ];
     const expected: Readonly<Record<TableSort, readonly string[]>> = {
       might: ["Ann", "Cy", "Ben"],
       weeklyActivity: ["Ben", "Ann", "Cy"],
       dailyHonor: ["Cy", "Ann", "Ben"],
       dailyTech: ["Ben", "Cy", "Ann"],
-      lastOnline: ["Ben", "Cy", "Ann"],
     };
 
     const table = overviewSorted(roster, sort).embeds[1];
@@ -523,8 +486,6 @@ describe("renderOverview: the table embed", () => {
         weeklyActivity: index + 1,
         dailyHonor: index + 1,
         dailyTech: index + 1,
-        online: false,
-        lastOnlineAt: NOW,
       }),
     );
 
@@ -549,8 +510,6 @@ describe("renderOverview: the table embed", () => {
         weeklyActivity: index + 1,
         dailyHonor: index + 1,
         dailyTech: index + 1,
-        online: false,
-        lastOnlineAt: NOW,
       }),
     );
 
@@ -564,7 +523,7 @@ describe("renderOverview: the table embed", () => {
 });
 
 describe("renderOverview: the sort and page buttons", () => {
-  test("shows the five sort buttons in one row, in the order of the table's columns, named as the sorts", () => {
+  test("shows the four sort buttons in one row, in the order of the table's columns, named as the sorts", () => {
     const [sortRow] = overviewOf([alpha, beta]).components;
 
     expect(sortRow?.components.map((button) => button.label)).toEqual(SORTS.map((sort) => sort.name));
@@ -585,7 +544,6 @@ describe("renderOverview: the sort and page buttons", () => {
       ButtonStyle.Secondary,
       ButtonStyle.Secondary,
       ButtonStyle.Primary,
-      ButtonStyle.Secondary,
       ButtonStyle.Secondary,
     ]);
   });
@@ -661,6 +619,8 @@ describe("overviewCustomId and parseOverviewCustomId", () => {
     "overview:a1b2:m",
     "overview:a1b2:m:1:2",
     `overview:${SESSION}:label`,
+    `overview:${SESSION}:l:0`,
+    `overview:${SESSION}:sort:l`,
     "something else",
   ])("gives undefined for %s", (customId) => {
     expect(parseOverviewCustomId(customId)).toBeUndefined();

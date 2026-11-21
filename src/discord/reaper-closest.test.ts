@@ -82,7 +82,6 @@ function playerOf(uid: Uid, name: string, kingdom: KingdomNumber, location: Posi
       kills: undefined,
       vipLevel: undefined,
       likes: undefined,
-      lastOnlineAt: undefined,
       language: undefined,
       location,
       avatarPath: undefined,
@@ -390,7 +389,7 @@ describe("handleReaperClosest", () => {
 
     await handleReaperClosest(interaction, context);
 
-    const card = renderPlayerCard(near, FETCHED_AT, NOW);
+    const card = renderPlayerCard(near, FETCHED_AT);
     const shown = exileEmbedsOf(interaction)[0];
     expect(shown?.title).toBe(card.title);
     expect(shown?.fields).toEqual(expect.arrayContaining(card.fields ?? []));

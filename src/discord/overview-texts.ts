@@ -9,7 +9,6 @@ import {
 import {
   TABLE_PAGE_SIZE,
   figureOf,
-  lastSeen,
   leastActive,
   overviewOf,
   tablePage,
@@ -48,14 +47,13 @@ export interface OverviewCustomId {
 }
 
 /** The table sorts, in the order of the table's columns and of the sort buttons. */
-const TABLE_SORTS: readonly TableSort[] = ["might", "weeklyActivity", "dailyHonor", "dailyTech", "lastOnline"];
+const TABLE_SORTS: readonly TableSort[] = ["might", "weeklyActivity", "dailyHonor", "dailyTech"];
 /** The short key of each sort, as it appears in the custom ids. */
 const SORT_KEYS: Readonly<Record<TableSort, string>> = {
   might: "m",
   weeklyActivity: "w",
   dailyHonor: "h",
   dailyTech: "t",
-  lastOnline: "l",
 };
 /** The name of each sort, as the sort buttons and the table title show it. */
 const SORT_NAMES: Readonly<Record<TableSort, string>> = {
@@ -63,7 +61,6 @@ const SORT_NAMES: Readonly<Record<TableSort, string>> = {
   weeklyActivity: "Weekly Activity",
   dailyHonor: "Daily Honor",
   dailyTech: "Daily Tech",
-  lastOnline: "Last Online",
 };
 /** `overview:{session}:{key}:{page}`: a page of the table in a sort. */
 const PAGE_CUSTOM_ID = /^overview:([0-9a-f]+):([a-z]+):(\d+)$/;
@@ -91,16 +88,13 @@ const HONOR_WIDTH = 5;
 const TECH_WIDTH = 5;
 /** The three backticks that open and close the code block of the table, with their newlines. */
 const CODE_BLOCK_LENGTH = "```\n\n```".length;
-const MINUTE_MS = 60_000;
-const HOUR_MS = 3_600_000;
-const DAY_MS = 86_400_000;
 const NO_ACTIVITY_DATA = "no activity data";
 const UNKNOWN_VALUE = "–";
 const SECTION_SEPARATOR = " · ";
 const numbers = new Intl.NumberFormat("en-US");
 
 /** The table's column titles, as its header line shows them. */
-const HEADER_CELLS: TableCells = { rank: "#", name: "Name", might: "Might", weekly: "Weekly", honor: "Honor", tech: "Tech", last: "Last" };
+const HEADER_CELLS: TableCells = { rank: "#", name: "Name", might: "Might", weekly: "Weekly", honor: "Honor", tech: "Tech" };
 
 /** The text of each column of one table line. */
 interface TableCells {
@@ -110,7 +104,6 @@ interface TableCells {
   readonly weekly: string;
   readonly honor: string;
   readonly tech: string;
-  readonly last: string;
 }
 
 /** The button id that shows one page of the table of an Alliance Overview, in its sort. */
@@ -176,7 +169,7 @@ export function renderOverview(
     fields: [...overviewFields(alliance.roster, now), newerDataField(alliance.kingdom)],
     footer: footerFor(),
   };
-  const embeds: APIEmbed[] = [overview, tableEmbed(table, sort, alliance, now, embedCharacters(overview))];
+  const embeds: APIEmbed[] = [overview, tableEmbed(table, sort, alliance, embedCharacters(overview))];
   const again = allianceLookAgainRow(alliance, "overview", ownerId);
   return {
     embeds,
@@ -198,8 +191,6 @@ function overviewFields(roster: readonly RosterEntry[], now: Date): APIEmbedFiel
   const overview = overviewOf(roster, now);
   return [
     ...ACTIVITY_KINDS.map((kind) => inlineField(ACTIVITY_LABELS[kind], totalText(overview.totals[kind]))),
-    inlineField("Online now", numbers.format(overview.onlineNow)),
-    inlineField("Online in the last 24 hours", numbers.format(overview.onlineLast24h)),
     inlineField("No data", memberCountText(overview.noData)),
     ...ACTIVITY_KINDS.map((kind) =>
       inlineField(`Top ${ACTIVITY_LABELS[kind]}`, listText(topBy(roster, kind, LIST_LENGTH), kind)),
@@ -230,7 +221,7 @@ function listText(entries: readonly RosterEntry[], kind: ActivityKind): string {
  * description stays within 4,096 characters and the message within 6,000, given the `otherCharacters` the rest of the
  * reply takes; the rows that do not fit are left out.
  */
-function tableEmbed(table: TablePage, sort: TableSort, alliance: Alliance, now: Date, otherCharacters: number): APIEmbed {
+function tableEmbed(table: TablePage, sort: TableSort, alliance: Alliance, otherCharacters: number): APIEmbed {
   const embed: APIEmbed = {
     title: `Members · sorted by ${SORT_NAMES[sort]}`,
     color: CARD_COLOR,
@@ -240,7 +231,7 @@ function tableEmbed(table: TablePage, sort: TableSort, alliance: Alliance, now: 
   const room =
     Math.min(DESCRIPTION_MAX_LENGTH, MESSAGE_MAX_LENGTH - otherCharacters - embedCharacters(embed)) - CODE_BLOCK_LENGTH;
   const firstPlace = table.page * TABLE_PAGE_SIZE + 1;
-  const rows = table.rows.map((entry, index) => tableLine(rowCells(entry, firstPlace + index, now)));
+  const rows = table.rows.map((entry, index) => tableLine(rowCells(entry, firstPlace + index)));
   const lines = linesWithin([tableLine(HEADER_CELLS), ...rows], room);
   return { ...embed, description: ["```", ...lines, "```"].join("\n") };
 }
@@ -259,7 +250,7 @@ function linesWithin(lines: readonly string[], limit: number): string[] {
 }
 
 /** The cells of one member's line of the table, the member's place in the sorted roster as the rank. */
-function rowCells(entry: RosterEntry, place: number, now: Date): TableCells {
+function rowCells(entry: RosterEntry, place: number): TableCells {
   return {
     rank: place.toString(),
     name: tableName(entry.name),
@@ -267,7 +258,6 @@ function rowCells(entry: RosterEntry, place: number, now: Date): TableCells {
     weekly: figureCell(entry.weeklyActivity),
     honor: figureCell(entry.dailyHonor),
     tech: figureCell(entry.dailyTech),
-    last: lastOnlineCell(entry, now),
   };
 }
 
@@ -275,7 +265,7 @@ function rowCells(entry: RosterEntry, place: number, now: Date): TableCells {
 function tableLine(cells: TableCells): string {
   const start = `${padEnd(cells.rank, RANK_WIDTH)} ${padEnd(cells.name, TABLE_NAME_LENGTH)} ${padStart(cells.might, MIGHT_WIDTH)}`;
   const activity = [padStart(cells.weekly, WEEKLY_WIDTH), padStart(cells.honor, HONOR_WIDTH), padStart(cells.tech, TECH_WIDTH)];
-  return `${start}  ${activity.join("  ")}  ${cells.last}`;
+  return `${start}  ${activity.join("  ")}`;
 }
 
 /** The name in the table: cut to the column width, with a backtick replaced so the code block is not broken. */
@@ -288,21 +278,6 @@ function tableName(name: string): string {
 
 function figureCell(figure: number | undefined): string {
   return figure === undefined ? UNKNOWN_VALUE : compactNumber(figure);
-}
-
-/** "online" for a member online now, otherwise the time since the known last online time, in short form. */
-function lastOnlineCell(entry: RosterEntry, now: Date): string {
-  const seen = lastSeen(entry);
-  if (seen.kind === "online") return "online";
-  return compactAge(now.getTime() - seen.at.getTime());
-}
-
-/** A span of time in minutes, hours or days, as `5m`, `3h` or `2d`. */
-function compactAge(ms: number): string {
-  const span = Math.max(0, ms);
-  if (span < HOUR_MS) return `${Math.floor(span / MINUTE_MS).toString()}m`;
-  if (span < DAY_MS) return `${Math.floor(span / HOUR_MS).toString()}h`;
-  return `${Math.floor(span / DAY_MS).toString()}d`;
 }
 
 /** The text cut or padded to a width, counting characters rather than UTF-16 units. */

@@ -12,7 +12,6 @@ import {
   type APIStringSelectComponent,
 } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
-import { lastSeen } from "../domain/alliance-overview.js";
 import { mapPageOf } from "../domain/data-age.js";
 import type { NapStatus } from "../domain/nap.js";
 import { parseAllianceKey, type AllianceKey, type KingdomNumber, type PlayerName } from "../domain/lookup-input.js";
@@ -28,7 +27,6 @@ import {
   type PickableAllianceMatch,
   type PickablePlayerMatch,
   type Player,
-  type PlayerDetails,
   type RosterEntry,
 } from "../domain/player.js";
 import { lookAgainCustomId } from "./look-again.js";
@@ -227,18 +225,8 @@ function allianceLevelText(level: number | undefined, xp: number | undefined): s
   return parts.length === 0 ? undefined : parts.join(" · ");
 }
 
-/**
- * The card's description: "Last online" with the time, or "Online now" when the details exist but the Game gave no
- * Last Online time. Nothing when the Player has no details at all.
- */
-function onlineText(details: PlayerDetails | undefined, now: Date): string | undefined {
-  if (details === undefined) return undefined;
-  const seen = lastSeen(details);
-  return seen.kind === "online" ? "Online now" : `Last online ${timeAgo(seen.at, now)}`;
-}
-
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
-export function renderPlayerCard(player: Player, asOf: Date | undefined, now: Date): APIEmbed {
+export function renderPlayerCard(player: Player, asOf: Date | undefined): APIEmbed {
   const details = player.details;
   const alliance =
     player.alliance === undefined
@@ -264,7 +252,7 @@ export function renderPlayerCard(player: Player, asOf: Date | undefined, now: Da
     ),
   );
   const thumbnail = thumbnailOf(details?.avatarPath);
-  const description = descriptionOf(onlineText(details, now), asOfLine(asOf));
+  const description = descriptionOf(asOfLine(asOf));
   return {
     title: fitTitle(escapeText(player.name)),
     color: CARD_COLOR,

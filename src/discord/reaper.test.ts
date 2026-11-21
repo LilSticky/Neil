@@ -99,7 +99,6 @@ const VEX: Player = {
     kills: undefined,
     vipLevel: undefined,
     likes: undefined,
-    lastOnlineAt: undefined,
     language: undefined,
     location: { x: 120, y: 340 },
     avatarPath: undefined,
