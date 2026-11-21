@@ -166,7 +166,7 @@ export function renderOverview(
     author: kingdomAuthor(alliance.kingdom, details?.kingdomBadgePath),
     ...(thumbnail === undefined ? {} : { thumbnail }),
     ...(asOfText === undefined ? {} : { description: asOfText }),
-    fields: [...overviewFields(alliance.roster, now), newerDataField(alliance.kingdom)],
+    fields: [...overviewFields(alliance.roster), newerDataField(alliance.kingdom)],
     footer: footerFor(),
   };
   const embeds: APIEmbed[] = [overview, tableEmbed(table, sort, alliance, embedCharacters(overview))];
@@ -187,8 +187,8 @@ function inlineField(name: string, value: string): APIEmbedField {
 }
 
 /** The overview's fields in rows of three, except Least Active, which has a row of its own. */
-function overviewFields(roster: readonly RosterEntry[], now: Date): APIEmbedField[] {
-  const overview = overviewOf(roster, now);
+function overviewFields(roster: readonly RosterEntry[]): APIEmbedField[] {
+  const overview = overviewOf(roster);
   return [
     ...ACTIVITY_KINDS.map((kind) => inlineField(ACTIVITY_LABELS[kind], totalText(overview.totals[kind]))),
     inlineField("No data", memberCountText(overview.noData)),

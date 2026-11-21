@@ -3,7 +3,6 @@ import { leastActive, overviewOf, tablePage, topBy } from "./alliance-overview.j
 import { parseUid } from "./lookup-input.js";
 import type { RosterEntry } from "./player.js";
 
-const NOW = new Date("2026-11-02T12:00:00Z");
 
 interface Figures {
   readonly might?: number;
@@ -43,7 +42,7 @@ describe("overviewOf totals", () => {
       member("Beta", { weeklyActivity: 10, dailyHonor: 60, dailyTech: 400 }),
     ];
 
-    const overview = overviewOf(roster, NOW);
+    const overview = overviewOf(roster);
 
     expect(overview.totals.weeklyActivity).toEqual({ sum: 500, average: 250 });
     expect(overview.totals.dailyHonor).toEqual({ sum: 100, average: 50 });
@@ -57,14 +56,14 @@ describe("overviewOf totals", () => {
       member("Gamma"),
     ];
 
-    const overview = overviewOf(roster, NOW);
+    const overview = overviewOf(roster);
 
     expect(overview.totals.weeklyActivity).toEqual({ sum: 500, average: 250 });
     expect(overview.totals.dailyTech).toEqual({ sum: 5000, average: 2500 });
   });
 
   test("gives no average, and a sum of 0, for a figure that no member has", () => {
-    const overview = overviewOf([member("Alpha"), member("Beta")], NOW);
+    const overview = overviewOf([member("Alpha"), member("Beta")]);
 
     expect(overview.totals.weeklyActivity).toEqual({ sum: 0, average: undefined });
   });
@@ -72,7 +71,7 @@ describe("overviewOf totals", () => {
 
 describe("overviewOf online", () => {
   test("carries no online counts, since the game gives no online data", () => {
-    const overview = overviewOf([member("Alpha"), member("Beta")], NOW);
+    const overview = overviewOf([member("Alpha"), member("Beta")]);
 
     expect(overview).not.toHaveProperty("onlineNow");
     expect(overview).not.toHaveProperty("onlineLast24h");
@@ -87,7 +86,7 @@ describe("overviewOf no data", () => {
       member("Gamma"),
     ];
 
-    expect(overviewOf(roster, NOW).noData).toBe(2);
+    expect(overviewOf(roster).noData).toBe(2);
   });
 });
 

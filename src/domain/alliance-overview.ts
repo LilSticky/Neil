@@ -35,8 +35,7 @@ export const TABLE_PAGE_SIZE = 25;
  * The totals and number of members without data of a roster. The moment is not used: the Game gives no online data to
  * count against it. It stays in the signature until its callers stop passing it.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the tests still pass the moment
-export function overviewOf(roster: readonly RosterEntry[], _now: Date): OverviewTotals {
+export function overviewOf(roster: readonly RosterEntry[]): OverviewTotals {
   return {
     totals: {
       weeklyActivity: totalOf(roster, "weeklyActivity"),
