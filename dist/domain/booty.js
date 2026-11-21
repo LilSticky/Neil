@@ -1,4 +1,3 @@
-import { lastSeen } from "./alliance-overview.js";
 const MINUTES_PER_DAY = 1440;
 const ONE_MINUTE_MS = 60_000;
 const HH_MM_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -43,14 +42,9 @@ export function isBootyMatch(bootyAlerts, presence) {
             return !presence.online;
     }
 }
-/**
- * Whether a Member counts as online for a Booty Call: Discord shows them not offline, or the game does, by the rule of
- * `lastSeen` (a Player without a Last Online is online now). Without any game reading, Discord alone decides.
- */
-export function isBootyOnline(game, discordOnline) {
-    if (discordOnline)
-        return true;
-    return game !== undefined && lastSeen(game).kind === "online";
+/** Whether a Member counts as online for a Booty Call: Discord shows them not offline. The Game gives no online reading. */
+export function isBootyOnline(discordOnline) {
+    return discordOnline;
 }
 export function isConfirmationExpired(requestedAt, now) {
     return now - requestedAt >= ONE_MINUTE_MS;

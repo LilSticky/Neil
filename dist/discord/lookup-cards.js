@@ -1,6 +1,5 @@
 import { ButtonStyle, ComponentType, escapeMarkdown, } from "discord.js";
 import { sortRoster } from "../domain/alliance-rank.js";
-import { lastSeen } from "../domain/alliance-overview.js";
 import { mapPageOf } from "../domain/data-age.js";
 import { parseAllianceKey } from "../domain/lookup-input.js";
 import { PICTURE_PATH_PATTERN } from "../domain/picture-path.js";
@@ -187,18 +186,8 @@ function allianceLevelText(level, xp) {
         parts.push(`${thousands(xp)} XP`);
     return parts.length === 0 ? undefined : parts.join(" · ");
 }
-/**
- * The card's description: "Last online" with the time, or "Online now" when the details exist but the Game gave no
- * Last Online time. Nothing when the Player has no details at all.
- */
-function onlineText(details, now) {
-    if (details === undefined)
-        return undefined;
-    const seen = lastSeen(details);
-    return seen.kind === "online" ? "Online now" : `Last online ${timeAgo(seen.at, now)}`;
-}
 /** The public card for a Player. Every Game API text is escaped, so names cannot format or ping. */
-export function renderPlayerCard(player, asOf, now) {
+export function renderPlayerCard(player, asOf) {
     const details = player.details;
     const alliance = player.alliance === undefined
         ? "No alliance"
@@ -218,7 +207,7 @@ export function renderPlayerCard(player, asOf, now) {
     }
     fields.push(...optionalField("Location", shownWhenKnown(details?.location, (location) => `X:${location.x.toString()} Y:${location.y.toString()}`)));
     const thumbnail = thumbnailOf(details?.avatarPath);
-    const description = descriptionOf(onlineText(details, now), asOfLine(asOf));
+    const description = descriptionOf(asOfLine(asOf));
     return {
         title: fitTitle(escapeText(player.name)),
         color: CARD_COLOR,

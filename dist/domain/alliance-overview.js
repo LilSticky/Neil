@@ -1,31 +1,18 @@
 const ACTIVITY_KINDS = ["weeklyActivity", "dailyHonor", "dailyTech"];
 /** How many members a page of the table lists. */
 export const TABLE_PAGE_SIZE = 25;
-const ONLINE_WINDOW_MS = 24 * 60 * 60 * 1000;
 /**
- * How a Player was last seen. Online now when the Game says so, or when it gives no Last Online time to say otherwise;
- * else the Last Online time.
+ * The totals and number of members without data of a roster. The moment is not used: the Game gives no online data to
+ * count against it. It stays in the signature until its callers stop passing it.
  */
-export function lastSeen(seen) {
-    if (seen.online === true || seen.lastOnlineAt === undefined)
-        return { kind: "online" };
-    return { kind: "lastOnline", at: seen.lastOnlineAt };
-}
-/** Whether a member is online now (see `lastSeen`). */
-export function isOnlineNow(entry) {
-    return lastSeen(entry).kind === "online";
-}
-/** The totals, online counts and number of members without data of a roster, as of a moment. */
-export function overviewOf(roster, now) {
-    const windowStart = now.getTime() - ONLINE_WINDOW_MS;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the tests still pass the moment
+export function overviewOf(roster, _now) {
     return {
         totals: {
             weeklyActivity: totalOf(roster, "weeklyActivity"),
             dailyHonor: totalOf(roster, "dailyHonor"),
             dailyTech: totalOf(roster, "dailyTech"),
         },
-        onlineNow: roster.filter(isOnlineNow).length,
-        onlineLast24h: roster.filter((entry) => isOnlineNow(entry) || (entry.lastOnlineAt !== undefined && entry.lastOnlineAt.getTime() >= windowStart)).length,
         noData: roster.filter((entry) => ACTIVITY_KINDS.every((kind) => figureOf(entry, kind) === undefined)).length,
     };
 }
@@ -51,11 +38,8 @@ export function tablePage(roster, sort, page) {
     const start = shown * TABLE_PAGE_SIZE;
     return { rows: sorted.slice(start, start + TABLE_PAGE_SIZE), page: shown, pageCount };
 }
-function orderOf(sort) {
-    return sort === "lastOnline" ? byLastSeen : byFigure(sort);
-}
 /** Highest figure first, a member without the figure after every member who has it; ties by name. */
-function byFigure(sort) {
+function orderOf(sort) {
     return (a, b) => {
         const figureA = sort === "might" ? a.might : figureOf(a, sort);
         const figureB = sort === "might" ? b.might : figureOf(b, sort);
@@ -64,15 +48,6 @@ function byFigure(sort) {
         }
         return figureB - figureA || byName(a, b);
     };
-}
-/** Members online now first, then the most recent Last Online first; ties by name. */
-function byLastSeen(a, b) {
-    const seenA = lastSeen(a);
-    const seenB = lastSeen(b);
-    if (seenA.kind === "online" || seenB.kind === "online") {
-        return Number(seenA.kind !== "online") - Number(seenB.kind !== "online") || byName(a, b);
-    }
-    return seenB.at.getTime() - seenA.at.getTime() || byName(a, b);
 }
 function byName(a, b) {
     return a.name.localeCompare(b.name);

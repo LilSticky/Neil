@@ -133,7 +133,7 @@ export function allianceFailureMessage(failure, key, notFound, ownerId, pickSess
  * and carries the Look again button of `ownerId`, the Member who ran the lookup.
  */
 export function playerCardMessage(player, asOf, now, ownerId) {
-    const card = renderPlayerCard(player, asOf, now);
+    const card = renderPlayerCard(player, asOf);
     if (!isOld(asOf, now))
         return { embeds: [card] };
     return {

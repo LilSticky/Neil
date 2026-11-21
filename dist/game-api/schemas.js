@@ -19,8 +19,6 @@ const ageSecondsSchema = z.number().nonnegative().optional().catch(undefined);
 const shieldingSchema = z.number().optional().catch(undefined);
 /** The latest Unix time in seconds a Date holds (8.64e15 milliseconds). */
 const MAX_DATE_SECONDS = 8_640_000_000_000;
-/** A Unix time in seconds a Date holds, above the Unix epoch; 0 and any other value reads as undefined (unknown). */
-const unixSecondsSchema = z.number().int().positive().max(MAX_DATE_SECONDS).optional().catch(undefined);
 /**
  * When the Game's map last changed, in Unix seconds (fractional); a finite number above zero and within the range of a
  * Date, any other value reads as undefined.
@@ -32,14 +30,11 @@ const mapUpdatedAtSchema = z.number().positive().max(MAX_DATE_SECONDS).optional(
 const picturePathSchema = z.string().regex(PICTURE_PATH_PATTERN).optional().catch(undefined);
 /**
  * One row of the Alliance roster in a Player's answer. The rank label reads as null when missing or not text (the rank is
- * then unknown). `online` and `last_online_at` read as absent when unreadable, as in an Alliance's roster; the row is still
- * accepted.
+ * then unknown). The row is accepted whatever else it holds.
  */
 const rosterRowSchema = z.object({
     uid: idSchema,
     rank_label: z.string().nullable().catch(null),
-    online: z.boolean().nullish().catch(undefined),
-    last_online_at: z.number().int().positive().max(MAX_DATE_SECONDS).nullish().catch(undefined),
 });
 /**
  * The body of GET /players/{uid}. Unknown fields are ignored, so the Game can add fields without breaking us.
@@ -63,7 +58,6 @@ export const playerBodySchema = z.object({
     kills: wholeCountSchema,
     vip: wholeCountSchema,
     likes: wholeCountSchema,
-    last_online_at: unixSecondsSchema,
     /** When the Game's map last changed; unreadable reads as undefined, and the body is still accepted. */
     map_updated_at: mapUpdatedAtSchema,
     language: languageSchema,
@@ -78,8 +72,7 @@ export const playerBodySchema = z.object({
 /**
  * One row of an Alliance's `members`; the name and the rank label may be null. The Kingdom (`kid`) and sanctuary level
  * (`lv`) read as absent when they are not whole numbers. The activity figures (`active`, `daily_honor`, `daily_tech`)
- * are null when the Game has no data, and read as absent when they are not whole numbers.
- * `last_online_at` is a Unix time in seconds, read as absent when it is 0 or beyond the range a Date holds. `power` reads as absent
+ * are null when the Game has no data, and read as absent when they are not whole numbers. `power` reads as absent
  * when it is not a whole number that cannot be negative.
  */
 const rosterMemberSchema = z.object({
@@ -92,8 +85,6 @@ const rosterMemberSchema = z.object({
     active: z.number().int().nullish().catch(undefined),
     daily_honor: z.number().int().nullish().catch(undefined),
     daily_tech: z.number().int().nullish().catch(undefined),
-    online: z.boolean().nullish().catch(undefined),
-    last_online_at: z.number().int().positive().max(MAX_DATE_SECONDS).nullish().catch(undefined),
 });
 /**
  * The body of GET /alliances/{kingdom}/{key}. `sid` is the Kingdom the Alliance is in. A member row without a

@@ -1,5 +1,5 @@
 import { ButtonStyle, ComponentType, MessageFlags, } from "discord.js";
-import { isBootyCallCoolingDown, isBootyMatch, isBootyOnline, isConfirmationExpired, } from "../domain/booty.js";
+import { isBootyCallCoolingDown, isBootyMatch, isBootyOnline, isConfirmationExpired } from "../domain/booty.js";
 import { tagOfAllianceRole } from "../domain/managed-roles.js";
 import { localMinuteOf } from "./booty-time.js";
 import { bootyCallMessages } from "./booty-texts.js";
@@ -167,20 +167,20 @@ export function createBootyCalls(deps) {
     /** The Members to mention: the roster matched to Links, or the Alliance role's holders when the Game gave no roster. */
     async function alertedMembers(callerId, holders, reach) {
         const candidates = reach === undefined
-            ? holders.map((memberId) => ({ memberId, game: undefined }))
+            ? holders
             : reach.roster.flatMap((row) => {
                 const memberId = deps.links.memberForUid(row.uid);
-                return memberId === undefined ? [] : [{ memberId, game: row }];
+                return memberId === undefined ? [] : [memberId];
             });
         const matched = [];
-        for (const { memberId, game } of candidates) {
-            if (memberId !== callerId && (await matches(memberId, game)))
+        for (const memberId of candidates) {
+            if (memberId !== callerId && (await matches(memberId)))
                 matched.push(memberId);
         }
         return matched;
     }
     /** Whether a Member's Booty Alerts match now. A Member whose Booty Alerts do not read, or whose time zone is unknown, is skipped. */
-    async function matches(memberId, game) {
+    async function matches(memberId) {
         let alerts;
         try {
             alerts = deps.bootyAlerts.get(memberId);
@@ -196,7 +196,7 @@ export function createBootyCalls(deps) {
             deps.logError(`Booty Alerts of ${memberId} were skipped: the time zone is not known`);
             return false;
         }
-        const online = isBootyOnline(game, await discordOnline(memberId));
+        const online = isBootyOnline(await discordOnline(memberId));
         return isBootyMatch(alerts, { online, localMinute });
     }
     async function discordOnline(memberId) {
