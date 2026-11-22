@@ -6,7 +6,7 @@
 
 ## Phase 1: Foundational
 
-- [ ] T001 [P] `src/discord/feedback-texts.ts` (+ test): the feedback channel names, the template text, the entry for a
+- [x] T001 [P] `src/discord/feedback-texts.ts` (+ test): the feedback channel names, the template text, the entry for a
   post (channel, thread, name, text, attachments, stickers, embeds, jump link; no text; split over 2000 characters at
   line breaks with nothing lost).
 - [ ] T002 [P] `server-layout.json` and `server-setup.ts` (+ test): `#feedback` right after `#suggestions` in Hangout,
