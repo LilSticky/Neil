@@ -37,6 +37,7 @@ import { FakePickInteraction } from "./__fakes__/pick-interaction.js";
 import { FakeReaperInteraction } from "./__fakes__/reaper-interaction.js";
 import { FakeReaperPageInteraction } from "./__fakes__/reaper-page-interaction.js";
 import { connect, type ConnectOptions } from "./client.js";
+import { FEEDBACK_TEMPLATE } from "./feedback-texts.js";
 import { unlinkedLogLine, unlinkedPrivateMessage } from "./unlink-texts.js";
 
 // connect creates a discord.js Client; the test replaces it with a fake that serves the guild the test sets.
@@ -51,6 +52,8 @@ const ONBOARDING_CHANNEL_ID = "1000000000000000001";
 const LOG_CHANNEL_ID = "1000000000000000002";
 const ANNOUNCEMENTS_CHANNEL_ID = "1000000000000000005";
 const NAP_LEADERS_CHANNEL_ID = "1000000000000000006";
+const FEEDBACK_CHANNEL_ID = "1000000000000000007";
+const SUGGESTIONS_CHANNEL_ID = "1000000000000000008";
 const EVENT_ID = "800000000000000001";
 const MODERATOR_ROLE_ID = "1000000000000000003";
 const KING_ROLE_ID = "1000000000000000004";
@@ -396,6 +399,23 @@ describe("connect", () => {
     await vi.waitFor(() => {
       expect(dailySync.load()?.day).toBe(utcDayOf(injected));
     });
+  });
+
+  test("pins the Feedback Template once in each of #feedback and #suggestions at startup", async () => {
+    const guild = serverWith(SERVER_PERMISSIONS);
+    guild.addChannel(FEEDBACK_CHANNEL_ID, { type: ChannelType.GuildText, name: "feedback" });
+    guild.addChannel(SUGGESTIONS_CHANNEL_ID, { type: ChannelType.GuildText, name: "suggestions" });
+    FakeClient.served = guild;
+    recordDailySyncRunToday();
+
+    connection = await connect(TOKEN, connectOptions());
+
+    await vi.waitFor(() => {
+      expect(guild.channels.cache.get(FEEDBACK_CHANNEL_ID)?.pinned).toHaveLength(1);
+      expect(guild.channels.cache.get(SUGGESTIONS_CHANNEL_ID)?.pinned).toHaveLength(1);
+    });
+    expect(guild.messagesIn(FEEDBACK_CHANNEL_ID)).toEqual([FEEDBACK_TEMPLATE]);
+    expect(guild.messagesIn(SUGGESTIONS_CHANNEL_ID)).toEqual([FEEDBACK_TEMPLATE]);
   });
 
   test("starts the Daily Sync only after the startup apply has settled, so their lookups do not overlap", async () => {

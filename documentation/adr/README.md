@@ -11,7 +11,7 @@ with a new one and update both statuses here.
 | 3 | [Framework-free domain with adapters](0003-framework-free-domain-with-adapters.md) | Accepted |
 | 4 | [Daily quota budget for the Game API](0004-daily-quota-budget-for-the-game-api.md) | Accepted |
 | 5 | [SQLite for Links, interviews and quota](0005-sqlite-storage.md) | Accepted |
-| 6 | [Test and production server, production hosted on Wispbyte](0006-two-servers-deployed-from-main.md) | Partly superseded by 16 |
+| 6 | [Test and production server, production hosted on Wispbyte](0006-two-servers-deployed-from-main.md) | Partly superseded by 16; amended by 30 (MessageContent) |
 | 7 | [Personal data of Links and Onboarding Interviews](0007-personal-data-of-links-and-interviews.md) | Accepted |
 | 8 | [Neil creates and manages its own roles](0008-neil-creates-managed-roles.md) | Partly superseded by 21; amended for the Alliance Leaders Role (slice 045) |
 | 9 | [Personal data of REAPER](0009-personal-data-of-reaper.md) | Partly superseded by 24 |
@@ -35,3 +35,4 @@ with a new one and update both statuses here.
 | 27 | [Personal data of Shield Confirmations](0027-personal-data-of-shield-confirmations.md) | Accepted |
 | 28 | [NaP breach reports](0028-nap-breach-reports.md) | Accepted |
 | 29 | [Feedback from the real server replaces manual checks](0029-feedback-from-the-real-server-replaces-manual-checks.md) | Accepted |
+| 30 | [Neil reads Feedback Posts](0030-neil-reads-feedback-posts.md) | Accepted |

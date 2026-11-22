@@ -15,11 +15,13 @@ own token and Application ID, and each needs `npm run commands:register` with it
 1. **New Application**, give it a name.
 2. **General Information**: copy the **Application ID** → `DISCORD_APPLICATION_ID`.
 3. **Bot**: **Reset Token**, copy it → `DISCORD_TOKEN` (shown once; keep it only in the `.env` files and the Wispbyte panel).
-   Leave privileged gateway intents off until slice 005. Then switch on **Server Members Intent** (required
-   before deploying slice 005: without it Neil cannot log in).
+   Switch on the privileged gateway intents **Server Members Intent**, **Presence Intent** and **Message Content
+   Intent** (ADR 30); without them Neil cannot log in.
    Turn **Public Bot** off so only you can invite it.
-4. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`, no bot permissions. Open the
-   URL and add the bot to the **test server**.
+4. **OAuth2 → URL Generator**: scopes `bot` and `applications.commands`, and at least one bot permission
+   (**Administrator** for the setup script's run, ADR 12, taken off again afterwards). With no bot permission at all,
+   Discord gives the bot no role of its own, and the setup script cannot work. Open the URL and add the bot to its
+   server.
 
 Test server ID: Discord **User Settings → Advanced → Developer Mode** on, then right-click the server
 icon → **Copy Server ID** → `DISCORD_GUILD_ID`. Neil uses the test server's ID during slice 001.

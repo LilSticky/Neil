@@ -53,8 +53,10 @@ Source: <https://docs.discord.com/developers/topics/gateway>
 
 **Neil** (`src/discord/client.ts`, `createClient`): `Guilds`, `GuildMembers` (privileged, slice 005),
 `GuildPresences` (privileged, ADR 11), `GuildScheduledEvents` (ADR 14); partials `GuildMember` and `User` so a
-Member who left uncached still triggers `GuildMemberRemove`. No `MessageContent`, no `GuildMessages`, no
-`DirectMessages`. ADR 2 plans to limit discord.js caches for Wispbyte's memory; the client currently sets no
+Member who left uncached still triggers `GuildMemberRemove`. `GuildMessages` and `MessageContent` (privileged,
+ADR 30) only to forward Feedback Posts; every other message is dropped at once. No `DirectMessages`. Without
+`MessageContent` switched on in the Developer Portal, login fails with "Used disallowed intents"; without the intent
+in code, a message's `content`, `attachments` and `embeds` arrive empty. ADR 2 plans to limit discord.js caches for Wispbyte's memory; the client currently sets no
 `makeCache` or sweepers.
 
 ## Permissions and the role hierarchy

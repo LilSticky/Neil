@@ -212,7 +212,34 @@
         {
           "name": "suggestions",
           "type": "text",
-          "description": "Ideas for the server, the Kingdom or Neil: post one per message."
+          "description": "Ideas for the server, the Kingdom or Neil: copy the pinned template, one per message.",
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages",
+                "ReadMessageHistory",
+                "PinMessages",
+                "AddReactions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "feedback",
+          "type": "text",
+          "description": "Bugs and ideas for Neil: copy the pinned template, one per message.",
+          "overwrites": {
+            "Neil": {
+              "allow": [
+                "ViewChannel",
+                "SendMessages",
+                "ReadMessageHistory",
+                "PinMessages",
+                "AddReactions"
+              ]
+            }
+          }
         },
         {
           "name": "off-topic",

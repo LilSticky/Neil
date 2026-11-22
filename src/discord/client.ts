@@ -11,6 +11,7 @@ import {
   type ChatInputCommandInteraction,
   type Guild,
   type InteractionReplyOptions,
+  type Message,
   type ModalSubmitInteraction,
   type Role,
   type StringSelectMenuInteraction,
@@ -121,6 +122,15 @@ import {
   type ChannelProblem,
   type OnboardingChannels,
 } from "./onboarding-channels.js";
+import {
+  createFeedback,
+  isFeedbackPost,
+  type Feedback,
+  type FeedbackChannelLike,
+  type FeedbackGuildLike,
+  type FeedbackMessageLike,
+  type FeedbackTextChannelLike,
+} from "./feedback.js";
 import { createDoctorRole } from "./doctor-role.js";
 import { listEveryMember } from "./member-listing.js";
 import { createNameAndRoles, type ServerMembers } from "./name-and-roles.js";
@@ -294,10 +304,14 @@ export interface CommandHandlers {
   readonly napRulesModal: (modal: ModalSubmitInteraction) => Promise<void>;
   /** A button whose custom id starts with `king:`, the Apply button of a King Move. */
   readonly kingMoveButton: (button: ButtonInteraction) => Promise<void>;
+  /** A Member's post in #feedback or #suggestions, or in a thread under one: it is forwarded to #neil-log (ADR 30). */
+  readonly feedbackPost: (post: FeedbackMessageLike) => Promise<void>;
 }
 
 /** The services that exist once the client is ready and the channels are checked. */
 interface Services {
+  /** The Feedback Posts forwarded to #neil-log, and the Feedback Template pinned at startup. */
+  readonly feedback: Feedback;
   readonly interviews: Interviews;
   readonly rankApprovals: RankApprovals;
   /** The Event invitations: a new or edited Event is posted once, and the Events ahead are invited at startup. */
@@ -458,7 +472,32 @@ async function onlineMembersOf(
   return members;
 }
 
-/** A discord.js client with the Guilds, GuildMembers, GuildPresences and GuildScheduledEvents intents that routes each event to its handler. */
+/** A channel as a message reports it, when it has the parts a Feedback Post needs; a DM or group channel has no name. */
+const feedbackChannelSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  type: z.number(),
+  parent: z.object({ name: z.string() }).nullable(),
+});
+
+/** Whether a message's channel can be read as a Feedback Post's channel; the message itself is not changed. */
+function hasFeedbackChannel(message: Message): message is Message & { readonly channel: FeedbackChannelLike } {
+  return feedbackChannelSchema.safeParse(message.channel).success;
+}
+
+/** The guild as the Feedback adapter uses it: its text channels, by id, as they are cached at call time. */
+function feedbackGuildOf(guild: Guild): FeedbackGuildLike {
+  const textChannels = new Map<string, FeedbackTextChannelLike>();
+  for (const channel of guild.channels.cache.values()) {
+    if (channel.type === ChannelType.GuildText) textChannels.set(channel.id, channel);
+  }
+  return { channels: { cache: textChannels } };
+}
+
+/**
+ * A discord.js client with the Guilds, GuildMembers, GuildPresences, GuildMessages, GuildScheduledEvents and MessageContent
+ * intents that routes each event to its handler.
+ */
 export function createClient(handlers: CommandHandlers, options: ClientOptions): Client {
   const logError = options.logError ?? console.error;
   // Partials let a Member who left uncached still be announced: GuildMemberRemove is emitted for them, with their user.
@@ -467,7 +506,10 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildPresences,
+      GatewayIntentBits.GuildMessages,
       GatewayIntentBits.GuildScheduledEvents,
+      // Needed to read the text of a Feedback Post; without it the text is empty.
+      GatewayIntentBits.MessageContent,
     ],
     partials: [Partials.GuildMember, Partials.User],
   });
@@ -501,6 +543,12 @@ export function createClient(handlers: CommandHandlers, options: ClientOptions):
   client.on(Events.GuildScheduledEventDelete, (scheduledEvent) => {
     if (scheduledEvent.guildId !== options.guildId) return;
     void handlers.scheduledEventDeleted(scheduledEvent);
+  });
+  // A Member's post in #feedback or #suggestions is forwarded to #neil-log; the channel is checked before anything else is read.
+  client.on(Events.MessageCreate, (message) => {
+    if (!hasFeedbackChannel(message)) return;
+    if (!isFeedbackPost(message, options.guildId)) return;
+    void handlers.feedbackPost(message);
   });
   // A Member who was offline and now is not comes online; the status itself is not logged or kept (ADR 11).
   client.on(Events.PresenceUpdate, (before, after) => {
@@ -1600,6 +1648,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
           handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError }),
         ),
       pick: async (press) => (await services).pick(pickLike(press)),
+      feedbackPost: async (post) => (await services).feedback.forward(post),
       reaperClosest: (interaction) =>
         handleReaperClosest(interaction, {
           links: options.links,
@@ -1794,6 +1843,16 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     const [moderatorRoleId, kingRoleId] = options.officerRoleIds;
     const officerRoles = { moderatorRoleId, kingRoleId };
     const channels = createOnboardingChannels(guild, channelIds);
+    const botUser = client.user;
+    if (botUser === null) throw new Error("The Discord client has no user after it became ready.");
+    const feedback = createFeedback({
+      guild: feedbackGuildOf(guild),
+      neilId: botUser.id,
+      log: (message) => channels.log(message),
+      logError: (error) => {
+        logError(`The Feedback forwarding or pinning failed: ${String(error)}`);
+      },
+    });
     // /booty: the Game API is asked only through the uncharged lookup, the roles and presences come from the server.
     const bootyCalls = createBootyCalls({
       links: options.links,
@@ -2183,6 +2242,7 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
       logError,
     });
     openServices({
+      feedback,
       shield,
       cityRotation,
       kingMoves,
@@ -2290,6 +2350,8 @@ export async function connect(token: string, options: ConnectOptions): Promise<{
     void cityRotation.refreshCard();
     // The pinned NaP list is brought up to date once at startup.
     void nap.refreshList();
+    // The Feedback Template is pinned once at startup in #feedback and #suggestions, unless it is pinned there already.
+    void feedback.pinTemplates();
     // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
     let reminderTickRunning = false;
     const reminderTimer = setInterval(() => {
