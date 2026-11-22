@@ -32,7 +32,7 @@ export interface AllianceAutocompleteInteraction {
 /** What the suggestions need: the Home Kingdom, the Known Alliances, the time, and where a failed read is logged. */
 export interface AllianceAutocompleteContext {
   readonly homeKingdom: KingdomNumber;
-  readonly knownAlliances: { all(now: Date): readonly KnownAlliance[] };
+  readonly knownAlliances: { all(now: Date, kingdom?: KingdomNumber): readonly KnownAlliance[] };
   readonly now: () => Date;
   readonly logError: (message: string) => void;
 }
@@ -62,7 +62,7 @@ function suggest(
     const now = context.now();
     const kingdom = kingdomOf(typedKingdom, context.homeKingdom);
     const query = String(focused.value);
-    const known = context.knownAlliances.all(now).filter((alliance) => alliance.kingdom === kingdom);
+    const known = context.knownAlliances.all(now, kingdom);
     return alliancesFor(query, known, now)
       .map((alliance) => ({
         name: cutLabel(`[${alliance.tag}] ${alliance.name}`),

@@ -25,15 +25,20 @@ function known(tag: string, name: string, daysAgo = 0, kingdom: KingdomNumber = 
 const NO_MANS_LAND = known("NML", "No Man's Land", 1);
 const NIGHT_MARES = known("NMA", "Night Mares", 2);
 
-/** The autocomplete context over the given Known Alliances; the store's read may be made to fail. */
+/**
+ * The autocomplete context over the given Known Alliances; the store's read may be made to fail. The store gives only the
+ * Kingdom it is asked for, and `reads` records every read as its `now` and its Kingdom.
+ */
 function contextWith(alliances: readonly KnownAlliance[] | Error) {
   const logged: string[] = [];
+  const reads: [Date, KingdomNumber | undefined][] = [];
   const context = {
     homeKingdom: HOME_KINGDOM,
     knownAlliances: {
-      all: (): KnownAlliance[] => {
+      all: (now: Date, kingdom?: KingdomNumber): KnownAlliance[] => {
+        reads.push([now, kingdom]);
         if (alliances instanceof Error) throw alliances;
-        return [...alliances];
+        return alliances.filter((alliance) => kingdom === undefined || alliance.kingdom === kingdom);
       },
     },
     now: () => NOW,
@@ -41,7 +46,7 @@ function contextWith(alliances: readonly KnownAlliance[] | Error) {
       logged.push(message);
     },
   };
-  return { context, logged };
+  return { context, logged, reads };
 }
 
 describe("handleAllianceAutocomplete for the search option", () => {
@@ -172,5 +177,25 @@ describe("handleAllianceAutocomplete when the Known Alliances cannot be read", (
 
     expect(interaction.responses).toEqual([[]]);
     expect(logged).toHaveLength(1);
+  });
+});
+
+describe("handleAllianceAutocomplete reads only one Kingdom's Known Alliances", () => {
+  test("with no Kingdom typed, reads the Home Kingdom's Known Alliances only", async () => {
+    const interaction = new FakeAutocompleteInteraction({ name: "search", value: "man" });
+    const { context, reads } = contextWith([NO_MANS_LAND, known("NMA", "Night Mares", 2, OTHER_KINGDOM)]);
+
+    await handleAllianceAutocomplete(interaction, context);
+
+    expect(reads).toEqual([[NOW, HOME_KINGDOM]]);
+  });
+
+  test("with a Kingdom typed, reads that Kingdom's Known Alliances only", async () => {
+    const interaction = new FakeAutocompleteInteraction({ name: "search", value: "night" }, OTHER_KINGDOM);
+    const { context, reads } = contextWith([NO_MANS_LAND, known("NMA", "Night Mares", 2, OTHER_KINGDOM)]);
+
+    await handleAllianceAutocomplete(interaction, context);
+
+    expect(reads).toEqual([[NOW, OTHER_KINGDOM]]);
   });
 });

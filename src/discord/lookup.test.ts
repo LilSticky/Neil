@@ -569,10 +569,16 @@ function knownAlliance(tag: string, name: string, daysAgo = 1): KnownAlliance {
 function allianceContextReturning(result: LookupResult<Alliance>, known: readonly KnownAlliance[] = []) {
   const gameApi = new FakeGameApi({ alliance: result });
   const base = contextFor(gameApi);
+  const knownReads: [Date, KingdomNumber | undefined][] = [];
   const context = {
     ...base.context,
     homeKingdom,
-    knownAlliances: { all: (): KnownAlliance[] => [...known] },
+    knownAlliances: {
+      all: (now: Date, kingdom?: KingdomNumber): KnownAlliance[] => {
+        knownReads.push([now, kingdom]);
+        return known.filter((alliance) => kingdom === undefined || alliance.kingdom === kingdom);
+      },
+    },
   };
   return {
     context,
@@ -582,6 +588,7 @@ function allianceContextReturning(result: LookupResult<Alliance>, known: readonl
     pickSessions: base.pickSessions,
     usage: base.usage,
     logged: base.logged,
+    knownReads,
   };
 }
 
@@ -2070,5 +2077,29 @@ describe("handlePlayer when the usage line cannot be read", () => {
         expect.stringContaining(UNREADABLE_USAGE_MESSAGE),
       ]),
     );
+  });
+});
+
+describe("handleAlliance reads only the searched Kingdom's Known Alliances", () => {
+  test("a name search with no Kingdom reads the Home Kingdom's Known Alliances only", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "rebirth" } }, USER_ID);
+    const known = [knownIn(homeKingdom, "REB", "Rebirth"), knownIn(kingdomOne, "XYZ", "Elsewhere")];
+    const { context, knownReads } = allianceContextReturning({ kind: "not-found" }, known);
+
+    await handleAlliance(interaction, context);
+
+    expect(knownReads).not.toHaveLength(0);
+    expect(knownReads).toEqual(knownReads.map(() => [NOW, homeKingdom]));
+  });
+
+  test("a name search with kingdom 1 reads kingdom 1's Known Alliances only", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "rebirth" }, integers: { kingdom: 1 } });
+    const known = [knownIn(kingdomOne, "REB", "Rebirth"), knownIn(homeKingdom, "XYZ", "Elsewhere")];
+    const { context, knownReads } = allianceContextReturning({ kind: "not-found" }, known);
+
+    await handleAlliance(interaction, context);
+
+    expect(knownReads).not.toHaveLength(0);
+    expect(knownReads).toEqual(knownReads.map(() => [NOW, kingdomOne]));
   });
 });

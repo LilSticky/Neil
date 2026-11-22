@@ -89,6 +89,26 @@ describe("KnownAllianceStore", () => {
     expect(tagsOf(store, NOW)).toEqual(["NML"]);
   });
 
+  test("all with a Kingdom gives only that Kingdom's Known Alliances seen within 30 days", () => {
+    const store = new KnownAllianceStore(db);
+    const otherKingdom = kingdomOf(1);
+
+    store.seen(allianceOf(HOME_KINGDOM, "NML", "No Man's Land"), NOW);
+    store.seen(allianceOf(otherKingdom, "NMA", "Night Mares"), NOW);
+    store.seen(allianceOf(otherKingdom, "KRX", "Krux"), new Date(NOW.getTime() - 31 * DAY_MS));
+
+    expect(store.all(NOW, otherKingdom)).toEqual([{ kingdom: otherKingdom, tag: "NMA", name: "Night Mares", lastSeen: NOW }]);
+  });
+
+  test("all without a Kingdom gives the Known Alliances of every Kingdom", () => {
+    const store = new KnownAllianceStore(db);
+
+    store.seen(allianceOf(HOME_KINGDOM, "NML", "No Man's Land"), NOW);
+    store.seen(allianceOf(kingdomOf(1), "NMA", "Night Mares"), NOW);
+
+    expect(store.all(NOW).map((alliance) => alliance.tag)).toEqual(["NMA", "NML"]);
+  });
+
   test("forget deletes the Alliances not seen for more than 30 days and keeps the others", () => {
     const store = new KnownAllianceStore(db);
 

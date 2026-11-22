@@ -150,7 +150,7 @@ export function callerOf(
  */
 export interface AllianceLookupContext extends LookupContext {
   readonly homeKingdom: KingdomNumber;
-  readonly knownAlliances: { all(now: Date): readonly KnownAlliance[] };
+  readonly knownAlliances: { all(now: Date, kingdom?: KingdomNumber): readonly KnownAlliance[] };
 }
 
 /** A private message: its text and, for a pick list, its select menu. */
@@ -505,10 +505,10 @@ async function showAlliance(
   );
 }
 
-/** The Known Alliances of every Kingdom; a store that cannot be read is logged and leaves none. */
-function readKnownAlliances(context: AllianceLookupContext, now: Date): readonly KnownAlliance[] {
+/** The Known Alliances of `kingdom`; a store that cannot be read is logged and leaves none. */
+function readKnownAlliances(context: AllianceLookupContext, now: Date, kingdom: KingdomNumber): readonly KnownAlliance[] {
   try {
-    return context.knownAlliances.all(now);
+    return context.knownAlliances.all(now, kingdom);
   } catch (error) {
     context.logError(`Reading the Known Alliances failed: ${errorText(error)}`);
     return [];
@@ -517,8 +517,7 @@ function readKnownAlliances(context: AllianceLookupContext, now: Date): readonly
 
 /** The Known Alliances of `kingdom` close to a search, best first. */
 function closeKnownAlliances(search: AllianceKey, kingdom: KingdomNumber, context: AllianceLookupContext, now: Date) {
-  const inKingdom = readKnownAlliances(context, now).filter((alliance) => alliance.kingdom === kingdom);
-  return matchAlliances(search, inKingdom, now);
+  return matchAlliances(search, readKnownAlliances(context, now, kingdom), now);
 }
 
 /** The tag of the Known Alliance of `kingdom` that the search equals, when that tag is a valid key. */
@@ -528,7 +527,7 @@ function exactKnownTag(
   context: AllianceLookupContext,
   now: Date,
 ): AllianceKey | undefined {
-  const exact = exactKnownAlliance(search, readKnownAlliances(context, now), kingdom, now);
+  const exact = exactKnownAlliance(search, readKnownAlliances(context, now, kingdom), kingdom, now);
   if (exact === undefined) return undefined;
   const tag = parseAllianceKey(exact.tag);
   return tag.ok ? tag.value : undefined;

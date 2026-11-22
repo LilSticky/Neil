@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { knownSince, type KnownAlliance } from "../domain/alliance-match.js";
-import { parseKingdom } from "../domain/lookup-input.js";
+import { parseKingdom, type KingdomNumber } from "../domain/lookup-input.js";
 import type { Alliance } from "../domain/player.js";
 
 /** The part of an Alliance the Known Alliances keep: its Kingdom, tag and name. */
@@ -28,11 +28,23 @@ export class KnownAllianceStore {
       .run(alliance.kingdom, alliance.tag, alliance.name, at.toISOString());
   }
 
-  /** The Known Alliances last seen within 30 days of `now`. */
-  all(now: Date): KnownAlliance[] {
+  /**
+   * The Known Alliances last seen within 30 days of `now`: those of `kingdom` when one is given, else those of every
+   * Kingdom.
+   */
+  all(now: Date, kingdom?: KingdomNumber): KnownAlliance[] {
+    const since = knownSince(now).toISOString();
+    if (kingdom === undefined) {
+      return this.db
+        .prepare("SELECT kingdom, tag, name, last_seen FROM known_alliance WHERE last_seen >= ? ORDER BY kingdom, tag")
+        .all(since)
+        .map(knownAllianceOf);
+    }
     return this.db
-      .prepare("SELECT kingdom, tag, name, last_seen FROM known_alliance WHERE last_seen >= ? ORDER BY kingdom, tag")
-      .all(knownSince(now).toISOString())
+      .prepare(
+        "SELECT kingdom, tag, name, last_seen FROM known_alliance WHERE last_seen >= ? AND kingdom = ? ORDER BY tag",
+      )
+      .all(since, kingdom)
       .map(knownAllianceOf);
   }
 
