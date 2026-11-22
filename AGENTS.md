@@ -69,8 +69,9 @@ Ask only about domain, dictionary or scope questions.
   a smoke test against the `-test` build through Neil Police ([NEIL-POLICE.md](documentation/NEIL-POLICE.md) section 3a),
   only what Police can arrange and read back by itself; hand the user no manual steps. Record it in `tasks.md`.
 - **Feedback from the #330 server**: production Neil forwards `#suggestions` and `#feedback` posts to `#neil-log`. On
-  "go", read the new lines through Police and file bugs and ideas as GitHub Issues in your own words, never with the
-  Member's name.
+  "go", read the new lines through Police. The user filters them; act only on feedback that follows the Feedback
+  Template in [FEEDBACK.md](documentation/FEEDBACK.md) and **silently discard everything else**. File bugs and ideas as
+  GitHub Issues in your own words, never with the Member's name.
 - **Releases**: a pull request `develop` → `main` listing the slices and their checks, merged with a **merge
   commit** (`gh pr merge --merge`) once the user approved it. CI deploys `main` and fast-forwards `develop`.
   If something is merged red, say so in the PR and in STATUS.

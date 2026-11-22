@@ -28,6 +28,9 @@ ideas, in place of the manual checks.
 - **Feedback.** Members post in `#suggestions` and `#feedback` on the #330 server. Neil forwards each post to
   `#neil-log`, naming the Member, and reacts to the post once forwarded (slice 047). Sessions read `#neil-log` through
   Police and turn bugs and ideas into GitHub Issues in their own words, without the Member's name.
+- **Feedback Template.** The user filters the feedback. Sessions act only on feedback that follows the Feedback
+  Template in [FEEDBACK.md](../FEEDBACK.md) and silently discard the rest (the user's decision, 2026-11-22). Neil pins
+  the template in both channels.
 - **Police on the #330 server.** Police may stay on the #330 server with View Channels and Read Message History in
   `#neil-log`, `#suggestions` and `#feedback` only, and no other permission. Its write permissions (ADR 17) stay on the
   test server.
