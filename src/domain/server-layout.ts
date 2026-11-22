@@ -12,6 +12,7 @@ export type Permission =
   | "ReadMessageHistory"
   | "EmbedLinks"
   | "PinMessages"
+  | "AddReactions"
   | "Connect"
   | "Speak";
 export type ChannelType = "text" | "voice" | "forum" | "announcement";

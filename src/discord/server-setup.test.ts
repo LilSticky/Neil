@@ -65,6 +65,7 @@ const ADMINISTRATOR = PermissionFlagsBits.Administrator;
 const EMBED_LINKS = PermissionFlagsBits.EmbedLinks;
 const READ_HISTORY = PermissionFlagsBits.ReadMessageHistory;
 const CREATE_EVENTS = PermissionFlagsBits.CreateEvents;
+const ADD_REACTIONS = PermissionFlagsBits.AddReactions;
 
 /** The layout file as text, built from a base that follows every rule; `overrides` replace top-level keys. */
 function layoutFile(overrides: Record<string, unknown> = {}): string {
@@ -347,6 +348,17 @@ describe("parseLayout", () => {
 
     const chat = parseLayout(text).allianceArea.channels.find((channel) => channel.name === "alliance-chat");
     expect(chat?.overwrites).toEqual({ Neil: { allow: ["ViewChannel", "SendMessages", "EmbedLinks"], deny: [] } });
+  });
+
+  test("accepts AddReactions as an overwrite permission on a Hangout channel and keeps it", () => {
+    const text = layoutFile({
+      categories: hangout([
+        { name: "feedback", type: "text", description: "A test channel.", overwrites: { Neil: { allow: ["ViewChannel", "AddReactions"] } } },
+      ]),
+    });
+
+    const feedback = parseLayout(text).categories[0]?.channels.find((channel) => channel.name === "feedback");
+    expect(feedback?.overwrites).toEqual({ Neil: { allow: ["ViewChannel", "AddReactions"], deny: [] } });
   });
 
   test("refuses an overwrite target in the Alliance area that is no listed role, naming the channel", () => {
@@ -775,6 +787,22 @@ describe("applySetup", () => {
     expect(onboarding?.overwrites).toEqual(expect.arrayContaining([expect.objectContaining({ targetId: BOT_USER_ID, allow: VIEW })]));
   });
 
+  test("writes AddReactions as its bit on Neil's overwrite of a new channel", async () => {
+    const server = new FakeSetupServer({ guildId: GUILD_ID, botUserId: BOT_USER_ID });
+    const layout = parseLayout(
+      layoutFile({
+        categories: hangout([
+          { name: "feedback", type: "text", description: "A test channel.", overwrites: { Neil: { allow: ["ViewChannel", "AddReactions"] } } },
+        ]),
+      }),
+    );
+
+    await applySetup(await planFor(layout, server), server);
+
+    const feedback = writesOf(server, "create-channel").find((write) => write.name === "feedback");
+    expect(feedback?.overwrites).toContainEqual(expect.objectContaining({ targetId: BOT_USER_ID, allow: VIEW | ADD_REACTIONS }));
+  });
+
   test("writes a channel's corrected overwrites in one edit, however many targets need it", async () => {
     const server = new FakeSetupServer();
     const hangoutId = server.defineChannel("Hangout", { kind: "category" });
@@ -937,6 +965,22 @@ describe("runSetup", () => {
         `DISCORD_LOG_CHANNEL_ID=${channelId(server, "neil-log")}`,
       ]),
     );
+  });
+
+  test("the by-hand Developer Portal line names the Message Content Intent with the member and presence intents", async () => {
+    const server = new FakeSetupServer({ botPermissions: ADMINISTRATOR });
+
+    const { report } = await runSetup({
+      layout: APPLY_LAYOUT,
+      homeKingdom: HOME_KINGDOM,
+      apply: true,
+      port: server,
+      secrets: [],
+    });
+
+    const portalLines = lines(report).filter((line) => /Developer Portal/.test(line));
+    expect(portalLines.join("\n")).toMatch(/Server Members Intent/);
+    expect(portalLines.join("\n")).toMatch(/Message Content Intent/);
   });
 
   test("lists the steps left by hand, then ends a real run with the Administrator reminder", async () => {
@@ -1300,7 +1344,25 @@ describe("the shipped server-layout.json", () => {
 
     expect(categoryViewers(hangout)).toContain(KINGDOM_ROLE);
     expect(hangout.channels.map((channel) => channel.name).sort()).toEqual(
-      ["home-kingdom-announcements", "gift-codes", "general", "Hangout voice", "alliance-hall", "suggestions", "off-topic", "memes"].sort(),
+      ["home-kingdom-announcements", "gift-codes", "general", "Hangout voice", "alliance-hall", "suggestions", "feedback", "off-topic", "memes"].sort(),
+    );
+  });
+
+  test("holds #feedback in Hangout right after #suggestions", () => {
+    const names = groupNamed(expandLayout(shippedLayout(), HOME_KINGDOM, []), "Hangout").channels.map((channel) => channel.name);
+
+    expect(names.indexOf("feedback")).toBeGreaterThan(-1);
+    expect(names.indexOf("feedback")).toBe(names.indexOf("suggestions") + 1);
+  });
+
+  test("lets #feedback be seen by the same roles as #suggestions: everyone who sees Hangout", () => {
+    expect(channelViewers(channelNamed("feedback"))).toEqual(channelViewers(channelNamed("suggestions")));
+    expect(denyOf("feedback", "@everyone")).toEqual(denyOf("suggestions", "@everyone"));
+  });
+
+  test.each(["suggestions", "feedback"])("lets Neil view, post, read history, pin and add reactions in %s", (name) => {
+    expect(allowOf(name, "Neil")).toEqual(
+      expect.arrayContaining(["ViewChannel", "SendMessages", "ReadMessageHistory", "PinMessages", "AddReactions"]),
     );
   });
 
