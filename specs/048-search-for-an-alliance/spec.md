@@ -74,8 +74,10 @@ picking `[REB] Rebirth` and sending looks up `REB` in 330 with one request.
 3. **Given** nothing typed yet, **When** `search` is focused, **Then** that Kingdom's most recently seen Known
    Alliances are suggested.
 4. **Given** a picked suggestion, **When** sent, **Then** Neil looks that Alliance up by Kingdom and tag (one request).
-5. **Given** a picked suggestion of Kingdom A and `kingdom:B` set afterwards, **When** sent, **Then** the `kingdom`
-   option wins and the picked tag is searched in B.
+5. **Given** a picked suggestion and `kingdom` changed afterwards, **When** sent, **Then** the `kingdom` option wins:
+   the picked tag is looked up in that Kingdom.
+6. **Given** text typed as `[TAG]` (or a pasted `[TAG] Name`), **When** sent, **Then** it is looked up by that tag,
+   like a picked suggestion.
 
 ---
 
@@ -111,13 +113,14 @@ records each listed Alliance with its Kingdom; after 30 days unseen they are for
 - **FR-001**: `/alliance` MUST take a required `search` text (1–40 characters) and an optional `kingdom`; the old
   `name` and `tag` options are removed (not live yet, no backwards compatibility).
 - **FR-002**: Without `kingdom`, the Home Kingdom MUST be meant, for suggestions and for results.
-- **FR-003**: Neil MUST read `search` as a name by default and decide the Game API request itself: a picked
-  suggestion, or text equal to a Known Alliance of the Kingdom, is looked up by Kingdom and tag; any other text by
+- **FR-003**: Neil MUST read `search` as a name by default and decide the Game API request itself: a `[TAG]` text
+  (a picked suggestion), or text equal to a Known Alliance of the Kingdom, is looked up by Kingdom and tag; any other text by
   the name lookup, which also matches tags.
 - **FR-004**: Results MUST be filtered to the Kingdom: one match is a card, several a private pick list (up to 25,
   `[TAG] Name`), none the slice 007 close-Known-Alliances pick list or a not-found answer naming the text and Kingdom.
 - **FR-005**: `search` MUST autocomplete from Known Alliances of the Kingdom only, labelled `[TAG] Name`, with no
-  Game API request; a choice's value identifies Kingdom and tag.
+  Game API request; a choice's value is `[TAG]`, and `search` text that starts with `[TAG]` is looked up by that tag
+  in the chosen Kingdom.
 - **FR-006**: Neil MUST record Alliances of every Kingdom from fresh Game API answers, including each Alliance listed
   in an ambiguous name answer; forgetting after 30 days stays.
 - **FR-007**: Features that offer Home Kingdom Alliances (City Rotation, NaP) MUST keep offering only those.
