@@ -56,3 +56,8 @@ export function pinFailedLine(channelName: string): string {
 export function reactionFailedLine(emoji: string, jumpLink: string): string {
   return `Neil could not react ${emoji} to the Feedback Post at ${jumpLink}; its entry is logged above.`;
 }
+
+/** The #neil-log line after only the first parts of an entry could be logged: the entry above is incomplete. */
+export function incompleteEntryLine(jumpLink: string): string {
+  return `The entry above is incomplete: Neil could not log the rest of the Feedback Post at ${jumpLink}.`;
+}

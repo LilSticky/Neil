@@ -120,6 +120,77 @@ describe("createFeedback forward", () => {
     expect(server.timeline.slice(0, -1).every((step) => step === "log")).toBe(true);
   });
 
+  test("two long posts forwarded at once: every part of the first reaches the log before any part of the second", async () => {
+    const server = new FakeFeedbackServer();
+    server.addChannel(FEEDBACK_CHANNEL);
+    const longText = (tag: string) =>
+      Array.from({ length: 60 }, (_, index) => `${tag} line ${index.toString()}: ${"x".repeat(60)}`).join("\n");
+    const first = server.post({ content: longText("FIRST") });
+    const second = server.post({ content: longText("SECOND") });
+    const feedback = createFeedback(server.options);
+
+    await Promise.all([feedback.forward(first), feedback.forward(second)]);
+
+    const owners = server.logs.map((line) => {
+      const text = contentOf(line);
+      if (text.includes("FIRST line")) return "first";
+      if (text.includes("SECOND line")) return "second";
+      return "other";
+    });
+    expect(owners).toContain("first");
+    expect(owners).toContain("second");
+    expect(owners.lastIndexOf("first")).toBeLessThan(owners.indexOf("second"));
+    expect(first.reactions).toEqual(["📝"]);
+    expect(second.reactions).toEqual(["📝"]);
+  });
+
+  test("when a later part of a long entry cannot be logged, nothing is reacted and one line says the entry is incomplete", async () => {
+    const server = new FakeFeedbackServer();
+    server.addChannel(FEEDBACK_CHANNEL);
+    const longText = Array.from({ length: 60 }, (_, index) => `line ${index.toString()}: ${"x".repeat(60)}`).join("\n");
+    const post = server.post({ content: longText });
+    server.failLogAttempts((attempt) => attempt === 2, new Error("Missing Access"));
+
+    await expect(createFeedback(server.options).forward(post)).resolves.toBeUndefined();
+
+    expect(post.reactions).toEqual([]);
+    const notices = server.logs.filter((line) => /incomplete/i.test(contentOf(line)));
+    expect(notices).toHaveLength(1);
+    expect(notices[0]?.allowedMentions).toEqual({ parse: [] });
+    expect(contentOf(notices[0] ?? {})).toContain(post.url);
+    expect(server.logs[server.logs.length - 1]).toBe(notices[0]);
+  });
+
+  test("when the incomplete-entry line cannot be logged either, nothing throws and nothing is reacted", async () => {
+    const server = new FakeFeedbackServer();
+    server.addChannel(FEEDBACK_CHANNEL);
+    const longText = Array.from({ length: 60 }, (_, index) => `line ${index.toString()}: ${"x".repeat(60)}`).join("\n");
+    const post = server.post({ content: longText });
+    server.failLogAttempts((attempt) => attempt >= 2, new Error("Missing Access"));
+
+    await expect(createFeedback(server.options).forward(post)).resolves.toBeUndefined();
+
+    expect(post.reactions).toEqual([]);
+  });
+
+  test("a post with only attachments is forwarded with no text, every attachment listed, then reacted 📝", async () => {
+    const server = new FakeFeedbackServer();
+    server.addChannel(FEEDBACK_CHANNEL);
+    const attachmentUrls = [
+      "https://cdn.discordapp.com/attachments/1/2/one.png",
+      "https://cdn.discordapp.com/attachments/1/3/two.png",
+    ];
+    const post = server.post({ content: "", attachmentUrls });
+
+    await createFeedback(server.options).forward(post);
+
+    const logged = server.logs.map(contentOf).join("\n");
+    expect(logged).toContain("(no text)");
+    for (const url of attachmentUrls) expect(logged).toContain(url);
+    expect(post.reactions).toEqual(["📝"]);
+    expect(server.timeline[server.timeline.length - 1]).toBe("react 📝");
+  });
+
   test("when the entry cannot be logged, nothing is reacted and nothing is posted in the channel", async () => {
     const server = new FakeFeedbackServer();
     const feedback = server.addChannel(FEEDBACK_CHANNEL);

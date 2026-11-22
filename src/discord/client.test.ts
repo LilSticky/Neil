@@ -254,6 +254,17 @@ describe("createClient", () => {
     expect(routed.feedbackPost).not.toHaveBeenCalled();
   });
 
+  test("does not forward an edit or a delete of a post in #feedback", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const post = postOf({ guildId: GUILD_ID, channel: FEEDBACK_CHANNEL });
+
+    client.emit(Events.MessageUpdate, post as never, post as never);
+    client.emit(Events.MessageDelete, post as never);
+
+    expect(routed.feedbackPost).not.toHaveBeenCalled();
+  });
+
   test.each([
     ["closest", "reaperClosest"],
     ["list", "reaperList"],

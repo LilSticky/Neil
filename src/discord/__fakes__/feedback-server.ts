@@ -123,6 +123,9 @@ export class FakeFeedbackServer {
   readonly errors: unknown[] = [];
   private readonly channels = new Map<string, FakeFeedbackChannel>();
   private logFailure: Error | undefined = undefined;
+  private logFailureRule: { readonly shouldFail: (attempt: number) => boolean; readonly error: Error } | undefined =
+    undefined;
+  private attempts = 0;
 
   addChannel(channel: FeedbackChannelLike): FakeFeedbackChannel {
     const added = new FakeFeedbackChannel(channel.id, channel.name);
@@ -132,6 +135,11 @@ export class FakeFeedbackServer {
 
   failNextLog(error: Error): void {
     this.logFailure = error;
+  }
+
+  /** Makes every log attempt whose 1-based number (counting from the first attempt) `shouldFail` accepts reject with `error`. */
+  failLogAttempts(shouldFail: (attempt: number) => boolean, error: Error): void {
+    this.logFailureRule = { shouldFail, error };
   }
 
   post(options: PostOptions = {}): FakePost {
@@ -149,14 +157,27 @@ export class FakeFeedbackServer {
     };
   }
 
+  /** Settles after a macrotask, so that two entries forwarded at once can interleave unless they are serialized. */
   private log(message: BaseMessageOptions): Promise<void> {
+    this.attempts += 1;
+    const attempt = this.attempts;
     this.timeline.push("log");
+    let failure: Error | undefined;
     if (this.logFailure !== undefined) {
-      const failure = this.logFailure;
+      failure = this.logFailure;
       this.logFailure = undefined;
-      return Promise.reject(failure);
+    } else if (this.logFailureRule?.shouldFail(attempt) === true) {
+      failure = this.logFailureRule.error;
     }
-    this.logs.push(message);
-    return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      setTimeout(() => {
+        if (failure !== undefined) {
+          reject(failure);
+          return;
+        }
+        this.logs.push(message);
+        resolve();
+      }, 0);
+    });
   }
 }

@@ -4,6 +4,7 @@ import {
   FEEDBACK_TEMPLATE,
   feedbackEntry,
   missingChannelLine,
+  incompleteEntryLine,
   pinFailedLine,
   reactionFailedLine,
   type FeedbackPostView,
@@ -137,25 +138,36 @@ async function pinTemplateIn(channel: FeedbackTextChannelLike, neilId: string): 
   await channel.messages.pin(sent.id);
 }
 
+/** Logs a post's entry part by part, then reacts; a failure part-way writes one line that the entry is incomplete. */
+async function forwardOne(options: FeedbackOptions, post: FeedbackMessageLike): Promise<void> {
+  const view = feedbackPostView(post);
+  if (view === undefined) return;
+  let logged = 0;
+  try {
+    for (const part of feedbackEntry(view)) {
+      await options.log({ content: part, allowedMentions: { parse: [] } });
+      logged += 1;
+    }
+  } catch (error) {
+    options.logError(error);
+    if (logged > 0) await logLine(options, incompleteEntryLine(post.url));
+    return;
+  }
+  try {
+    await post.react(FORWARDED_EMOJI);
+  } catch (error) {
+    options.logError(error);
+    await logLine(options, reactionFailedLine(FORWARDED_EMOJI, post.url));
+  }
+}
+
 export function createFeedback(options: FeedbackOptions): Feedback {
+  // Posts are forwarded one at a time, in the order they arrive, so the parts of two entries never interleave.
+  let queue: Promise<void> = Promise.resolve();
   return {
-    async forward(post) {
-      const view = feedbackPostView(post);
-      if (view === undefined) return;
-      try {
-        for (const part of feedbackEntry(view)) {
-          await options.log({ content: part, allowedMentions: { parse: [] } });
-        }
-      } catch (error) {
-        options.logError(error);
-        return;
-      }
-      try {
-        await post.react(FORWARDED_EMOJI);
-      } catch (error) {
-        options.logError(error);
-        await logLine(options, reactionFailedLine(FORWARDED_EMOJI, post.url));
-      }
+    forward(post) {
+      queue = queue.then(() => forwardOne(options, post));
+      return queue;
     },
 
     async pinTemplates() {
