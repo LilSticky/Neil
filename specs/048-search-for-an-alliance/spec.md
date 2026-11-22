@@ -127,7 +127,7 @@ records each listed Alliance with its Kingdom; after 30 days unseen they are for
 ### Key Entities
 
 - **Known Alliance** (changed): an Alliance of **any** Kingdom Neil has seen in a fresh Game API answer in the last
-  30 days: Kingdom, tag, name, last seen. Dictionary change needs the user's approval.
+  30 days: Kingdom, tag, name, last seen. Dictionary change approved 2026-11-22.
 
 ## Success Criteria *(mandatory)*
 

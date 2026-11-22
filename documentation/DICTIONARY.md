@@ -240,8 +240,8 @@ discovery.
   (Game API `join`; a minimum of 0 means none)
 
 ## Known Alliance
-* An Alliance of the Home Kingdom that Neil has seen in a Game API answer in the last 30 days
-* `/alliance` suggests and matches Known Alliances by part of the name or tag and by near spelling
+* An Alliance of any Kingdom that Neil has seen in a Game API answer in the last 30 days
+* `/alliance` suggests and matches the chosen Kingdom's Known Alliances (the Home Kingdom when none is given) by part of the name or tag and by near spelling
 
 ## Alliance Roster
 * The list of an Alliance's Players, each with uid, Player Name and Alliance Rank, as the Game API reports it
