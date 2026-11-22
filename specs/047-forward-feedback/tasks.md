@@ -15,7 +15,7 @@
 
 ## Phase 2: User Stories 1 to 3
 
-- [ ] T003 `src/discord/feedback.ts` (+ test): which messages are Feedback Posts (bots, webhooks, system messages, other
+- [x] T003 `src/discord/feedback.ts` (+ test): which messages are Feedback Posts (bots, webhooks, system messages, other
   channels and other guilds are not; threads under a feedback channel are), forwarding with mentions off, the 📝 only
   after the entry, a failed entry (no reaction, nothing in the channel), a failed reaction (one `#neil-log` line), and
   pinning the template at startup (missing, present, missing channel, refused pin).

@@ -41,3 +41,18 @@ export function feedbackEntry(post: FeedbackPostView): string[] {
   lines.push(`Jump: ${post.jumpLink}`);
   return splitBetweenLines(lines);
 }
+
+/** The #neil-log line for a feedback channel that is missing from the guild: its template is not pinned. */
+export function missingChannelLine(channelName: string): string {
+  return `#${channelName} is missing, so Neil could not pin the Feedback Template there.`;
+}
+
+/** The #neil-log line for a Feedback Template that Neil could not post or pin in a feedback channel. */
+export function pinFailedLine(channelName: string): string {
+  return `Neil could not pin the Feedback Template in #${channelName}.`;
+}
+
+/** The #neil-log line for a Feedback Post whose entry is logged but which could not be reacted to. */
+export function reactionFailedLine(emoji: string, jumpLink: string): string {
+  return `Neil could not react ${emoji} to the Feedback Post at ${jumpLink}; its entry is logged above.`;
+}
