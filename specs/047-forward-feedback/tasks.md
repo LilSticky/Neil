@@ -19,12 +19,12 @@
   channels and other guilds are not; threads under a feedback channel are), forwarding with mentions off, the 📝 only
   after the entry, a failed entry (no reaction, nothing in the channel), a failed reaction (one `#neil-log` line), and
   pinning the template at startup (missing, present, missing channel, refused pin).
-- [ ] T004 `client.ts` (+ test): the `GuildMessages` and `MessageContent` intents, `MessageCreate` routed to the
+- [x] T004 `client.ts` (+ test): the `GuildMessages` and `MessageContent` intents, `MessageCreate` routed to the
   forwarding, the templates pinned once at startup.
 
 ## Phase 3: Polish
 
-- [ ] T005 ADR 30, DICTIONARY (Feedback Post, Feedback Template).
+- [x] T005 ADR 30, DICTIONARY (Feedback Post, Feedback Template).
 - [ ] T006 ROADMAP row 047, STATUS, SERVER-SETUP (`#feedback`), HOSTING section 1 (Message Content Intent, and the invite
   gives Neil a role), DISCORD-PLATFORM (the intents).
 - [ ] T007 Smoke test on test Neil through Neil Police (NEIL-POLICE.md section 3a), after the setup script: `#feedback`

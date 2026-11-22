@@ -67,10 +67,25 @@ export class FakeChannel {
     },
   };
 
-  /** The message manager: fetching an id that was never sent gives null. */
+  /** Ids of the messages pinned here, in pin order. */
+  readonly pinned: string[] = [];
+
+  /** The message manager: fetching an id that was never sent gives null; pins are recorded by id. */
   readonly messages = {
     fetch: (id: string): Promise<FakeMessage | null> =>
       Promise.resolve(this.sent.find((message) => message.id === id) ?? null),
+    fetchPinned: (): Promise<Map<string, { readonly content: string; readonly author: { readonly id: string } }>> =>
+      Promise.resolve(
+        new Map(
+          this.sent
+            .filter((message) => this.pinned.includes(message.id))
+            .map((message) => [message.id, { content: message.content, author: { id: BOT_MEMBER_ID } }] as const),
+        ),
+      ),
+    pin: (id: string): Promise<void> => {
+      this.pinned.push(id);
+      return Promise.resolve();
+    },
   };
 
   constructor(

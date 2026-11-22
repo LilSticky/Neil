@@ -1,6 +1,7 @@
-import { Events, GatewayIntentBits, IntentsBitField, MessageFlags, Partials } from "discord.js";
+import { ChannelType, Events, GatewayIntentBits, IntentsBitField, MessageFlags, Partials } from "discord.js";
 import { describe, expect, test, vi } from "vitest";
 import { createClient, memberRoleIds } from "./client.js";
+import { FEEDBACK_CHANNEL, postOf } from "./__fakes__/feedback-server.js";
 
 function chatInput(commandName: string) {
   return { isChatInputCommand: () => true, isAutocomplete: () => false, commandName };
@@ -111,24 +112,29 @@ function handlers() {
     napMotionButton: vi.fn(() => Promise.resolve()),
     napRulesModal: vi.fn(() => Promise.resolve()),
     kingMoveButton: vi.fn(() => Promise.resolve()),
+    feedbackPost: vi.fn(() => Promise.resolve()),
   };
 }
 
 describe("createClient", () => {
-  test("requests the Guilds, GuildMembers, GuildPresences and GuildScheduledEvents intents only", () => {
+  test("requests the Guilds, GuildMembers, GuildPresences, GuildMessages, GuildScheduledEvents and MessageContent intents only", () => {
     const client = createClient(handlers(), { guildId: GUILD_ID });
 
     expect(new IntentsBitField(client.options.intents).toArray()).toEqual([
       "Guilds",
       "GuildMembers",
       "GuildPresences",
+      "GuildMessages",
+      "MessageContent",
       "GuildScheduledEvents",
     ]);
     expect(client.options.intents.bitfield).toBe(
       GatewayIntentBits.Guilds |
         GatewayIntentBits.GuildMembers |
         GatewayIntentBits.GuildPresences |
-        GatewayIntentBits.GuildScheduledEvents,
+        GatewayIntentBits.GuildMessages |
+        GatewayIntentBits.GuildScheduledEvents |
+        GatewayIntentBits.MessageContent,
     );
   });
 
@@ -207,6 +213,45 @@ describe("createClient", () => {
     expect(routed.allianceAutocomplete).toHaveBeenCalledWith(interaction);
     expect(routed.alliance).not.toHaveBeenCalled();
     expect(routed.player).not.toHaveBeenCalled();
+  });
+
+  test("hands a Member's post in #feedback to the feedback post handler and nothing else", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const post = postOf({ guildId: GUILD_ID, channel: FEEDBACK_CHANNEL });
+
+    client.emit(Events.MessageCreate, post as never);
+
+    expect(routed.feedbackPost).toHaveBeenCalledWith(post);
+    expect(routed.ping).not.toHaveBeenCalled();
+  });
+
+  test("ignores a message from a bot in #feedback", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.MessageCreate, postOf({ guildId: GUILD_ID, channel: FEEDBACK_CHANNEL, bot: true }) as never);
+
+    expect(routed.feedbackPost).not.toHaveBeenCalled();
+  });
+
+  test("ignores a Member's post in a channel other than #feedback and #suggestions", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+    const general = { id: "200000000000000009", name: "general", type: ChannelType.GuildText, parent: null };
+
+    client.emit(Events.MessageCreate, postOf({ guildId: GUILD_ID, channel: general }) as never);
+
+    expect(routed.feedbackPost).not.toHaveBeenCalled();
+  });
+
+  test("ignores a Member's post in #feedback of another server", () => {
+    const routed = handlers();
+    const client = createClient(routed, { guildId: GUILD_ID });
+
+    client.emit(Events.MessageCreate, postOf({ guildId: OTHER_GUILD_ID, channel: FEEDBACK_CHANNEL }) as never);
+
+    expect(routed.feedbackPost).not.toHaveBeenCalled();
   });
 
   test.each([

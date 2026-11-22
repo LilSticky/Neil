@@ -1,5 +1,6 @@
 import { DiscordAPIError, RESTJSONErrorCodes, type BaseMessageOptions } from "discord.js";
 import type { FakeConnectGuild } from "./connect-guild.js";
+import { BOT_MEMBER_ID } from "./guild.js";
 
 /** A private message the client delivered: the user it reached and its text. */
 export interface DirectMessage {
@@ -45,6 +46,9 @@ export class FakeClient {
   };
 
   readonly ws = { ping: 0 };
+
+  /** The bot's own user, as a logged-in client has it: the id of the bot's member in the fakes. */
+  readonly user = { id: BOT_MEMBER_ID };
 
   private readonly listeners = new Map<string, (...args: readonly unknown[]) => void>();
 
