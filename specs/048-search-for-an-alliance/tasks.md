@@ -6,7 +6,7 @@
 
 ## Phase 1: Foundational
 
-- [ ] T001 [P] `src/domain/alliance-search.ts` (+ test): `parseAllianceSearch` (`[REB]`, `[REB] Rebirth`, `  reb `,
+- [x] T001 [P] `src/domain/alliance-search.ts` (+ test): `parseAllianceSearch` (`[REB]`, `[REB] Rebirth`, `  reb `,
   empty, 41 characters, `[]`), `exactKnownAlliance` (tag and name, case and punctuation ignored, only the given
   Kingdom, tag before name, forgotten ones left out), `matchesIn` (only pickable matches of the Kingdom).
 - [x] T002 [P] Recording every Kingdom: `startup.ts` hook (+ test: an Alliance of Kingdom 1 is stored, a blank tag or
