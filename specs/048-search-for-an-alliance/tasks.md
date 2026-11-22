@@ -29,7 +29,7 @@
 
 - [x] T006 City Rotation and NaP still suggest Home Kingdom Alliances only, with a Kingdom 1 Known Alliance stored
   (+ test where missing).
-- [ ] T007 GAME-API.md (name lookup matches tags across Kingdoms), ROADMAP row 048, STATUS.
+- [x] T007 GAME-API.md (name lookup matches tags across Kingdoms), ROADMAP row 048, STATUS.
 - [ ] T008 Smoke test on test Neil through Neil Police (NEIL-POLICE.md section 3a): after the deploy and restart, the
   console and `#neil-log` show no errors and `/alliance` is registered with `search` and `kingdom`. Running the command
   needs a Member's account, so the search itself is covered by tests and the #330 server (ADR 29).
