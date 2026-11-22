@@ -4,7 +4,7 @@ Date: 2026-10-29
 
 ## Status
 
-Accepted. Partly superseded by [ADR 16](0016-develop-branch-and-test-environment.md)
+Accepted. Partly superseded by [ADR 16](0016-develop-branch-and-test-environment.md); amended by [ADR 30](0030-neil-reads-feedback-posts.md) (MessageContent)
 
 ## Context
 

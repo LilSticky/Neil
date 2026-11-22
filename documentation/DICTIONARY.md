@@ -51,6 +51,14 @@ discovery.
 * The categories, channels and permission overwrites a server should have
 * Described in the server guides and held in `server-layout.json`; the owner's setup script builds it, Neil itself does not change channel permissions
 
+## Feedback Post
+* A message a Member posts in `#suggestions` or `#feedback` (or a thread under them)
+* Neil forwards each one to `#neil-log` and reacts 📝; it stores nothing about it
+
+## Feedback Template
+* The fixed form a Feedback Post follows so a session acts on it: `Type` (Bug or Idea), `Where`, `What happened` and `Expected` for a Bug, `What` for an Idea, optional `Steps`
+* Neil keeps it pinned in both feedback channels; defined in FEEDBACK.md. A post that does not follow it is discarded
+
 # Game
 
 ## Alliance Duel (AD)
