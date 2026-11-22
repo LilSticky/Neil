@@ -102,7 +102,7 @@ Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's
 
 Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
 [discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004), and the Onboarding Interview's Recommended Player (slice 005: one `/players/name/{name}` per Interview, Quota Reserve). There is
-no approximate (fuzzy) name search in the API; Neil matches Known Alliances itself (slice 007), recorded from every fresh answer that shows an Alliance, of any Kingdom, including each match of an ambiguous name answer (slice 048). `/alliance search` (slice 048) asks by tag in the chosen Kingdom when it can, else by name, and keeps only that Kingdom's matches.
+no approximate (fuzzy) name search in the API; Neil matches Known Alliances itself (slice 007), recorded from every fresh answer that shows an Alliance, of any Kingdom, including each match of an ambiguous name answer (slice 048). A common tag can list dozens of Alliances in one answer; each becomes a Known Alliance, and an unseen one is forgotten after 30 days, so the table stays bounded by what Members search for. `/alliance search` (slice 048) asks by tag in the chosen Kingdom when it can, else by name, and keeps only that Kingdom's matches.
 
 ### Player (`/players/{uid}`), verified fields
 
