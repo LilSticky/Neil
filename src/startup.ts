@@ -140,9 +140,9 @@ export async function start(deps: StartupDeps): Promise<void> {
       reserve: config.quotaReserve,
       syncShare: config.syncShare,
     });
-    // Only the Home Kingdom's Alliances are kept: they are the ones /alliance suggests by name and tag.
+    // Every Kingdom's Alliances are kept; a blank tag or name is not an Alliance Neil can suggest.
     const onAllianceSeen: AllianceSeenHook = (kingdom, tag, name) => {
-      if (kingdom !== config.homeKingdom || tag.trim() === "" || name.trim() === "") return;
+      if (tag.trim() === "" || name.trim() === "") return;
       knownAlliances.seen({ kingdom, tag, name }, deps.now());
     };
     const gameApi = deps.createGameApi(

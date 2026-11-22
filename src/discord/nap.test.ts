@@ -261,6 +261,27 @@ describe("createNap", () => {
       expect(description).not.toContain("<@");
     });
 
+    test("labels a NaP Alliance with the bare tag when only another Kingdom's Known Alliance has that tag", async () => {
+      seedMember("XYZ");
+      nap = createNap({
+        store,
+        knownAlliances: { all: () => [known("XYZ", "Ex Why Zed", kingdomOf(331))] },
+        editorOf: (memberId) => EDITORS[memberId],
+        server,
+        homeKingdom: HOME,
+        officerRoleIds: [MODERATOR_ROLE],
+        now: () => now,
+        logError: (line) => errors.push(line),
+      });
+
+      const show = command(STRANGER);
+      await nap.show(show);
+
+      const description = embedOf(show.replies[0]).description ?? "";
+      expect(description).toContain("- [XYZ], since");
+      expect(description).not.toContain("Ex Why Zed");
+    });
+
     test("shows when each waiting request's vote ends, or that an Officer decides while the NaP is empty", async () => {
       await nap.join(command(R5_ABC));
       const empty = command(STRANGER);

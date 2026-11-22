@@ -54,24 +54,16 @@ export const alliance = new SlashCommandBuilder()
   .setContexts(InteractionContextType.Guild)
   .addStringOption((option) =>
     option
-      .setName("name")
-      .setDescription("The alliance's exact full name, alone")
-      .setRequired(false)
-      .setMaxLength(40)
-      .setAutocomplete(true),
-  )
-  .addStringOption((option) =>
-    option
-      .setName("tag")
-      .setDescription("The alliance tag, e.g. NML")
-      .setRequired(false)
+      .setName("search")
+      .setDescription("The alliance's name or tag")
+      .setRequired(true)
       .setMaxLength(40)
       .setAutocomplete(true),
   )
   .addIntegerOption((option) =>
     option
       .setName("kingdom")
-      .setDescription("The kingdom number, with a tag")
+      .setDescription("The kingdom number (default: the Home Kingdom)")
       .setRequired(false)
       .setMinValue(1)
       .setMaxValue(9999),

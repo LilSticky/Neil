@@ -1766,11 +1766,8 @@ describe("GameApiClient onAllianceSeen hook", () => {
     expect(onAllianceSeen).toHaveBeenCalledTimes(1);
   });
 
-  test.each([
-    ["not found", 404, allianceNotFound],
-    ["ambiguous", 409, alliancesAmbiguous],
-  ])("is not called for an Alliance name that is %s", async (_label, status, body) => {
-    const { fetch } = fakeFetch(() => jsonResponse(status, body));
+  test("is not called for an Alliance name that is not found", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(404, allianceNotFound));
     const onAllianceSeen = vi.fn<AllianceSeenHook>();
 
     await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).findAlliance(
@@ -1779,6 +1776,52 @@ describe("GameApiClient onAllianceSeen hook", () => {
     );
 
     expect(onAllianceSeen).not.toHaveBeenCalled();
+  });
+
+  test("is called once per match of a fresh ambiguous Alliance name, with each match's Kingdom, tag and name", async () => {
+    const { fetch } = fakeFetch(() => jsonResponse(409, alliancesAmbiguous));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+
+    await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).findAlliance(
+      parsedAllianceKey("No Man's Land"),
+      "lookup",
+    );
+
+    expect(onAllianceSeen).toHaveBeenCalledTimes(2);
+    expect(onAllianceSeen).toHaveBeenNthCalledWith(1, 1, "NML", "No Man's Land");
+    expect(onAllianceSeen).toHaveBeenNthCalledWith(2, 180, "NMX", "No Man's Land");
+  });
+
+  test("is not called again for an ambiguous Alliance name answered from the cache", async () => {
+    const { fetch, sent } = fakeFetch(() => jsonResponse(409, alliancesAmbiguous));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+    const client = clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen });
+
+    await client.findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+    await client.findAlliance(parsedAllianceKey("No Man's Land"), "lookup");
+
+    expect(sent).toHaveLength(1);
+    expect(onAllianceSeen).toHaveBeenCalledTimes(2);
+  });
+
+  test("is not called for a match of an ambiguous Alliance name without a tag or without a server", async () => {
+    const body = {
+      matches: [
+        { name: "No Man's Land", server: 1 },
+        { tag: "NMX", name: "No Man's Land" },
+        { tag: "NMZ", name: "No Man's Land", server: 180 },
+      ],
+    };
+    const { fetch } = fakeFetch(() => jsonResponse(409, body));
+    const onAllianceSeen = vi.fn<AllianceSeenHook>();
+
+    await clientWith(fetch, () => FIXED_NOW, undefined, noPause, { onAllianceSeen }).findAlliance(
+      parsedAllianceKey("No Man's Land"),
+      "lookup",
+    );
+
+    expect(onAllianceSeen).toHaveBeenCalledTimes(1);
+    expect(onAllianceSeen).toHaveBeenCalledWith(180, "NMZ", "No Man's Land");
   });
 
   test("a hook that throws does not fail the lookup, which is still found", async () => {

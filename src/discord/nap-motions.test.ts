@@ -570,6 +570,17 @@ describe("createNapMotions", () => {
       expect(store.get(id)?.closed).toMatchObject({ outcome: "rejected", approve: 0, decline: 0 });
     });
 
+    test("labels a NaP Alliance with the bare tag when only another Kingdom's Known Alliance has that tag", async () => {
+      await openOne();
+      knownList = [known("XYZ", "Ex Why Zed", kingdomOf(331))];
+      now = new Date(NOW.getTime() + 48 * HOUR);
+      await motions.tick();
+
+      const content = contentOf(server.postsIn(ANNOUNCEMENTS)[0]?.message);
+      expect(content).toContain("[XYZ]: did not vote");
+      expect(content).not.toContain("Ex Why Zed");
+    });
+
     test("a missing #nap-announcements or a gone #nap-leaders message only log lines; the result stays", async () => {
       const id = await openOne();
       server.announcements = undefined;

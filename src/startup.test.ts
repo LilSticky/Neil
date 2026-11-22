@@ -538,7 +538,7 @@ describe("start and the Known Alliances", () => {
     return hook;
   }
 
-  test("records a Home Kingdom Alliance that a Game API answer holds, with the time it was seen", async () => {
+  test("records an Alliance that a Game API answer holds, with the time it was seen", async () => {
     const hook = await startAndGetHook();
 
     hook(kingdomOf(330), "NML", "No Man's Land");
@@ -551,7 +551,7 @@ describe("start and the Known Alliances", () => {
   test.each([
     { label: "a blank tag", tag: " ", name: "No Man's Land" },
     { label: "a blank name", tag: "NML", name: "" },
-  ])("does not record a Home Kingdom Alliance with $label", async ({ tag, name }) => {
+  ])("does not record an Alliance with $label", async ({ tag, name }) => {
     const hook = await startAndGetHook();
 
     hook(kingdomOf(330), tag, name);
@@ -559,12 +559,14 @@ describe("start and the Known Alliances", () => {
     expect(knownAlliances.all(NOW_AT_START)).toEqual([]);
   });
 
-  test("does not record an Alliance of another Kingdom", async () => {
+  test("records an Alliance of another Kingdom, as every Kingdom's Alliances are kept", async () => {
     const hook = await startAndGetHook();
 
     hook(kingdomOf(1), "NMX", "No Man's Land");
 
-    expect(knownAlliances.all(NOW_AT_START)).toEqual([]);
+    expect(knownAlliances.all(NOW_AT_START)).toEqual([
+      { kingdom: 1, tag: "NMX", name: "No Man's Land", lastSeen: NOW_AT_START },
+    ]);
   });
 
   test("forgets the Known Alliances not seen for 30 days when Neil starts, and keeps the others", async () => {

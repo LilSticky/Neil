@@ -97,12 +97,12 @@ Sources: the tracker's docs page (read 2026-10-29, again 2026-11-14), the user's
 | `GET /players/{uid}` | **verified** (2026-10-29) | one player, their alliance, and that alliance's roster with ranks |
 | `GET /quota` | **verified** | the quota object only; costs one request |
 | `GET /players/name/{name}`, `GET /players/{server}/{name}` | **verified** (2026-10-30): exact nick, case-insensitive; same body as `/players/{uid}`. A name shared by several players gives **409** with `matches` (`uid`, `server`, `name`), also across kingdoms (`drlol` → kingdoms 1 and 180); `{server}` narrows to one kingdom. No partial match (`drlo` matched only nicks equal to it) | a player by name |
-| `GET /alliances/name/{name}` | **verified for the exact full name** (`No Man's Land`, URL-encoded, 2026-10-30); a part of the name gave 404 `alliance_not_found`, the tag (`NML`) gave 502 | an alliance and its roster by full name |
+| `GET /alliances/name/{name}` | **verified for the exact full name** (`No Man's Land`, URL-encoded, 2026-10-30); a part of the name gave 404 `alliance_not_found`, the tag (`NML`) gave 502. **Since 2026-11-22 it matches tags too, across all Kingdoms**: `name/NML` gave 409 with `NML` (Kingdom 1) and `nMl` (Kingdom 436), `name/REB` a long list of `REB` Alliances, each with `id`, `server`, `tag`, `name` |  an alliance and its roster by full name |
 | `GET /alliances/{alliance_id}` | documented, not tried | an alliance by id |
 
 Use only verified endpoints in code. A Member is found by uid (In-game Proof, see
 [discovery](discovery/initial.md)); name lookups serve `/player` and `/alliance` (slice 004), and the Onboarding Interview's Recommended Player (slice 005: one `/players/name/{name}` per Interview, Quota Reserve). There is
-no approximate (fuzzy) name search in the API; Neil matches Known Alliances itself (slice 007), recorded from every fresh answer that shows a Home Kingdom Alliance.
+no approximate (fuzzy) name search in the API; Neil matches Known Alliances itself (slice 007), recorded from every fresh answer that shows an Alliance, of any Kingdom, including each match of an ambiguous name answer (slice 048). A common tag can list dozens of Alliances in one answer; each becomes a Known Alliance, and an unseen one is forgotten after 30 days, so the table stays bounded by what Members search for. `/alliance search` (slice 048) asks by tag in the chosen Kingdom when it can, else by name, and keeps only that Kingdom's matches.
 
 ### Player (`/players/{uid}`), verified fields
 

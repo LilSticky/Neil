@@ -273,7 +273,7 @@ describe("lookupMessages for /alliance", () => {
   });
 
   test("invalidAlliance gives the contract's text", () => {
-    expect(lookupMessages.invalidAlliance).toBe("Give the alliance's tag (up to 40 characters).");
+    expect(lookupMessages.invalidAlliance).toBe("Give an alliance name or tag (up to 40 characters).");
   });
 
   test("allianceNotFound names the key and the Kingdom", () => {
@@ -877,22 +877,16 @@ describe("renderCloseAlliancePickList", () => {
   });
 });
 
-describe("lookupMessages for /alliance by name", () => {
-  test("giveKingdomAndTagOrName gives the contract's text", () => {
-    expect(lookupMessages.giveKingdomAndTagOrName).toBe(
-      "Give the kingdom and the alliance tag, or the alliance's exact full name.",
+describe("lookupMessages for /alliance search", () => {
+  test("allianceSearchNotFound names the search text and the Kingdom, and points to the tag or a suggestion", () => {
+    expect(lookupMessages.allianceSearchNotFound(allianceKey("Rebirth"), kingdom(330))).toBe(
+      'No alliance matches "Rebirth" in kingdom #330. Try the tag, or start typing and pick a suggestion.',
     );
   });
 
-  test("allianceNameNotFound names the name, says none is close and points to the tag or a suggestion", () => {
-    expect(lookupMessages.allianceNameNotFound(allianceKey("No Such Land"))).toBe(
-      'No alliance is named "No Such Land", and none I know is close. Try the tag, or start typing and pick a suggestion.',
-    );
-  });
-
-  test("allianceNameNotFound escapes the name as typed", () => {
-    expect(lookupMessages.allianceNameNotFound(allianceKey("N_M*"))).toBe(
-      'No alliance is named "N\\_M\\*", and none I know is close. Try the tag, or start typing and pick a suggestion.',
+  test("allianceSearchNotFound escapes the search text as typed", () => {
+    expect(lookupMessages.allianceSearchNotFound(allianceKey("N_M*"), kingdom(330))).toBe(
+      'No alliance matches "N\\_M\\*" in kingdom #330. Try the tag, or start typing and pick a suggestion.',
     );
   });
 });
