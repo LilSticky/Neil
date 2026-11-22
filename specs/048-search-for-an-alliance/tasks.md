@@ -9,7 +9,7 @@
 - [ ] T001 [P] `src/domain/alliance-search.ts` (+ test): `parseAllianceSearch` (`[REB]`, `[REB] Rebirth`, `  reb `,
   empty, 41 characters, `[]`), `exactKnownAlliance` (tag and name, case and punctuation ignored, only the given
   Kingdom, tag before name, forgotten ones left out), `matchesIn` (only pickable matches of the Kingdom).
-- [ ] T002 [P] Recording every Kingdom: `startup.ts` hook (+ test: an Alliance of Kingdom 1 is stored, a blank tag or
+- [x] T002 [P] Recording every Kingdom: `startup.ts` hook (+ test: an Alliance of Kingdom 1 is stored, a blank tag or
   name is not); `src/game-api/client.ts` (+ test: a fresh ambiguous `findAlliance` answer tells the hook of each match
   with Kingdom, tag and name; a cached one does not; a match without a tag is skipped).
 
