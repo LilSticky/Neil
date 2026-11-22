@@ -15,9 +15,9 @@
 
 ## Phase 2: User Stories 1 and 2
 
-- [ ] T003 `commands.ts` (+ test): `/alliance` has `search` (required, max 40, autocomplete) and `kingdom`; no `name`
+- [x] T003 `commands.ts` (+ test): `/alliance` has `search` (required, max 40, autocomplete) and `kingdom`; no `name`
   or `tag`.
-- [ ] T004 `alliance-autocomplete.ts` (+ test): suggestions only from the Kingdom typed in `kingdom`, else the Home
+- [x] T004 `alliance-autocomplete.ts` (+ test): suggestions only from the Kingdom typed in `kingdom`, else the Home
   Kingdom; value `[TAG]`, label `[TAG] Name`; nothing typed gives that Kingdom's most recently seen. `client.ts` passes
   the Home Kingdom.
 - [ ] T005 `lookup.ts` / `lookup-cards.ts` (+ test): the resolution of plan step 4: `[TAG]` → one tag request in K;

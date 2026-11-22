@@ -50,7 +50,7 @@ describe("commands", () => {
     );
   });
 
-  test("hold /alliance, open to anyone, guild only, with the full name first, then the alliance tag, then an optional integer kingdom from 1 to 9999; the name and tag are of at most 40 characters", () => {
+  test("hold /alliance, open to anyone, guild only, with a required search text of at most 40 characters first, then an optional integer kingdom from 1 to 9999 and no name or tag option", () => {
     expect(commands).toContainEqual(
       expect.objectContaining({
         name: "alliance",
@@ -61,15 +61,8 @@ describe("commands", () => {
         options: [
           expect.objectContaining({
             type: ApplicationCommandOptionType.String,
-            name: "name",
-            required: false,
-            max_length: 40,
-          }),
-          expect.objectContaining({
-            type: ApplicationCommandOptionType.String,
-            name: "tag",
-            description: "The alliance tag, e.g. NML",
-            required: false,
+            name: "search",
+            required: true,
             max_length: 40,
           }),
           expect.objectContaining({
@@ -84,15 +77,19 @@ describe("commands", () => {
     );
   });
 
-  test("hold /alliance with name and tag set to autocomplete from Known Alliances, and the kingdom not", () => {
+  test("hold /alliance with search set to autocomplete from Known Alliances, and the kingdom not", () => {
     const options = commands.find((command) => command.name === "alliance")?.options;
 
     expect(options).toEqual([
-      expect.objectContaining({ name: "name", type: ApplicationCommandOptionType.String, autocomplete: true }),
-      expect.objectContaining({ name: "tag", type: ApplicationCommandOptionType.String, autocomplete: true }),
+      expect.objectContaining({
+        name: "search",
+        type: ApplicationCommandOptionType.String,
+        required: true,
+        autocomplete: true,
+      }),
       expect.objectContaining({ name: "kingdom", type: ApplicationCommandOptionType.Integer }),
     ]);
-    expect(options?.[2]).not.toHaveProperty("autocomplete", true);
+    expect(options?.[1]).not.toHaveProperty("autocomplete", true);
   });
 
   test("hold /quota, hidden from Members (default member permissions '0', allowed per role in Integrations), guild only, without options", () => {
