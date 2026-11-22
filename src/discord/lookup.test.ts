@@ -590,7 +590,7 @@ describe("handleAlliance", () => {
     "answers the kingdom %s privately with the help text, without deferring or asking the Game API",
     async (number) => {
       const interaction = new FakeLookupInteraction({
-        strings: { tag: "NML" },
+        strings: { search: "[NML]" },
         integers: { kingdom: number },
       });
       const { context, getAlliance } = allianceContextReturning({
@@ -622,7 +622,7 @@ describe("handleAlliance", () => {
     "answers an alliance that is $label privately with the help text, without deferring or asking the Game API",
     async ({ text }) => {
       const interaction = new FakeLookupInteraction({
-        strings: { tag: text },
+        strings: { search: text },
         integers: { kingdom: 1 },
       });
       const { context, getAlliance } = allianceContextReturning({
@@ -649,7 +649,7 @@ describe("handleAlliance", () => {
 
   test("asks the Game API for the Alliance by its Kingdom and the trimmed key", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: " NML " },
+      strings: { search: " [NML] " },
       integers: { kingdom: 1 },
     });
     const { context, getAlliance } = allianceContextReturning({
@@ -665,7 +665,7 @@ describe("handleAlliance", () => {
 
   test("defers publicly, then shows the Alliance card to everyone", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     });
     const { context } = allianceContextReturning({
@@ -696,7 +696,7 @@ describe("handleAlliance", () => {
 
   test("removes the thinking placeholder and tells the caller privately when no alliance has the key in the Kingdom", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     });
     const { context } = allianceContextReturning({ kind: "not-found" });
@@ -723,7 +723,7 @@ describe("handleAlliance", () => {
       { tag: "NMX", name: "No Man's Land", kingdom: 2 },
     ];
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     }, USER_ID);
     const { context, pickSessions } = allianceContextReturning({
@@ -765,7 +765,7 @@ describe("handleAlliance", () => {
 
   test("logs a rejected reply and resolves instead of throwing", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     });
     interaction.fail("editReply", new Error("Unknown interaction"));
@@ -813,7 +813,7 @@ describe("handleAlliance failures that give no card", () => {
     "$label removes the thinking placeholder and tells the caller privately with the contract text, never a card",
     async ({ result, text }) => {
       const interaction = new FakeLookupInteraction({
-        strings: { tag: "NML" },
+        strings: { search: "[NML]" },
         integers: { kingdom: 1 },
       });
       const { context } = allianceContextReturning(result);
@@ -851,10 +851,10 @@ const rosterMembers: readonly RosterEntry[] = [
 const allianceWithRoster: Alliance = { ...alliance, roster: rosterMembers };
 const sortedMembers = sortRoster(rosterMembers);
 
-describe("handleAlliance by kingdom and tag, with a roster", () => {
+describe("handleAlliance by a [TAG] search in a Kingdom, with a roster", () => {
   test("defers publicly, shows the card with the roster menu to everyone, and opens a roster pick list for the caller", async () => {
     const interaction = new FakeLookupInteraction(
-      { strings: { tag: "NML" }, integers: { kingdom: 1 } },
+      { strings: { search: "[NML]" }, integers: { kingdom: 1 } },
       USER_ID,
     );
     const { context, pickSessions } = allianceContextReturning({
@@ -880,7 +880,7 @@ describe("handleAlliance by kingdom and tag, with a roster", () => {
   });
 
   test("shows the card without a roster menu, and opens no roster pick list, when the roster is empty", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" }, integers: { kingdom: 1 } });
     const { context, pickSessions } = allianceContextReturning({
       kind: "found",
       value: alliance,
@@ -908,7 +908,7 @@ describe("handleAlliance with the NaP register", () => {
   }
 
   test("shows the NaP status the context gives for the Alliance on its card", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" }, integers: { kingdom: 1 } });
     const { context } = allianceContextReturning({ kind: "found", value: alliance, asOf: FETCHED_AT });
     const asked: unknown[] = [];
     const napStatusOf = (target: { kingdom: KingdomNumber; tag: string }): NapStatus => {
@@ -923,7 +923,7 @@ describe("handleAlliance with the NaP register", () => {
   });
 
   test("shows the card without a NaP field, and logs the failure, when reading the status fails", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" }, integers: { kingdom: 1 } });
     const { context, logged } = allianceContextReturning({ kind: "found", value: alliance, asOf: FETCHED_AT });
     const napStatusOf = (): NapStatus => {
       throw new Error("neil.db is locked");
@@ -937,87 +937,62 @@ describe("handleAlliance with the NaP register", () => {
   });
 });
 
-describe("handleAlliance by the Alliance's full name", () => {
-  test("asks the Game API for the Alliance by its full name, charged to the caller, and no Kingdom is needed", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
-    const { context, findAlliance, getAlliance } = allianceContextReturning({
+
+const kingdomFiftyTwo = kingdomNumber(52);
+
+/** An Alliance of the Home Kingdom named Rebirth, with the tag REB. */
+const rebirth: Alliance = {
+  tag: "REB",
+  name: "Rebirth",
+  kingdom: homeKingdom,
+  might: 97000000,
+  memberCount: 40,
+  capacity: 100,
+  leaderName: "Ember",
+  leaderUid: undefined,
+  roster: [],
+};
+
+/** A Known Alliance of any Kingdom, last seen the given number of days before NOW. */
+function knownIn(kingdom: KingdomNumber, tag: string, name: string, daysAgo = 1): KnownAlliance {
+  return { kingdom, tag, name, lastSeen: new Date(NOW.getTime() - daysAgo * DAY_MS) };
+}
+
+/** The charged alliance lookups a handler made, by name or by tag: a search costs at most two of them. */
+function allianceRequests(gameApi: FakeGameApi): number {
+  return gameApi.charged.getAlliance.mock.calls.length + gameApi.charged.findAlliance.mock.calls.length;
+}
+
+describe("handleAlliance searches by a [TAG] in a Kingdom", () => {
+  test("a [TAG] search asks the Game API once for that tag in the Home Kingdom, and shows the card", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "[REB]" } }, USER_ID);
+    const { context, gameApi, getAlliance, findAlliance } = allianceContextReturning({
       kind: "found",
-      value: allianceWithRoster,
+      value: rebirth,
       asOf: FETCHED_AT,
     });
 
     await handleAlliance(interaction, context);
 
-    expect(findAlliance).toHaveBeenCalledWith(allianceKey("No Man's Land"));
-    expect(getAlliance).not.toHaveBeenCalled();
-  });
-
-  test("defers publicly, shows the card with the roster menu, and opens a roster pick list when the name matches one Alliance", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } }, USER_ID);
-    const { context, pickSessions } = allianceContextReturning({
-      kind: "found",
-      value: allianceWithRoster,
-      asOf: FETCHED_AT,
-    });
-
-    await handleAlliance(interaction, context);
-
-    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "roster", entries: sortedMembers, alliance: allianceWithRoster, asOf: FETCHED_AT }, NOW);
+    expect(getAlliance).toHaveBeenCalledTimes(1);
+    expect(getAlliance).toHaveBeenCalledWith(homeKingdom, allianceKey("REB"));
+    expect(findAlliance).not.toHaveBeenCalled();
+    expect(allianceRequests(gameApi)).toBe(1);
     expect(interaction.calls).toEqual([
       { method: "deferReply" },
       {
         method: "editReply",
         options: {
-          embeds: [expect.objectContaining({ title: "[NML] No Man's Land" })],
-          components: renderAllianceComponents(allianceWithRoster, 0, PICK_ID, USER_ID),
+          embeds: [expect.objectContaining({ title: "[REB] Rebirth" })],
+          components: [lookAgainRow(`again:${USER_ID}:a:330:REB`)],
           allowedMentions: { parse: [] },
         },
       },
     ]);
   });
 
-  test("removes the thinking placeholder and privately opens an alliance pick list when several Alliances have the name", async () => {
-    const matches: readonly Match[] = [
-      { tag: "NML", name: "No Man's Land", kingdom: 1 },
-      { tag: "NMX", name: "No Man's Land", kingdom: 2 },
-    ];
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } }, USER_ID);
-    const { context, pickSessions } = allianceContextReturning({ kind: "ambiguous", matches });
-
-    await handleAlliance(interaction, context);
-
-    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "alliances", matches }, NOW);
-    expect(interaction.calls).toEqual([
-      { method: "deferReply" },
-      { method: "deleteReply" },
-      {
-        method: "followUp",
-        options: {
-          content: withUsageBefore('Several alliances are named "No Man\'s Land". Pick one:'),
-          components: [
-            {
-              type: ComponentType.ActionRow,
-              components: [
-                {
-                  type: ComponentType.StringSelect,
-                  custom_id: `pick:${PICK_ID}:select`,
-                  options: [
-                    { label: "[NML] No Man's Land · kingdom #1", value: "0" },
-                    { label: "[NMX] No Man's Land · kingdom #2", value: "1" },
-                  ],
-                },
-              ],
-            },
-          ],
-          flags: MessageFlags.Ephemeral,
-          allowedMentions: { parse: [] },
-        },
-      },
-    ]);
-  });
-
-  test("removes the thinking placeholder and tells the caller privately when no Alliance has exactly that name", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+  test("a [TAG] search the Home Kingdom does not have is answered privately, naming the tag and the Home Kingdom", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "[REB]" } });
     const { context } = allianceContextReturning({ kind: "not-found" });
 
     await handleAlliance(interaction, context);
@@ -1028,36 +1003,249 @@ describe("handleAlliance by the Alliance's full name", () => {
       {
         method: "followUp",
         options: {
-          content:
-            withUsageBefore('No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.'),
+          content: withUsageBefore(lookupMessages.allianceNotFound(allianceKey("REB"), homeKingdom)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
       },
     ]);
   });
+
+  test("a [TAG] Name search with kingdom 1 asks the Game API for that tag in Kingdom 1, once, and never by name", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "[REB] Rebirth" }, integers: { kingdom: 1 } });
+    const { context, gameApi, getAlliance, findAlliance } = allianceContextReturning({ kind: "not-found" });
+
+    await handleAlliance(interaction, context);
+
+    expect(getAlliance).toHaveBeenCalledTimes(1);
+    expect(getAlliance).toHaveBeenCalledWith(kingdomOne, allianceKey("REB"));
+    expect(findAlliance).not.toHaveBeenCalled();
+    expect(allianceRequests(gameApi)).toBe(1);
+  });
+
+  test("a search equal to a Known Alliance of the Kingdom asks for its tag there, once, and never by name", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "rebirth" } }, USER_ID);
+    const known = [knownIn(homeKingdom, "REB", "Rebirth")];
+    const { context, gameApi, getAlliance, findAlliance } = allianceContextReturning(
+      { kind: "found", value: rebirth, asOf: FETCHED_AT },
+      known,
+    );
+
+    await handleAlliance(interaction, context);
+
+    expect(getAlliance).toHaveBeenCalledWith(homeKingdom, allianceKey("REB"));
+    expect(findAlliance).not.toHaveBeenCalled();
+    expect(allianceRequests(gameApi)).toBe(1);
+  });
+
+  test("a search equal to a Known Alliance of another Kingdom is looked up by name, not by its tag", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "rebirth" } });
+    const known = [knownIn(kingdomOne, "REB", "Rebirth")];
+    const { context, getAlliance, findAlliance } = allianceContextReturning({ kind: "not-found" }, known);
+
+    await handleAlliance(interaction, context);
+
+    expect(getAlliance).not.toHaveBeenCalled();
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey("rebirth"));
+  });
 });
 
-describe("handleAlliance with a combination that is neither a kingdom and tag nor a full name", () => {
+describe("handleAlliance searches by name in a Kingdom", () => {
+  test("a name with no exact Known Alliance is looked up by name, once, and an Alliance of the Home Kingdom is shown as its card", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "Rebirth" } }, USER_ID);
+    const { context, gameApi, getAlliance, findAlliance } = allianceContextReturning({
+      kind: "found",
+      value: rebirth,
+      asOf: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey("Rebirth"));
+    expect(getAlliance).not.toHaveBeenCalled();
+    expect(allianceRequests(gameApi)).toBe(1);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "[REB] Rebirth" })],
+          components: [lookAgainRow(`again:${USER_ID}:a:330:REB`)],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("a name answer of an Alliance of another Kingdom gives no card, and says no alliance of the Home Kingdom matches", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "Rebirth" } });
+    const { context } = allianceContextReturning({
+      kind: "found",
+      value: { ...rebirth, kingdom: kingdomFiftyTwo },
+      asOf: FETCHED_AT,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: withUsageBefore(lookupMessages.allianceSearchNotFound(allianceKey("Rebirth"), homeKingdom)),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("an ambiguous name answer with one match in the Kingdom asks for that tag there a second time, and shows its card", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "Rebirth" } }, USER_ID);
+    const matches: Match[] = [
+      { tag: "ABC", name: "Rebirth", kingdom: 52 },
+      { tag: "XYZ", name: "Rebirth", kingdom: 87 },
+      { tag: "REB", name: "Rebirth", kingdom: 330 },
+    ];
+    const { context, gameApi, getAlliance, findAlliance } = allianceContextReturning({
+      kind: "ambiguous",
+      matches,
+    });
+    getAlliance.mockResolvedValueOnce({ kind: "found", value: rebirth, asOf: FETCHED_AT });
+
+    await handleAlliance(interaction, context);
+
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey("Rebirth"));
+    expect(getAlliance).toHaveBeenCalledTimes(1);
+    expect(getAlliance).toHaveBeenCalledWith(homeKingdom, allianceKey("REB"));
+    expect(allianceRequests(gameApi)).toBe(2);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      {
+        method: "editReply",
+        options: {
+          embeds: [expect.objectContaining({ title: "[REB] Rebirth" })],
+          components: [lookAgainRow(`again:${USER_ID}:a:330:REB`)],
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("an ambiguous name answer with several matches in the Kingdom opens a private pick list of those only", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "Rebirth" } }, USER_ID);
+    const matches: Match[] = [
+      { tag: "REB", name: "Rebirth", kingdom: 330 },
+      { tag: "RBX", name: "Rebirth", kingdom: 52 },
+      { tag: "RBY", name: "Rebirth", kingdom: 330 },
+    ];
+    const { context, gameApi, getAlliance, pickSessions } = allianceContextReturning({
+      kind: "ambiguous",
+      matches,
+    });
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).toHaveBeenCalledWith(
+      USER_ID,
+      { kind: "alliances", matches: [matches[0], matches[2]] },
+      NOW,
+    );
+    expect(getAlliance).not.toHaveBeenCalled();
+    expect(allianceRequests(gameApi)).toBe(1);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: withUsageBefore('Several alliances are named "Rebirth". Pick one:'),
+          components: pickSelect(PICK_ID, [
+            { label: "[REB] Rebirth · kingdom #330", value: "0" },
+            { label: "[RBY] Rebirth · kingdom #330", value: "1" },
+          ]),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("an ambiguous name answer with no match in the Kingdom gives the close Known Alliances of that Kingdom only", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "rebirt" } }, USER_ID);
+    const known = [knownIn(homeKingdom, "REB", "Rebirth"), knownIn(kingdomOne, "RBT", "Rebirthed")];
+    const { context, pickSessions } = allianceContextReturning(
+      { kind: "ambiguous", matches: [{ tag: "RBX", name: "Rebirth", kingdom: 52 }] },
+      known,
+    );
+
+    await handleAlliance(interaction, context);
+
+    const matches: Match[] = [{ tag: "REB", name: "Rebirth", kingdom: homeKingdom }];
+    expect(pickSessions.open).toHaveBeenCalledWith(USER_ID, { kind: "alliances", matches }, NOW);
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: expect.any(String) as unknown,
+          components: pickSelect(PICK_ID, [{ label: "[REB] Rebirth", value: "0" }]),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("an ambiguous name answer with no match in the Kingdom and no close Known Alliance there gives the not-found text naming the search and the Home Kingdom", async () => {
+    const interaction = new FakeLookupInteraction({ strings: { search: "rebirt" } });
+    const known = [knownIn(kingdomOne, "RBT", "Rebirthed")];
+    const { context, pickSessions } = allianceContextReturning(
+      { kind: "ambiguous", matches: [{ tag: "RBX", name: "Rebirth", kingdom: 52 }] },
+      known,
+    );
+
+    await handleAlliance(interaction, context);
+
+    expect(pickSessions.open).not.toHaveBeenCalled();
+    expect(interaction.calls).toEqual([
+      { method: "deferReply" },
+      { method: "deleteReply" },
+      {
+        method: "followUp",
+        options: {
+          content: withUsageBefore(lookupMessages.allianceSearchNotFound(allianceKey("rebirt"), homeKingdom)),
+          flags: MessageFlags.Ephemeral,
+          allowedMentions: { parse: [] },
+        },
+      },
+    ]);
+  });
+
+  test("a name of exactly 40 characters is looked up by name, once", async () => {
+    const name = "x".repeat(40);
+    const interaction = new FakeLookupInteraction({ strings: { search: name } });
+    const { context, gameApi, findAlliance } = allianceContextReturning({ kind: "not-found" });
+
+    await handleAlliance(interaction, context);
+
+    expect(findAlliance).toHaveBeenCalledWith(allianceKey(name));
+    expect(allianceRequests(gameApi)).toBe(1);
+  });
+});
+
+describe("handleAlliance answers an invalid search at once", () => {
   test.each([
-    { label: "nothing at all", strings: {}, integers: {} },
-    { label: "a Kingdom alone", strings: {}, integers: { kingdom: 1 } },
-    { label: "a full name with a Kingdom", strings: { name: "No Man's Land" }, integers: { kingdom: 1 } },
-    { label: "a full name with a tag", strings: { name: "No Man's Land", tag: "NML" }, integers: {} },
-    {
-      label: "a full name, a tag and a Kingdom",
-      strings: { name: "No Man's Land", tag: "NML" },
-      integers: { kingdom: 1 },
-    },
+    { label: "blank", text: "   " },
+    { label: "longer than 40 characters", text: "x".repeat(41) },
+    { label: "an empty [TAG]", text: "[]" },
   ])(
-    "answers $label privately with the contract text, without deferring or asking the Game API",
-    async ({ strings, integers }) => {
-      const interaction = new FakeLookupInteraction({ strings, integers });
-      const { context, getAlliance, findAlliance } = allianceContextReturning({
-        kind: "found",
-        value: alliance,
-        asOf: FETCHED_AT,
-      });
+    "answers a search that is $label privately with the invalid-alliance text, without deferring or asking the Game API",
+    async ({ text }) => {
+      const interaction = new FakeLookupInteraction({ strings: { search: text } });
+      const { context, gameApi } = allianceContextReturning({ kind: "found", value: rebirth, asOf: FETCHED_AT });
 
       await handleAlliance(interaction, context);
 
@@ -1065,21 +1253,19 @@ describe("handleAlliance with a combination that is neither a kingdom and tag no
         {
           method: "reply",
           options: {
-            content: lookupMessages.giveKingdomAndTagOrName,
+            content: lookupMessages.invalidAlliance,
             flags: MessageFlags.Ephemeral,
             allowedMentions: { parse: [] },
           },
         },
       ]);
-      expect(getAlliance).not.toHaveBeenCalled();
-      expect(findAlliance).not.toHaveBeenCalled();
+      expect(allianceRequests(gameApi)).toBe(0);
     },
   );
 });
-
-describe("handleAlliance with a tag and no Kingdom", () => {
+describe("handleAlliance with a [TAG] search and no Kingdom", () => {
   test("asks the Game API for the Alliance by its tag in the Home Kingdom, charged to the caller, and never by name", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: " NML " } });
+    const interaction = new FakeLookupInteraction({ strings: { search: " [NML] " } });
     const { context, getAlliance, findAlliance } = allianceContextReturning({
       kind: "found",
       value: alliance,
@@ -1093,7 +1279,7 @@ describe("handleAlliance with a tag and no Kingdom", () => {
   });
 
   test("tells the caller privately, naming the Home Kingdom, when no Alliance has the tag there", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" } });
     const { context } = allianceContextReturning({ kind: "not-found" });
 
     await handleAlliance(interaction, context);
@@ -1123,9 +1309,9 @@ function pickSelect(sessionId: string, options: readonly { readonly label: strin
   ];
 }
 
-describe("handleAlliance when no Alliance has the full name but Known Alliances are close", () => {
+describe("handleAlliance when no Alliance matches the search but Known Alliances of the Kingdom are close", () => {
   test("removes the thinking placeholder and privately opens a pick list of the close Known Alliances, as [TAG] Name", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "no mans" } }, USER_ID);
+    const interaction = new FakeLookupInteraction({ strings: { search: "no mans" } }, USER_ID);
     const known = [knownAlliance("NML", "No Man's Land"), knownAlliance("NMA", "Night Mares")];
     const { context, pickSessions } = allianceContextReturning({ kind: "not-found" }, known);
 
@@ -1149,7 +1335,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
   });
 
   test("shows the names of the pick list as plain labels, without Discord markdown escapes", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "wolves" } }, USER_ID);
+    const interaction = new FakeLookupInteraction({ strings: { search: "wolves" } }, USER_ID);
     const { context } = allianceContextReturning({ kind: "not-found" }, [knownAlliance("WLF", "Wolves *Pack*")]);
 
     await handleAlliance(interaction, context);
@@ -1163,7 +1349,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
   });
 
   test("escapes the typed name in the message text, and keeps the markdown characters of the labels plain", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "no_mans*" } }, USER_ID);
+    const interaction = new FakeLookupInteraction({ strings: { search: "no_mans*" } }, USER_ID);
     const { context } = allianceContextReturning({ kind: "not-found" }, [
       knownAlliance("NML", "No_Man's *Land*"),
     ]);
@@ -1180,7 +1366,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
   });
 
   test("lists the close Known Alliances in the order they match, best first, not alphabetically", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "wolf" } }, USER_ID);
+    const interaction = new FakeLookupInteraction({ strings: { search: "wolf" } }, USER_ID);
     const known = [knownAlliance("BWC", "Big Wolf Clan"), knownAlliance("WLF", "Wolfpack")];
     const { context, pickSessions } = allianceContextReturning({ kind: "not-found" }, known);
 
@@ -1203,7 +1389,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
   });
 
   test("keeps the not-found text, and opens no pick list, when no Known Alliance is close", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "No Man's Land" } });
     const { context, pickSessions } = allianceContextReturning({ kind: "not-found" }, [
       knownAlliance("NMA", "Night Mares"),
     ]);
@@ -1218,7 +1404,7 @@ describe("handleAlliance when no Alliance has the full name but Known Alliances 
         method: "followUp",
         options: {
           content:
-            withUsageBefore('No alliance is named "No Man\'s Land", and none I know is close. Try the tag, or start typing and pick a suggestion.'),
+            withUsageBefore(lookupMessages.allianceSearchNotFound(allianceKey("No Man's Land"), homeKingdom)),
           flags: MessageFlags.Ephemeral,
           allowedMentions: { parse: [] },
         },
@@ -1286,7 +1472,7 @@ describe("handlers when the Daily Quota is spent", () => {
 
   test("/alliance tells the caller privately, with the reset as timestamps", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     });
     const { context } = allianceContextReturning({ kind: "quota-spent", resetsAt: RESETS_AT });
@@ -1334,7 +1520,7 @@ describe("handlers when the Quota Reserve is kept for Onboarding Interviews", ()
       label: "/alliance by tag",
       run: (now: Date) => {
         const interaction = new FakeLookupInteraction({
-          strings: { tag: "NML" },
+          strings: { search: "[NML]" },
           integers: { kingdom: 1 },
         });
         const { context } = allianceContextReturning({ kind: "reserve-kept", resetsAt: RESETS_AT });
@@ -1344,7 +1530,7 @@ describe("handlers when the Quota Reserve is kept for Onboarding Interviews", ()
     {
       label: "/alliance by full name",
       run: (now: Date) => {
-        const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+        const interaction = new FakeLookupInteraction({ strings: { search: "No Man's Land" } });
         const { context } = allianceContextReturning({ kind: "reserve-kept", resetsAt: RESETS_AT });
         return handleAlliance(interaction, { ...context, now: () => now }).then(() => interaction);
       },
@@ -1367,7 +1553,7 @@ describe("handlers when the Quota Reserve is kept for Onboarding Interviews", ()
 describe("handleAlliance when the card cannot be sent", () => {
   test("deletes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     });
     interaction.fail("editReply", new Error("Unknown interaction"));
@@ -1438,7 +1624,7 @@ describe("handlePlayer when the Game API throws", () => {
 describe("handleAlliance when the Game API throws", () => {
   test("removes the placeholder, tells the caller privately it is unavailable, logs the error and resolves", async () => {
     const interaction = new FakeLookupInteraction({
-      strings: { tag: "NML" },
+      strings: { search: "[NML]" },
       integers: { kingdom: 1 },
     });
     const logged: string[] = [];
@@ -1662,9 +1848,9 @@ describe("handlePlayer by name charges the Member who ran the command", () => {
   });
 });
 
-describe("handleAlliance by tag charges the Member who ran the command", () => {
+describe("handleAlliance by a [TAG] search charges the Member who ran the command", () => {
   test("asks the charged view of that Member for the Alliance of the Kingdom and tag", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" }, integers: { kingdom: 1 } });
     const { context, gameApi, getAlliance } = allianceContextReturning({ kind: "not-found" });
 
     await handleAlliance(interaction, context);
@@ -1675,7 +1861,7 @@ describe("handleAlliance by tag charges the Member who ran the command", () => {
   });
 
   test("refuses privately after the placeholder, with no card, when the Daily Allowance is spent", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" }, integers: { kingdom: 1 } });
     const { context } = refusingAllianceContext();
 
     await handleAlliance(interaction, context);
@@ -1695,9 +1881,9 @@ describe("handleAlliance by tag charges the Member who ran the command", () => {
   });
 });
 
-describe("handleAlliance by full name charges the Member who ran the command", () => {
+describe("handleAlliance by a name search charges the Member who ran the command", () => {
   test("asks the charged view of that Member for the Alliance by its full name", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "No Man's Land" } });
     const { context, gameApi, findAlliance } = allianceContextReturning({ kind: "not-found" });
 
     await handleAlliance(interaction, context);
@@ -1708,7 +1894,7 @@ describe("handleAlliance by full name charges the Member who ran the command", (
   });
 
   test("refuses privately after the placeholder, with no card, when the Daily Allowance is spent", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { name: "No Man's Land" } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "No Man's Land" } });
     const { context } = refusingAllianceContext();
 
     await handleAlliance(interaction, context);
@@ -1795,7 +1981,7 @@ describe("handlePlayer shows the usage line, read after the request", () => {
 
 describe("handleAlliance shows the usage line on the Alliance card, read after the request", () => {
   test("shows 5 of 14 in the card footer after an uncached request", async () => {
-    const interaction = new FakeLookupInteraction({ strings: { tag: "NML" }, integers: { kingdom: 1 } });
+    const interaction = new FakeLookupInteraction({ strings: { search: "[NML]" }, integers: { kingdom: 1 } });
     const { context, gameApi, usage } = allianceContextReturning({
       kind: "found",
       value: alliance,

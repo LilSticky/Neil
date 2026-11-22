@@ -20,7 +20,7 @@
 - [x] T004 `alliance-autocomplete.ts` (+ test): suggestions only from the Kingdom typed in `kingdom`, else the Home
   Kingdom; value `[TAG]`, label `[TAG] Name`; nothing typed gives that Kingdom's most recently seen. `client.ts` passes
   the Home Kingdom.
-- [ ] T005 `lookup.ts` / `lookup-cards.ts` (+ test): the resolution of plan step 4: `[TAG]` → one tag request in K;
+- [x] T005 `lookup.ts` / `lookup-cards.ts` (+ test): the resolution of plan step 4: `[TAG]` → one tag request in K;
   text equal to a Known Alliance of K → one tag request; name answer found in K → card; found in another Kingdom →
   not found in K; ambiguous with one match in K → second tag request and card; several → pick list of K's only; none →
   close Known Alliances of K or the not-found text naming the text and K; invalid text or Kingdom answered at once.
