@@ -111,6 +111,8 @@ export class GameApiClient {
             const result = await this.fetchAllianceByName(name, purpose, caller, freshness);
             if (result.kind === "found")
                 this.sawAlliance(result.value);
+            if (result.kind === "ambiguous")
+                this.sawAllianceMatches(result.matches);
             return result;
         });
     }
@@ -438,6 +440,16 @@ export class GameApiClient {
     }
     sawAlliance(alliance) {
         this.sawAllianceIn(alliance.kingdom, alliance.tag, alliance.name);
+    }
+    /** Each match of an ambiguous Alliance name that has a tag, a name and a valid Kingdom is an Alliance seen. */
+    sawAllianceMatches(matches) {
+        for (const match of matches) {
+            if (match.tag === undefined || match.name === undefined || match.kingdom === undefined)
+                continue;
+            const kingdom = parseKingdom(match.kingdom);
+            if (kingdom.ok)
+                this.sawAllianceIn(kingdom.value, match.tag, match.name);
+        }
     }
     /** Tells the hook of an Alliance; a throwing hook is logged, and the lookup it came from still succeeds. */
     sawAllianceIn(kingdom, tag, name) {

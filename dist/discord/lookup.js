@@ -1,5 +1,6 @@
 import { MessageFlags, } from "discord.js";
 import { matchAlliances } from "../domain/alliance-match.js";
+import { exactKnownAlliance, matchesIn, parseAllianceSearch } from "../domain/alliance-search.js";
 import { sortRoster } from "../domain/alliance-rank.js";
 import { isOld } from "../domain/data-age.js";
 import { isOfficer } from "../domain/officer.js";
@@ -274,84 +275,124 @@ async function showAlliance(interaction, context, caller, ask, failureMessage) {
     const ownerId = interaction.user.id;
     await showLookup(interaction, context, caller, ask, (alliance, asOf, now) => allianceCardMessage(alliance, asOf, now, ownerId, context.pickSessions, napStatusFor(context, alliance)), failureMessage);
 }
-/** The Known Alliances close to a name, best first; a store that cannot be read is logged and leaves none. */
-function closeKnownAlliances(name, context, now) {
+/** The Known Alliances of `kingdom`; a store that cannot be read is logged and leaves none. */
+function readKnownAlliances(context, now, kingdom) {
     try {
-        return matchAlliances(name, context.knownAlliances.all(now), now);
+        return context.knownAlliances.all(now, kingdom);
     }
     catch (error) {
         context.logError(`Reading the Known Alliances failed: ${errorText(error)}`);
         return [];
     }
 }
+/** The Known Alliances of `kingdom` close to a search, best first. */
+function closeKnownAlliances(search, kingdom, context, now) {
+    return matchAlliances(search, readKnownAlliances(context, now, kingdom), now);
+}
+/** The tag of the Known Alliance of `kingdom` that the search equals, when that tag is a valid key. */
+function exactKnownTag(search, kingdom, context, now) {
+    const exact = exactKnownAlliance(search, readKnownAlliances(context, now, kingdom), kingdom, now);
+    if (exact === undefined)
+        return undefined;
+    const tag = parseAllianceKey(exact.tag);
+    return tag.ok ? tag.value : undefined;
+}
 /**
- * The private answer to a name no Alliance has: a pick list of the Known Alliances close to it, or the not-found text
- * when none is close.
+ * The private answer to a search that no Alliance of `kingdom` matches: a pick list of the Known Alliances of that
+ * Kingdom close to it, or the not-found text when none is close.
  */
-function nameNotFoundMessage(name, ownerId, context, now) {
-    const close = closeKnownAlliances(name, context, now);
+function searchNotFoundMessage(search, kingdom, ownerId, context, now) {
+    const close = closeKnownAlliances(search, kingdom, context, now);
     if (close.length === 0)
-        return { content: lookupMessages.allianceNameNotFound(name) };
+        return { content: lookupMessages.allianceSearchNotFound(search, kingdom) };
     const matches = close.map((alliance) => ({
         tag: alliance.tag,
         name: alliance.name,
         kingdom: alliance.kingdom,
     }));
     const sessionId = context.pickSessions.open(ownerId, { kind: "alliances", matches }, now);
-    return renderCloseAlliancePickList(name, matches, sessionId);
+    return renderCloseAlliancePickList(search, matches, sessionId);
 }
 /**
- * /alliance with a tag: the Alliance of that Kingdom with that tag. Without a Kingdom, the Home Kingdom is meant.
+ * The private answer to a text search that gave no card in `kingdom`: the not-found answer becomes a pick list of the
+ * close Known Alliances of that Kingdom, or the not-found text; the other failures are answered as for any Alliance.
  */
-async function lookUpAllianceByTag(interaction, context, kingdomValue, tagText) {
-    const kingdom = kingdomValue === null ? { ok: true, value: context.homeKingdom } : parseKingdom(kingdomValue);
-    if (!kingdom.ok) {
-        await replyPrivately(interaction, lookupMessages.invalidKingdom);
-        return;
-    }
-    const parsedTag = parseAllianceKey(tagText);
-    if (!parsedTag.ok) {
-        await replyPrivately(interaction, lookupMessages.invalidAlliance);
-        return;
-    }
-    const allianceKingdom = kingdom.value;
-    const tag = parsedTag.value;
-    const caller = callerOf(interaction, context.officerRoleIds);
-    await showAlliance(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(allianceKingdom, tag), (failure, now) => allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, allianceKingdom), interaction.user.id, context.pickSessions, now));
-}
-/** /alliance with a full name alone: every Alliance with exactly that name, from any Kingdom. */
-async function lookUpAllianceByName(interaction, context, nameText) {
-    const parsedName = parseAllianceKey(nameText);
-    if (!parsedName.ok) {
-        await replyPrivately(interaction, lookupMessages.giveKingdomAndTagOrName);
-        return;
-    }
-    const name = parsedName.value;
-    const ownerId = interaction.user.id;
-    const caller = callerOf(interaction, context.officerRoleIds);
-    await showAlliance(interaction, context, caller, () => context.gameApi.chargedTo(caller).findAlliance(name), (failure, now) => failure.kind === "not-found"
-        ? nameNotFoundMessage(name, ownerId, context, now)
-        : allianceFailureMessage(failure, name, lookupMessages.allianceNameNotFound(name), ownerId, context.pickSessions, now));
+function searchFailureMessage(search, kingdom, ownerId, context) {
+    return (failure, now) => failure.kind === "not-found"
+        ? searchNotFoundMessage(search, kingdom, ownerId, context, now)
+        : allianceFailureMessage(failure, search, lookupMessages.allianceSearchNotFound(search, kingdom), ownerId, context.pickSessions, now);
 }
 /**
- * Answers /alliance: a tag (with a Kingdom, or else the Home Kingdom) or a full name alone, never a mix. Invalid input
- * is answered privately at once; otherwise a public card, a private pick list for an ambiguous answer or for a name
- * close to Known Alliances, or the reason in private.
+ * Asks for the Alliance a name stands for in `kingdom`. An Alliance of another Kingdom counts as not found. An ambiguous
+ * answer is narrowed to the matches in `kingdom`: one of them is asked for by its tag, several are kept for a pick list.
+ */
+async function findAllianceIn(lookups, name, kingdom) {
+    const first = await lookups.findAlliance(name);
+    switch (first.kind) {
+        case "found":
+            return first.value.kingdom === kingdom ? first : { kind: "not-found" };
+        case "ambiguous": {
+            const inKingdom = matchesIn(first.matches, kingdom);
+            const [only, second] = inKingdom;
+            if (only === undefined)
+                return { kind: "not-found" };
+            if (second !== undefined)
+                return { kind: "ambiguous", matches: inKingdom };
+            const tag = parseAllianceKey(only.tag);
+            return tag.ok ? lookups.getAlliance(kingdom, tag.value) : { kind: "not-found" };
+        }
+        default:
+            return first;
+    }
+}
+/** Shows the Alliance of `kingdom` with `tag`, charged to the caller; `failureMessage` answers when it gives no card. */
+async function showAllianceByTag(interaction, context, kingdom, tag, failureMessage) {
+    const caller = callerOf(interaction, context.officerRoleIds);
+    await showAlliance(interaction, context, caller, () => context.gameApi.chargedTo(caller).getAlliance(kingdom, tag), failureMessage);
+}
+/** /alliance with a [TAG]: the Alliance of that Kingdom with that tag. */
+async function lookUpAllianceByTag(interaction, context, kingdom, tag) {
+    await showAllianceByTag(interaction, context, kingdom, tag, (failure, now) => allianceFailureMessage(failure, tag, lookupMessages.allianceNotFound(tag, kingdom), interaction.user.id, context.pickSessions, now));
+}
+/**
+ * /alliance with a text: a Known Alliance of `kingdom` that equals it is looked up by its tag; otherwise the text is
+ * looked up by name, and the answer is kept to `kingdom`.
+ */
+async function lookUpAllianceBySearch(interaction, context, kingdom, search) {
+    const ownerId = interaction.user.id;
+    const failureMessage = searchFailureMessage(search, kingdom, ownerId, context);
+    const exactTag = exactKnownTag(search, kingdom, context, context.now());
+    if (exactTag !== undefined) {
+        await showAllianceByTag(interaction, context, kingdom, exactTag, failureMessage);
+        return;
+    }
+    const caller = callerOf(interaction, context.officerRoleIds);
+    await showAlliance(interaction, context, caller, () => findAllianceIn(context.gameApi.chargedTo(caller), search, kingdom), failureMessage);
+}
+/**
+ * Answers /alliance. The search is a [TAG], or a text that is matched by a Known Alliance or a name; the Kingdom is the
+ * one given, else the Home Kingdom. Invalid input is answered privately at once; otherwise a public card, a private
+ * pick list for an ambiguous answer or for a search close to Known Alliances, or the reason in private.
  */
 export async function handleAlliance(interaction, context) {
     await answer("/alliance", context, async () => {
         const kingdomValue = interaction.options.getInteger("kingdom");
-        const tagText = interaction.options.getString("tag");
-        const nameText = interaction.options.getString("name");
-        if (nameText === null && tagText !== null) {
-            await lookUpAllianceByTag(interaction, context, kingdomValue, tagText);
+        const searchText = interaction.options.getString("search");
+        const kingdom = kingdomValue === null ? { ok: true, value: context.homeKingdom } : parseKingdom(kingdomValue);
+        if (!kingdom.ok) {
+            await replyPrivately(interaction, lookupMessages.invalidKingdom);
             return;
         }
-        if (kingdomValue === null && tagText === null && nameText !== null) {
-            await lookUpAllianceByName(interaction, context, nameText);
+        const search = searchText === null ? { ok: false } : parseAllianceSearch(searchText);
+        if (!search.ok) {
+            await replyPrivately(interaction, lookupMessages.invalidAlliance);
             return;
         }
-        await replyPrivately(interaction, lookupMessages.giveKingdomAndTagOrName);
+        if (search.value.kind === "tag") {
+            await lookUpAllianceByTag(interaction, context, kingdom.value, search.value.tag);
+            return;
+        }
+        await lookUpAllianceBySearch(interaction, context, kingdom.value, search.value.key);
     });
 }
 //# sourceMappingURL=lookup.js.map

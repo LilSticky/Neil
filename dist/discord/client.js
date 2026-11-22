@@ -1213,7 +1213,12 @@ export async function connect(token, options) {
             ...lookupRoles,
         }),
         alliance: (interaction) => handleAlliance(lookupLike(interaction), allianceContext),
-        allianceAutocomplete: (interaction) => answer("/alliance autocomplete", { logError }, () => handleAllianceAutocomplete(interaction, { knownAlliances: options.knownAlliances, now, logError })),
+        allianceAutocomplete: (interaction) => answer("/alliance autocomplete", { logError }, () => handleAllianceAutocomplete(interaction, {
+            homeKingdom: options.homeKingdom,
+            knownAlliances: options.knownAlliances,
+            now,
+            logError,
+        })),
         pick: async (press) => (await services).pick(pickLike(press)),
         feedbackPost: async (post) => (await services).feedback.forward(post),
         reaperClosest: (interaction) => handleReaperClosest(interaction, {

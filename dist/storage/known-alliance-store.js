@@ -20,11 +20,21 @@ export class KnownAllianceStore {
          ON CONFLICT (kingdom, tag) DO UPDATE SET name = excluded.name, last_seen = excluded.last_seen`)
             .run(alliance.kingdom, alliance.tag, alliance.name, at.toISOString());
     }
-    /** The Known Alliances last seen within 30 days of `now`. */
-    all(now) {
+    /**
+     * The Known Alliances last seen within 30 days of `now`: those of `kingdom` when one is given, else those of every
+     * Kingdom.
+     */
+    all(now, kingdom) {
+        const since = knownSince(now).toISOString();
+        if (kingdom === undefined) {
+            return this.db
+                .prepare("SELECT kingdom, tag, name, last_seen FROM known_alliance WHERE last_seen >= ? ORDER BY kingdom, tag")
+                .all(since)
+                .map(knownAllianceOf);
+        }
         return this.db
-            .prepare("SELECT kingdom, tag, name, last_seen FROM known_alliance WHERE last_seen >= ? ORDER BY kingdom, tag")
-            .all(knownSince(now).toISOString())
+            .prepare("SELECT kingdom, tag, name, last_seen FROM known_alliance WHERE last_seen >= ? AND kingdom = ? ORDER BY tag")
+            .all(since, kingdom)
             .map(knownAllianceOf);
     }
     /** Deletes the Known Alliances not seen within 30 days of `now`. */

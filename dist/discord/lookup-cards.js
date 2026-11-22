@@ -387,7 +387,7 @@ export const lookupMessages = {
     invalidUid: "That doesn't look like a uid. A uid is a number: in the game, tap your profile picture (top left), then the feather next to your name; the number under the picture is your uid.",
     invalidPlayerName: "Give the player's complete in-game name (up to 32 characters).",
     invalidKingdom: "The kingdom must be a number from 1 to 9999.",
-    invalidAlliance: "Give the alliance's tag (up to 40 characters).",
+    invalidAlliance: "Give an alliance name or tag (up to 40 characters).",
     playerNotFound: (uid) => `No player has the uid ${escapeText(uid)}.`,
     playerNotPrepared: (uid) => `Couldn't find a player with the uid ${escapeText(uid)}. Check the uid; if it's right, the tracker may be busy, so try again later.`,
     playerNameNotFound: (name, kingdom) => {
@@ -401,8 +401,7 @@ export const lookupMessages = {
     tryAgain: "The game tracker is busy right now. Try again in a moment.",
     unavailable: "Lookups are not working right now. Please tell an Officer.",
     showing: (label) => `Showing ${escapeText(label)}.`,
-    giveKingdomAndTagOrName: "Give the kingdom and the alliance tag, or the alliance's exact full name.",
-    allianceNameNotFound: (key) => `No alliance is named "${escapeText(key)}", and none I know is close. Try the tag, or start typing and pick a suggestion.`,
+    allianceSearchNotFound: (key, kingdom) => `No alliance matches "${escapeText(key)}" in kingdom #${kingdom.toString()}. Try the tag, or start typing and pick a suggestion.`,
 };
 /** A Player match as the pick list labels it: its name and Kingdom. */
 export function playerPickLabel(match) {
