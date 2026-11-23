@@ -11,6 +11,6 @@
 - [x] T003 `src/discord/onboarding-channels.ts` (+ test): `pinStartMessage` (missing, present, refused pin) and the two
   new permissions (FR-003, FR-006).
 - [x] T004 `src/discord/client.ts` (+ test): routes and startup wiring; `server-layout.json` permissions (FR-006).
-- [ ] T005 STATUS, ROADMAP row 049, SERVER-SETUP/DICTIONARY wording if it says the Interview opens on join.
+- [x] T005 STATUS, ROADMAP row 049, SERVER-SETUP/DICTIONARY wording if it says the Interview opens on join.
 - [ ] T006 Smoke test on test Neil through Neil Police: after the setup script and a restart, `#onboarding` has one
   pinned start message.

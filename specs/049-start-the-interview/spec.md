@@ -27,8 +27,8 @@ Neil opens my private Interview thread and tells me privately where it is.
   uid, a Member with an open Interview is pointed to its thread, and anyone else gets a new thread and a link to it. The
   press is deferred privately first (Discord allows three seconds).
 - **FR-005** `/interview` stays unchanged.
-- **FR-006** Neil needs Send Messages and Pin Messages in `#onboarding`. The setup script grants them, and the channel
-  check at startup reports them if they are missing.
+- **FR-006** Neil needs Send Messages and Pin Messages in `#onboarding`. The setup script grants them. They are not
+  part of the startup channel check, so a missing one does not stop Neil: the failed pin is logged.
 
 ### Start message text
 
