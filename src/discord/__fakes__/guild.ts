@@ -69,6 +69,10 @@ export class FakeChannel {
 
   /** Ids of the messages pinned here, in pin order. */
   readonly pinned: string[] = [];
+  /** The author of a pinned message when it is not the bot; a message pinned without one is the bot's. */
+  readonly pinnedAuthorIds = new Map<string, string>();
+  /** When set, pinning fails with this error, as Discord does without the Pin Messages permission. */
+  pinRefusal: Error | undefined = undefined;
 
   /** The message manager: fetching an id that was never sent gives null; pins are recorded by id. */
   readonly messages = {
@@ -79,14 +83,29 @@ export class FakeChannel {
         new Map(
           this.sent
             .filter((message) => this.pinned.includes(message.id))
-            .map((message) => [message.id, { content: message.content, author: { id: BOT_MEMBER_ID } }] as const),
+            .map(
+              (message) =>
+                [
+                  message.id,
+                  { content: message.content, author: { id: this.pinnedAuthorIds.get(message.id) ?? BOT_MEMBER_ID } },
+                ] as const,
+            ),
         ),
       ),
     pin: (id: string): Promise<void> => {
+      if (this.pinRefusal !== undefined) return Promise.reject(this.pinRefusal);
       this.pinned.push(id);
       return Promise.resolve();
     },
   };
+
+  /** Posts a message here and pins it under the given author, as a pin by someone else would be. */
+  async postPinned(content: string, authorId: string = BOT_MEMBER_ID): Promise<FakeMessage> {
+    const message = await this.send({ content });
+    this.pinnedAuthorIds.set(message.id, authorId);
+    await this.messages.pin(message.id);
+    return message;
+  }
 
   constructor(
     private readonly guild: FakeGuild,
