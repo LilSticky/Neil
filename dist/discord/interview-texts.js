@@ -443,13 +443,27 @@ export function rankCancelledLogLine(member) {
         allowedMentions: noMentions(),
     };
 }
-/**
- * The log line once Neil's startup check has started the Interviews of the Members online: how many started, how many
- * failed, and how many who wanted one were left for a later start.
- */
-export function onlineAtStartupLogLine(counts) {
+/** The custom id of the Start Interview button in the onboarding channel's pinned message. */
+export const INTERVIEW_START_ID = "interview-start";
+/** The pinned message in the onboarding channel: the welcome and one Start Interview button. Mentions are off. */
+export function interviewStartMessage() {
     return {
-        content: `Onboarding Interviews at startup: started ${counts.started.toString()}, failed ${counts.failed.toString()}, left for later ${counts.leftForLater.toString()}.`,
+        content: "👋 **Welcome!** Press **Start Interview** and I'll open a private thread for you right here. " +
+            "There you tell me which Player you are, and I'll set your name and roles to match. " +
+            "You can also type `/interview`.",
+        components: [
+            {
+                type: ComponentType.ActionRow,
+                components: [
+                    {
+                        type: ComponentType.Button,
+                        style: ButtonStyle.Primary,
+                        label: "Start Interview",
+                        custom_id: INTERVIEW_START_ID,
+                    },
+                ],
+            },
+        ],
         allowedMentions: noMentions(),
     };
 }

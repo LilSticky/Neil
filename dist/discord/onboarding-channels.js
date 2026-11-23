@@ -1,7 +1,10 @@
 import { ChannelType, PermissionFlagsBits, ThreadAutoArchiveDuration, } from "discord.js";
 import { z } from "zod";
-import { interviewThreadName } from "./interview-texts.js";
-/** The bot permissions the onboarding channel needs (research R2). */
+import { interviewStartMessage, interviewThreadName } from "./interview-texts.js";
+/**
+ * The bot permissions the onboarding channel needs (research R2). Posting and pinning the start message is left out: a
+ * refusal there is only logged (slice 049).
+ */
 const ONBOARDING_PERMISSIONS = [
     "ViewChannel",
     "SendMessagesInThreads",
@@ -90,6 +93,16 @@ export function createOnboardingChannels(guild, ids) {
             if (!isThread(found))
                 throw new Error("The Interview thread is not a thread.");
             await found.delete();
+        },
+        async pinStartMessage(neilId) {
+            const onboarding = await fetchTextChannel(guild, ids.onboardingChannelId, "onboarding");
+            const startText = interviewStartMessage().content;
+            const pinned = await onboarding.messages.fetchPinned();
+            const present = [...pinned.values()].some((message) => message.author.id === neilId && message.content === startText);
+            if (present)
+                return;
+            const sent = await onboarding.send(interviewStartMessage());
+            await onboarding.messages.pin(sent.id);
         },
         async log(message) {
             const log = await fetchTextChannel(guild, ids.logChannelId, "log");

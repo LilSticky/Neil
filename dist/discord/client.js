@@ -1,6 +1,5 @@
 import { ChannelType, Client, Events, GatewayIntentBits, GuildMember, Partials, } from "discord.js";
 import { z } from "zod";
-import { cameOnline } from "../domain/interview-start.js";
 import { editorOf } from "../storage/reaper-editor.js";
 import { napStatusOf } from "../domain/nap.js";
 import { DUEL_PLAN } from "../duel-plan.js";
@@ -40,6 +39,7 @@ import { createBootyCalls, } from "./booty-call.js";
 import { handleBootyAlerts } from "./booty.js";
 import { handleTimeZoneAutocomplete } from "./booty-time.js";
 import { createInterviews, } from "./interview.js";
+import { INTERVIEW_START_ID } from "./interview-texts.js";
 import { startDailySync } from "./daily-sync.js";
 import { createSweeper, startSweeper } from "./interview-sweeper.js";
 import { checkChannels, createOnboardingChannels, } from "./onboarding-channels.js";
@@ -127,46 +127,6 @@ function presenceStatusOf(status) {
     const parsed = presenceStatusSchema.safeParse(status);
     return parsed.success ? parsed.data : undefined;
 }
-/** A guild member as the Interview needs them. */
-function joinedMemberOf(member) {
-    return { id: member.id, username: member.user.username, displayName: member.displayName, bot: member.user.bot };
-}
-/**
- * The Member who came online, read with a single-Member fetch: the presence's own Member can be a stub, so it is not used.
- * Undefined when the user is not on the guild.
- */
-async function onlineMemberOf(guild, userId) {
-    const member = await fetchMember(guild, userId);
-    return member === undefined ? undefined : joinedMemberOf(member);
-}
-/**
- * The Members Discord reports online, each read with a single-Member fetch; the listing never asks Discord for every
- * Member at once. A Member who is not on the guild any more is skipped. A Member who cannot be read is logged and listed
- * as unreadable, so the startup counts them as failed. Stops before the next Member once `isStopping` says so.
- */
-async function onlineMembersOf(guild, logError, isStopping) {
-    const userIds = [...guild.presences.cache.values()]
-        .filter((presence) => {
-        const status = presenceStatusOf(presence.status);
-        return status !== undefined && status !== "offline";
-    })
-        .map((presence) => presence.userId);
-    const members = [];
-    for (const userId of userIds) {
-        if (isStopping())
-            break;
-        try {
-            const member = await fetchMember(guild, userId);
-            if (member !== undefined)
-                members.push(joinedMemberOf(member));
-        }
-        catch (error) {
-            logError(`Reading the Member ${userId} failed: ${String(error)}`);
-            members.push({ id: userId, unreadable: true });
-        }
-    }
-    return members;
-}
 /** A channel as a message reports it, when it has the parts a Feedback Post needs; a DM or group channel has no name. */
 const feedbackChannelSchema = z.object({
     id: z.string(),
@@ -249,21 +209,6 @@ export function createClient(handlers, options) {
         if (!isFeedbackPost(message, options.guildId))
             return;
         void handlers.feedbackPost(message);
-    });
-    // A Member who was offline and now is not comes online; the status itself is not logged or kept (ADR 11).
-    client.on(Events.PresenceUpdate, (before, after) => {
-        const guild = after.guild;
-        if (guild === null || guild.id !== options.guildId)
-            return;
-        const status = presenceStatusOf(after.status);
-        if (status === undefined || !cameOnline(presenceStatusOf(before?.status), status))
-            return;
-        void onlineMemberOf(guild, after.userId).then((member) => {
-            if (member !== undefined)
-                void handlers.memberOnline(member);
-        }, (error) => {
-            logError(`Reading a Member who came online failed: ${String(error)}`);
-        });
     });
     client.on(Events.InteractionCreate, (interaction) => {
         if (interaction.isChatInputCommand()) {
@@ -355,7 +300,10 @@ export function createClient(handlers, options) {
             return;
         }
         if (interaction.isButton()) {
-            if (interaction.customId.startsWith(INTERVIEW_PREFIX)) {
+            if (interaction.customId === INTERVIEW_START_ID) {
+                void handlers.interviewStart(interaction);
+            }
+            else if (interaction.customId.startsWith(INTERVIEW_PREFIX)) {
                 void handlers.interviewButton(interaction);
             }
             else if (interaction.customId.startsWith(RANK_PREFIX)) {
@@ -928,6 +876,22 @@ function commandLike(command) {
         },
     };
 }
+/**
+ * The discord.js Start Interview press as the Interview reads it, answered as /interview is: the presser, their server
+ * display name (else their global one), and the deferred private answer.
+ */
+function startButtonLike(button) {
+    return {
+        user: button.user,
+        displayName: button.member instanceof GuildMember ? button.member.displayName : button.user.displayName,
+        deferReply: async (options) => {
+            await button.deferReply(options);
+        },
+        editReply: async (message) => {
+            await button.editReply({ content: message.content, allowedMentions: message.allowedMentions });
+        },
+    };
+}
 /** The discord.js modal submit as the Interview reads it; see buttonLike for why each method is passed on. */
 function modalLike(modal) {
     return {
@@ -1306,7 +1270,6 @@ export async function connect(token, options) {
             followUp: (reply) => interaction.followUp(reply),
         }, { commands, officerRoleIds: options.officerRoleIds, logError }),
         memberJoined: async (member) => (await services).interviews.onMemberJoined(member),
-        memberOnline: async (member) => (await services).interviews.onMemberOnline(member),
         memberLeft: async (member) => (await services).interviews.onMemberLeft(member),
         scheduledEventCreated: (scheduledEvent) => answer("the scheduled event created", { logError }, async () => (await services).eventInvitations.onCreated(scheduledEvent)),
         scheduledEventUpdated: (scheduledEvent) => answer("the scheduled event updated", { logError }, async () => (await services).eventInvitations.onUpdated(scheduledEvent)),
@@ -1323,6 +1286,7 @@ export async function connect(token, options) {
             const { corrections } = await services;
             await corrections.linkButton(linkButtonLike(button));
         }),
+        interviewStart: async (button) => (await services).interviews.onStartButton(startButtonLike(button)),
         interviewButton: async (button) => (await services).interviews.onButton(buttonLike(button)),
         interviewModal: async (modal) => (await services).interviews.onModalSubmit(modalLike(modal)),
         rankButton: (button) => answer("rank button", { logError }, async () => {
@@ -1348,9 +1312,6 @@ export async function connect(token, options) {
     let stopSweeper = () => undefined;
     let stopEventReminders = () => undefined;
     let stopDailySync = () => Promise.resolve();
-    // The startup check of the Interviews of the Members online, while it runs: disconnect waits for it before the client
-    // (and the database after it) goes.
-    let startupInterviews = Promise.resolve();
     let disconnecting = false;
     try {
         await client.login(token);
@@ -1774,15 +1735,9 @@ export async function connect(token, options) {
             reaperRemove: (interaction) => handleReaperRemove(reaperAddLike(interaction), reaperWrites),
             pick: (interaction) => handlePick(interaction, pickContext),
         });
-        // The startup sweeps of the Onboarding Role, then the Doctor Role, then the Interviews of the Members online, chained so
-        // their log lines and role changes do not interleave, and run in the background, so login does not wait for them. The
-        // Interview check is skipped once disconnect has begun, and stops before the next Member when it has. The Daily Sync
-        // starts once the startup apply has settled, so their Game API lookups do not overlap.
-        const startOnlineInterviews = () => onlineMembersOf(guild, logError, () => disconnecting)
-            .then((members) => interviews.onlineAtStartup(members, () => disconnecting))
-            .catch((error) => {
-            logError(`Starting the Interviews of the Members online at startup failed: ${String(error)}`);
-        });
+        // The startup sweeps of the Onboarding Role, then the Doctor Role, chained so their role changes do not interleave, and
+        // run in the background, so login does not wait for them. The Daily Sync starts once the startup apply has settled, so
+        // their Game API lookups do not overlap.
         void onboardingRole
             .atStartup()
             .catch((error) => {
@@ -1791,12 +1746,6 @@ export async function connect(token, options) {
             .then(() => doctorRole.atStartup())
             .catch((error) => {
             logError(`Bringing the Doctor Role of the Members up to date at startup failed: ${String(error)}`);
-        })
-            .then(() => {
-            if (disconnecting)
-                return;
-            startupInterviews = startOnlineInterviews();
-            return startupInterviews;
         });
         void nameAndRoles
             .atStartup()
@@ -1854,6 +1803,10 @@ export async function connect(token, options) {
         void nap.refreshList();
         // The Feedback Template is pinned once at startup in #feedback and #suggestions, unless it is pinned there already.
         void feedback.pinTemplates();
+        // The Start Interview message is pinned once at startup in #onboarding, unless Neil's copy is pinned there already.
+        channels.pinStartMessage(botUser.id).catch((error) => {
+            logError(`Pinning the Start Interview message failed: ${String(error)}`);
+        });
         // A tick still running when the next minute comes is skipped, so one slow tick never posts twice.
         let reminderTickRunning = false;
         const reminderTimer = setInterval(() => {
@@ -1885,7 +1838,6 @@ export async function connect(token, options) {
         stopSweeper();
         stopEventReminders();
         await stopDailySync();
-        await startupInterviews;
         await client.destroy();
         throw error;
     }
@@ -1896,8 +1848,6 @@ export async function connect(token, options) {
             stopEventReminders();
             // A run in progress ends before its next request and is awaited, so its record and summary are made before logout.
             await stopDailySync();
-            // The Interview check stops before its next Member, and is awaited, so its log line is made before logout.
-            await startupInterviews;
             await client.destroy();
         },
     };
