@@ -1,8 +1,8 @@
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import { describe, expect, test } from "vitest";
-import { FakeGuild } from "./__fakes__/guild.js";
+import { BOT_MEMBER_ID, FakeGuild } from "./__fakes__/guild.js";
 import { FakeDiscordError } from "./__fakes__/roles-guild.js";
-import { interviewThreadName } from "./interview-texts.js";
+import { interviewStartMessage, interviewThreadName } from "./interview-texts.js";
 import { checkChannels, createOnboardingChannels } from "./onboarding-channels.js";
 
 /** Discord's code for an unknown channel: a thread that was deleted or never existed. */
@@ -159,6 +159,58 @@ describe("deleteThread", () => {
     guild.failFetch(threadId, new Error("socket hang up"));
 
     await expect(channels.deleteThread(threadId)).rejects.toThrow("socket hang up");
+  });
+});
+
+describe("pinStartMessage", () => {
+  const OTHER_AUTHOR_ID = "310000000000000003";
+
+  /** The start message's text, as the thread-free start message has it. */
+  function startContent(): string {
+    return interviewStartMessage().content ?? "";
+  }
+
+  test("posts the start message in the onboarding channel and pins it, when Neil's pinned copy is missing", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+
+    await channels.pinStartMessage(BOT_MEMBER_ID);
+
+    const onboarding = guild.get(ONBOARDING_CHANNEL_ID);
+    expect(onboarding.sent.map((message) => message.content)).toEqual([startContent()]);
+    expect(onboarding.pinned).toEqual(onboarding.sent.map((message) => message.id));
+  });
+
+  test("changes nothing when Neil's pinned copy of the start message is already there", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    const onboarding = guild.get(ONBOARDING_CHANNEL_ID);
+    await onboarding.postPinned(startContent(), BOT_MEMBER_ID);
+
+    await channels.pinStartMessage(BOT_MEMBER_ID);
+
+    expect(onboarding.sent.map((message) => message.content)).toEqual([startContent()]);
+    expect(onboarding.pinned).toEqual(onboarding.sent.map((message) => message.id));
+  });
+
+  test("posts and pins the start message again when the pinned message with that text is not Neil's", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    const onboarding = guild.get(ONBOARDING_CHANNEL_ID);
+    await onboarding.postPinned(startContent(), OTHER_AUTHOR_ID);
+
+    await channels.pinStartMessage(BOT_MEMBER_ID);
+
+    expect(onboarding.sent.map((message) => message.content)).toEqual([startContent(), startContent()]);
+    expect(onboarding.pinned).toEqual([onboarding.sent[0]?.id, onboarding.sent[1]?.id]);
+  });
+
+  test("rejects when Discord refuses the pin, so the caller can log it", async () => {
+    const guild = healthyGuild();
+    const channels = createOnboardingChannels(guild, CHANNEL_IDS);
+    guild.get(ONBOARDING_CHANNEL_ID).pinRefusal = new Error("Missing Permissions");
+
+    await expect(channels.pinStartMessage(BOT_MEMBER_ID)).rejects.toThrow("Missing Permissions");
   });
 });
 

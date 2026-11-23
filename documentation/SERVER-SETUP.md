@@ -28,7 +28,7 @@ nickname and roles matching the game.
 
 | Capability | Who | How |
 |------------|-----|-----|
-| **Onboarding Interview** | every newcomer | When someone joins, Neil opens a private thread in `#onboarding` and asks which Player they are. The Member proves it with their uid (the number under their in-game profile picture). A Member who isn't Linked also gets an Interview on coming online, and at a start of Neil, up to 10 per start. If the thread got lost, `/interview` starts a new one. |
+| **Onboarding Interview** | every newcomer | The Member presses **Start Interview** on the message Neil pins in `#onboarding` (or types `/interview`). Neil then opens a private thread there and asks which Player they are. The Member proves it with their uid (the number under their in-game profile picture). Neil never opens an Interview by itself: opening one the moment a new account joined got that account locked by Discord's anti-spam (issue #176). |
 | **Link** | Neil | Once the Member confirms ("that's me"), Neil Links them to the Player, then gives them their nickname and roles. |
 | **Preferences** | Neil | After the Link, the Interview thread shows four steps (Languages, Interests, Region, Experience), one menu each, with **Skip** or **Next**, **Back** and **Done**. Each choice gives a Preference Role, which shows the matching channels. `/channels` starts the same steps later, privately. |
 | **Nickname and roles** | Neil | Nickname `[TAG\|R5] Name` (the rank shows only for R4 and R5; ` \| #331` is added for Guests from another Kingdom). Roles: Alliance role (`[NML]`), Alliance Rank `R1`–`R5`, Kingdom `#330`, Troop Bracket `T1`–`T10`. |

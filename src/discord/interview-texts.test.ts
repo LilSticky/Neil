@@ -33,7 +33,8 @@ import {
   linkedMessage,
   malformedUidMessage,
   notFoundMessage,
-  onlineAtStartupLogLine,
+  INTERVIEW_START_ID,
+  interviewStartMessage,
   parseInterviewCustomId,
   parseRankCustomId,
   quotaResetMessage,
@@ -738,22 +739,32 @@ describe("log channel lines", () => {
   });
 });
 
-describe("the startup log line of Interviews", () => {
-  test("counts the Interviews started and the failures, in one line", () => {
-    expect(onlineAtStartupLogLine({ started: 2, failed: 0, leftForLater: 0 }).content).toBe(
-      "Onboarding Interviews at startup: started 2, failed 0, left for later 0.",
-    );
+describe("the Start Interview message", () => {
+  const START_TEXT =
+    "👋 **Welcome!** Press **Start Interview** and I'll open a private thread for you right here. " +
+    "There you tell me which Player you are, and I'll set your name and roles to match. " +
+    "You can also type `/interview`.";
+
+  test("has the button id interview-start", () => {
+    expect(INTERVIEW_START_ID).toBe("interview-start");
   });
 
-  test("shows zero started when only failures happened, with all three counts", () => {
-    expect(onlineAtStartupLogLine({ started: 0, failed: 3, leftForLater: 0 }).content).toBe(
-      "Onboarding Interviews at startup: started 0, failed 3, left for later 0.",
-    );
+  test("has exactly the welcome text of the spec as its content", () => {
+    expect(interviewStartMessage()).toMatchObject({ content: START_TEXT });
   });
 
-  test("counts the Members left for later, when some were", () => {
-    expect(onlineAtStartupLogLine({ started: 10, failed: 0, leftForLater: 4 }).content).toBe(
-      "Onboarding Interviews at startup: started 10, failed 0, left for later 4.",
-    );
+  test("has one button, labelled Start Interview, with the interview-start id", () => {
+    expect(interviewStartMessage()).toMatchObject({
+      components: [
+        {
+          type: ComponentType.ActionRow,
+          components: [{ type: ComponentType.Button, label: "Start Interview", custom_id: "interview-start" }],
+        },
+      ],
+    });
+  });
+
+  test("turns mentions off", () => {
+    expect(interviewStartMessage()).toMatchObject({ allowedMentions: { parse: [] } });
   });
 });

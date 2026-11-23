@@ -23,7 +23,6 @@ import {
 import { needsRankApproval, rankOnLink, type Link } from "../domain/link.js";
 import { parseUid, type KingdomNumber, type PlayerName, type Uid } from "../domain/lookup-input.js";
 import { listedPlayerMatches, type LookupResult, type PickablePlayerMatch, type Player } from "../domain/player.js";
-import { wantsInterview } from "../domain/interview-start.js";
 import { cleanDisplayName } from "../domain/recommended-player.js";
 import { cancel, chooseApprover, type MemberId, type RankApproval } from "../domain/rank-approval.js";
 import type { CreateOutcome, InterviewStore } from "../storage/interview-store.js";
@@ -53,7 +52,6 @@ import {
   linkLogLine,
   malformedUidMessage,
   notFoundMessage,
-  onlineAtStartupLogLine,
   parseInterviewCustomId,
   pickListMessage,
   quotaSpentMessage,
@@ -92,7 +90,7 @@ export interface LeftMember {
   readonly username: string;
 }
 
-/** The part of a discord.js chat-input command that /interview uses: who ran it, and the private reply to them. */
+/** The part of a discord.js chat-input command or Start Interview press that /interview uses: who ran it, and the private reply to them. */
 export interface CommandLike {
   readonly user: { readonly id: string; readonly username: string };
   /** The Member's server display name, cleaned into the Recommended Player's Player Name. */
@@ -160,16 +158,12 @@ export interface InterviewDeps {
 
 /** The Interview entry points the Discord client routes to. Each one reports its own failures and never throws. */
 export interface Interviews {
+  /** A Member joined: gives the Onboarding Role, or the Doctor Role when they are Linked. Opens no thread. */
   onMemberJoined(member: JoinedMember): Promise<void>;
-  /** A Member came online: starts an Interview for them when they want one. */
-  onMemberOnline(member: JoinedMember): Promise<void>;
-  /**
-   * Neil started: starts an Interview for each of the Members online that wants one, one after another, and logs the counts.
-   * `isStopping` is asked before each Member; once it says so, no further Interview starts.
-   */
-  onlineAtStartup(members: StartupMember[], isStopping?: () => boolean): Promise<void>;
   onMemberLeft(member: LeftMember): Promise<void>;
   onCommand(command: CommandLike): Promise<void>;
+  /** The Start Interview button of the onboarding channel's pinned message: answers like /interview. */
+  onStartButton(press: CommandLike): Promise<void>;
   onButton(button: ButtonInteractionLike): Promise<void>;
   onModalSubmit(modal: ModalInteractionLike): Promise<void>;
   /** After a restart: makes the Link of a chosen Player, as the Member's confirmation would. Rejects on a failure; the sweeper logs it. */
@@ -183,34 +177,19 @@ type Ownership =
 
 /**
  * The Interviews being started right now, by Member, each with the thread it resolves to (undefined when none was
- * opened). A second start for a Member in here opens no thread of its own: a join or a startup check returns at once,
- * and /interview waits for the start and is then pointed to its thread.
+ * opened). A second start for a Member in here opens no thread of its own: /interview and the Start Interview button
+ * wait for the start and are then pointed to its thread.
  */
 type Starting = Map<MemberId, Promise<string | undefined>>;
-
-/** The most Interviews one startup works through, failures included: each may cost a Game API request. */
-const STARTUP_LIMIT = 10;
-
-/** A Member the startup could not read: counted as failed, and no Interview is started for them. */
-export interface UnreadableMember {
-  readonly id: MemberId;
-  readonly unreadable: true;
-}
-
-/** A Member the startup found online, or one it could not read. */
-export type StartupMember = JoinedMember | UnreadableMember;
 
 export function createInterviews(deps: InterviewDeps): Interviews {
   const starting: Starting = new Map();
   return {
-    onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, starting, member)),
-    onMemberOnline: (member) =>
-      guarded(deps, "Member coming online", async () => {
-        await startIfWanted(deps, starting, member);
-      }),
-    onlineAtStartup: (members, isStopping) => startOnlineAtStartup(deps, starting, members, isStopping),
+    onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
     onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
-    onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, starting, command)),
+    onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, starting, command, "/interview")),
+    onStartButton: (press) =>
+      guarded(deps, "Start Interview button", () => startOnCommand(deps, starting, press, "Start Interview button")),
     onButton: (button) => {
       const ack: Acknowledgement = { acknowledged: false };
       return guardedPress(deps, "Interview button", button, ack, () => pressButton(deps, trackedButton(button, ack)));
@@ -319,96 +298,34 @@ function holdingStart(starting: Starting, memberId: MemberId, start: () => Promi
   });
 }
 
-/** Gives the Onboarding Role to the Member, then opens their Interview; resolves the thread, or undefined when none was opened. */
-async function giveAndOpen(deps: InterviewDeps, member: JoinedMember): Promise<string | undefined> {
-  await deps.onboardingRole.give(member.id);
-  return openInterview(deps, { id: member.id, username: member.username, displayName: member.displayName });
-}
-
-async function joinMember(deps: InterviewDeps, starting: Starting, member: JoinedMember): Promise<void> {
+/**
+ * A Member joined: a Linked Member gets the Doctor Role, any other Member without an open Interview gets the Onboarding
+ * Role. No thread is opened; the Member starts the Interview with /interview or the Start Interview button.
+ */
+async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<void> {
   if (member.bot) return;
   if (deps.links.linkFor(member.id) !== undefined) {
     await deps.doctorRole.give(member.id);
     return;
   }
   if (deps.interviews.openFor(member.id) !== undefined) return;
-  if (starting.has(member.id)) return;
-  await holdingStart(starting, member.id, () => giveAndOpen(deps, member));
+  await deps.onboardingRole.give(member.id);
 }
 
-/** Whether the Member wants an Interview now: not a bot, not Linked, no open Interview, not handed off. */
-function wantsNow(deps: InterviewDeps, member: JoinedMember): boolean {
-  return wantsInterview({
-    bot: member.bot,
-    linked: deps.links.linkFor(member.id) !== undefined,
-    open: deps.interviews.openFor(member.id) !== undefined,
-    handedOff: deps.interviews.latestFor(member.id)?.step === "handed-off",
-  });
-}
-
-/** Whether a step started an Interview for the Member, or the Member did not want one (or a start was already running). */
-type StartOutcome = "started" | "skipped";
-
-/**
- * Starts an Interview for a Member who came online, when they want one: gives the Onboarding Role, then opens the
- * Interview. Resolves "skipped" for a Member who does not want one, and for a Member whose start is already running.
- * Throws when the start fails, so the caller logs it or counts it.
- */
-async function startIfWanted(deps: InterviewDeps, starting: Starting, member: JoinedMember): Promise<StartOutcome> {
-  if (starting.has(member.id)) return "skipped";
-  if (!wantsNow(deps, member)) return "skipped";
-  const threadId = await holdingStart(starting, member.id, () => giveAndOpen(deps, member));
-  return threadId === undefined ? "skipped" : "started";
-}
-
-/**
- * Starts an Interview for each Member in turn, as the startup finds them online, up to STARTUP_LIMIT started or failed.
- * A Member past the limit who wants an Interview is counted as left for later and not started. A failure is logged and
- * the next Member follows. Stops before a Member once `isStopping` says so. The counts are logged in one line. Never rejects.
- */
-async function startOnlineAtStartup(
+/** /interview and the Start Interview button: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
+async function startOnCommand(
   deps: InterviewDeps,
   starting: Starting,
-  members: StartupMember[],
-  isStopping: () => boolean = () => false,
+  command: CommandLike,
+  label: string,
 ): Promise<void> {
-  let started = 0;
-  let failed = 0;
-  let leftForLater = 0;
-  for (const member of members) {
-    if (isStopping()) break;
-    if ("unreadable" in member) {
-      failed += 1;
-      continue;
-    }
-    if (started + failed >= STARTUP_LIMIT) {
-      if (wantsNow(deps, member)) leftForLater += 1;
-      continue;
-    }
-    try {
-      if ((await startIfWanted(deps, starting, member)) === "started") started += 1;
-    } catch (error) {
-      failed += 1;
-      deps.logError(`Opening the Interview of ${member.id} failed: ${errorText(error)}`);
-    }
-  }
-  if (started === 0 && failed === 0 && leftForLater === 0) return;
-  try {
-    await deps.channels.log(onlineAtStartupLogLine({ started, failed, leftForLater }));
-  } catch (error) {
-    deps.logError(`Logging the Interviews started at startup failed: ${errorText(error)}`);
-  }
-}
-
-/** /interview: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
-async function startOnCommand(deps: InterviewDeps, starting: Starting, command: CommandLike): Promise<void> {
   // Discord allows three seconds for a first answer; the thread work comes after this deferral, answered with editReply.
   await command.deferReply({ flags: MessageFlags.Ephemeral });
   let reply: PrivateReply;
   try {
     reply = await commandReply(deps, starting, command);
   } catch (error) {
-    deps.logError(`/interview failed: ${errorText(error)}`);
+    deps.logError(`${label} failed: ${errorText(error)}`);
     reply = somethingWentWrongReply();
   }
   await command.editReply(reply);

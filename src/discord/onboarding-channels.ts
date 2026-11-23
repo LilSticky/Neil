@@ -5,7 +5,7 @@ import {
   type BaseMessageOptions,
 } from "discord.js";
 import { z } from "zod";
-import { interviewThreadName } from "./interview-texts.js";
+import { interviewStartMessage, interviewThreadName } from "./interview-texts.js";
 
 /** A Member as the onboarding channels need them: the id to add to a thread, the name for its title. */
 export interface ThreadMember {
@@ -30,6 +30,15 @@ export interface OnboardingChannels {
   log(message: BaseMessageOptions): Promise<void>;
 }
 
+/** What the startup needs from the onboarding channel: the pinned Start Interview message. */
+export interface StartMessagePins {
+  /**
+   * Makes sure the onboarding channel has one pinned Start Interview message posted by Neil: posts and pins a new one
+   * when Neil's copy is not pinned. Rejects when Discord refuses, so the caller can log it.
+   */
+  pinStartMessage(neilId: string): Promise<void>;
+}
+
 /** The part of a discord.js Guild that the onboarding channels use. Methods, not properties, keep it bivariant. */
 export interface GuildLike {
   readonly members: { readonly me: { readonly id: string } | null };
@@ -50,10 +59,20 @@ interface EditableMessageLike extends MessageLike {
   edit(options: BaseMessageOptions): Promise<unknown>;
 }
 
+/** A pinned message as the start message check reads it: its text and who posted it. */
+interface PinnedMessageLike {
+  readonly content: string;
+  readonly author: { readonly id: string };
+}
+
 /** A channel or thread that can hold messages. */
 interface PostableLike extends ChannelLike {
   send(options: BaseMessageOptions): Promise<MessageLike>;
-  readonly messages: { fetch(id: string): Promise<EditableMessageLike | null> };
+  readonly messages: {
+    fetch(id: string): Promise<EditableMessageLike | null>;
+    fetchPinned(): Promise<ReadonlyMap<string, PinnedMessageLike>>;
+    pin(id: string): Promise<unknown>;
+  };
 }
 
 interface TextChannelLike extends PostableLike {
@@ -74,7 +93,12 @@ interface ThreadOptions {
 
 type ChannelName = "onboarding" | "log";
 
-type PermissionName = "ViewChannel" | "SendMessagesInThreads" | "CreatePrivateThreads" | "ManageThreads" | "SendMessages";
+type PermissionName =
+  | "ViewChannel"
+  | "SendMessagesInThreads"
+  | "CreatePrivateThreads"
+  | "ManageThreads"
+  | "SendMessages";
 
 /** A problem with the onboarding or log channel, reported at ready (FR-018). */
 export type ChannelProblem =
@@ -82,7 +106,10 @@ export type ChannelProblem =
   | { readonly kind: "not-text-channel"; readonly channel: ChannelName }
   | { readonly kind: "missing-permission"; readonly channel: ChannelName; readonly permission: PermissionName };
 
-/** The bot permissions the onboarding channel needs (research R2). */
+/**
+ * The bot permissions the onboarding channel needs (research R2). Posting and pinning the start message is left out: a
+ * refusal there is only logged (slice 049).
+ */
 const ONBOARDING_PERMISSIONS: readonly PermissionName[] = [
   "ViewChannel",
   "SendMessagesInThreads",
@@ -143,7 +170,10 @@ async function fetchThread(guild: GuildLike, threadId: string): Promise<ThreadLi
 }
 
 /** The onboarding channels as the Onboarding Interview uses them, built from a discord.js guild. */
-export function createOnboardingChannels(guild: GuildLike, ids: OnboardingChannelIds): OnboardingChannels {
+export function createOnboardingChannels(
+  guild: GuildLike,
+  ids: OnboardingChannelIds,
+): OnboardingChannels & StartMessagePins {
   return {
     async openThread(member) {
       const onboarding = await fetchTextChannel(guild, ids.onboardingChannelId, "onboarding");
@@ -180,6 +210,18 @@ export function createOnboardingChannels(guild: GuildLike, ids: OnboardingChanne
       if (found === null) return;
       if (!isThread(found)) throw new Error("The Interview thread is not a thread.");
       await found.delete();
+    },
+
+    async pinStartMessage(neilId) {
+      const onboarding = await fetchTextChannel(guild, ids.onboardingChannelId, "onboarding");
+      const startText = interviewStartMessage().content;
+      const pinned = await onboarding.messages.fetchPinned();
+      const present = [...pinned.values()].some(
+        (message) => message.author.id === neilId && message.content === startText,
+      );
+      if (present) return;
+      const sent = await onboarding.send(interviewStartMessage());
+      await onboarding.messages.pin(sent.id);
     },
 
     async log(message) {
