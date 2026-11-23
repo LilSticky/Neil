@@ -187,8 +187,9 @@ export function createInterviews(deps: InterviewDeps): Interviews {
   return {
     onMemberJoined: (member) => guarded(deps, "joining Member", () => joinMember(deps, member)),
     onMemberLeft: (member) => guarded(deps, "leaving Member", () => leaveServer(deps, member)),
-    onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, starting, command)),
-    onStartButton: (press) => guarded(deps, "Start Interview button", () => startOnCommand(deps, starting, press)),
+    onCommand: (command) => guarded(deps, "/interview", () => startOnCommand(deps, starting, command, "/interview")),
+    onStartButton: (press) =>
+      guarded(deps, "Start Interview button", () => startOnCommand(deps, starting, press, "Start Interview button")),
     onButton: (button) => {
       const ack: Acknowledgement = { acknowledged: false };
       return guardedPress(deps, "Interview button", button, ack, () => pressButton(deps, trackedButton(button, ack)));
@@ -312,14 +313,19 @@ async function joinMember(deps: InterviewDeps, member: JoinedMember): Promise<vo
 }
 
 /** /interview and the Start Interview button: a Linked Member is told their uid, a Member with an open Interview is pointed to its thread, others get a new one. */
-async function startOnCommand(deps: InterviewDeps, starting: Starting, command: CommandLike): Promise<void> {
+async function startOnCommand(
+  deps: InterviewDeps,
+  starting: Starting,
+  command: CommandLike,
+  label: string,
+): Promise<void> {
   // Discord allows three seconds for a first answer; the thread work comes after this deferral, answered with editReply.
   await command.deferReply({ flags: MessageFlags.Ephemeral });
   let reply: PrivateReply;
   try {
     reply = await commandReply(deps, starting, command);
   } catch (error) {
-    deps.logError(`/interview failed: ${errorText(error)}`);
+    deps.logError(`${label} failed: ${errorText(error)}`);
     reply = somethingWentWrongReply();
   }
   await command.editReply(reply);

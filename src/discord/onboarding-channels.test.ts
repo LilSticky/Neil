@@ -24,8 +24,6 @@ const ONBOARDING_PERMISSIONS: readonly NamedPermission[] = [
   { name: "SendMessagesInThreads", bit: PermissionFlagsBits.SendMessagesInThreads },
   { name: "CreatePrivateThreads", bit: PermissionFlagsBits.CreatePrivateThreads },
   { name: "ManageThreads", bit: PermissionFlagsBits.ManageThreads },
-  { name: "SendMessages", bit: PermissionFlagsBits.SendMessages },
-  { name: "PinMessages", bit: PermissionFlagsBits.PinMessages },
 ];
 
 /** The bot permissions the log channel needs (research R2). */

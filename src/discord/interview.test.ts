@@ -1477,6 +1477,7 @@ describe("createInterviews", () => {
       expect(press.replies).toEqual([somethingWentWrongReply()]);
       expect(h.interviews.openFor(MEMBER)).toBeUndefined();
       expect(h.errors).toHaveLength(1);
+      expect(h.errors[0]).toMatch(/^Start Interview button failed: /);
     });
   });
 

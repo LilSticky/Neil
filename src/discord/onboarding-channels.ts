@@ -98,8 +98,7 @@ type PermissionName =
   | "SendMessagesInThreads"
   | "CreatePrivateThreads"
   | "ManageThreads"
-  | "SendMessages"
-  | "PinMessages";
+  | "SendMessages";
 
 /** A problem with the onboarding or log channel, reported at ready (FR-018). */
 export type ChannelProblem =
@@ -107,14 +106,15 @@ export type ChannelProblem =
   | { readonly kind: "not-text-channel"; readonly channel: ChannelName }
   | { readonly kind: "missing-permission"; readonly channel: ChannelName; readonly permission: PermissionName };
 
-/** The bot permissions the onboarding channel needs (research R2). */
+/**
+ * The bot permissions the onboarding channel needs (research R2). Posting and pinning the start message is left out: a
+ * refusal there is only logged (slice 049).
+ */
 const ONBOARDING_PERMISSIONS: readonly PermissionName[] = [
   "ViewChannel",
   "SendMessagesInThreads",
   "CreatePrivateThreads",
   "ManageThreads",
-  "SendMessages",
-  "PinMessages",
 ];
 
 /** The bot permissions the log channel needs (research R2). */

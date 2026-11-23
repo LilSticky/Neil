@@ -69,7 +69,6 @@ const ONBOARDING_PERMISSIONS = [
   PermissionFlagsBits.SendMessagesInThreads,
   PermissionFlagsBits.CreatePrivateThreads,
   PermissionFlagsBits.ManageThreads,
-  PermissionFlagsBits.SendMessages,
   PermissionFlagsBits.PinMessages,
 ];
 const LOG_PERMISSIONS = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages];
