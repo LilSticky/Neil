@@ -57,7 +57,7 @@
         {
           "name": "onboarding",
           "type": "text",
-          "description": "Where newcomers meet Neil 👋 Your private Onboarding Interview opens as a thread here.",
+          "description": "Where newcomers meet Neil 👋 Press Start Interview on the pinned message to open your private Onboarding Interview.",
           "overwrites": {
             "Onboarding": {
               "allow": [
@@ -73,10 +73,12 @@
             "Neil": {
               "allow": [
                 "ViewChannel",
+                "SendMessages",
                 "SendMessagesInThreads",
                 "CreatePrivateThreads",
                 "ManageThreads",
-                "ReadMessageHistory"
+                "ReadMessageHistory",
+                "PinMessages"
               ]
             },
             "Moderator": {
